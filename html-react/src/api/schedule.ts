@@ -14,6 +14,7 @@ export interface ScheduleTask {
   last_error?: string
   last_output?: string
   last_duration_ms?: number
+  last_triggered_by?: string
 }
 
 export interface ScheduleRunResult {
@@ -23,6 +24,7 @@ export interface ScheduleRunResult {
   output?: string
   duration_ms?: number
   run_at?: string
+  triggered_by?: string
 }
 
 export function getScheduleList() {

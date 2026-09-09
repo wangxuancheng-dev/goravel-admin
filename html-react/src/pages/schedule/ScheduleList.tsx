@@ -22,7 +22,7 @@ function formatDuration(ms?: number) {
 }
 
 export default function ScheduleList() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { modal, message } = App.useApp()
   const showError = useUnhandledError()
   const [loading, setLoading] = useState(false)
@@ -31,16 +31,16 @@ export default function ScheduleList() {
   const [resultOpen, setResultOpen] = useState(false)
   const [resultData, setResultData] = useState<ScheduleRunResult | null>(null)
 
-  const resolveDescription = (row: ScheduleTask) => {
-    const key = `schedule.commands.${String(row.command || '').replace(/:/g, '_')}`
-    if (i18n.exists(key)) return t(key)
-    return row.description || row.command || '-'
-  }
-
   const statusLabel = (status?: string) => {
     if (status === 'success') return t('schedule.status_success')
     if (status === 'failed') return t('schedule.status_failed')
     return t('schedule.status_never')
+  }
+
+  const triggeredByLabel = (value?: string) => {
+    if (value === 'schedule') return t('schedule.triggered_schedule')
+    if (value === 'manual') return t('schedule.triggered_manual')
+    return value || '-'
   }
 
   const statusColor = (status?: string) => {
@@ -62,6 +62,7 @@ export default function ScheduleList() {
       output: row.last_output,
       duration_ms: row.last_duration_ms,
       run_at: row.last_run_at,
+      triggered_by: row.last_triggered_by,
     })
   }
 
@@ -122,7 +123,7 @@ export default function ScheduleList() {
       title: t('schedule.description'),
       key: 'description',
       minWidth: 180,
-      render: (_, row) => resolveDescription(row),
+      render: (_, row) => row.description || row.command || '-',
     },
     {
       title: t('schedule.cron'),
@@ -253,6 +254,9 @@ export default function ScheduleList() {
           <Descriptions.Item label={t('schedule.last_run_at')}>{resultData?.run_at || '-'}</Descriptions.Item>
           <Descriptions.Item label={t('schedule.last_duration')}>
             {formatDuration(resultData?.duration_ms)}
+          </Descriptions.Item>
+          <Descriptions.Item label={t('schedule.triggered_by')}>
+            {triggeredByLabel(resultData?.triggered_by)}
           </Descriptions.Item>
           {resultData?.error ? (
             <Descriptions.Item label={t('schedule.error')}>

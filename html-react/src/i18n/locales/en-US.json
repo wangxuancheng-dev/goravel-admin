@@ -802,7 +802,7 @@
     "batch_kick_out_failed": "Batch kick out failed"
   },
   "schedule": {
-    "hint": "Only shows tasks registered on the server. Manual run executes the Artisan command immediately and captures ctx.Info/Error output.",
+    "hint": "Lists registered server schedules. Manual and automatic runs both record the latest result. Cron times are UTC.",
     "command": "Command",
     "description": "Description",
     "cron": "Cron Expression",
@@ -831,6 +831,9 @@
     "last_status": "Last Status",
     "last_run_at": "Last Run At",
     "last_duration": "Duration",
+    "triggered_by": "Triggered By",
+    "triggered_manual": "Manual",
+    "triggered_schedule": "Schedule",
     "run_now": "Run Now",
     "run_confirm": "Run scheduled task \"{{command}}\" now?",
     "run_success": "Task executed",
@@ -842,16 +845,7 @@
     "output_empty": "(No console output)",
     "status_success": "Success",
     "status_failed": "Failed",
-    "status_never": "Never",
-    "commands": {
-      "app_clear-logs": "Clear expired system logs",
-      "app_clear-chunks": "Clear expired upload chunks",
-      "db_analyze-stats": "Analyze database table statistics",
-      "order_create-sharding-tables": "Create next month order sharding tables",
-      "payment_create-sharding-tables": "Create next month payment sharding tables",
-      "es_retry-outbox": "Retry Elasticsearch outbox backlog",
-      "app_schedule-test-log": "Schedule heartbeat test"
-    }
+    "status_never": "Never"
   },
   "export": {
     "type": "Export Type",

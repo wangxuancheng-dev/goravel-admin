@@ -17,7 +17,7 @@
         <el-table-column prop="command" :label="t('schedule.command')" min-width="220" />
         <el-table-column :label="t('schedule.description')" min-width="180">
           <template #default="{ row }">
-            {{ resolveDescription(row) }}
+            {{ row.description || row.command || '-' }}
           </template>
         </el-table-column>
         <el-table-column :label="t('schedule.cron')" min-width="220">
@@ -96,6 +96,9 @@
         <el-descriptions-item :label="t('schedule.last_duration')">
           {{ formatDuration(resultData.duration_ms) }}
         </el-descriptions-item>
+        <el-descriptions-item :label="t('schedule.triggered_by')">
+          {{ triggeredByLabel(resultData.triggered_by) }}
+        </el-descriptions-item>
         <el-descriptions-item v-if="resultData.error" :label="t('schedule.error')">
           <pre class="schedule-result-pre schedule-result-pre--error">{{ resultData.error }}</pre>
         </el-descriptions-item>
@@ -116,7 +119,7 @@ import { usePermission } from '@/composables/usePermission'
 import { describeCron } from '@/utils/cronLabel'
 import { logger } from '@/utils/logger'
 
-const { t, te } = useI18n()
+const { t } = useI18n()
 const { getButtonState } = usePermission()
 
 const loading = ref(false)
@@ -130,18 +133,19 @@ const resultData = reactive({
   output: '',
   duration_ms: undefined,
   run_at: '',
+  triggered_by: '',
 })
-
-function resolveDescription(row) {
-  const key = `schedule.commands.${String(row.command || '').replace(/:/g, '_')}`
-  if (te(key)) return t(key)
-  return row.description || row.command || '-'
-}
 
 function statusLabel(status) {
   if (status === 'success') return t('schedule.status_success')
   if (status === 'failed') return t('schedule.status_failed')
   return t('schedule.status_never')
+}
+
+function triggeredByLabel(value) {
+  if (value === 'schedule') return t('schedule.triggered_schedule')
+  if (value === 'manual') return t('schedule.triggered_manual')
+  return value || '-'
 }
 
 function statusTagType(status) {
@@ -163,6 +167,7 @@ function showResult(payload = {}) {
   resultData.output = payload.output || ''
   resultData.duration_ms = payload.duration_ms
   resultData.run_at = payload.run_at || ''
+  resultData.triggered_by = payload.triggered_by || ''
   resultVisible.value = true
 }
 
@@ -174,6 +179,7 @@ function openResultFromRow(row) {
     output: row.last_output,
     duration_ms: row.last_duration_ms,
     run_at: row.last_run_at,
+    triggered_by: row.last_triggered_by,
   })
 }
 
