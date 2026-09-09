@@ -469,6 +469,20 @@ func (s *MenuSeeder) Run() error {
 		IsHidden:  0,
 	})
 
+	// 定时任务管理（一级菜单）
+	createOrUpdateMenu(models.Menu{
+		ParentID:  0,
+		Title:     "定时任务",
+		Slug:      "schedule",
+		Icon:      "Timer",
+		Path:      "/schedules",
+		Component: "schedule/ScheduleList",
+		Type:      2,
+		Status:    1,
+		Sort:      2,
+		IsHidden:  0,
+	})
+
 	// 创建个人中心菜单
 	createOrUpdateMenu(models.Menu{
 		ParentID:  0,

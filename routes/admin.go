@@ -21,6 +21,7 @@ func Admin() {
 	configController := admin.NewConfigController()
 	blacklistController := admin.NewBlacklistController()
 	onlineAdminController := admin.NewOnlineAdminController()
+	scheduleController := admin.NewScheduleController()
 	operationLogController := admin.NewOperationLogController()
 	loginLogController := admin.NewLoginLogController()
 	systemLogController := admin.NewSystemLogController()
@@ -152,6 +153,10 @@ func Admin() {
 			router.Get("online-admins", onlineAdminController.Index)
 			router.Delete("online-admins/{id}", onlineAdminController.KickOut)
 			router.Post("online-admins/batch-kick-out", onlineAdminController.BatchKickOut)
+
+			// 定时任务管理（列表 + 手动触发；仅允许执行已注册的 schedule 命令）
+			router.Get("schedules", scheduleController.Index)
+			router.Post("schedules/run", scheduleController.Run)
 
 			// 操作日志
 			router.Get("operation-logs", operationLogController.Index)

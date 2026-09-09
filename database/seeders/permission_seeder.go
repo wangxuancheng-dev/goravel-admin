@@ -16,7 +16,7 @@ func (s *PermissionSeeder) Signature() string {
 func (s *PermissionSeeder) Run() error {
 	// 获取菜单（权限需要关联菜单）
 	var adminMenu, roleMenu, permissionMenu, menuMenu, departmentMenu, positionMenu, dictionaryMenu, configMenu, blacklistMenu, onlineAdminMenu, orderMenu, userMenu, userBalanceLogMenu models.Menu
-	var operationLogMenu, loginLogMenu, systemLogMenu, observabilityMenu, monitorMenu, profileMenu, exportMenu, attachmentMenu, dashboardMenu, notificationMenu models.Menu
+	var operationLogMenu, loginLogMenu, systemLogMenu, observabilityMenu, monitorMenu, scheduleMenu, profileMenu, exportMenu, attachmentMenu, dashboardMenu, notificationMenu models.Menu
 	var paymentMethodMenu, paymentRecordMenu models.Menu
 
 	// 辅助函数：查找菜单
@@ -40,6 +40,7 @@ func (s *PermissionSeeder) Run() error {
 	findMenu("system-log", &systemLogMenu)
 	findMenu("observability", &observabilityMenu)
 	findMenu("monitor", &monitorMenu)
+	findMenu("schedule", &scheduleMenu)
 	findMenu("profile", &profileMenu)
 	findMenu("export", &exportMenu)
 	findMenu("attachment", &attachmentMenu)
@@ -153,6 +154,9 @@ func (s *PermissionSeeder) Run() error {
 		// 服务监控
 		{Name: "系统监控", Slug: "monitor.system_info", Method: "GET", Path: "/api/admin/monitor/system-info", Description: "查看系统监控信息", Status: 1, Sort: 1, MenuID: monitorMenu.ID},
 		{Name: "系统监控实时流", Slug: "monitor.system_info_stream", Method: "GET", Path: "/api/admin/monitor/system-info/stream", Description: "系统监控实时数据流", Status: 1, Sort: 2, MenuID: monitorMenu.ID},
+		// 定时任务
+		{Name: "定时任务列表", Slug: "schedule.index", Method: "GET", Path: "/api/admin/schedules", Description: "查看定时任务列表", Status: 1, Sort: 1, MenuID: scheduleMenu.ID},
+		{Name: "手动执行定时任务", Slug: "schedule.run", Method: "POST", Path: "/api/admin/schedules/run", Description: "手动执行已注册的定时任务", Status: 1, Sort: 2, MenuID: scheduleMenu.ID},
 		// 个人中心
 		{Name: "修改资料", Slug: "profile.update", Method: "PUT", Path: "/api/admin/profile", Description: "修改当前登录管理员资料", Status: 1, Sort: 1, MenuID: profileMenu.ID},
 		{Name: "修改密码", Slug: "password.update", Method: "PUT", Path: "/api/admin/password", Description: "修改当前登录管理员密码", Status: 1, Sort: 2, MenuID: profileMenu.ID},
