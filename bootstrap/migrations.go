@@ -71,5 +71,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20260717000001AddIsPublicToAttachmentsTable{},
 		&migrations.M20260911000001CreateTenantsTable{},
 		&migrations.M20260911000002CreatePlatformAdminsTable{},
+		&migrations.M20260912000001AddProvisionStatusToTenants{},
 	}
 }

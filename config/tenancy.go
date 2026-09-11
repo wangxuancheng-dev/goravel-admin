@@ -19,6 +19,10 @@ func init() {
 		"database_prefix": config.Env("TENANCY_DATABASE_PREFIX", "tenant_"),
 		// PostgreSQL schema 隔离时的 schema 前缀
 		"schema_prefix": config.Env("TENANCY_SCHEMA_PREFIX", "tenant_"),
+		// 钉死平台连接名（勿指向 tenant_*）；空则首次 PlatformOrmQuery 时取 database.default
+		"platform_connection": config.Env("TENANCY_PLATFORM_CONNECTION", ""),
+		// 同机开户时是否允许空 username/password 回落平台 DB 账号（远程 host 始终要求独立凭据）
+		"allow_platform_db_credentials": config.Env("TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS", true),
 		// platform:install 默认管理员（也可传 CLI 参数）
 		"platform_admin_username": config.Env("PLATFORM_ADMIN_USERNAME", ""),
 		"platform_admin_password": config.Env("PLATFORM_ADMIN_PASSWORD", ""),

@@ -1,6 +1,8 @@
 package models
 
 import (
+	"strings"
+
 	"github.com/goravel/framework/database/orm"
 )
 
@@ -13,22 +15,41 @@ const (
 
 	TenantDriverMySQL    = "mysql"
 	TenantDriverPostgres = "postgres"
+
+	// Provision lifecycle (platform tenants table).
+	TenantProvisionPending = "pending"
+	TenantProvisionReady   = "ready"
+	TenantProvisionFailed  = "failed"
 )
 
 // Tenant 平台库中的租户元数据（一户一库 / 一 schema）
 type Tenant struct {
 	orm.Model
-	Code           string `gorm:"uniqueIndex;size:64;not null;comment:租户短码" json:"code"`
-	Name           string `gorm:"size:100;not null;comment:显示名称" json:"name"`
-	Status         uint8  `gorm:"default:1;index;comment:1启用 0禁用" json:"status"`
-	Driver         string `gorm:"size:20;not null;comment:mysql|postgres" json:"driver"`
-	Isolation      string `gorm:"size:20;not null;comment:database|schema" json:"isolation"`
-	Host           string `gorm:"size:255;comment:空则回落平台 DB_HOST" json:"host"`
-	Port           int    `gorm:"comment:0 则回落平台 DB_PORT" json:"port"`
-	Database       string `gorm:"size:128;not null;comment:目标 database 名" json:"database"`
-	Schema         string `gorm:"size:128;comment:PG schema 名；database 隔离时可空" json:"schema"`
-	Username       string `gorm:"size:128;comment:空则回落平台用户" json:"username"`
-	Password       string `gorm:"type:text;comment:空则回落平台密码；APP_KEY 加密" json:"-"`
-	ConnectionName string `gorm:"size:64;uniqueIndex;not null;comment:运行时 connection 名" json:"connection_name"`
+	Code            string `gorm:"uniqueIndex;size:64;not null;comment:租户短码" json:"code"`
+	Name            string `gorm:"size:100;not null;comment:显示名称" json:"name"`
+	Status          uint8  `gorm:"default:1;index;comment:1启用 0禁用" json:"status"`
+	ProvisionStatus string `gorm:"size:32;default:pending;index;comment:pending|ready|failed" json:"provision_status"`
+	Driver          string `gorm:"size:20;not null;comment:mysql|postgres" json:"driver"`
+	Isolation       string `gorm:"size:20;not null;comment:database|schema" json:"isolation"`
+	Host            string `gorm:"size:255;comment:空则回落平台 DB_HOST" json:"host"`
+	Port            int    `gorm:"comment:0 则回落平台 DB_PORT" json:"port"`
+	Database        string `gorm:"size:128;not null;comment:目标 database 名" json:"database"`
+	Schema          string `gorm:"size:128;comment:PG schema 名；database 隔离时可空" json:"schema"`
+	Username        string `gorm:"size:128;comment:空则回落平台用户" json:"username"`
+	Password        string `gorm:"type:text;comment:空则回落平台密码；APP_KEY 加密" json:"-"`
+	ConnectionName  string `gorm:"size:64;uniqueIndex;not null;comment:运行时 connection 名" json:"connection_name"`
 	orm.SoftDeletes
+}
+
+// IsProvisionReady reports whether the tenant DB has been migrated and may accept traffic.
+func (t *Tenant) IsProvisionReady() bool {
+	if t == nil {
+		return false
+	}
+	status := strings.TrimSpace(t.ProvisionStatus)
+	if status == "" {
+		// Pre-column rows / unset: treat as ready only when explicitly empty after legacy installs.
+		return true
+	}
+	return status == TenantProvisionReady
 }

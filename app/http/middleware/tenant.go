@@ -27,6 +27,8 @@ func Tenant() http.Middleware {
 					response.Abort(ctx, http.StatusNotFound, businessErr.Code)
 				case apperrors.ErrTenantDisabled.Code:
 					response.Abort(ctx, http.StatusForbidden, businessErr.Code)
+				case apperrors.ErrTenantNotReady.Code:
+					response.Abort(ctx, http.StatusForbidden, businessErr.Code)
 				default:
 					response.Abort(ctx, http.StatusInternalServerError, apperrors.ErrTenantConnectionFailed.Code)
 				}

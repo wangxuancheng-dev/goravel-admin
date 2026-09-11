@@ -77,6 +77,10 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusForbidden
 	case code == "tenant_required" || code == "tenancy_disabled":
 		return http.StatusBadRequest
+	case code == "tenant_not_ready":
+		return http.StatusForbidden
+	case code == "tenant_credentials_required":
+		return http.StatusBadRequest
 	case code == "tenant_connection_failed":
 		return http.StatusInternalServerError
 	case code == "payment_gateway_not_implemented":

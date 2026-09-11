@@ -1,6 +1,13 @@
 package services
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/goravel/framework/facades"
+
+	appfacades "goravel/app/facades"
+	"goravel/app/models"
+)
 
 func TestNormalizeTenantCode(t *testing.T) {
 	ok, err := NormalizeTenantCode("Acme_01")
@@ -36,5 +43,69 @@ func TestResolveTenantIsolation(t *testing.T) {
 func TestTenantConnectionName(t *testing.T) {
 	if got := TenantConnectionName(12); got != "tenant_12" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestValidateTenantCredentials(t *testing.T) {
+	prev := facades.Config().GetBool("tenancy.allow_platform_db_credentials", true)
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.allow_platform_db_credentials", prev)
+	})
+
+	facades.Config().Add("tenancy.allow_platform_db_credentials", true)
+	if err := ValidateTenantCredentials("", "", ""); err != nil {
+		t.Fatalf("same-host shared creds should allow empty: %v", err)
+	}
+
+	facades.Config().Add("tenancy.allow_platform_db_credentials", false)
+	if err := ValidateTenantCredentials("", "", ""); err == nil {
+		t.Fatal("expected error when shared creds disabled")
+	}
+
+	if err := ValidateTenantCredentials("10.0.0.8", "", "secret"); err == nil {
+		t.Fatal("remote host requires username")
+	}
+	if err := ValidateTenantCredentials("10.0.0.8", "u", ""); err == nil {
+		t.Fatal("remote host requires password")
+	}
+	if err := ValidateTenantCredentials("10.0.0.8", "u", "secret"); err != nil {
+		t.Fatalf("remote dedicated creds should pass: %v", err)
+	}
+}
+
+func TestTenantIsProvisionReady(t *testing.T) {
+	cases := []struct {
+		status string
+		want   bool
+	}{
+		{"", true},
+		{models.TenantProvisionReady, true},
+		{models.TenantProvisionPending, false},
+		{models.TenantProvisionFailed, false},
+	}
+	for _, tc := range cases {
+		tenant := &models.Tenant{ProvisionStatus: tc.status}
+		if got := tenant.IsProvisionReady(); got != tc.want {
+			t.Fatalf("status=%q got %v want %v", tc.status, got, tc.want)
+		}
+	}
+}
+
+func TestPlatformOrmQueryIgnoresDefaultFlip(t *testing.T) {
+	appfacades.ResetPlatformConnectionNameForTest()
+	pinned := appfacades.PlatformConnectionName()
+	if pinned == "" || (len(pinned) >= 7 && pinned[:7] == "tenant_") {
+		t.Fatalf("unexpected pinned platform connection: %q", pinned)
+	}
+
+	prev := facades.Config().GetString("database.default")
+	facades.Config().Add("database.default", "tenant_999")
+	t.Cleanup(func() {
+		facades.Config().Add("database.default", prev)
+		appfacades.ResetPlatformConnectionNameForTest()
+	})
+
+	if got := appfacades.PlatformConnectionName(); got != pinned {
+		t.Fatalf("pin must not follow flipped default: got %q want %q", got, pinned)
 	}
 }

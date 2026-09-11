@@ -17,6 +17,7 @@ func (m *M20260911000001CreateTenantsTable) Up() error {
 		table.String("code", 64).Comment("租户短码")
 		table.String("name", 100).Comment("显示名称")
 		table.UnsignedTinyInteger("status").Default(1).Comment("1启用 0禁用")
+		table.String("provision_status", 32).Default("pending").Comment("pending|ready|failed")
 		table.String("driver", 20).Comment("mysql|postgres")
 		table.String("isolation", 20).Comment("database|schema")
 		table.String("host", 255).Nullable().Comment("空则回落平台 DB_HOST")
@@ -32,6 +33,7 @@ func (m *M20260911000001CreateTenantsTable) Up() error {
 		table.Unique("code")
 		table.Unique("connection_name")
 		table.Index("status")
+		table.Index("provision_status")
 	})
 }
 

@@ -146,24 +146,29 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		schemaName = DefaultTenantSchemaName(code)
 	}
 
+	if err := ValidateTenantCredentials(input.Host, input.Username, input.Password); err != nil {
+		return nil, err
+	}
+
 	sealedPassword, err := SealTenantPassword(input.Password)
 	if err != nil {
 		return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
 	}
 
 	tenant := models.Tenant{
-		Code:           code,
-		Name:           name,
-		Status:         models.TenantStatusActive,
-		Driver:         driverName,
-		Isolation:      isolation,
-		Host:           strings.TrimSpace(input.Host),
-		Port:           input.Port,
-		Database:       database,
-		Schema:         schemaName,
-		Username:       strings.TrimSpace(input.Username),
-		Password:       sealedPassword,
-		ConnectionName: fmt.Sprintf("tenant_pending_%s", code),
+		Code:            code,
+		Name:            name,
+		Status:          models.TenantStatusActive,
+		ProvisionStatus: models.TenantProvisionPending,
+		Driver:          driverName,
+		Isolation:       isolation,
+		Host:            strings.TrimSpace(input.Host),
+		Port:            input.Port,
+		Database:        database,
+		Schema:          schemaName,
+		Username:        strings.TrimSpace(input.Username),
+		Password:        sealedPassword,
+		ConnectionName:  fmt.Sprintf("tenant_pending_%s", code),
 	}
 	if err := appfacades.PlatformOrmQuery(nil).Create(&tenant); err != nil {
 		return nil, err
@@ -201,6 +206,9 @@ func (s *TenantAdminService) SetStatus(id uint, status uint8) (*models.Tenant, e
 	}
 	if status != models.TenantStatusActive && status != models.TenantStatusDisabled {
 		return nil, apperrors.ErrInvalidArgument.WithMessage("status must be 0 or 1")
+	}
+	if status == models.TenantStatusActive && !tenant.IsProvisionReady() {
+		return nil, apperrors.ErrTenantNotReady
 	}
 	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
 		"status": status,
@@ -266,6 +274,20 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 	if len(updates) == 0 {
 		return tenant, nil
 	}
+
+	checkHost := tenant.Host
+	checkUser := tenant.Username
+	checkPass := ""
+	if TenantHasPassword(tenant.Password) {
+		checkPass = "set"
+	}
+	if input.Password != nil {
+		checkPass = *input.Password
+	}
+	if err := ValidateTenantCredentials(checkHost, checkUser, checkPass); err != nil {
+		return nil, err
+	}
+
 	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(updates); err != nil {
 		return nil, err
 	}
@@ -290,20 +312,21 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 		return nil
 	}
 	return map[string]any{
-		"id":              t.ID,
-		"code":            t.Code,
-		"name":            t.Name,
-		"status":          t.Status,
-		"driver":          t.Driver,
-		"isolation":       t.Isolation,
-		"host":            t.Host,
-		"port":            t.Port,
-		"database":        t.Database,
-		"schema":          t.Schema,
-		"username":        t.Username,
-		"has_password":    TenantHasPassword(t.Password),
-		"connection_name": t.ConnectionName,
-		"created_at":      t.CreatedAt,
-		"updated_at":      t.UpdatedAt,
+		"id":               t.ID,
+		"code":             t.Code,
+		"name":             t.Name,
+		"status":           t.Status,
+		"provision_status": t.ProvisionStatus,
+		"driver":           t.Driver,
+		"isolation":        t.Isolation,
+		"host":             t.Host,
+		"port":             t.Port,
+		"database":         t.Database,
+		"schema":           t.Schema,
+		"username":         t.Username,
+		"has_password":     TenantHasPassword(t.Password),
+		"connection_name":  t.ConnectionName,
+		"created_at":       t.CreatedAt,
+		"updated_at":       t.UpdatedAt,
 	}
 }

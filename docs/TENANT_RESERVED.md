@@ -25,6 +25,7 @@ TENANCY_DRIVER=database
 | API | `/api/admin` | `/api/platform` |
 | Token | `token` | `platform_token` |
 | 开户 migrate | — | **仅 CLI**（HTTP 只登记/建库） |
+| 开户状态 | — | `provision_status`: `pending` → `ready`（`tenant:migrate` 成功后）；未 ready 禁止业务绑定 |
 
 ## 配置
 
@@ -35,6 +36,9 @@ TENANCY_HEADER=X-Tenant-ID
 TENANCY_SUBDOMAIN_RESERVED=www,api,admin,platform,static,assets
 TENANCY_DATABASE_PREFIX=tenant_
 TENANCY_SCHEMA_PREFIX=tenant_
+TENANCY_PLATFORM_CONNECTION=       # 可选；钉死平台连接名，默认取 database.default
+TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true  # 同机空账号回落平台 DB_*；生产建议 false
+                                          # 远程 host 始终要求独立 username/password
 
 PLATFORM_ADMIN_USERNAME=admin
 PLATFORM_ADMIN_PASSWORD=secret
@@ -44,6 +48,14 @@ PLATFORM_ADMIN_NAME=平台管理员
 # CORS_ALLOWED_HEADERS=...,X-Tenant-ID
 ```
 前端：`VITE_TENANCY_ENABLED=true`（或 `VITE_TENANCY_DRIVER=database`）。
+
+## 生产要点（P0）
+
+1. **平台连接钉死**：`PlatformOrmQuery` 使用 `tenancy.platform_connection`，不跟随 migrate 时临时翻转的 `database.default`。
+2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
+3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
+4. **开户状态**：HTTP/CLI 创建后为 `pending`；`tenant:migrate` 成功 → `ready`；未 ready 的租户不可绑定业务请求，也不可启用以绕过。
+5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`。
 
 ## 首启（推荐）
 
@@ -135,7 +147,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 
 ### 硬性规则
 
-1. 业务用 `OrmQuery(ctx)`；平台路由**不**挂 `Tenant` 中间件。
+1. 业务用 `OrmQuery(ctx)`；平台路由**不**挂 `Tenant` 中间件；平台元数据用 `PlatformOrmQuery`（钉死平台连接）。
 2. 隔离是**切库/切 Schema**，不是行级 `tenant_id` GlobalScope。
 3. 缓存/上传（含 `chunks/`、导出、导入与附件临时目录）走租户前缀。
 4. 搜索索引绑定后为 `{code}_orders`；未绑定 fail-closed，禁止回退共享 `orders`。
@@ -145,3 +157,5 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 8. 浏览器跨域 header 解析租户时，`CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`。
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
+11. 仅 `provision_status=ready` 的租户可绑定业务；HTTP 开户禁止 migrate，须 CLI `tenant:migrate`。
+12. 远程租户库禁止空账号回落平台 root；生产建议 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。

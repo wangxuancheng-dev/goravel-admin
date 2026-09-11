@@ -121,12 +121,55 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 	return nil
 }
 
-// Forget drops a cached tenant connection registration (e.g. after disable).
+// Forget drops a cached tenant connection registration and closes its sql.DB pool when possible.
 func (s *TenantConnectionService) Forget(connectionName string) {
 	if connectionName == "" {
 		return
 	}
 	registeredConns.Delete(connectionName)
+	o := appfacades.Orm().Connection(connectionName)
+	if db, err := o.DB(); err == nil && db != nil {
+		_ = db.Close()
+	}
+	o.Fresh()
+}
+
+// ValidateTenantCredentials enforces dedicated DB users for remote hosts.
+// Same-host (empty host) may reuse platform credentials when tenancy.allow_platform_db_credentials=true.
+func ValidateTenantCredentials(host, username, password string) error {
+	host = strings.TrimSpace(host)
+	username = strings.TrimSpace(username)
+	allowShared := facades.Config().GetBool("tenancy.allow_platform_db_credentials", true)
+	if host != "" {
+		if username == "" || strings.TrimSpace(password) == "" {
+			return apperrors.ErrTenantCredentialsRequired
+		}
+		return nil
+	}
+	if !allowShared && (username == "" || strings.TrimSpace(password) == "") {
+		return apperrors.ErrTenantCredentialsRequired
+	}
+	return nil
+}
+
+// SetProvisionStatus persists provision lifecycle on the platform tenants row.
+func (s *TenantConnectionService) SetProvisionStatus(tenant *models.Tenant, status string) error {
+	if tenant == nil || tenant.ID == 0 {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	status = strings.TrimSpace(status)
+	switch status {
+	case models.TenantProvisionPending, models.TenantProvisionReady, models.TenantProvisionFailed:
+	default:
+		return apperrors.ErrInvalidArgument.WithMessage("invalid provision_status")
+	}
+	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+		"provision_status": status,
+	}); err != nil {
+		return err
+	}
+	tenant.ProvisionStatus = status
+	return nil
 }
 
 func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (map[string]any, error) {
@@ -550,6 +593,9 @@ func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error 
 	if tenant.Status != models.TenantStatusActive {
 		return apperrors.ErrTenantDisabled
 	}
+	if !tenant.IsProvisionReady() {
+		return apperrors.ErrTenantNotReady
+	}
 	if err := s.EnsureRegistered(tenant); err != nil {
 		return apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
@@ -569,6 +615,9 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 	if tenant.Status != models.TenantStatusActive {
 		return ctx, apperrors.ErrTenantDisabled
 	}
+	if !tenant.IsProvisionReady() {
+		return ctx, apperrors.ErrTenantNotReady
+	}
 	if err := s.EnsureRegistered(tenant); err != nil {
 		return ctx, apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
@@ -576,6 +625,8 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 }
 
 // WithTenantConnection 在租户连接上串行执行（migrate / seed 共用）。
+// 仅切换 Schema 连接与（为 Artisan seed/migrate 兼容）临时 database.default；
+// 平台查询请始终走 PlatformOrmQuery（钉死 platform_connection，不受 default 翻转影响）。
 func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn func() error) error {
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
@@ -588,6 +639,9 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 	schemaMu := appfacades.SchemaConnLock()
 	schemaMu.Lock()
 	defer schemaMu.Unlock()
+
+	// Pin platform connection before flipping default so first PlatformOrmQuery wins the pin.
+	_ = appfacades.PlatformConnectionName()
 
 	prevDefault := facades.Config().GetString("database.default")
 	facades.Config().Add("database.default", tenant.ConnectionName)
@@ -617,9 +671,14 @@ func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...s
 	})
 }
 
-// MigrateTenant 在租户连接上执行 migrate
+// MigrateTenant 在租户连接上执行 migrate，成功后标记 provision_status=ready。
 func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
-	return s.WithTenantConnection(tenant, func() error {
+	err := s.WithTenantConnection(tenant, func() error {
 		return facades.Artisan().Call("migrate")
 	})
+	if err != nil {
+		_ = s.SetProvisionStatus(tenant, models.TenantProvisionFailed)
+		return err
+	}
+	return s.SetProvisionStatus(tenant, models.TenantProvisionReady)
 }

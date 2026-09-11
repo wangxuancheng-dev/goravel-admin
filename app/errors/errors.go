@@ -182,6 +182,8 @@ var (
 	ErrTenantExists           = NewBusinessError("tenant_exists", "租户编码已存在")
 	ErrTenantMigrateViaCLI    = NewBusinessError("tenant_migrate_via_cli", "请使用 CLI：go run . artisan tenant:migrate {code}")
 	ErrTenantPasswordCorrupt  = NewBusinessError("tenant_password_corrupt", "租户库密码密文无效，请重新设置")
+	ErrTenantNotReady         = NewBusinessError("tenant_not_ready", "租户尚未完成 migrate，请先执行 tenant:migrate")
+	ErrTenantCredentialsRequired = NewBusinessError("tenant_credentials_required", "远程租户库必须提供独立 username/password；同机共用平台账号请设置 TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true")
 	ErrTokenRefreshFailed = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound       = NewBusinessError("user_not_found", "用户不存在")
 
