@@ -19,16 +19,20 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         客户端 (Browser)                         │
-├─────────────────────────────────────────────────────────────────┤
-│                    Vue 3 SPA (Element Plus)                      │
-├─────────────────────────────────────────────────────────────────┤
+├───────────────────────────────┬─────────────────────────────────┤
+│   Vue 3 SPA (html/)           │   React 19 SPA (html-react/)    │
+│   Element Plus + vxe-table    │   Ant Design 6                  │
+├───────────────────────────────┴─────────────────────────────────┤
 │                         Nginx / CDN                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                      Goravel API Server                          │
+│                    /api/admin（同一套契约）                        │
 ├─────────────────────────────────────────────────────────────────┤
 │           MySQL / PostgreSQL          │         Redis            │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+两套前端**对接同一 Admin API**，约定新功能同发（见前端 skill）。架构上后端一份，前端双实现。
 
 ---
 
@@ -36,46 +40,33 @@
 
 ### 技术栈
 
-| 层级 | 技术 | 版本 |
-|------|------|------|
+| 层级 | 技术 | 版本 / 说明 |
+|------|------|-------------|
 | **后端框架** | Goravel | v1.14+ |
-| **编程语言** | Go | 1.21+ |
-| **前端框架** | Vue | 3.4+ |
-| **UI 组件** | Element Plus | 2.4+ |
-| **表格组件** | VXE-Table | 4.7+ |
-| **状态管理** | Pinia | 2.1+ |
-| **数据库** | MySQL/PostgreSQL | 8.0+ / 15+ |
-| **缓存** | Redis | 7.0+ |
+| **编程语言** | Go | 1.21+（以 `go.mod` 为准） |
+| **前端（Vue）** | Vue 3 + Element Plus + VXE-Table + Pinia | 目录 `html/` |
+| **前端（React）** | React 19 + Ant Design 6 + Zustand + React Router 7 | 目录 `html-react/` |
+| **数据库** | MySQL / PostgreSQL | 8.0+ / 15+ |
+| **缓存 / 队列** | Redis（可选 sync 队列本地跑） | 7.0+ |
 | **认证** | JWT | - |
 
 ### 架构模式
 
 ```
+┌──────────────────────────────┐  ┌──────────────────────────────┐
+│        前端 Vue (html/)       │  │     前端 React (html-react/)  │
+│  Views / Components / Store  │  │  Pages / Components / Stores │
+│  request.js + apiFactory     │  │  request.ts + apiFactory      │
+└──────────────┬───────────────┘  └──────────────┬───────────────┘
+               │  /api/admin                      │
+               └────────────────┬─────────────────┘
+                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                          前端 (Vue 3)                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
-│  │  Views   │  │Components│  │Composables│ │    Store (Pinia) │ │
-│  └────┬─────┘  └────┬─────┘  └────┬──────┘ └────────┬─────────┘ │
-│       └─────────────┴─────────────┴─────────────────┘           │
-│                              │ API                               │
-├──────────────────────────────┼──────────────────────────────────┤
 │                          后端 (Goravel)                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │  Controllers │  │  Middleware  │  │      Routes          │   │
-│  └──────┬───────┘  └──────┬───────┘  └──────────────────────┘   │
-│         │                 │                                      │
-│  ┌──────▼───────┐  ┌──────▼───────┐                             │
-│  │   Services   │  │   Helpers    │                             │
-│  └──────┬───────┘  └──────────────┘                             │
-│         │                                                        │
-│  ┌──────▼───────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │    Models    │  │    Events    │  │       Jobs           │   │
-│  └──────┬───────┘  └──────────────┘  └──────────────────────┘   │
-├─────────┼───────────────────────────────────────────────────────┤
-│         ▼                                                        │
-│  ┌──────────────┐  ┌──────────────┐                             │
-│  │   Database   │  │    Redis     │                             │
-│  └──────────────┘  └──────────────┘                             │
+│  Controllers → Services → Models / Jobs / Events                 │
+│  统一 response / BusinessError / 代码生成器模板                   │
+├─────────────────────────────────────────────────────────────────┤
+│  Database                          │  Redis（缓存/队列/锁）       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -191,86 +182,71 @@ admin, resp := response.FindByID[models.Admin](ctx, id, nil)
 
 ## 前端架构
 
-### 目录结构
+两套 SPA **共用后端契约**（`code` / `message` / `error_code` / `data.list`），目录与栈不同，业务模块应对齐。
+
+| | Vue (`html/`) | React (`html-react/`) |
+|---|---|---|
+| UI | Element Plus + vxe-table | Ant Design 6 |
+| 状态 | Pinia | Zustand |
+| 列表页 | `useListPage` / `useStandardListPage` | `useListPage` + `SimpleCrudPage` 等 |
+| API | `apiFactory` + `request.js` | `apiFactory` + `request.ts` |
+| i18n | `vue-i18n`（`locales/zh-CN|en-US.json`） | `react-i18next`（同结构 locales） |
+
+**同发约定：** 新增或修改管理端功能时，Vue 与 React 在同一变更集中交付（除非明确只改一端）。
+
+### Vue 目录结构
 
 ```
 html/src/
 ├── api/                     # API 请求
 ├── components/              # 通用组件
-│   ├── SearchForm.vue      # 搜索表单
-│   ├── Pagination.vue      # 分页组件
-│   ├── ErrorBoundary.vue   # 错误边界
-│   └── ColumnSettingDialog.vue  # 列设置
-├── composables/             # 可复用逻辑 (TypeScript)
-│   ├── useCrud.ts          # CRUD 操作
-│   ├── useDebounce.ts      # 防抖
-│   ├── useTableSort.ts     # 表格排序
-│   ├── usePermission.ts    # 权限检查
-│   ├── useListPage.js      # 列表页面
-│   └── useColumnSetting.js # 列设置
-├── i18n/                    # 国际化
-│   └── locales/
-│       ├── zh-CN.json
-│       └── en-US.json
-├── layouts/                 # 布局组件
-├── router/                  # 路由配置
-├── store/                   # 状态管理 (Pinia)
-│   ├── user.js             # 用户状态
-│   ├── app.js              # 应用状态
-│   └── tabs.js             # 标签页状态
-├── types/                   # TypeScript 类型
-│   ├── index.d.ts          # 实体类型
-│   └── composables.d.ts    # Composable 类型
-├── utils/                   # 工具函数
-│   ├── request.js          # Axios 封装
-│   ├── storage.js          # 存储工具
-│   └── validation.js       # 验证器
-└── views/                   # 页面组件
-    ├── admin/
-    ├── role/
-    ├── menu/
-    └── ...
+├── composables/             # 可复用逻辑
+├── i18n/locales/            # 国际化
+├── layouts/                 # 布局
+├── router/                  # 路由
+├── store/                   # Pinia
+├── utils/request.js         # Axios 封装
+└── views/                   # 页面
 ```
 
-### Composables 设计
+### React 目录结构
 
-核心 Composables 采用 TypeScript 编写，提供完整类型支持：
-
-```typescript
-// useCrud.ts - CRUD 操作封装
-const { 
-  dialogVisible,      // 对话框状态
-  editId,             // 编辑ID
-  handleAdd,          // 添加
-  handleEdit,         // 编辑
-  handleDelete,       // 删除
-  handleBatchDelete   // 批量删除
-} = useCrud({ deleteApi, batchDeleteApi })
+```
+html-react/src/
+├── api/                     # API 请求
+├── components/              # 通用组件
+├── hooks/                   # useListPage / usePermission 等
+├── i18n/locales/            # 国际化
+├── layouts/                 # 布局
+├── pages/                   # 页面（List + FormModal + config）
+├── stores/                  # Zustand
+└── utils/request.ts         # Axios 封装
 ```
 
+### Vue Composables / React Hooks
+
+核心列表与权限逻辑两边各有封装，语义接近：
+
 ```typescript
-// usePermission.ts - 权限检查
-const { 
-  hasPermission,      // 检查权限
-  shouldShowButton,   // 是否显示按钮
-  getButtonState      // 获取按钮状态
-} = usePermission()
+// Vue: useCrud / usePermission（composables）
+// React: useCrudActions / usePermission（hooks）
 ```
 
 ### 状态管理
 
+**Vue（Pinia）**
+
 ```
-┌─────────────────────────────────────────┐
-│              Pinia Store                 │
-├─────────────┬─────────────┬─────────────┤
-│  userStore  │  appStore   │  tabsStore  │
-├─────────────┼─────────────┼─────────────┤
-│ - userInfo  │ - sidebar   │ - tabs      │
-│ - token     │ - fullscreen│ - activeTab │
-│ - menus     │ - language  │             │
-│ - permissions│            │             │
-└─────────────┴─────────────┴─────────────┘
+userStore | appStore | tabsStore
 ```
+
+**React（Zustand）**
+
+```
+user store | app store | tabs（若启用）
+```
+
+两边都保存 token、菜单树、权限码、语言与时区等，供请求头与按钮显隐使用。
 
 ---
 
@@ -469,10 +445,10 @@ services:
 
 | 优化项 | 实现 |
 |--------|------|
-| 虚拟滚动 | VXE-Table 大数据渲染 |
+| 虚拟滚动 / 大数据表 | Vue：VXE-Table；React：Ant Design Table + 分页 |
 | 代码分割 | 路由懒加载 |
-| 状态管理 | Pinia 响应式优化 |
-| 防抖节流 | useDebounce composable |
+| 状态管理 | Pinia / Zustand |
+| 防抖节流 | 列表搜索 hooks/composables |
 
 ---
 
@@ -481,16 +457,14 @@ services:
 ### 添加新模块
 
 1. **后端**
-   - 创建 Model: `app/models/xxx.go`
-   - 创建 Controller: `app/http/controllers/admin/xxx_controller.go`
-   - 创建 Request: `app/http/requests/admin/xxx_request.go`
+   - Model / Service / Controller / Request（优先对齐代码生成器模板）
    - 注册路由: `routes/admin.go`
+   - 菜单与权限 seed / 安装器
 
-2. **前端**
-   - 创建 API: `html/src/api/xxx.js`
-   - 创建页面: `html/src/views/xxx/XxxList.vue`
-   - 创建表单: `html/src/views/xxx/XxxForm.vue`
-   - 注册路由: `html/src/router/index.js`
+2. **前端（Vue + React 同发）**
+   - Vue: `html/src/api/` + `html/src/views/`
+   - React: `html-react/src/api/` + `html-react/src/pages/`
+   - 两边 i18n locales 补齐本模块用到的 key
 
 ### 添加新权限
 
@@ -505,5 +479,7 @@ services:
 - [Goravel 官方文档](https://www.goravel.dev)
 - [Vue 3 文档](https://vuejs.org)
 - [Element Plus 文档](https://element-plus.org)
-- [VXE-Table 文档](https://vxetable.cn)
+- [React 文档](https://react.dev)
+- [Ant Design 文档](https://ant.design)
+- [前端 skill：Vue](../.cursor/skills/goravel-admin-frontend/SKILL.md) / [React](../.cursor/skills/goravel-admin-frontend-react/SKILL.md)
 
