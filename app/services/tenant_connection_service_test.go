@@ -109,3 +109,28 @@ func TestPlatformOrmQueryIgnoresDefaultFlip(t *testing.T) {
 		t.Fatalf("pin must not follow flipped default: got %q want %q", got, pinned)
 	}
 }
+
+func TestTenantPostgresSSLMode(t *testing.T) {
+	prevTenancy := facades.Config().GetString("tenancy.postgres_sslmode")
+	prevDB := facades.Config().GetString("database.connections.postgres.sslmode")
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.postgres_sslmode", prevTenancy)
+		facades.Config().Add("database.connections.postgres.sslmode", prevDB)
+	})
+
+	facades.Config().Add("tenancy.postgres_sslmode", "require")
+	if got := tenantPostgresSSLMode(); got != "require" {
+		t.Fatalf("tenancy override: got %q", got)
+	}
+
+	facades.Config().Add("tenancy.postgres_sslmode", "")
+	facades.Config().Add("database.connections.postgres.sslmode", "verify-full")
+	if got := tenantPostgresSSLMode(); got != "verify-full" {
+		t.Fatalf("db fallback: got %q", got)
+	}
+
+	facades.Config().Add("database.connections.postgres.sslmode", "")
+	if got := tenantPostgresSSLMode(); got != "disable" {
+		t.Fatalf("default: got %q", got)
+	}
+}

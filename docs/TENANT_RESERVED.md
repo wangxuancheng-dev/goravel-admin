@@ -39,6 +39,8 @@ TENANCY_SCHEMA_PREFIX=tenant_
 TENANCY_PLATFORM_CONNECTION=       # 可选；钉死平台连接名，默认取 database.default
 TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true  # 同机空账号回落平台 DB_*；生产建议 false
                                           # 远程 host 始终要求独立 username/password
+TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
+TENANCY_BACKUP_KEEP=10                    # tenant:backup 保留份数；0=不清理
 
 PLATFORM_ADMIN_USERNAME=admin
 PLATFORM_ADMIN_PASSWORD=secret
@@ -56,6 +58,16 @@ PLATFORM_ADMIN_NAME=平台管理员
 3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；`tenant:migrate` 成功 → `ready`；未 ready 的租户不可绑定业务请求，也不可启用以绕过。
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`。
+
+## 运维增强（P1）
+
+1. **Landlord 迁移跳过**：平台表迁移（`tenants` / `platform_admins` / `jobs` / provision/migrate meta）在 `tenant_*` 连接上 `SkipOnTenantConnection` 空跑，避免污染租户库。
+2. **Migrate 可见性**：`last_migrate_error` / `migrated_at`；失败写 `provision_status=failed`。
+3. **连接探测**：`POST /api/platform/tenants/{id}/ping`。
+4. **登录限流**：`login` limiter 键含 `tenant_code`/`tenant_id`/Header，避免跨租户互相锁号。
+5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
+6. **PG sslmode**：`TENANCY_POSTGRES_SSLMODE` 或 `DB_SSLMODE`。
+7. **备份保留**：`tenant:backup [--keep=N]`、`tenant:backup-all`；默认 `TENANCY_BACKUP_KEEP`；PG schema 隔离用 `pg_dump -n`。
 
 ## 首启（推荐）
 
@@ -96,7 +108,8 @@ go run . artisan tenant:seed {id|code} [--class=...]
 go run . artisan tenant:seed-all
 go run . artisan tenant:list
 go run . artisan tenant:enable|disable {id|code}
-go run . artisan tenant:backup {id|code}
+go run . artisan tenant:backup {id|code} [--keep=N]
+go run . artisan tenant:backup-all [--keep=N]
 go run . artisan tenant:restore {id|code} {sql路径}
 
 # tenancy 开启时，以下命令默认遍历启用租户；可用 --tenant={code|id} 限定
@@ -132,6 +145,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | GET/POST | `/api/platform/tenants` | 列表 / 开户（无 migrate） |
 | GET/PUT | `/api/platform/tenants/{id}` | 详情 / 更新连接 |
 | PUT | `/api/platform/tenants/{id}/status` | 启停 |
+| POST | `/api/platform/tenants/{id}/ping` | 探测租户库连通性 |
 
 ## 代码约定
 
@@ -159,3 +173,4 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
 11. 仅 `provision_status=ready` 的租户可绑定业务；HTTP 开户禁止 migrate，须 CLI `tenant:migrate`。
 12. 远程租户库禁止空账号回落平台 root；生产建议 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。
+13. 平台表迁移不得落在租户库（`SkipOnTenantConnection`）；migrate 失败须可在平台侧看到 `last_migrate_error`。

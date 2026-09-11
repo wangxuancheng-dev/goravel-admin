@@ -12,6 +12,9 @@ func (m *M20260912000001AddProvisionStatusToTenants) Signature() string {
 }
 
 func (m *M20260912000001AddProvisionStatusToTenants) Up() error {
+	if SkipOnTenantConnection() {
+		return nil
+	}
 	if !facades.Schema().HasTable("tenants") {
 		return nil
 	}
@@ -30,6 +33,9 @@ func (m *M20260912000001AddProvisionStatusToTenants) Up() error {
 }
 
 func (m *M20260912000001AddProvisionStatusToTenants) Down() error {
+	if SkipOnTenantConnection() {
+		return nil
+	}
 	if !facades.Schema().HasTable("tenants") {
 		return nil
 	}

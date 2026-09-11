@@ -12,6 +12,9 @@ func (r *M20260911000002CreatePlatformAdminsTable) Signature() string {
 }
 
 func (r *M20260911000002CreatePlatformAdminsTable) Up() error {
+	if SkipOnTenantConnection() {
+		return nil
+	}
 	return facades.Schema().Create("platform_admins", func(table schema.Blueprint) {
 		table.ID()
 		table.String("username", 50).Comment("平台管理员用户名")
@@ -27,5 +30,8 @@ func (r *M20260911000002CreatePlatformAdminsTable) Up() error {
 }
 
 func (r *M20260911000002CreatePlatformAdminsTable) Down() error {
+	if SkipOnTenantConnection() {
+		return nil
+	}
 	return facades.Schema().DropIfExists("platform_admins")
 }

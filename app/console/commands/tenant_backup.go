@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +26,12 @@ func (r *TenantBackup) Description() string {
 	return "备份指定租户数据库到 storage/backups/tenants/{code}/（依赖 mysqldump/pg_dump）"
 }
 func (r *TenantBackup) Extend() command.Extend {
-	return command.Extend{Category: "tenant"}
+	return command.Extend{
+		Category: "tenant",
+		Flags: []command.Flag{
+			&command.IntFlag{Name: "keep", Usage: "保留最近 N 份备份（0=不清理；默认读 TENANCY_BACKUP_KEEP）"},
+		},
+	}
 }
 
 func (r *TenantBackup) Handle(ctx console.Context) error {
@@ -35,7 +41,7 @@ func (r *TenantBackup) Handle(ctx console.Context) error {
 	}
 	idOrCode := ctx.Argument(0)
 	if idOrCode == "" {
-		ctx.Error("用法: tenant:backup {id|code}")
+		ctx.Error("用法: tenant:backup {id|code} [--keep=N]")
 		return nil
 	}
 	tenant, err := services.NewTenantConnectionService().FindTenantByIDOrCode(idOrCode)
@@ -61,6 +67,9 @@ func (r *TenantBackup) Handle(ctx console.Context) error {
 	switch strings.ToLower(tenant.Driver) {
 	case models.TenantDriverPostgres, "pgsql", "postgresql":
 		args := []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-f", outFile}
+		if tenant.Isolation == models.TenantIsolationSchema && strings.TrimSpace(tenant.Schema) != "" {
+			args = append(args, "-n", tenant.Schema)
+		}
 		cmd = exec.Command("pg_dump", args...)
 		cmd.Env = append(os.Environ(), "PGPASSWORD="+pass)
 	default:
@@ -91,7 +100,54 @@ func (r *TenantBackup) Handle(ctx console.Context) error {
 		return err
 	}
 	ctx.Success("备份完成: " + outFile)
+
+	keep := facades.Config().GetInt("tenancy.backup_keep", 10)
+	if raw := strings.TrimSpace(ctx.Option("keep")); raw != "" {
+		keep = ctx.OptionInt("keep")
+	}
+	if keep > 0 {
+		removed, pruneErr := pruneTenantBackups(dir, keep)
+		if pruneErr != nil {
+			ctx.Warning("备份保留清理失败: " + pruneErr.Error())
+		} else if removed > 0 {
+			ctx.Info(fmt.Sprintf("已清理旧备份 %d 个（保留最近 %d 份）", removed, keep))
+		}
+	}
 	return nil
+}
+
+func pruneTenantBackups(dir string, keep int) (int, error) {
+	if keep <= 0 {
+		return 0, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, err
+	}
+	var files []os.DirEntry
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasSuffix(strings.ToLower(name), ".sql") {
+			files = append(files, e)
+		}
+	}
+	if len(files) <= keep {
+		return 0, nil
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name() > files[j].Name()
+	})
+	removed := 0
+	for _, e := range files[keep:] {
+		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+			return removed, err
+		}
+		removed++
+	}
+	return removed, nil
 }
 
 func resolveTenantDSN(tenant *models.Tenant) (host string, port int, user, pass, database string, err error) {

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/goravel/framework/contracts/database/driver"
 	"github.com/goravel/framework/contracts/database/orm"
@@ -243,7 +244,7 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 			"database": database,
 			"username": username,
 			"password": password,
-			"sslmode":  "disable",
+			"sslmode":  tenantPostgresSSLMode(),
 			"singular": false,
 			"prefix":   "",
 			"schema":   schemaName,
@@ -328,7 +329,7 @@ func (s *TenantConnectionService) withMaintenanceOrmQuery(tenant *models.Tenant,
 			"database": "postgres",
 			"username": username,
 			"password": password,
-			"sslmode":  "disable",
+			"sslmode":  tenantPostgresSSLMode(),
 			"singular": false,
 			"prefix":   "",
 			"schema":   "public",
@@ -678,7 +679,59 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	})
 	if err != nil {
 		_ = s.SetProvisionStatus(tenant, models.TenantProvisionFailed)
+		msg := err.Error()
+		if len(msg) > 2000 {
+			msg = msg[:2000]
+		}
+		_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+			"last_migrate_error": msg,
+		})
+		tenant.LastMigrateError = msg
 		return err
 	}
-	return s.SetProvisionStatus(tenant, models.TenantProvisionReady)
+	now := time.Now()
+	if err := s.SetProvisionStatus(tenant, models.TenantProvisionReady); err != nil {
+		return err
+	}
+	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+		"last_migrate_error": "",
+		"migrated_at":        now,
+	})
+	tenant.LastMigrateError = ""
+	tenant.MigratedAt = &now
+	return nil
+}
+
+// Ping verifies the tenant database connection is reachable.
+func (s *TenantConnectionService) Ping(tenant *models.Tenant, timeout time.Duration) error {
+	if tenant == nil {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	if err := s.EnsureRegistered(tenant); err != nil {
+		return apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	db, err := appfacades.Orm().Connection(tenant.ConnectionName).DB()
+	if err != nil {
+		return apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		return apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+	return nil
+}
+
+func tenantPostgresSSLMode() string {
+	mode := strings.TrimSpace(facades.Config().GetString("tenancy.postgres_sslmode", ""))
+	if mode == "" {
+		mode = strings.TrimSpace(facades.Config().GetString("database.connections.postgres.sslmode", "disable"))
+	}
+	if mode == "" {
+		return "disable"
+	}
+	return mode
 }

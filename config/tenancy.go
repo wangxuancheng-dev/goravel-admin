@@ -23,6 +23,10 @@ func init() {
 		"platform_connection": config.Env("TENANCY_PLATFORM_CONNECTION", ""),
 		// 同机开户时是否允许空 username/password 回落平台 DB 账号（远程 host 始终要求独立凭据）
 		"allow_platform_db_credentials": config.Env("TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS", true),
+		// PostgreSQL 租户连接 sslmode（也可由 database.connections.postgres.sslmode / DB_SSLMODE 提供）
+		"postgres_sslmode": config.Env("TENANCY_POSTGRES_SSLMODE", ""),
+		// tenant:backup 每个租户保留的最近份数（0=不清理）
+		"backup_keep": config.Env("TENANCY_BACKUP_KEEP", 10),
 		// platform:install 默认管理员（也可传 CLI 参数）
 		"platform_admin_username": config.Env("PLATFORM_ADMIN_USERNAME", ""),
 		"platform_admin_password": config.Env("PLATFORM_ADMIN_PASSWORD", ""),

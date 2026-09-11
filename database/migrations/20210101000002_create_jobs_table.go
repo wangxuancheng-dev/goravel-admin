@@ -14,6 +14,9 @@ func (r *M20210101000002CreateJobsTable) Signature() string {
 
 // Up Run the migrations.
 func (r *M20210101000002CreateJobsTable) Up() error {
+	if SkipOnTenantConnection() {
+		return nil
+	}
 	if !facades.Schema().HasTable("jobs") {
 		if err := facades.Schema().Create("jobs", func(table schema.Blueprint) {
 			table.ID()
@@ -49,6 +52,9 @@ func (r *M20210101000002CreateJobsTable) Up() error {
 
 // Down Reverse the migrations.
 func (r *M20210101000002CreateJobsTable) Down() error {
+	if SkipOnTenantConnection() {
+		return nil
+	}
 	if err := facades.Schema().DropIfExists("jobs"); err != nil {
 		return err
 	}

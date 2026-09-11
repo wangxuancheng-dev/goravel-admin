@@ -145,3 +145,27 @@ func (c *TenantController) UpdateStatus(ctx http.Context) http.Response {
 	}
 	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
 }
+
+// Ping checks that the tenant database connection is reachable.
+func (c *TenantController) Ping(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	tenant, err := c.service().GetByID(id)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	conn := services.NewTenantConnectionService()
+	if err := conn.Ping(tenant, 0); err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusBadGateway, err, map[string]any{
+			"id":   id,
+			"code": tenant.Code,
+		})
+	}
+	return response.Success(ctx, map[string]any{
+		"ok":               true,
+		"tenant":           services.TenantToJSON(tenant),
+		"provision_status": tenant.ProvisionStatus,
+	})
+}

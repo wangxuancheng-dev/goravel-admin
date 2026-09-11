@@ -33,6 +33,7 @@ func Platform() {
 			router.Post("tenants", tenantController.Store)
 			router.Put("tenants/{id}", tenantController.Update)
 			router.Put("tenants/{id}/status", tenantController.UpdateStatus)
+			router.Post("tenants/{id}/ping", tenantController.Ping)
 		})
 	})
 }

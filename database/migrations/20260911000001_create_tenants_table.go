@@ -12,6 +12,9 @@ func (m *M20260911000001CreateTenantsTable) Signature() string {
 }
 
 func (m *M20260911000001CreateTenantsTable) Up() error {
+	if SkipOnTenantConnection() {
+		return nil
+	}
 	return facades.Schema().Create("tenants", func(table schema.Blueprint) {
 		table.ID()
 		table.String("code", 64).Comment("租户短码")
@@ -38,5 +41,8 @@ func (m *M20260911000001CreateTenantsTable) Up() error {
 }
 
 func (m *M20260911000001CreateTenantsTable) Down() error {
+	if SkipOnTenantConnection() {
+		return nil
+	}
 	return facades.Schema().DropIfExists("tenants")
 }

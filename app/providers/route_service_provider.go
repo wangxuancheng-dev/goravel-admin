@@ -85,19 +85,24 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 		}
 	})
 
-	// 登录速率限制器（IP + 账号 双维度，避免攻击者锁住其他 IP 的同名账号）
+	// 登录速率限制器（IP + 租户提示 + 账号，避免跨租户互相锁号）
 	facades.RateLimiter().For("login", func(ctx contractshttp.Context) contractshttp.Limit {
 		ip := helpers.GetRealIP(ctx)
 		username := resolveLoginIdentifier(ctx, ip)
+		tenantHint := resolveLoginTenantHint(ctx)
 		perMinute := 6
 		// Feature / unit HTTP tests issue many logins from one IP.
 		if facades.Config().GetString("app.env") == "test" || testing.Testing() {
 			perMinute = 1000
 		}
 
+		key := ip + ":login:" + username
+		if tenantHint != "" {
+			key = ip + ":login:" + tenantHint + ":" + username
+		}
 		return limit.PerMinute(perMinute).Response(func(ctx contractshttp.Context) {
 			response.Abort(ctx, contractshttp.StatusTooManyRequests, "too_many_requests")
-		}).By(ip + ":login:" + username)
+		}).By(key)
 	})
 
 	// 测试响应速率限制器（仅开发环境使用）
@@ -181,6 +186,26 @@ func resolveLoginIdentifier(ctx contractshttp.Context, fallbackIP string) string
 		return strings.ToLower(v)
 	}
 	return fallbackIP
+}
+
+// resolveLoginTenantHint 在 Tenant 中间件之前读取租户提示（body/query/header）。
+func resolveLoginTenantHint(ctx contractshttp.Context) string {
+	for _, field := range []string{"tenant_code", "tenant_id"} {
+		if v := strings.TrimSpace(ctx.Request().Input(field, "")); v != "" {
+			return strings.ToLower(v)
+		}
+	}
+	if v := strings.TrimSpace(ctx.Request().Query("tenant_code", "")); v != "" {
+		return strings.ToLower(v)
+	}
+	if v := strings.TrimSpace(ctx.Request().Query("tenant_id", "")); v != "" {
+		return strings.ToLower(v)
+	}
+	header := facades.Config().GetString("tenancy.header", "X-Tenant-ID")
+	if v := strings.TrimSpace(ctx.Request().Header(header, "")); v != "" {
+		return strings.ToLower(v)
+	}
+	return ""
 }
 
 // resolvePprofVerifyIdentifier 从上下文提取管理员 ID，找不到则回退到 IP
