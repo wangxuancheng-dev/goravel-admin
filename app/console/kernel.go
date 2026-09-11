@@ -56,5 +56,6 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.TenantBackup{},
 		&commands.TenantRestore{},
 		&commands.PlatformAdminCreate{},
+		&commands.PlatformInstall{},
 	}
 }

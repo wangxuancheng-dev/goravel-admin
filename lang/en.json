@@ -135,6 +135,8 @@
     "tenant_connection_failed": "Failed to connect to tenant database",
     "tenancy_disabled": "Multi-tenancy is off (set TENANCY_DRIVER=database)",
     "tenant_exists": "Tenant code already exists",
+    "tenant_migrate_via_cli": "Use CLI: go run . artisan tenant:migrate {code}",
+    "tenant_password_corrupt": "Tenant DB password ciphertext is invalid; set it again",
     "token_expired": "Token has expired, please login again",
     "token_required": "Token is required",
     "invalid_token": "Invalid token",

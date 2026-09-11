@@ -10,22 +10,15 @@ func TestTenantHasPassword(t *testing.T) {
 	if TenantHasPassword("") {
 		t.Fatal("empty should be false")
 	}
-	if !TenantHasPassword("plain") {
-		t.Fatal("plain should be true")
-	}
-	if !TenantHasPassword(tenantSecretPrefix + "abc") {
-		t.Fatal("sealed should be true")
+	if !TenantHasPassword("x") {
+		t.Fatal("non-empty should be true")
 	}
 }
 
-func TestSealTenantPasswordIdempotentPrefix(t *testing.T) {
-	already := tenantSecretPrefix + "payload"
-	got, err := SealTenantPassword(already)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != already {
-		t.Fatalf("expected unchanged sealed value, got %q", got)
+func TestSealTenantPasswordRejectsSealedInput(t *testing.T) {
+	_, err := SealTenantPassword(tenantSecretPrefix + "payload")
+	if err == nil {
+		t.Fatal("expected error for already-sealed input")
 	}
 	empty, err := SealTenantPassword("")
 	if err != nil || empty != "" {
@@ -33,13 +26,14 @@ func TestSealTenantPasswordIdempotentPrefix(t *testing.T) {
 	}
 }
 
-func TestRevealTenantPasswordLegacyPlain(t *testing.T) {
-	got, err := RevealTenantPassword("legacy-secret")
-	if err != nil {
-		t.Fatal(err)
+func TestRevealTenantPasswordRejectsPlaintext(t *testing.T) {
+	_, err := RevealTenantPassword("legacy-secret")
+	if err == nil {
+		t.Fatal("expected error for plaintext")
 	}
-	if got != "legacy-secret" {
-		t.Fatalf("got %q", got)
+	got, err := RevealTenantPassword("")
+	if err != nil || got != "" {
+		t.Fatalf("empty reveal: %q %v", got, err)
 	}
 }
 

@@ -565,20 +565,5 @@ func (s *MenuSeeder) Run() error {
 		IsHidden:  0,
 	})
 
-	// 租户管理已迁至平台控制台（/api/platform），从租户后台菜单中下线旧入口
-	var legacyTenantMenu models.Menu
-	if err := facades.Orm().Query().Where("slug", "tenant").First(&legacyTenantMenu); err == nil && legacyTenantMenu.ID > 0 {
-		_, _ = facades.Orm().Query().Model(&legacyTenantMenu).Update(map[string]any{
-			"status":    0,
-			"is_hidden": 1,
-		})
-		_, _ = facades.Orm().Query().Model(&models.Permission{}).
-			Where("menu_id", legacyTenantMenu.ID).
-			Update(map[string]any{"status": 0})
-		_, _ = facades.Orm().Query().Model(&models.Permission{}).
-			Where("slug", "like", "tenant.%").
-			Update(map[string]any{"status": 0})
-	}
-
 	return nil
 }

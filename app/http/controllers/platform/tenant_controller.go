@@ -58,10 +58,10 @@ type tenantStoreBody struct {
 	Schema    string `json:"schema" form:"schema"`
 	Host      string `json:"host" form:"host"`
 	Port      int    `json:"port" form:"port"`
-	Username  string `json:"username" form:"username"`
-	Password  string `json:"password" form:"password"`
-	Migrate   bool   `json:"migrate" form:"migrate"`
-	SkipCreate bool  `json:"skip_create" form:"skip_create"`
+	Username   string `json:"username" form:"username"`
+	Password   string `json:"password" form:"password"`
+	Migrate    *bool  `json:"migrate" form:"migrate"` // 若传 true 则拒绝，引导 CLI
+	SkipCreate bool   `json:"skip_create" form:"skip_create"`
 }
 
 func (c *TenantController) Store(ctx http.Context) http.Response {
@@ -70,18 +70,21 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 	if strings.TrimSpace(body.Code) == "" || strings.TrimSpace(body.Name) == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
 	}
+	if body.Migrate != nil && *body.Migrate {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrTenantMigrateViaCLI.Code)
+	}
 	tenant, err := c.service().Create(services.TenantCreateInput{
-		Code:      body.Code,
-		Name:      body.Name,
-		Driver:    body.Driver,
-		Isolation: body.Isolation,
-		Database:  body.Database,
-		Schema:    body.Schema,
-		Host:      body.Host,
-		Port:      body.Port,
-		Username:  body.Username,
+		Code:       body.Code,
+		Name:       body.Name,
+		Driver:     body.Driver,
+		Isolation:  body.Isolation,
+		Database:   body.Database,
+		Schema:     body.Schema,
+		Host:       body.Host,
+		Port:       body.Port,
+		Username:   body.Username,
 		Password:   body.Password,
-		Migrate:    body.Migrate,
+		Migrate:    false,
 		SkipCreate: body.SkipCreate,
 	})
 	if err != nil {

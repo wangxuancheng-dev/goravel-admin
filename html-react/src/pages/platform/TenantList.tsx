@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
+  Alert,
   App,
   Button,
   Divider,
@@ -216,7 +217,6 @@ export default function PlatformTenantList() {
               form.setFieldsValue({
                 driver: 'mysql',
                 isolation: 'database',
-                migrate: true,
                 skip_create: false,
                 port: 0,
               })
@@ -336,9 +336,12 @@ export default function PlatformTenantList() {
           <Form.Item name="password" label={t('tenant.password')}>
             <Input.Password placeholder={t('tenant.password_placeholder')} />
           </Form.Item>
-          <Form.Item name="migrate" label={t('tenant.migrate')} valuePropName="checked">
-            <Switch />
-          </Form.Item>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={t('tenant.migrate_cli_tip')}
+          />
           <Form.Item
             name="skip_create"
             label={t('tenant.skip_create')}

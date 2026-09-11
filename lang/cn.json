@@ -91,6 +91,8 @@
     "tenant_connection_failed": "租户数据库连接失败",
     "tenancy_disabled": "未开启多租户（TENANCY_DRIVER=database）",
     "tenant_exists": "租户编码已存在",
+    "tenant_migrate_via_cli": "请使用 CLI：go run . artisan tenant:migrate {code}",
+    "tenant_password_corrupt": "租户库密码密文无效，请重新设置",
     "token_expired": "Token已过期，请重新登录",
     "token_required": "Token不能为空",
     "invalid_token": "无效的Token",

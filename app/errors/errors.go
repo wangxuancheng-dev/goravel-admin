@@ -180,6 +180,8 @@ var (
 	ErrTenantConnectionFailed = NewBusinessError("tenant_connection_failed", "租户数据库连接失败")
 	ErrTenancyDisabled        = NewBusinessError("tenancy_disabled", "未开启多租户（TENANCY_DRIVER=database）")
 	ErrTenantExists           = NewBusinessError("tenant_exists", "租户编码已存在")
+	ErrTenantMigrateViaCLI    = NewBusinessError("tenant_migrate_via_cli", "请使用 CLI：go run . artisan tenant:migrate {code}")
+	ErrTenantPasswordCorrupt  = NewBusinessError("tenant_password_corrupt", "租户库密码密文无效，请重新设置")
 	ErrTokenRefreshFailed = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound       = NewBusinessError("user_not_found", "用户不存在")
 

@@ -875,7 +875,7 @@
     "database_placeholder": "Default: prefix+code",
     "schema": "Schema",
     "schema_placeholder": "Used for PG schema isolation",
-    "migrate": "Migrate & seed after create",
+    "migrate_cli_tip": "Run migrate/seed via CLI: go run . artisan tenant:migrate {code} (HTTP only registers / optional CREATE)",
     "remote_connection": "Remote connection (optional; empty falls back to platform DB_*)",
     "host": "Host",
     "host_placeholder": "Empty = platform DB_HOST",

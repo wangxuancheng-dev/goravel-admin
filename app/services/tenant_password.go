@@ -3,6 +3,7 @@ package services
 import (
 	"strings"
 
+	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 )
 
@@ -10,13 +11,12 @@ import (
 const tenantSecretPrefix = "enc:v1:"
 
 // SealTenantPassword encrypts a tenant DB password for platform DB storage.
-// Empty input stays empty. Already-sealed values are returned unchanged.
 func SealTenantPassword(plain string) (string, error) {
 	if plain == "" {
 		return "", nil
 	}
 	if strings.HasPrefix(plain, tenantSecretPrefix) {
-		return plain, nil
+		return "", apperrors.ErrInvalidArgument.WithMessage("do not pass already-sealed password")
 	}
 	enc, err := appfacades.Crypt().EncryptString(plain)
 	if err != nil {
@@ -25,18 +25,22 @@ func SealTenantPassword(plain string) (string, error) {
 	return tenantSecretPrefix + enc, nil
 }
 
-// RevealTenantPassword decrypts a sealed password, or returns legacy plaintext as-is.
+// RevealTenantPassword decrypts a sealed password (enc:v1:...). Plaintext is rejected.
 func RevealTenantPassword(stored string) (string, error) {
 	if stored == "" {
 		return "", nil
 	}
 	if !strings.HasPrefix(stored, tenantSecretPrefix) {
-		return stored, nil
+		return "", apperrors.ErrTenantPasswordCorrupt
 	}
-	return appfacades.Crypt().DecryptString(strings.TrimPrefix(stored, tenantSecretPrefix))
+	plain, err := appfacades.Crypt().DecryptString(strings.TrimPrefix(stored, tenantSecretPrefix))
+	if err != nil {
+		return "", apperrors.ErrTenantPasswordCorrupt.WithError(err)
+	}
+	return plain, nil
 }
 
-// TenantHasPassword reports whether a password credential is stored (sealed or plain).
+// TenantHasPassword reports whether a password credential is stored.
 func TenantHasPassword(stored string) bool {
 	return strings.TrimSpace(stored) != ""
 }

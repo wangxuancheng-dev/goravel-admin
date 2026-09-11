@@ -89,9 +89,14 @@
           <el-form-item v-if="editingId" :label="$t('tenant.schema')">
             <el-input v-model="form.schema" />
           </el-form-item>
-          <el-form-item v-if="!editingId" :label="$t('tenant.migrate')">
-            <el-switch v-model="form.migrate" />
-          </el-form-item>
+          <el-alert
+            v-if="!editingId"
+            type="info"
+            :closable="false"
+            show-icon
+            class="migrate-tip"
+            :title="$t('tenant.migrate_cli_tip')"
+          />
           <el-form-item v-if="!editingId" :label="$t('tenant.skip_create')">
             <el-switch v-model="form.skip_create" />
             <div class="form-tip">{{ $t('tenant.skip_create_tip') }}</div>
@@ -184,7 +189,6 @@ const form = reactive({
   username: '',
   password: '',
   has_password: false,
-  migrate: true,
   skip_create: false
 })
 
@@ -229,7 +233,6 @@ const resetForm = () => {
   form.username = ''
   form.password = ''
   form.has_password = false
-  form.migrate = true
   form.skip_create = false
 }
 
@@ -263,7 +266,6 @@ const submitForm = async () => {
           port: form.port || undefined,
           username: form.username || undefined,
           password: form.password || undefined,
-          migrate: form.migrate,
           skip_create: form.skip_create
         })
         ElMessage.success(t('common.create_success'))
@@ -301,5 +303,8 @@ const onToggleStatus = async (row, enabled) => {
   font-size: 12px;
   color: #94a3b8;
   line-height: 1.4;
+}
+.migrate-tip {
+  margin-bottom: 12px;
 }
 </style>
