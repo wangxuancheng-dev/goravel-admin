@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/goravel/framework/facades"
@@ -17,6 +18,12 @@ import (
 const (
 	smokeAdminUsername = "smoke_admin"
 	smokeAdminPassword = "SmokeAdmin123!"
+)
+
+var (
+	smokeAdminTokenOnce sync.Once
+	smokeAdminToken     string
+	smokeAdminTokenErr  error
 )
 
 func ensureSmokeAdmin(t *testing.T) {
@@ -44,27 +51,40 @@ func loginSmokeAdmin(t *testing.T) string {
 	t.Helper()
 	ensureSmokeAdmin(t)
 
-	body := fmt.Sprintf(`{"username":%q,"password":%q}`, smokeAdminUsername, smokeAdminPassword)
-	testCase := tests.TestCase{}
-	resp, err := testCase.Http(t).
-		WithHeader("Content-Type", "application/json").
-		Post("/api/admin/login", strings.NewReader(body))
-	require.NoError(t, err)
-	resp.AssertOk()
-
-	content, err := resp.Content()
-	require.NoError(t, err)
-
-	var payload struct {
-		Code int `json:"code"`
-		Data struct {
-			Token string `json:"token"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(content), &payload))
-	require.Equal(t, 200, payload.Code)
-	require.NotEmpty(t, payload.Data.Token, "login should return token")
-	return payload.Data.Token
+	smokeAdminTokenOnce.Do(func() {
+		body := fmt.Sprintf(`{"username":%q,"password":%q}`, smokeAdminUsername, smokeAdminPassword)
+		testCase := tests.TestCase{}
+		resp, err := testCase.Http(t).
+			WithHeader("Content-Type", "application/json").
+			Post("/api/admin/login", strings.NewReader(body))
+		if err != nil {
+			smokeAdminTokenErr = err
+			return
+		}
+		content, err := resp.Content()
+		if err != nil {
+			smokeAdminTokenErr = err
+			return
+		}
+		var payload struct {
+			Code int `json:"code"`
+			Data struct {
+				Token string `json:"token"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(content), &payload); err != nil {
+			smokeAdminTokenErr = err
+			return
+		}
+		if payload.Code != 200 || payload.Data.Token == "" {
+			smokeAdminTokenErr = fmt.Errorf("smoke admin login failed: %s", content)
+			return
+		}
+		smokeAdminToken = payload.Data.Token
+	})
+	require.NoError(t, smokeAdminTokenErr)
+	require.NotEmpty(t, smokeAdminToken, "login should return token")
+	return smokeAdminToken
 }
 
 func TestAdminLoginSuccess(t *testing.T) {

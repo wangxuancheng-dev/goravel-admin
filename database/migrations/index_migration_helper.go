@@ -27,7 +27,49 @@ func hasIndex(tableName, indexName string) (bool, error) {
 		}
 	}
 
+	// Schema().GetIndexes may omit FULLTEXT indexes on some MySQL/MariaDB drivers.
+	if ok, err := hasIndexInInformationSchema(tableName, indexName); err != nil {
+		return false, err
+	} else if ok {
+		return true, nil
+	}
+
 	return false, nil
+}
+
+func hasIndexInInformationSchema(tableName, indexName string) (bool, error) {
+	query := facades.Orm().Query()
+	isDM := facades.Config().GetString("database.default") == "dm"
+	if isDM {
+		return false, nil
+	}
+
+	dbType, err := detectDBType(query)
+	if err != nil || dbType == dbTypePostgres || dbType == dbTypeUnknown {
+		return false, nil
+	}
+
+	var count int64
+	sql := `
+SELECT COUNT(1)
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+  AND table_name = ?
+  AND index_name = ?`
+	if err := query.Raw(sql, tableName, indexName).Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func isDuplicateIndexError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key name") ||
+		strings.Contains(msg, "already exists") ||
+		strings.Contains(msg, "1061")
 }
 
 func detectDBType(query orm.Query) (string, error) {
@@ -83,22 +125,34 @@ func createCompatibleTextIndex(tableName, columnName, indexName string) error {
 
 		sql := fmt.Sprintf("CREATE INDEX %s ON %s USING GIN(%s gin_trgm_ops)", indexName, tableName, columnName)
 		if _, err := query.Exec(sql); err != nil {
+			if isDuplicateIndexError(err) {
+				return nil
+			}
 			facades.Log().Warningf("skip pg_trgm index migration: table=%s index=%s cannot create index, err=%v", tableName, indexName, err)
 		}
 		return nil
 	case dbTypeMariaDB:
 		sql := fmt.Sprintf("CREATE FULLTEXT INDEX %s ON %s(%s)", indexName, tableName, columnName)
 		if _, err := query.Exec(sql); err != nil {
+			if isDuplicateIndexError(err) {
+				return nil
+			}
 			facades.Log().Warningf("skip mariadb fulltext index migration: table=%s index=%s cannot create index, err=%v", tableName, indexName, err)
 		}
 		return nil
 	default:
 		sql := fmt.Sprintf("CREATE FULLTEXT INDEX %s ON %s(%s) WITH PARSER ngram", indexName, tableName, columnName)
 		if _, err := query.Exec(sql); err != nil {
+			if isDuplicateIndexError(err) {
+				return nil
+			}
 			errStr := strings.ToLower(err.Error())
 			if strings.Contains(errStr, "ngram") && (strings.Contains(errStr, "not defined") || strings.Contains(errStr, "not supported")) {
 				fallbackSQL := fmt.Sprintf("CREATE FULLTEXT INDEX %s ON %s(%s)", indexName, tableName, columnName)
 				if _, fallbackErr := query.Exec(fallbackSQL); fallbackErr != nil {
+					if isDuplicateIndexError(fallbackErr) {
+						return nil
+					}
 					facades.Log().Warningf("skip mysql fulltext index migration: table=%s index=%s fallback create index failed, err=%v", tableName, indexName, fallbackErr)
 				}
 				return nil

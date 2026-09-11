@@ -32,8 +32,8 @@ export default function PlatformLayout() {
       setPwdOpen(false)
       form.resetFields()
     } catch (e) {
-      if (e?.errorFields) return
-      showError(e)
+      if (e && typeof e === 'object' && 'errorFields' in e) return
+      showError(e, t('platform.change_password'))
     } finally {
       setSaving(false)
     }

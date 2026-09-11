@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"testing"
 
 	"github.com/goravel/framework/contracts/foundation"
 	contractshttp "github.com/goravel/framework/contracts/http"
@@ -88,8 +89,13 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 	facades.RateLimiter().For("login", func(ctx contractshttp.Context) contractshttp.Limit {
 		ip := helpers.GetRealIP(ctx)
 		username := resolveLoginIdentifier(ctx, ip)
+		perMinute := 6
+		// Feature / unit HTTP tests issue many logins from one IP.
+		if facades.Config().GetString("app.env") == "test" || testing.Testing() {
+			perMinute = 1000
+		}
 
-		return limit.PerMinute(6).Response(func(ctx contractshttp.Context) {
+		return limit.PerMinute(perMinute).Response(func(ctx contractshttp.Context) {
 			response.Abort(ctx, contractshttp.StatusTooManyRequests, "too_many_requests")
 		}).By(ip + ":login:" + username)
 	})

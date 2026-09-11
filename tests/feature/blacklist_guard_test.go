@@ -1,6 +1,7 @@
 package feature_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/dromara/carbon/v2"
@@ -17,7 +18,13 @@ func TestAdminBlockedByBlacklistIP(t *testing.T) {
 	services.ResetBlacklistCacheForTest()
 	t.Cleanup(services.ResetBlacklistCacheForTest)
 
-	// Http test client uses documentation IP 192.0.2.1
+	// Clear leftover rows from interrupted prior runs.
+	_, _ = appfacades.OrmQuery(nil).Where("remark", "feature test block").Delete(&models.Blacklist{})
+	services.InvalidateBlacklistCache(nil)
+
+	// Login first (login route skips blacklist), then ban the test client IP.
+	token := loginSmokeAdmin(t)
+
 	blockedIP := "192.0.2.1"
 	row := &models.Blacklist{}
 	err := appfacades.OrmQuery(nil).Model(row).Create(map[string]any{
@@ -34,7 +41,6 @@ func TestAdminBlockedByBlacklistIP(t *testing.T) {
 	})
 	services.InvalidateBlacklistCache(nil)
 
-	token := loginSmokeAdmin(t)
 	testCase := tests.TestCase{}
 	resp, err := testCase.Http(t).
 		WithHeader("Authorization", "Bearer "+token).
@@ -56,20 +62,10 @@ func TestPlatformInfoUnauthorized(t *testing.T) {
 	content, err := resp.Content()
 	require.NoError(t, err)
 	assert.True(t,
-		containsAny(content, "not_logged_in", "unauthorized", "token_required", "invalid_token"),
+		strings.Contains(content, "not_logged_in") ||
+			strings.Contains(content, "unauthorized") ||
+			strings.Contains(content, "token_required") ||
+			strings.Contains(content, "invalid_token"),
 		"unexpected body: %s", content,
 	)
-}
-
-func containsAny(haystack string, needles ...string) bool {
-	for _, n := range needles {
-		if assert.ObjectsAreEqual(true, true) && len(n) > 0 {
-			for i := 0; i+len(n) <= len(haystack); i++ {
-				if haystack[i:i+len(n)] == n {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
