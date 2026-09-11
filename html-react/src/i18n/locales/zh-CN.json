@@ -196,6 +196,7 @@
     "config": "系统配置",
     "blacklist": "IP黑名单",
     "online_admin": "在线管理员",
+    "tenant": "租户管理",
     "export": "导出管理",
     "attachment": "附件管理",
     "order": "订单管理",
@@ -863,6 +864,19 @@
     "file_disk": "文件存储磁盘",
     "export_format": "导出格式",
     "update_success": "更新成功"
+  },
+  "tenant": {
+    "add": "新建租户",
+    "code": "租户码",
+    "code_placeholder": "例如 acme",
+    "code_required": "请输入租户码",
+    "name": "名称",
+    "name_required": "请输入名称",
+    "driver": "驱动",
+    "isolation": "隔离方式",
+    "database": "数据库",
+    "schema": "Schema",
+    "migrate": "创建后迁移并填充"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",

@@ -133,6 +133,8 @@
     "tenant_not_found": "Tenant not found",
     "tenant_disabled": "Tenant is disabled",
     "tenant_connection_failed": "Failed to connect to tenant database",
+    "tenancy_disabled": "Multi-tenancy is off (set TENANCY_DRIVER=database)",
+    "tenant_exists": "Tenant code already exists",
     "token_expired": "Token has expired, please login again",
     "token_required": "Token is required",
     "invalid_token": "Invalid token",

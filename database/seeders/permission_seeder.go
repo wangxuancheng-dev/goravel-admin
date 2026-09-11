@@ -15,7 +15,7 @@ func (s *PermissionSeeder) Signature() string {
 
 func (s *PermissionSeeder) Run() error {
 	// 获取菜单（权限需要关联菜单）
-	var adminMenu, roleMenu, permissionMenu, menuMenu, departmentMenu, positionMenu, dictionaryMenu, configMenu, blacklistMenu, onlineAdminMenu, orderMenu, userMenu, userBalanceLogMenu models.Menu
+	var adminMenu, roleMenu, permissionMenu, menuMenu, departmentMenu, positionMenu, dictionaryMenu, configMenu, blacklistMenu, onlineAdminMenu, tenantMenu, orderMenu, userMenu, userBalanceLogMenu models.Menu
 	var operationLogMenu, loginLogMenu, systemLogMenu, observabilityMenu, monitorMenu, scheduleMenu, profileMenu, exportMenu, attachmentMenu, dashboardMenu, notificationMenu models.Menu
 	var paymentMethodMenu, paymentRecordMenu models.Menu
 
@@ -35,6 +35,7 @@ func (s *PermissionSeeder) Run() error {
 	findMenu("config", &configMenu)
 	findMenu("blacklist", &blacklistMenu)
 	findMenu("online-admin", &onlineAdminMenu)
+	findMenu("tenant", &tenantMenu)
 	findMenu("operation-log", &operationLogMenu)
 	findMenu("login-log", &loginLogMenu)
 	findMenu("system-log", &systemLogMenu)
@@ -122,6 +123,11 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "在线管理员列表", Slug: "online-admin.index", Method: "GET", Path: "/api/admin/online-admins", Description: "查看在线管理员列表", Status: 1, Sort: 1, MenuID: onlineAdminMenu.ID},
 		{Name: "踢下线", Slug: "online-admin.kick-out", Method: "DELETE", Path: "/api/admin/online-admins/*", Description: "踢下线管理员", Status: 1, Sort: 2, MenuID: onlineAdminMenu.ID},
 		{Name: "批量踢下线", Slug: "online-admin.batch-kick-out", Method: "POST", Path: "/api/admin/online-admins/batch-kick-out", Description: "批量踢下线管理员", Status: 1, Sort: 3, MenuID: onlineAdminMenu.ID},
+		// 租户管理（平台库）
+		{Name: "租户列表", Slug: "tenant.index", Method: "GET", Path: "/api/admin/tenants", Description: "查看租户列表", Status: 1, Sort: 1, MenuID: tenantMenu.ID},
+		{Name: "租户详情", Slug: "tenant.show", Method: "GET", Path: "/api/admin/tenants/*", Description: "查看租户详情", Status: 1, Sort: 2, MenuID: tenantMenu.ID},
+		{Name: "租户创建", Slug: "tenant.store", Method: "POST", Path: "/api/admin/tenants", Description: "创建租户并建库", Status: 1, Sort: 3, MenuID: tenantMenu.ID},
+		{Name: "租户启停", Slug: "tenant.update_status", Method: "PUT", Path: "/api/admin/tenants/*/status", Description: "启用或禁用租户", Status: 1, Sort: 4, MenuID: tenantMenu.ID},
 		// 操作日志
 		{Name: "操作日志列表", Slug: "operation_log.index", Method: "GET", Path: "/api/admin/operation-logs", Description: "查看操作日志列表", Status: 1, Sort: 1, MenuID: operationLogMenu.ID},
 		{Name: "操作日志详情", Slug: "operation_log.show", Method: "GET", Path: "/api/admin/operation-logs/*", Description: "查看操作日志详情", Status: 1, Sort: 2, MenuID: operationLogMenu.ID},

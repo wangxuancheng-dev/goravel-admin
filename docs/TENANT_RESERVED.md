@@ -79,8 +79,12 @@ go run . artisan tenant:migrate-all
 2. 双前端 `request` 拦截器对后续 API（含验证码）自动加 Header `X-Tenant-ID`（可用 `VITE_TENANCY_HEADER` 改名）
 3. 支持 URL 预填：`/login?tenant_code=acme` 或 `?tenant=acme`
 4. 登出保留租户码，方便同一商户再次登录
+5. 公开图片 URL（`<img>` / blob 拉取）自动附加 `?tenant_code=`（存储路径仍不含租户参数）
+6. 后台「系统管理 → 租户管理」可列表 / 开户 / 启停（数据在平台库；需登录某个已有租户后操作）
 
 未开启前端开关时不显示租户字段；若本地已有 `tenant_code` 仍会带 Header（后端 `off` 时忽略）。
+
+运维命令补充：`tenant:list`、`tenant:enable` / `tenant:disable`、`tenant:seed-all [--class=...]`。
 
 ## 已废弃
 

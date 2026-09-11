@@ -178,6 +178,8 @@ var (
 	ErrTenantNotFound         = NewBusinessError("tenant_not_found", "租户不存在")
 	ErrTenantDisabled         = NewBusinessError("tenant_disabled", "租户已禁用")
 	ErrTenantConnectionFailed = NewBusinessError("tenant_connection_failed", "租户数据库连接失败")
+	ErrTenancyDisabled        = NewBusinessError("tenancy_disabled", "未开启多租户（TENANCY_DRIVER=database）")
+	ErrTenantExists           = NewBusinessError("tenant_exists", "租户编码已存在")
 	ErrTokenRefreshFailed = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound       = NewBusinessError("user_not_found", "用户不存在")
 

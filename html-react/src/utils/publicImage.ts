@@ -6,6 +6,7 @@ import {
   isPrivateAttachmentPreviewPath,
   isPublicAttachmentPath,
 } from '@/utils/attachmentUrl'
+import { applyTenantHeader, withTenantQuery } from '@/utils/tenant'
 
 export const PUBLIC_IMAGE_PATH_RE = /\/api\/admin\/public\/images\/(\d+)/
 
@@ -14,17 +15,20 @@ export function buildImageFetchUrl(raw: unknown): string {
   const value = String(raw || '').trim()
   if (!value) return ''
   if (value.startsWith('data:') || value.startsWith('blob:')) return value
-  if (/^https?:\/\//i.test(value)) return value
+  if (/^https?:\/\//i.test(value)) return withTenantQuery(value)
 
   const publicPath = resolvePublicAssetUrl(value)
   const path = publicPath.startsWith('/') ? publicPath : value
   const apiBaseURL = import.meta.env.VITE_API_BASE_URL as string | undefined
+  let url = ''
   if (apiBaseURL) {
-    return `${String(apiBaseURL).replace(/\/+$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+    url = `${String(apiBaseURL).replace(/\/+$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+  } else {
+    const prefix = getApiPrefix().startsWith('/') ? getApiPrefix() : `/${getApiPrefix()}`
+    if (path.startsWith(prefix) || path.startsWith('/')) url = path
+    else url = `${prefix}/${path}`
   }
-  const prefix = getApiPrefix().startsWith('/') ? getApiPrefix() : `/${getApiPrefix()}`
-  if (path.startsWith(prefix) || path.startsWith('/')) return path
-  return `${prefix}/${path}`
+  return withTenantQuery(url)
 }
 
 /**
@@ -61,6 +65,7 @@ export async function resolveImageDisplayUrl(raw: unknown): Promise<{ url: strin
     if (needsAuth || token) {
       headers.Authorization = `Bearer ${String(token).trim()}`
     }
+    applyTenantHeader(headers)
     const response = await axios.get(fetchUrl, {
       responseType: 'blob',
       headers,
@@ -71,7 +76,7 @@ export async function resolveImageDisplayUrl(raw: unknown): Promise<{ url: strin
       revoke: () => URL.revokeObjectURL(blobUrl),
     }
   } catch {
-    return { url: resolvedPublic || fetchUrl }
+    return { url: withTenantQuery(resolvedPublic || fetchUrl) }
   }
 }
 

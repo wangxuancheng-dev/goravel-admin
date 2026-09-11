@@ -109,6 +109,14 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 	return nil
 }
 
+// Forget drops a cached tenant connection registration (e.g. after disable).
+func (s *TenantConnectionService) Forget(connectionName string) {
+	if connectionName == "" {
+		return
+	}
+	registeredConns.Delete(connectionName)
+}
+
 func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (map[string]any, error) {
 	driverName := tenant.Driver
 	if driverName == "" {

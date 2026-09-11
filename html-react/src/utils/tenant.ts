@@ -51,3 +51,28 @@ export function applyTenantHeader(headers: Record<string, unknown> | undefined):
   if (!code) return
   headers[getTenantHeaderName()] = code
 }
+
+const ATTACHMENT_PUBLIC_HINT = /\/api\/admin\/public\/images\/|\/api\/public\/files\//
+
+/**
+ * Append tenant_code query for public asset URLs (img/src cannot send custom headers).
+ */
+export function withTenantQuery(url: string): string {
+  const value = String(url || '').trim()
+  if (!value || !isTenancyEnabled()) return value
+  const code = getTenantCode()
+  if (!code) return value
+  if (!ATTACHMENT_PUBLIC_HINT.test(value)) return value
+  try {
+    const abs = value.startsWith('http') ? new URL(value) : new URL(value, 'http://local.invalid')
+    if (!abs.searchParams.get('tenant_code') && !abs.searchParams.get('tenant_id')) {
+      abs.searchParams.set('tenant_code', code)
+    }
+    if (value.startsWith('http')) return abs.toString()
+    return `${abs.pathname}${abs.search}${abs.hash}`
+  } catch {
+    const sep = value.includes('?') ? '&' : '?'
+    if (/[?&]tenant_code=/.test(value) || /[?&]tenant_id=/.test(value)) return value
+    return `${value}${sep}tenant_code=${encodeURIComponent(code)}`
+  }
+}

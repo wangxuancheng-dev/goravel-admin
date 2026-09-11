@@ -196,6 +196,7 @@
     "config": "Settings",
     "blacklist": "IP Blacklist",
     "online_admin": "Online Admins",
+    "tenant": "Tenants",
     "export": "Exports",
     "attachment": "Attachments",
     "order": "Orders",
@@ -859,6 +860,19 @@
     "file_disk": "File Disk",
     "export_format": "Export Format",
     "update_success": "Updated successfully"
+  },
+  "tenant": {
+    "add": "Create tenant",
+    "code": "Tenant code",
+    "code_placeholder": "e.g. acme",
+    "code_required": "Please enter tenant code",
+    "name": "Name",
+    "name_required": "Please enter name",
+    "driver": "Driver",
+    "isolation": "Isolation",
+    "database": "Database",
+    "schema": "Schema",
+    "migrate": "Migrate & seed after create"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

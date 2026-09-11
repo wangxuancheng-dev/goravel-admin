@@ -243,6 +243,19 @@ func (s *MenuSeeder) Run() error {
 
 	createOrUpdateMenu(models.Menu{
 		ParentID:  systemMenu.ID,
+		Title:     "租户管理",
+		Slug:      "tenant",
+		Icon:      "OfficeBuilding",
+		Path:      "/tenants",
+		Component: "tenant/TenantList",
+		Type:      2,
+		Status:    1,
+		Sort:      8,
+		IsHidden:  0,
+	})
+
+	createOrUpdateMenu(models.Menu{
+		ParentID:  systemMenu.ID,
 		Title:     "字典管理",
 		Slug:      "dictionary",
 		Icon:      "Document",
@@ -250,7 +263,7 @@ func (s *MenuSeeder) Run() error {
 		Component: "dictionary/DictionaryList",
 		Type:      2,
 		Status:    1,
-		Sort:      8,
+		Sort:      9,
 		IsHidden:  0,
 	})
 

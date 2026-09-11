@@ -180,6 +180,7 @@
     "config": "Config",
     "blacklist": "IP Blacklist",
     "online_admin": "Online Admin",
+    "tenant": "Tenants",
     "export": "Export",
     "attachment": "Attachment",
     "order": "Order",
@@ -1015,6 +1016,19 @@
     "update_success": "Update successful",
     "create_success": "Create successful",
     "delete_success": "Delete successful"
+  },
+  "tenant": {
+    "add": "Create tenant",
+    "code": "Tenant code",
+    "code_placeholder": "e.g. acme",
+    "code_required": "Please enter tenant code",
+    "name": "Name",
+    "name_required": "Please enter name",
+    "driver": "Driver",
+    "isolation": "Isolation",
+    "database": "Database",
+    "schema": "Schema",
+    "migrate": "Migrate & seed after create"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",
