@@ -43,7 +43,6 @@ func Admin() {
 	articleController := admin.NewArticleController()
 	formDemoController := admin.NewFormDemoController()
 	aiLabController := admin.NewAiLabController()
-	tenantController := admin.NewTenantController()
 
 	// Admin 路由组：统一前缀和域名限制
 	facades.Route().Prefix("api/admin").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
@@ -137,12 +136,6 @@ func Admin() {
 
 			// 岗位管理
 			router.Resource("positions", positionController)
-
-			// 租户管理（平台库 tenants；需 TENANCY_DRIVER=database）
-			router.Get("tenants", tenantController.Index)
-			router.Get("tenants/{id}", tenantController.Show)
-			router.Post("tenants", tenantController.Store)
-			router.Put("tenants/{id}/status", tenantController.UpdateStatus)
 
 			// 字典管理
 			router.Resource("dictionaries", dictionaryController)

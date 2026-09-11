@@ -22,6 +22,7 @@ func Boot() contractsfoundation.Application {
 			routes.Web()
 			routes.Api()
 			routes.Admin()
+			routes.Platform()
 			routes.Pprof()
 		}).
 		WithProviders(Providers).

@@ -34,7 +34,7 @@
 
 两套前端**对接同一 Admin API**，约定新功能同发（见前端 skill）。架构上后端一份，前端双实现。
 
-可选多租户（默认 `TENANCY_DRIVER=off` 单库）：开启后平台库仅 `tenants`，业务与认证均在租户库（Tenant→Jwt）。见 [TENANT_RESERVED.md](./TENANT_RESERVED.md)。
+可选多租户（默认 `TENANCY_DRIVER=off` 单库）：开启 `database` 后，平台库存 `tenants` + `platform_admins`，租户业务与认证在租户库；平台控制台走 `/api/platform`（不切库）。见 [TENANT_RESERVED.md](./TENANT_RESERVED.md)。
 
 ---
 

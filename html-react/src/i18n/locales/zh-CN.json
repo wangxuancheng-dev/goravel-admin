@@ -867,6 +867,7 @@
   },
   "tenant": {
     "add": "新建租户",
+    "edit": "编辑连接",
     "code": "租户码",
     "code_placeholder": "例如 acme",
     "code_required": "请输入租户码",
@@ -875,8 +876,27 @@
     "driver": "驱动",
     "isolation": "隔离方式",
     "database": "数据库",
+    "database_placeholder": "默认 prefix+code",
     "schema": "Schema",
-    "migrate": "创建后迁移并填充"
+    "schema_placeholder": "PG schema 隔离时使用",
+    "migrate": "创建后迁移并填充",
+    "remote_connection": "远程连接（可选，空则回落平台 DB_*）",
+    "host": "Host",
+    "host_placeholder": "空则使用平台 DB_HOST",
+    "port": "Port",
+    "username": "用户名",
+    "username_placeholder": "空则使用平台用户",
+    "password": "密码",
+    "password_placeholder": "空则使用平台密码",
+    "password_keep": "留空表示不修改已保存密码"
+  },
+  "platform": {
+    "title": "平台控制台",
+    "login_hint": "管理租户开户与数据库连接（Landlord）",
+    "back_tenant_login": "返回租户后台登录",
+    "moved_title": "租户管理已迁移",
+    "moved_hint": "请使用平台控制台账号登录后管理租户",
+    "go_platform": "进入平台控制台"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",

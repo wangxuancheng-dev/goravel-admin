@@ -125,6 +125,9 @@
               </el-button>
             </el-form-item>
           </el-form>
+          <div v-if="tenancyEnabled" class="platform-login-link">
+            <router-link to="/platform/login">{{ $t('platform.title') }}</router-link>
+          </div>
         </div>
       </div>
     </div>
@@ -607,6 +610,12 @@ const handleLogin = async () => {
 .login-button:active {
   background: var(--el-color-primary-dark-2);
   box-shadow: 0 2px 6px color-mix(in srgb, var(--el-color-primary) 30%, transparent);
+}
+
+.platform-login-link {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 13px;
 }
 
 .captcha-row {

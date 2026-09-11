@@ -298,6 +298,13 @@ export default function LoginPage() {
             <Space className="login-hint" size={4}>
               <Typography.Text type="secondary">demo / demo123</Typography.Text>
             </Space>
+            {tenancyEnabled && (
+              <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <Button type="link" onClick={() => navigate('/platform/login')}>
+                  {t('platform.title')}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '../store/user'
 import logger from '../utils/logger'
 import { flattenTree } from '../utils/tree'
+import { getPlatformToken } from '../utils/platformRequest'
 
 /**
  * 带重试和错误处理的动态导入包装函数
@@ -74,6 +75,27 @@ const staticRoutes = [
     name: 'Login',
     component: () => lazyLoad(() => import('../views/Login.vue')),
     meta: { requiresAuth: false }
+  },
+  {
+    path: '/platform/login',
+    name: 'PlatformLogin',
+    component: () => lazyLoad(() => import('../views/platform/Login.vue')),
+    meta: { requiresAuth: false, platform: true }
+  },
+  {
+    path: '/platform',
+    name: 'PlatformLayout',
+    component: () => lazyLoad(() => import('../views/platform/Layout.vue')),
+    redirect: '/platform/tenants',
+    meta: { requiresAuth: true, platform: true },
+    children: [
+      {
+        path: 'tenants',
+        name: 'PlatformTenants',
+        component: () => lazyLoad(() => import('../views/platform/TenantList.vue')),
+        meta: { titleKey: 'menu.tenant', platform: true, requiresAuth: true }
+      }
+    ]
   },
   {
     path: '/',
@@ -411,7 +433,26 @@ export function resetDynamicRoutes() {
 
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
-  
+  const isPlatformRoute = to.matched.some((r) => r.meta?.platform) || String(to.path || '').startsWith('/platform')
+
+  if (isPlatformRoute) {
+    const platformToken = getPlatformToken()
+    if (to.meta.requiresAuth === false || to.path === '/platform/login') {
+      if (platformToken && to.path === '/platform/login') {
+        next('/platform/tenants')
+      } else {
+        next()
+      }
+      return
+    }
+    if (!platformToken) {
+      next('/platform/login')
+      return
+    }
+    next()
+    return
+  }
+
   if (to.meta.requiresAuth === false) {
     // 登录页面，如果已登录则跳转到首页
     if (userStore.isLoggedIn) {

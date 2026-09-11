@@ -1019,6 +1019,7 @@
   },
   "tenant": {
     "add": "Create tenant",
+    "edit": "Edit connection",
     "code": "Tenant code",
     "code_placeholder": "e.g. acme",
     "code_required": "Please enter tenant code",
@@ -1027,8 +1028,27 @@
     "driver": "Driver",
     "isolation": "Isolation",
     "database": "Database",
+    "database_placeholder": "Default: prefix+code",
     "schema": "Schema",
-    "migrate": "Migrate & seed after create"
+    "schema_placeholder": "Used for PG schema isolation",
+    "migrate": "Migrate & seed after create",
+    "remote_connection": "Remote connection (optional; empty falls back to platform DB_*)",
+    "host": "Host",
+    "host_placeholder": "Empty = platform DB_HOST",
+    "port": "Port",
+    "username": "Username",
+    "username_placeholder": "Empty = platform username",
+    "password": "Password",
+    "password_placeholder": "Empty = platform password",
+    "password_keep": "Leave blank to keep current password"
+  },
+  "platform": {
+    "title": "Platform Console",
+    "login_hint": "Landlord console for tenant provisioning",
+    "back_tenant_login": "Back to tenant admin login",
+    "moved_title": "Tenant management moved",
+    "moved_hint": "Use a platform admin account to manage tenants",
+    "go_platform": "Open platform console"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

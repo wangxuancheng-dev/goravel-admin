@@ -2,14 +2,12 @@ package commands
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
-	"github.com/goravel/framework/facades"
 
-	appfacades "goravel/app/facades"
-	"goravel/app/models"
 	"goravel/app/services"
 )
 
@@ -31,6 +29,10 @@ func (r *TenantCreate) Extend() command.Extend {
 			&command.StringFlag{Name: "isolation", Aliases: []string{"i"}, Usage: "database|schema（MySQL 仅 database）"},
 			&command.StringFlag{Name: "database", Usage: "目标 database 名（默认 prefix+code）"},
 			&command.StringFlag{Name: "schema", Usage: "PG schema 名（isolation=schema 时默认 prefix+code）"},
+			&command.StringFlag{Name: "host", Usage: "远程库 Host（空则用平台 DB_HOST）"},
+			&command.StringFlag{Name: "port", Usage: "远程库 Port（0/空则用平台 DB_PORT）"},
+			&command.StringFlag{Name: "username", Usage: "远程库用户（空则用平台用户）"},
+			&command.StringFlag{Name: "password", Usage: "远程库密码（空则用平台密码）"},
 			&command.BoolFlag{Name: "migrate", Aliases: []string{"m"}, Usage: "创建后立即对该连接执行 migrate"},
 		},
 	}
@@ -50,81 +52,31 @@ func (r *TenantCreate) Handle(ctx console.Context) error {
 		return nil
 	}
 
-	driverName := strings.TrimSpace(ctx.Option("driver"))
-	if driverName == "" {
-		driverName = facades.Config().GetString("database.default", "mysql")
-	}
-	isolation := strings.TrimSpace(ctx.Option("isolation"))
-	isolation, err = services.ResolveTenantIsolation(driverName, isolation)
-	if err != nil {
-		ctx.Error(err.Error())
-		return nil
-	}
-
-	database := strings.TrimSpace(ctx.Option("database"))
-	if database == "" {
-		if isolation == models.TenantIsolationSchema {
-			database = facades.Config().GetString("database.connections."+driverName+".database", "goravel")
-		} else {
-			database = services.DefaultTenantDatabaseName(code)
+	port := 0
+	if p := strings.TrimSpace(ctx.Option("port")); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			port = n
 		}
 	}
-	schemaName := strings.TrimSpace(ctx.Option("schema"))
-	if isolation == models.TenantIsolationSchema && schemaName == "" {
-		schemaName = services.DefaultTenantSchemaName(code)
-	}
 
-	var existing models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Where("code", code).First(&existing); err == nil && existing.ID > 0 {
-		ctx.Error(fmt.Sprintf("租户 code=%s 已存在 (id=%d)", code, existing.ID))
-		return nil
-	}
-
-	tenant := models.Tenant{
+	tenant, err := services.NewTenantAdminService().Create(services.TenantCreateInput{
 		Code:      code,
 		Name:      name,
-		Status:    models.TenantStatusActive,
-		Driver:    driverName,
-		Isolation: isolation,
-		Database:  database,
-		Schema:    schemaName,
-		// connection_name 先占位，入库后按 id 更新
-		ConnectionName: fmt.Sprintf("tenant_pending_%s", code),
-	}
-
-	if err := appfacades.PlatformOrmQuery(nil).Create(&tenant); err != nil {
-		ctx.Error("创建租户记录失败: " + err.Error())
+		Driver:    strings.TrimSpace(ctx.Option("driver")),
+		Isolation: strings.TrimSpace(ctx.Option("isolation")),
+		Database:  strings.TrimSpace(ctx.Option("database")),
+		Schema:    strings.TrimSpace(ctx.Option("schema")),
+		Host:      strings.TrimSpace(ctx.Option("host")),
+		Port:      port,
+		Username:  strings.TrimSpace(ctx.Option("username")),
+		Password:  ctx.Option("password"),
+		Migrate:   ctx.OptionBool("migrate"),
+	})
+	if err != nil {
+		ctx.Error(err.Error())
 		return err
 	}
-
-	tenant.ConnectionName = services.TenantConnectionName(tenant.ID)
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(&tenant).Update(map[string]any{
-		"connection_name": tenant.ConnectionName,
-	}); err != nil {
-		ctx.Error("更新 connection_name 失败: " + err.Error())
-		return err
-	}
-
-	svc := services.NewTenantConnectionService()
-	if err := svc.CreateStorage(&tenant); err != nil {
-		ctx.Error("创建数据库/Schema 失败: " + err.Error())
-		return err
-	}
-	ctx.Success(fmt.Sprintf("已创建租户 id=%d code=%s connection=%s db=%s schema=%s",
-		tenant.ID, tenant.Code, tenant.ConnectionName, tenant.Database, tenant.Schema))
-
-	if ctx.OptionBool("migrate") {
-		if err := svc.MigrateTenant(&tenant); err != nil {
-			ctx.Error("migrate 失败: " + err.Error())
-			return err
-		}
-		ctx.Success("租户 migrate 完成")
-		if err := svc.SeedTenant(&tenant); err != nil {
-			ctx.Error("seed 失败: " + err.Error())
-			return err
-		}
-		ctx.Success("租户 seed 完成")
-	}
-
+	ctx.Success(fmt.Sprintf("已创建租户 id=%d code=%s connection=%s db=%s schema=%s host=%s",
+		tenant.ID, tenant.Code, tenant.ConnectionName, tenant.Database, tenant.Schema, tenant.Host))
 	return nil
 }

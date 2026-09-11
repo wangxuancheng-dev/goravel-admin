@@ -1,4 +1,4 @@
-package admin
+package platform
 
 import (
 	"strings"
@@ -6,6 +6,7 @@ import (
 	"github.com/goravel/framework/contracts/http"
 
 	apperrors "goravel/app/errors"
+	"goravel/app/http/controllers/admin"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
 	"goravel/app/models"
@@ -22,13 +23,12 @@ func (c *TenantController) service() *services.TenantAdminService {
 	return services.NewTenantAdminService()
 }
 
-// Index lists platform tenants (requires TENANCY_DRIVER=database).
 func (c *TenantController) Index(ctx http.Context) http.Response {
 	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
 	filters := services.BuildTenantAdminFiltersFromHTTP(ctx)
 	list, total, err := c.service().GetList(filters, page, pageSize)
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
 	}
 	rows := make([]map[string]any, 0, len(list))
 	for i := range list {
@@ -37,7 +37,6 @@ func (c *TenantController) Index(ctx http.Context) http.Response {
 	return response.Paginate(ctx, rows, total, page, pageSize)
 }
 
-// Show tenant detail.
 func (c *TenantController) Show(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
 	if id == 0 {
@@ -45,7 +44,7 @@ func (c *TenantController) Show(ctx http.Context) http.Response {
 	}
 	tenant, err := c.service().GetByID(id)
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
 }
@@ -57,10 +56,13 @@ type tenantStoreBody struct {
 	Isolation string `json:"isolation" form:"isolation"`
 	Database  string `json:"database" form:"database"`
 	Schema    string `json:"schema" form:"schema"`
+	Host      string `json:"host" form:"host"`
+	Port      int    `json:"port" form:"port"`
+	Username  string `json:"username" form:"username"`
+	Password  string `json:"password" form:"password"`
 	Migrate   bool   `json:"migrate" form:"migrate"`
 }
 
-// Store creates a tenant (+ optional migrate/seed).
 func (c *TenantController) Store(ctx http.Context) http.Response {
 	var body tenantStoreBody
 	_ = ctx.Request().Bind(&body)
@@ -74,10 +76,46 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 		Isolation: body.Isolation,
 		Database:  body.Database,
 		Schema:    body.Schema,
+		Host:      body.Host,
+		Port:      body.Port,
+		Username:  body.Username,
+		Password:  body.Password,
 		Migrate:   body.Migrate,
 	})
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+	}
+	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
+}
+
+type tenantUpdateBody struct {
+	Name     *string `json:"name" form:"name"`
+	Host     *string `json:"host" form:"host"`
+	Port     *int    `json:"port" form:"port"`
+	Username *string `json:"username" form:"username"`
+	Password *string `json:"password" form:"password"`
+	Database *string `json:"database" form:"database"`
+	Schema   *string `json:"schema" form:"schema"`
+}
+
+func (c *TenantController) Update(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	var body tenantUpdateBody
+	_ = ctx.Request().Bind(&body)
+	tenant, err := c.service().UpdateConnection(id, services.TenantUpdateInput{
+		Name:     body.Name,
+		Host:     body.Host,
+		Port:     body.Port,
+		Username: body.Username,
+		Password: body.Password,
+		Database: body.Database,
+		Schema:   body.Schema,
+	})
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
 }
@@ -86,7 +124,6 @@ type tenantStatusBody struct {
 	Status *uint8 `json:"status" form:"status"`
 }
 
-// UpdateStatus enables/disables a tenant.
 func (c *TenantController) UpdateStatus(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
 	if id == 0 {
@@ -99,7 +136,7 @@ func (c *TenantController) UpdateStatus(ctx http.Context) http.Response {
 	}
 	tenant, err := c.service().SetStatus(id, *body.Status)
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
 }

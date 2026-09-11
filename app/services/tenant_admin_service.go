@@ -36,7 +36,22 @@ type TenantCreateInput struct {
 	Isolation string
 	Database  string
 	Schema    string
+	Host      string
+	Port      int
+	Username  string
+	Password  string
 	Migrate   bool
+}
+
+// TenantUpdateInput updates connection metadata for an existing tenant.
+type TenantUpdateInput struct {
+	Name     *string
+	Host     *string
+	Port     *int
+	Username *string
+	Password *string
+	Database *string
+	Schema   *string
 }
 
 type TenantAdminService struct {
@@ -136,8 +151,12 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		Status:         models.TenantStatusActive,
 		Driver:         driverName,
 		Isolation:      isolation,
+		Host:           strings.TrimSpace(input.Host),
+		Port:           input.Port,
 		Database:       database,
 		Schema:         schemaName,
+		Username:       strings.TrimSpace(input.Username),
+		Password:       input.Password,
 		ConnectionName: fmt.Sprintf("tenant_pending_%s", code),
 	}
 	if err := appfacades.PlatformOrmQuery(nil).Create(&tenant); err != nil {
@@ -186,6 +205,61 @@ func (s *TenantAdminService) SetStatus(id uint, status uint8) (*models.Tenant, e
 	return tenant, nil
 }
 
+func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) (*models.Tenant, error) {
+	if err := s.requireEnabled(); err != nil {
+		return nil, err
+	}
+	tenant, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	updates := map[string]any{}
+	if input.Name != nil {
+		name := strings.TrimSpace(*input.Name)
+		if name == "" {
+			return nil, apperrors.ErrInvalidArgument.WithMessage("name is required")
+		}
+		updates["name"] = name
+		tenant.Name = name
+	}
+	if input.Host != nil {
+		updates["host"] = strings.TrimSpace(*input.Host)
+		tenant.Host = strings.TrimSpace(*input.Host)
+	}
+	if input.Port != nil {
+		updates["port"] = *input.Port
+		tenant.Port = *input.Port
+	}
+	if input.Username != nil {
+		updates["username"] = strings.TrimSpace(*input.Username)
+		tenant.Username = strings.TrimSpace(*input.Username)
+	}
+	if input.Password != nil {
+		updates["password"] = *input.Password
+		tenant.Password = *input.Password
+	}
+	if input.Database != nil {
+		dbName := strings.TrimSpace(*input.Database)
+		if dbName == "" {
+			return nil, apperrors.ErrInvalidArgument.WithMessage("database is required")
+		}
+		updates["database"] = dbName
+		tenant.Database = dbName
+	}
+	if input.Schema != nil {
+		updates["schema"] = strings.TrimSpace(*input.Schema)
+		tenant.Schema = strings.TrimSpace(*input.Schema)
+	}
+	if len(updates) == 0 {
+		return tenant, nil
+	}
+	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(updates); err != nil {
+		return nil, err
+	}
+	s.conn.Forget(tenant.ConnectionName)
+	return tenant, nil
+}
+
 func (s *TenantAdminService) ListAll() ([]models.Tenant, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, err
@@ -197,7 +271,7 @@ func (s *TenantAdminService) ListAll() ([]models.Tenant, error) {
 	return list, nil
 }
 
-// TenantToJSON hides password.
+// TenantToJSON hides password; has_password indicates a stored credential exists.
 func TenantToJSON(t *models.Tenant) map[string]any {
 	if t == nil {
 		return nil
@@ -214,6 +288,7 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 		"database":        t.Database,
 		"schema":          t.Schema,
 		"username":        t.Username,
+		"has_password":    t.Password != "",
 		"connection_name": t.ConnectionName,
 		"created_at":      t.CreatedAt,
 		"updated_at":      t.UpdatedAt,

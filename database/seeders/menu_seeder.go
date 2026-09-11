@@ -243,19 +243,6 @@ func (s *MenuSeeder) Run() error {
 
 	createOrUpdateMenu(models.Menu{
 		ParentID:  systemMenu.ID,
-		Title:     "租户管理",
-		Slug:      "tenant",
-		Icon:      "OfficeBuilding",
-		Path:      "/tenants",
-		Component: "tenant/TenantList",
-		Type:      2,
-		Status:    1,
-		Sort:      8,
-		IsHidden:  0,
-	})
-
-	createOrUpdateMenu(models.Menu{
-		ParentID:  systemMenu.ID,
 		Title:     "字典管理",
 		Slug:      "dictionary",
 		Icon:      "Document",
@@ -263,7 +250,7 @@ func (s *MenuSeeder) Run() error {
 		Component: "dictionary/DictionaryList",
 		Type:      2,
 		Status:    1,
-		Sort:      9,
+		Sort:      8,
 		IsHidden:  0,
 	})
 
@@ -577,6 +564,21 @@ func (s *MenuSeeder) Run() error {
 		Sort:      2,
 		IsHidden:  0,
 	})
+
+	// 租户管理已迁至平台控制台（/api/platform），从租户后台菜单中下线旧入口
+	var legacyTenantMenu models.Menu
+	if err := facades.Orm().Query().Where("slug", "tenant").First(&legacyTenantMenu); err == nil && legacyTenantMenu.ID > 0 {
+		_, _ = facades.Orm().Query().Model(&legacyTenantMenu).Update(map[string]any{
+			"status":    0,
+			"is_hidden": 1,
+		})
+		_, _ = facades.Orm().Query().Model(&models.Permission{}).
+			Where("menu_id", legacyTenantMenu.ID).
+			Update(map[string]any{"status": 0})
+		_, _ = facades.Orm().Query().Model(&models.Permission{}).
+			Where("slug", "like", "tenant.%").
+			Update(map[string]any{"status": 0})
+	}
 
 	return nil
 }

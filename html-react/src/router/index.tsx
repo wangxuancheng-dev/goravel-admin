@@ -21,6 +21,10 @@ import MainLayout from '../layouts/MainLayout'
 import DashboardPage from '../pages/Dashboard'
 import ProfilePage from '../pages/profile/Profile'
 import NotFoundPage from '../pages/NotFound'
+import PlatformLoginPage from '../pages/platform/Login'
+import PlatformLayout from '../pages/platform/Layout'
+import PlatformTenantListPage from '../pages/platform/TenantList'
+import { getPlatformToken } from '@/utils/platformRequest'
 
 function PageFallback({ fullscreen = false }: { fullscreen?: boolean }) {
   return (
@@ -91,6 +95,31 @@ function menusSignature(menus: ReturnType<typeof useUserStore.getState>['menus']
   }
 }
 
+function PlatformAuthGuard() {
+  const location = useLocation()
+  const token = getPlatformToken()
+  if (!token) {
+    return <Navigate to="/platform/login" replace state={{ from: location.pathname }} />
+  }
+  return (
+    <>
+      <NavigatorBridge />
+      <Outlet />
+    </>
+  )
+}
+
+function PlatformGuestGuard() {
+  const token = getPlatformToken()
+  if (token) return <Navigate to="/platform/tenants" replace />
+  return (
+    <>
+      <NavigatorBridge />
+      <Outlet />
+    </>
+  )
+}
+
 function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
   return createBrowserRouter([
     {
@@ -102,6 +131,37 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
           index: true,
           element: <LoginPage />,
           handle: { requiresAuth: false },
+        },
+      ],
+    },
+    {
+      path: '/platform/login',
+      element: <PlatformGuestGuard />,
+      errorElement: <RouteErrorFallback />,
+      children: [
+        {
+          index: true,
+          element: <PlatformLoginPage />,
+          handle: { requiresAuth: false, platform: true },
+        },
+      ],
+    },
+    {
+      path: '/platform',
+      element: <PlatformAuthGuard />,
+      errorElement: <RouteErrorFallback />,
+      children: [
+        {
+          element: <PlatformLayout />,
+          errorElement: <RouteErrorFallback />,
+          children: [
+            { index: true, element: <Navigate to="/platform/tenants" replace /> },
+            {
+              path: 'tenants',
+              element: <PlatformTenantListPage />,
+              handle: { titleKey: 'menu.tenant', platform: true },
+            },
+          ],
         },
       ],
     },
