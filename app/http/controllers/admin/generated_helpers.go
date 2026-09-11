@@ -73,8 +73,12 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusForbidden
 	case strings.Contains(code, "_has_"):
 		return http.StatusBadRequest
-	case code == "account_disabled" || code == "forbidden":
+	case code == "account_disabled" || code == "forbidden" || code == "tenant_disabled":
 		return http.StatusForbidden
+	case code == "tenant_required":
+		return http.StatusBadRequest
+	case code == "tenant_connection_failed":
+		return http.StatusInternalServerError
 	case code == "payment_gateway_not_implemented":
 		return http.StatusNotImplemented
 	case code == "not_logged_in" || code == "username_or_password_error" || code == "unauthorized":

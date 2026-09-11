@@ -1,75 +1,82 @@
-# 租户功能预留说明
+# 多租户：一户一库 / Schema（MySQL + PostgreSQL）
 
-> **Goravel v1.18**：业务查询请使用 `appfacades.OrmQuery(ctx)` 传递请求 context，便于 OTEL trace 贯通与请求取消。下文示例中 `facades.Orm().Query()` 为历史写法，新代码请改用 `OrmQuery(ctx)`。
+默认 **`TENANCY_DRIVER=off`**：整站单库，与改造前用法相同，无需 Header。
 
-当前已预留租户相关代码，**未启用多租户时不会对现有查询产生任何影响**。后续需要多租户时按以下步骤接入即可。
+设为 **`database`** 后：每个租户独立 database（MySQL）或 database/schema（PostgreSQL）；**认证与业务都在该租户库**（先解析租户，再 JWT）。
 
-## 已预留文件
+## 架构
 
-| 文件 | 说明 |
-|------|------|
-| `app/http/helpers/tenant.go` | 租户辅助函数：GetTenantIDFromContext、ScopeTenant、ScopeTenantOrGlobal 等 |
-| `app/services/tenant_query_service.go` | 租户查询服务：统一查询入口，自动按租户过滤 |
-
-## 当前行为
-
-- `GetTenantIDFromContext(ctx)`：未设置租户时返回 `(0, false)`。
-- `ScopeTenant(ctx, query)`：未设置租户时直接返回原 `query`，不添加任何条件。
-- `NewTenantQueryService(ctx).QueryModel(&User{})`：等价于 `appfacades.OrmQuery(ctx).Model(&User{})`。
-
-因此现有代码无需修改，也不会被租户逻辑影响。
-
-## 日后启用多租户时的步骤
-
-1. **数据库**
-   - 新增 `tenants` 表（租户主表）。
-   - 在需要隔离的业务表上增加 `tenant_id` 字段并建索引。
-
-2. **中间件**
-   - 在 JWT 之后增加租户中间件：根据当前管理员解析出 `tenant_id`，并执行：
-     - `ctx.WithValue("tenant_id", tenantID)`
-   - 超级管理员可约定 `tenant_id == 0` 或不在 context 中设置，表示不过滤租户。
-
-3. **查询方式二选一**
-   - **方式 A**：在需要按租户过滤的地方，用 `helpers.ScopeTenant(ctx, query)` 包装原有 query。
-   - **方式 B（推荐）**：统一使用 `NewTenantQueryService(ctx)` 的 `Query()` / `QueryModel()` / `QueryTable()`，由服务内部自动加租户条件。
-
-4. **写入**
-   - 创建业务数据时，从 `helpers.GetTenantIDFromContext(ctx)` 或 `TenantQueryService.GetTenantID()` 取租户 ID，写入模型的 `tenant_id` 字段。
-
-## 使用示例（启用租户后）
-
-```go
-// 控制器中
-tenantQuery := services.NewTenantQueryService(ctx)
-var users []models.User
-tenantQuery.QueryModel(&models.User{}).Where("status", 1).Find(&users)
-
-// 或继续用 facades.Orm，手动加 ScopeTenant
-query := facades.Orm().Query().Model(&models.User{})
-query = helpers.ScopeTenant(ctx, query)
-query.Find(&users)
+```text
+TENANCY_DRIVER=off     → 默认 DB_* 单库
+TENANCY_DRIVER=database
+  ├── 平台库 DB_*：仅 tenants 元数据（开户/连库信息）
+  └── 租户库：admins / RBAC / 业务表（migrate + seed）
 ```
 
-当前仅做代码预留，无需改表或改业务逻辑；等需要租户时再按上述步骤接入即可。
+请求（开启时）：`Tenant` 中间件 → `Jwt` → 业务。登录体可带 `tenant_code` / `tenant_id`，或 Header `X-Tenant-ID`。
 
-## 使用 v1.17 的 WithoutGlobalScopes
+## 配置
 
-Goravel v1.17 引入了 `WithoutGlobalScopes` 功能，可以用于排除租户过滤：
-
-```go
-// 排除所有全局作用域（包括租户作用域）
-facades.Orm().Query().Model(&models.User{}).WithoutGlobalScopes().Find(&users)
-
-// 只排除名为 "tenant" 的全局作用域
-facades.Orm().Query().Model(&models.User{}).WithoutGlobalScopes("tenant").Find(&users)
-
-// 使用 TenantQueryService 的便捷方法
-tenantQuery := services.NewTenantQueryService(ctx)
-tenantQuery.QueryModelWithoutTenant(&models.User{}).Find(&users)  // 排除租户过滤
-tenantQuery.QueryModelWithoutScopes(&models.User{}).Find(&users)   // 排除所有全局作用域
+```ini
+TENANCY_DRIVER=off          # off | database
+TENANCY_HEADER=X-Tenant-ID
+TENANCY_DATABASE_PREFIX=tenant_
+TENANCY_SCHEMA_PREFIX=tenant_
 ```
 
-**注意**：由于 Goravel 的 GlobalScopes 函数签名无法直接访问 HTTP Context，当前实现中租户过滤是通过 `ScopeTenant` 手动添加的。如果将来迁移到使用模型的 `GlobalScopes()` 方法，`WithoutGlobalScopes("tenant")` 会自动生效。
+## 命令
 
-详见：[多租户迁移到 GlobalScopes 指南](./TENANT_GLOBALSCOPE_MIGRATION.md)
+```bash
+go run . artisan migrate                    # 平台库（含 tenants 表）
+
+# MySQL 一户一库 + 迁移 + 种子（管理员/菜单/权限）
+go run . artisan tenant:create acme "Acme" --driver=mysql --isolation=database --migrate
+
+# PostgreSQL 独立库或 schema
+go run . artisan tenant:create acme "Acme" --driver=postgres --isolation=database --migrate
+go run . artisan tenant:create acme "Acme" --driver=postgres --isolation=schema --migrate
+
+go run . artisan tenant:migrate acme
+go run . artisan tenant:seed acme
+go run . artisan tenant:migrate-all
+```
+
+`--migrate` 会在 migrate 后自动 `tenant:seed`。
+
+## 代码约定（必读）
+
+| API | 用途 |
+|-----|------|
+| `tenancy.Enabled()` | 是否一户一库；**唯一开关判断**（`helpers`/`services` 仅别名） |
+| `tenancy.CacheKey(ctx, key)` | 缓存/锁键租户前缀（登录锁定、导出锁、验证码 store key） |
+| `tenancy.StoragePrefix(ctx)` | 对象存储路径前缀 `tenants/{code}/` |
+| `tenancy.HTTPHint(ctx)` | Header / Query 租户标识 |
+| `OrmQuery(ctx)` | **业务与认证默认入口**；ctx 已绑定时走租户库 |
+| `PlatformOrmQuery(ctx)` | **仅**平台 `tenants` 与建库 DDL |
+| `TenantConnectionService.BindHTTP` / `BindBackground` | HTTP / 队列切库 |
+| `WithTenantConnection` | migrate / seed 共用串行切库 |
+
+### 硬性规则
+
+1. 业务代码优先 `appfacades.OrmQuery(ctx)`，不要直接 `facades.Orm().Query()`（会打到平台库）。
+2. 平台元数据只用 `PlatformOrmQuery`；不要在业务表查询里混用。
+3. 缓存键、分布式锁经 `tenancy.CacheKey`（或 `helpers.TenantCacheKey`）。
+4. 上传路径经 `tenancy.StoragePrefix` / `helpers.TenantStoragePrefix`。
+5. 不要再加行级 `tenant_id` GlobalScope；隔离靠独立库/schema。
+
+导出任务 `ExportArgs` 携带 `tenant_id`，worker 先 `JobContext` 再拿执行锁与写库；`WriteData` / `Build*Query` 必须传入同一 `ctx`（勿用 `context.Background()`）。
+
+代码生成器：`service.tpl` / `controller.tpl` 已走 `OrmQuery(ctx)`；异步导出模板为 `export_job.tpl`（与上约定一致）。前端 Header 不在生成器里注入，需在双前端 `request` 层统一处理。
+
+## 前端 / 调用方
+
+开启 tenancy 后：
+
+1. 登录传 `tenant_code`（或 Header）
+2. 之后每个 API（含公开预览图）带同一租户 Header / Query
+
+## 已废弃
+
+- 共享表 + `WHERE tenant_id` / `ScopeTenant` / GlobalScope 行级方案（见已归档说明 [TENANT_GLOBALSCOPE_MIGRATION.md](./TENANT_GLOBALSCOPE_MIGRATION.md)）
+- 「认证在平台库、业务在租户库」的折中中间态
+- 用「无 tenant_id」误判「超级管理员」的 helpers

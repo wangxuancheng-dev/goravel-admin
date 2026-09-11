@@ -71,7 +71,7 @@ func Jwt() http.Middleware {
 			return
 		}
 
-		// 查询用户信息
+		// 查询用户信息（一户一库时已在 Tenant 中间件切到租户库）
 		var admin models.Admin
 		if err := appfacades.OrmQuery(ctx).Where("id", accessToken.TokenableID).First(&admin); err != nil {
 			response.Abort(ctx, http.StatusUnauthorized, "user_not_found")
@@ -86,7 +86,6 @@ func Jwt() http.Middleware {
 			ttl := facades.Config().GetInt("jwt.ttl", 60) // 默认60分钟
 			if ttl > 0 {
 				newExpiresAt := time.Now().Add(time.Duration(ttl) * time.Minute)
-				// 更新token的过期时间
 				_, _ = appfacades.OrmQuery(ctx).
 					Model(&models.PersonalAccessToken{}).
 					Where("id", accessToken.ID).

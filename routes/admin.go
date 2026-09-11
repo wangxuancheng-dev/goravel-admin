@@ -47,17 +47,17 @@ func Admin() {
 	// Admin 路由组：统一前缀和域名限制
 	facades.Route().Prefix("api/admin").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 
-		// 登录相关
+		// 登录 / 验证码（tenancy 开启时 Login 内解析租户；验证码仍走默认/平台缓存）
 		router.Middleware(middleware.Lang()).Group(func(router route.Router) {
 			router.Middleware(httpmiddleware.Throttle("login")).Post("login", adminAuthController.Login)
 			router.Get("login/captcha", adminAuthController.Captcha)
 
-			// 公开附件访问（无需登录，仅 is_public=1）
-			router.Get("public/images/{id}", attachmentController.PublicPreview)
+			// 公开附件：tenancy 开启时需带租户标识
+			router.Middleware(middleware.Tenant()).Get("public/images/{id}", attachmentController.PublicPreview)
 		})
 
-		// 基础功能（需要认证和多语言，但不需要权限验证和操作日志）
-		router.Middleware(middleware.Lang(), middleware.Jwt()).Group(func(router route.Router) {
+		// 已登录：Tenant → Jwt（off 时 Tenant 为 no-op）
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Jwt()).Group(func(router route.Router) {
 			// 认证相关
 			router.Get("info", adminAuthController.Info)
 
@@ -105,8 +105,8 @@ func Admin() {
 			// 目前 attachmentController.Preview 已经是处理图片流的了
 		})
 
-		// 需要认证、多语言、权限验证和操作日志的路由
-		router.Middleware(middleware.Lang(), middleware.Jwt(), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
+		// 业务 CRUD：Tenant → Jwt → Permission
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Jwt(), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
 
 			router.Put("profile", adminAuthController.UpdateProfile)
 

@@ -70,6 +70,12 @@ func EnqueueAsyncExport(ctx http.Context, in EnqueueAsyncExportInput) EnqueueAsy
 		Language: utils.GetCurrentLanguage(ctx),
 		Timezone: helpers.GetCurrentTimezone(ctx),
 	}
+	if tid, ok := helpers.GetTenantIDFromContext(ctx); ok {
+		args.TenantID = tid
+	}
+	if conn, ok := helpers.GetTenantConnectionFromContext(ctx); ok {
+		args.TenantConnection = conn
+	}
 
 	argsJSON, err := json.Marshal(args)
 	if err != nil {

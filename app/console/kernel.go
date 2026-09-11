@@ -45,5 +45,9 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.InitOrdersSearchIndex{},
 		&commands.SyncOrdersSearch{},
 		&commands.RetrySearchOutbox{},
+		&commands.TenantCreate{},
+		&commands.TenantMigrate{},
+		&commands.TenantMigrateAll{},
+		&commands.TenantSeed{},
 	}
 }

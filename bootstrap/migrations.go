@@ -69,5 +69,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20260711000001CreateSearchSyncOutboxTable{},
 		&migrations.M20260716000001CreateAttachmentCategoriesTable{},
 		&migrations.M20260717000001AddIsPublicToAttachmentsTable{},
+		&migrations.M20260911000001CreateTenantsTable{},
 	}
 }

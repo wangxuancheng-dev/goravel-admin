@@ -174,6 +174,10 @@ var (
 	// 资源不存在错误（其他资源错误已在资源相关错误部分定义）
 	ErrTokenNotFound      = NewBusinessError("token_not_found", "Token不存在")
 	ErrUnauthorized       = NewBusinessError("unauthorized", "未授权")
+	ErrTenantRequired         = NewBusinessError("tenant_required", "请指定租户")
+	ErrTenantNotFound         = NewBusinessError("tenant_not_found", "租户不存在")
+	ErrTenantDisabled         = NewBusinessError("tenant_disabled", "租户已禁用")
+	ErrTenantConnectionFailed = NewBusinessError("tenant_connection_failed", "租户数据库连接失败")
 	ErrTokenRefreshFailed = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound       = NewBusinessError("user_not_found", "用户不存在")
 

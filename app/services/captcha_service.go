@@ -8,6 +8,7 @@ import (
 
 	"github.com/mojocn/base64Captcha"
 
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
 
@@ -79,10 +80,20 @@ func (s *CaptchaServiceImpl) Enabled() bool {
 
 func (s *CaptchaServiceImpl) Generate() (string, string, error) {
 	s.initDriver()
-	c := base64Captcha.NewCaptcha(s.driver, sharedCaptchaStore(120))
+	store := sharedCaptchaStore(120)
+	c := base64Captcha.NewCaptcha(s.driver, store)
 	id, b64s, _, err := c.Generate()
 	if err != nil {
 		return "", "", err
+	}
+	// Tenant-prefix store key so captchas don't collide across tenants on one process.
+	key := tenancy.CacheKey(s.ctx, id)
+	if key != id {
+		val := store.Get(id, true)
+		if val != "" {
+			_ = store.Set(key, val)
+		}
+		id = key
 	}
 	return id, b64s, nil
 }

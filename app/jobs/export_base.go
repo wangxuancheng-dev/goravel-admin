@@ -19,8 +19,10 @@ import (
 
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
+	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
@@ -32,12 +34,29 @@ const defaultExportExecutionLockTTLSeconds = 7200
 
 // ExportArgs 通用导出任务参数
 type ExportArgs struct {
-	ExportID uint           `json:"export_id"`
-	AdminID  uint           `json:"admin_id"`
-	Filters  map[string]any `json:"filters"`
-	Type     string         `json:"type"`
-	Language string         `json:"language"`
-	Timezone string         `json:"timezone"` // 用户时区，用于时间格式化
+	ExportID         uint           `json:"export_id"`
+	AdminID          uint           `json:"admin_id"`
+	TenantID         uint           `json:"tenant_id,omitempty"`
+	TenantConnection string         `json:"tenant_connection,omitempty"`
+	Filters          map[string]any `json:"filters"`
+	Type             string         `json:"type"`
+	Language         string         `json:"language"`
+	Timezone         string         `json:"timezone"` // 用户时区，用于时间格式化
+}
+
+// JobContext 为导出任务构建带租户连接的 context
+func JobContext(args ExportArgs) context.Context {
+	ctx := context.Background()
+	if args.TenantID == 0 && args.TenantConnection == "" {
+		return ctx
+	}
+	svc := services.NewTenantConnectionService()
+	bound, err := svc.BindBackground(ctx, args.TenantID)
+	if err != nil {
+		facades.Log().Errorf("export job bind tenant failed: tenant_id=%d err=%v", args.TenantID, err)
+		return ctx
+	}
+	return bound
 }
 
 // FormatTimeWithTimezone 使用指定时区格式化时间
@@ -70,7 +89,7 @@ type ExportConfig struct {
 	// 表头翻译键列表
 	HeaderKeys []string
 	// 数据写入函数，接收 CSV writer、筛选条件 map、语言、停止检查函数
-	WriteData func(w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error
+	WriteData func(ctx context.Context, w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error
 }
 
 // BaseExporter 通用导出器基类
@@ -119,6 +138,15 @@ func ParseArgs(args ...any) (ExportArgs, error) {
 		if lang, ok := utils.GetString(v, "language"); ok {
 			exportArgs.Language = lang
 		}
+		if tenantID, ok := utils.GetUint(v, "tenant_id"); ok {
+			exportArgs.TenantID = tenantID
+		}
+		if tenantConn, ok := utils.GetString(v, "tenant_connection"); ok {
+			exportArgs.TenantConnection = tenantConn
+		}
+		if tz, ok := utils.GetString(v, "timezone"); ok {
+			exportArgs.Timezone = tz
+		}
 	default:
 		return ExportArgs{}, apperrors.ErrInvalidArgument.WithMessage(fmt.Sprintf("invalid export arguments type: %T", args[0]))
 	}
@@ -130,8 +158,8 @@ func ParseArgs(args ...any) (ExportArgs, error) {
 	return exportArgs, nil
 }
 
-func AcquireExportExecutionLock(exportID uint) (*ExportExecutionLock, error) {
-	lockKey := fmt.Sprintf("export:execution:%d", exportID)
+func AcquireExportExecutionLock(ctx context.Context, exportID uint) (*ExportExecutionLock, error) {
+	lockKey := tenancy.CacheKey(ctx, fmt.Sprintf("export:execution:%d", exportID))
 	lock := facades.Cache().Lock(lockKey, getExportExecutionLockTTL())
 	if !lock.Get() {
 		return nil, nil
@@ -167,26 +195,31 @@ func (l *ExportExecutionLock) Release() {
 }
 
 // MarkExportFailed 标记导出失败
-func MarkExportFailed(exportID uint, errorMsg string) {
+func MarkExportFailed(ctx context.Context, exportID uint, errorMsg string) {
 	if exportID == 0 {
 		return
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var failedRecord models.Export
-	if queryErr := appfacades.OrmQuery(context.Background()).Where("id", exportID).First(&failedRecord); queryErr == nil {
+	if queryErr := appfacades.OrmQuery(ctx).Where("id", exportID).First(&failedRecord); queryErr == nil {
 		failedRecord.Status = models.ExportStatusFailed
 		failedRecord.ErrorMsg = errorMsg
-		if saveErr := appfacades.OrmQuery(context.Background()).Save(&failedRecord); saveErr != nil {
+		if saveErr := appfacades.OrmQuery(ctx).Save(&failedRecord); saveErr != nil {
 			facades.Log().Errorf("更新导出记录失败状态失败: export_id=%d, error=%v", exportID, saveErr)
 		}
 	}
 }
 
 // CheckAndUpdateExportStatus 检查导出记录并更新状态为处理中
-// 返回导出记录和错误，如果记录不存在返回 nil, nil
-func CheckAndUpdateExportStatus(exportID uint) (*models.Export, error) {
-	exists, err := appfacades.OrmQuery(context.Background()).Model(&models.Export{}).Where("id", exportID).Exists()
+func CheckAndUpdateExportStatus(ctx context.Context, exportID uint) (*models.Export, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	exists, err := appfacades.OrmQuery(ctx).Model(&models.Export{}).Where("id", exportID).Exists()
 	if err != nil {
-		errorlog.Record(context.Background(), "export", "检查导出记录是否存在失败", map[string]any{
+		errorlog.Record(ctx, "export", "检查导出记录是否存在失败", map[string]any{
 			"export_id": exportID,
 			"error":     err.Error(),
 		}, "检查导出记录是否存在失败: %v", err)
@@ -198,8 +231,8 @@ func CheckAndUpdateExportStatus(exportID uint) (*models.Export, error) {
 	}
 
 	var exportRecords []models.Export
-	if err := appfacades.OrmQuery(context.Background()).Where("id", exportID).Limit(1).Get(&exportRecords); err != nil {
-		errorlog.Record(context.Background(), "export", "查询导出记录失败", map[string]any{
+	if err := appfacades.OrmQuery(ctx).Where("id", exportID).Limit(1).Get(&exportRecords); err != nil {
+		errorlog.Record(ctx, "export", "查询导出记录失败", map[string]any{
 			"export_id": exportID,
 			"error":     err.Error(),
 		}, "查询导出记录失败: %v", err)
@@ -217,7 +250,7 @@ func CheckAndUpdateExportStatus(exportID uint) (*models.Export, error) {
 	}
 	exportRecord.Status = models.ExportStatusProcessing
 	exportRecord.ErrorMsg = ""
-	if err := appfacades.OrmQuery(context.Background()).Save(exportRecord); err != nil {
+	if err := appfacades.OrmQuery(ctx).Save(exportRecord); err != nil {
 		facades.Log().Errorf("更新导出状态为处理中失败: export_id=%d, error=%v", exportID, err)
 		return nil, err
 	}
@@ -227,6 +260,8 @@ func CheckAndUpdateExportStatus(exportID uint) (*models.Export, error) {
 
 // Execute 执行导出（通用流程）
 func (e *BaseExporter) Execute(args ExportArgs) error {
+	ctx := JobContext(args)
+
 	// 获取语言
 	lang := args.Language
 	if lang == "" {
@@ -244,7 +279,7 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 
 	// 翻译表头
 	headers := utils.TranslateHeaders(e.config.HeaderKeys, lang)
-	exportFormat := strings.ToLower(strings.TrimSpace(utils.GetConfigValue(context.Background(), "storage", "export_format", "csv")))
+	exportFormat := strings.ToLower(strings.TrimSpace(utils.GetConfigValue(ctx, "storage", "export_format", "csv")))
 	if exportFormat != "xlsx" && exportFormat != "csv" {
 		exportFormat = "csv"
 	}
@@ -254,9 +289,12 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("%s_%d_%s.%s", e.config.FilePrefix, args.ExportID, timestamp, exportFormat)
 	filePath := path.Join("exports", filename)
+	if p := helpers.TenantStoragePrefix(ctx); p != "" {
+		filePath = path.Join(strings.TrimSuffix(p, "/"), filePath)
+	}
 
 	// 预写入文件信息
-	e.preWriteFileInfo(args.ExportID, filePath, filename)
+	e.preWriteFileInfo(ctx, args.ExportID, filePath, filename)
 
 	// 创建 shouldStop 和进度更新回调
 	lastUpdateAt := time.Now().Add(-10 * time.Second)
@@ -266,7 +304,7 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 			return false
 		}
 		lastExistCheckAt = time.Now()
-		exists, err := appfacades.OrmQuery(context.Background()).Model(&models.Export{}).Where("id", args.ExportID).Exists()
+		exists, err := appfacades.OrmQuery(ctx).Model(&models.Export{}).Where("id", args.ExportID).Exists()
 		if err != nil {
 			return false
 		}
@@ -278,7 +316,7 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 	if exportFormat == "xlsx" {
 		var csvBuf bytes.Buffer
 		cw := csv.NewWriter(&csvBuf)
-		if err := e.config.WriteData(cw, args.Filters, lang, shouldStop); err != nil {
+		if err := e.config.WriteData(ctx, cw, args.Filters, lang, shouldStop); err != nil {
 			return err
 		}
 		cw.Flush()
@@ -296,7 +334,7 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 	} else {
 		// 执行流式导出
 		filePathResult, err = exportService.ExportToCSVStreamAtWithProgress(headers, filePath, func(w *csv.Writer) error {
-			return e.config.WriteData(w, args.Filters, lang, shouldStop)
+			return e.config.WriteData(ctx, w, args.Filters, lang, shouldStop)
 		}, func(writtenBytes int64) {
 			if shouldStop() {
 				return
@@ -305,7 +343,7 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 				return
 			}
 			lastUpdateAt = time.Now()
-			result, _ := appfacades.OrmQuery(context.Background()).Model(&models.Export{}).Where("id", args.ExportID).Update(map[string]any{
+			result, _ := appfacades.OrmQuery(ctx).Model(&models.Export{}).Where("id", args.ExportID).Update(map[string]any{
 				"size": writtenBytes,
 			})
 			if result == nil || result.RowsAffected == 0 {
@@ -318,7 +356,7 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 		if shouldStop() {
 			return ErrExportRecordMissing
 		}
-		errorlog.Record(context.Background(), "export", "导出文件失败", map[string]any{
+		errorlog.Record(ctx, "export", "导出文件失败", map[string]any{
 			"export_id": args.ExportID,
 			"filename":  filename,
 			"error":     err.Error(),
@@ -327,13 +365,16 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 	}
 
 	// 更新导出记录为成功
-	return e.finalizeExport(args.ExportID, filePathResult)
+	return e.finalizeExport(ctx, args.ExportID, filePathResult)
 }
 
 // preWriteFileInfo 预写入文件信息
-func (e *BaseExporter) preWriteFileInfo(exportID uint, filePath, filename string) {
+func (e *BaseExporter) preWriteFileInfo(ctx context.Context, exportID uint, filePath, filename string) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var exportRecord models.Export
-	if err := appfacades.OrmQuery(context.Background()).Where("id", exportID).First(&exportRecord); err == nil {
+	if err := appfacades.OrmQuery(ctx).Where("id", exportID).First(&exportRecord); err == nil {
 		changed := false
 		if exportRecord.Path == "" {
 			exportRecord.Path = filePath
@@ -352,15 +393,18 @@ func (e *BaseExporter) preWriteFileInfo(exportID uint, filePath, filename string
 			changed = true
 		}
 		if changed {
-			_ = appfacades.OrmQuery(context.Background()).Save(&exportRecord)
+			_ = appfacades.OrmQuery(ctx).Save(&exportRecord)
 		}
 	}
 }
 
 // finalizeExport 完成导出，更新记录
-func (e *BaseExporter) finalizeExport(exportID uint, filePath string) error {
+func (e *BaseExporter) finalizeExport(ctx context.Context, exportID uint, filePath string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var exportRecord models.Export
-	if err := appfacades.OrmQuery(context.Background()).Where("id", exportID).First(&exportRecord); err != nil {
+	if err := appfacades.OrmQuery(ctx).Where("id", exportID).First(&exportRecord); err != nil {
 		return nil
 	}
 
@@ -384,7 +428,7 @@ func (e *BaseExporter) finalizeExport(exportID uint, filePath string) error {
 	exportRecord.Status = models.ExportStatusSuccess
 	exportRecord.ErrorMsg = ""
 
-	if err := appfacades.OrmQuery(context.Background()).Save(&exportRecord); err != nil {
+	if err := appfacades.OrmQuery(ctx).Save(&exportRecord); err != nil {
 		facades.Log().Errorf("保存导出记录失败: export_id=%d, error=%v", exportID, err)
 		return fmt.Errorf("更新导出记录失败: %v", err)
 	}

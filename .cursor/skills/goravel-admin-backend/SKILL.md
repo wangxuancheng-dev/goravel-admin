@@ -147,6 +147,7 @@ When implementing changes, include:
 - Test plan (targeted `go test` + manual requests)
 
 ## References
+- `docs/TENANT_RESERVED.md` — multi-tenant (off vs database-per-tenant); prefer `OrmQuery(ctx)` / `tenancy.CacheKey`
 - `app/services/templates/controller.tpl` — generator template (canonical)
 - `app/http/controllers/admin/generated_helpers.go` — shared Validate/HandleGeneratedServiceError
 - `app/http/controllers/admin/article_controller.go` — latest generated example

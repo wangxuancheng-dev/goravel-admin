@@ -14,6 +14,7 @@
 - 🧪 CI 增加 `backend-integration`（MySQL + Redis + `tests/feature`）
 - 📧 `send_email` 任务改为走框架 Mail；支付网关未实现能力返回稳定 `payment_gateway_not_implemented`
 - 📚 `.env.production.example`、架构双前端与开源上线检查对齐
+- 🏢 一户一库/Schema 多租户：默认 off 单库；开启后 Tenant→Jwt，认证与业务均在租户库；`tenant:seed`；导出/上传/缓存租户前缀
 - ⚠️ 支付第三方回调 / 查询 / 退款仅为示例骨架，非正式支付中台（见 OPENSOURCE.md）
 
 ## [1.0.0] - 2024-12-25

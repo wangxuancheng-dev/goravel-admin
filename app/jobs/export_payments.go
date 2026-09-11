@@ -16,10 +16,10 @@ import (
 	"goravel/app/utils"
 )
 
-// ExportPaymentsArgs 导出支付记录任务的参数（类型别名，保持向后兼容）
+// ExportPaymentsArgs ????????????????????????
 type ExportPaymentsArgs = ExportArgs
 
-// ExportPayments 支付记录导出任务
+// ExportPayments ????????
 type ExportPayments struct{}
 
 func (r *ExportPayments) Signature() string {
@@ -28,44 +28,43 @@ func (r *ExportPayments) Signature() string {
 
 func (r *ExportPayments) Handle(args ...any) (retErr error) {
 	var exportID uint
+	var jobCtx context.Context
 
-	// panic 保护
+	// panic recover
 	defer func() {
 		if rec := recover(); rec != nil {
 			errorMsg := fmt.Sprintf("panic: %v", rec)
 			facades.Log().Errorf("ExportPayments Job panic: %v", rec)
-			MarkExportFailed(exportID, errorMsg)
+			MarkExportFailed(jobCtx, exportID, errorMsg)
 			retErr = fmt.Errorf("%s", errorMsg)
 		}
 	}()
 
-	// 解析参数
 	exportArgs, err := ParseArgs(args...)
 	if err != nil {
 		return err
 	}
 	exportID = exportArgs.ExportID
+	jobCtx = JobContext(exportArgs)
 
-	lock, err := AcquireExportExecutionLock(exportID)
+	lock, err := AcquireExportExecutionLock(jobCtx, exportID)
 	if err != nil {
 		return err
 	}
 	if lock == nil {
-		facades.Log().Infof("导出任务已在执行中，跳过重复投递: export_id=%d", exportID)
+		facades.Log().Infof("export execution lock not acquired: export_id=%d", exportID)
 		return nil
 	}
 	defer lock.Release()
 
-	// 检查并更新导出状态
-	exportRecord, err := CheckAndUpdateExportStatus(exportID)
+	exportRecord, err := CheckAndUpdateExportStatus(jobCtx, exportID)
 	if err != nil {
 		return err
 	}
 	if exportRecord == nil {
-		return nil // 记录不存在，正常结束
+		return nil
 	}
 
-	// 创建导出器并执行
 	exporter := NewBaseExporter(ExportConfig{
 		FilePrefix: "payments",
 		HeaderKeys: []string{
@@ -88,37 +87,37 @@ func (r *ExportPayments) Handle(args ...any) (retErr error) {
 	jobErr := exporter.Execute(exportArgs)
 
 	if errors.Is(jobErr, ErrExportRecordMissing) {
-		facades.Log().Infof("导出任务检测到导出记录已删除: export_id=%d", exportID)
+		facades.Log().Infof("export record missing, stop: export_id=%d", exportID)
 		return nil
 	}
 
 	if jobErr != nil {
-		MarkExportFailed(exportID, jobErr.Error())
+		MarkExportFailed(jobCtx, exportID, jobErr.Error())
 		return jobErr
 	}
 
 	return nil
 }
 
-// writePaymentsToCSV 写入支付数据到 CSV（业务特定逻辑）
-func (r *ExportPayments) writePaymentsToCSV(w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
-	// 构建筛选条件（自动填充，无需手动逐字段赋值）
+// writePaymentsToCSV ??????? CSV????????
+func (r *ExportPayments) writePaymentsToCSV(ctx context.Context, w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
+	// ??????????????????????
 	var paymentFilters services.PaymentFilters
 	utils.FillFiltersFromMap(filters, &paymentFilters)
 
-	// 时间范围需要特殊处理（分表依赖）
+	// ????????????????
 	paymentFilters.StartTime, paymentFilters.EndTime = GetDefaultTimeRange(filters)
 
-	// 获取时区（用于时间格式化）
+	// ?????????????
 	timezone, _ := utils.GetString(filters, "_timezone")
 
-	// 获取分表列表
+	// ??????
 	tableNames := r.getTableNames(paymentFilters)
 	if len(tableNames) == 0 {
 		return nil
 	}
 
-	// 排序处理
+	// ????
 	_, direction := ParseOrderBy(paymentFilters.OrderBy)
 	if direction == "desc" {
 		for i, j := 0, len(tableNames)-1; i < j; i, j = i+1, j-1 {
@@ -126,13 +125,13 @@ func (r *ExportPayments) writePaymentsToCSV(w *csv.Writer, filters map[string]an
 		}
 	}
 
-	// 预加载支付方式
-	paymentMethodMap := r.loadPaymentMethods()
+	// ???????
+	paymentMethodMap := r.loadPaymentMethods(ctx)
 
 	const chunkSize = 2000
 
 	for _, tableName := range tableNames {
-		if err := r.exportTable(w, tableName, paymentFilters, paymentMethodMap, lang, timezone, direction, chunkSize, shouldStop); err != nil {
+		if err := r.exportTable(ctx, w, tableName, paymentFilters, paymentMethodMap, lang, timezone, direction, chunkSize, shouldStop); err != nil {
 			return err
 		}
 	}
@@ -140,9 +139,9 @@ func (r *ExportPayments) writePaymentsToCSV(w *csv.Writer, filters map[string]an
 	return nil
 }
 
-// getTableNames 获取分表列表
+// getTableNames ??????
 func (r *ExportPayments) getTableNames(filters services.PaymentFilters) []string {
-	// 如果精确指定了 payment_no，直接定位分表
+	// ??????? payment_no???????
 	if filters.PaymentNo != "" && len(filters.PaymentNo) >= 11 {
 		dateStr := filters.PaymentNo[3:11]
 		if t, err := time.Parse("20060102", dateStr); err == nil {
@@ -152,8 +151,8 @@ func (r *ExportPayments) getTableNames(filters services.PaymentFilters) []string
 	return utils.GetShardingTableNames("payments", filters.StartTime, filters.EndTime)
 }
 
-// exportTable 导出单个分表
-func (r *ExportPayments) exportTable(w *csv.Writer, tableName string, filters services.PaymentFilters, paymentMethodMap map[uint]models.PaymentMethod, lang, timezone, direction string, chunkSize int, shouldStop func() bool) error {
+// exportTable ??????
+func (r *ExportPayments) exportTable(ctx context.Context, w *csv.Writer, tableName string, filters services.PaymentFilters, paymentMethodMap map[uint]models.PaymentMethod, lang, timezone, direction string, chunkSize int, shouldStop func() bool) error {
 	lastTimeStr := ""
 	var lastID uint = 0
 	field := "created_at"
@@ -163,9 +162,9 @@ func (r *ExportPayments) exportTable(w *csv.Writer, tableName string, filters se
 			return ErrExportRecordMissing
 		}
 
-		query := services.BuildPaymentQuery(context.Background(), tableName, filters)
+		query := services.BuildPaymentQuery(ctx, tableName, filters)
 
-		// Keyset 分页
+		// Keyset ??
 		if lastTimeStr != "" {
 			if direction == "desc" {
 				query = query.Where(fmt.Sprintf("(%s < ? OR (%s = ? AND id < ?))", field, field), lastTimeStr, lastTimeStr, lastID)
@@ -189,25 +188,25 @@ func (r *ExportPayments) exportTable(w *csv.Writer, tableName string, filters se
 		var payments []models.Payment
 		if err := query.Limit(chunkSize).Get(&payments); err != nil {
 			if IsTableNotExistsError(err) {
-				facades.Log().Warningf("支付记录分表不存在，跳过: table=%s", tableName)
+				facades.Log().Warningf("????????????: table=%s", tableName)
 				return nil
 			}
-			return fmt.Errorf("查询支付记录失败: %v", err)
+			return fmt.Errorf("????????: %v", err)
 		}
 
 		if len(payments) == 0 {
 			break
 		}
 
-		// 写入 CSV
+		// ?? CSV
 		for _, payment := range payments {
 			row := r.formatPaymentRow(payment, paymentMethodMap, lang, timezone)
 			if err := w.Write(row); err != nil {
-				return fmt.Errorf("写入CSV失败: %v", err)
+				return fmt.Errorf("??CSV??: %v", err)
 			}
 		}
 
-		// 更新游标
+		// ????
 		lastPayment := payments[len(payments)-1]
 		prevID := lastID
 		if lastPayment.CreatedAt != nil && !lastPayment.CreatedAt.IsZero() {
@@ -218,7 +217,7 @@ func (r *ExportPayments) exportTable(w *csv.Writer, tableName string, filters se
 		lastID = lastPayment.ID
 
 		if lastID == prevID {
-			return fmt.Errorf("导出游标未推进: table=%s, last_id=%d", tableName, lastID)
+			return fmt.Errorf("???????: table=%s, last_id=%d", tableName, lastID)
 		}
 
 		if len(payments) < chunkSize {
@@ -229,7 +228,7 @@ func (r *ExportPayments) exportTable(w *csv.Writer, tableName string, filters se
 	return nil
 }
 
-// formatPaymentRow 格式化单行数据
+// formatPaymentRow ???????
 func (r *ExportPayments) formatPaymentRow(payment models.Payment, paymentMethodMap map[uint]models.PaymentMethod, lang, timezone string) []string {
 	paymentMethodName := ""
 	if pm, ok := paymentMethodMap[payment.PaymentMethodID]; ok {
@@ -261,10 +260,10 @@ func (r *ExportPayments) formatPaymentRow(payment models.Payment, paymentMethodM
 	}
 }
 
-// loadPaymentMethods 加载支付方式映射
-func (r *ExportPayments) loadPaymentMethods() map[uint]models.PaymentMethod {
+// loadPaymentMethods ????????
+func (r *ExportPayments) loadPaymentMethods(ctx context.Context) map[uint]models.PaymentMethod {
 	var methods []models.PaymentMethod
-	appfacades.OrmQuery(context.Background()).Model(&models.PaymentMethod{}).Get(&methods)
+	appfacades.OrmQuery(ctx).Model(&models.PaymentMethod{}).Get(&methods)
 
 	result := make(map[uint]models.PaymentMethod)
 	for _, m := range methods {

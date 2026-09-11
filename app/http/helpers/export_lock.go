@@ -43,7 +43,7 @@ func AcquireExportLockWithTTL(ctx http.Context, resource string, ttl time.Durati
 		return ExportLockResult{Unauthorized: true}
 	}
 
-	lockKey := fmt.Sprintf("export:%s:lock:%d", resource, adminID)
+	lockKey := TenantCacheKey(ctx, fmt.Sprintf("export:%s:lock:%d", resource, adminID))
 	lock := facades.Cache().Lock(lockKey, ttl)
 	if !lock.Get() {
 		return ExportLockResult{AdminID: adminID, Blocked: true}

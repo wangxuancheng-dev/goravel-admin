@@ -17,6 +17,7 @@ import (
 	"goravel/app/models"
 	"goravel/app/search"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
 
@@ -187,6 +188,27 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 
 	requestData := r.getLoginRequestData(ctx)
 	ip := helpers.GetRealIP(ctx)
+
+	// 一户一库：先绑定租户，后续 OrmQuery 打到租户库
+	if tenancy.Enabled() {
+		hint := loginRequest.TenantCode
+		if hint == "" {
+			hint = loginRequest.TenantID
+		}
+		if err := services.NewTenantConnectionService().BindHTTP(ctx, hint); err != nil {
+			if businessErr, ok := apperrors.GetBusinessError(err); ok {
+				switch businessErr.Code {
+				case apperrors.ErrTenantRequired.Code:
+					return response.Error(ctx, http.StatusBadRequest, businessErr.Code)
+				case apperrors.ErrTenantNotFound.Code:
+					return response.Error(ctx, http.StatusNotFound, businessErr.Code)
+				case apperrors.ErrTenantDisabled.Code:
+					return response.Error(ctx, http.StatusForbidden, businessErr.Code)
+				}
+			}
+			return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrTenantConnectionFailed.Code)
+		}
+	}
 
 	// ---- 登录失败锁定检查 ----
 	if locked, _ := r.lockoutService(ctx).IsLocked(ip, loginRequest.Username); locked {

@@ -65,6 +65,7 @@
 | 多队列驱动 | Kafka / RabbitMQ / NSQ / Redis Stream | `.env.example` 队列段 |
 | OpenTelemetry | Jaeger / Grafana 等统一观测 | `OTEL_*`、[Telemetry 文档](https://www.goravel.dev/zh_CN/digging-deeper/telemetry.html) |
 | AI / pprof / Swagger | 开发与排障 | 生产默认关闭或限权 |
+| 一户一库多租户 | 大商户隔离（默认关闭） | `TENANCY_DRIVER=database`、[TENANT_RESERVED.md](./TENANT_RESERVED.md) |
 
 **AI（可选）：** 用于「代码生成器 → AI 辅助」与顶级 **AI 实验室**（文本 / 视觉 / 图片 / 语音 SDK 演示，演示站可用）。未配置 `AI_API_KEY`（或兼容别名 `OPENAI_API_KEY`）时，相关菜单与标签页自动隐藏。AI 实验室按管理员账号限流（`AI_LAB_RATE_LIMIT_PER_MINUTE` / `AI_LAB_RATE_LIMIT_PER_DAY`）。设置 `AI_ENABLED=false` 可显式关闭。详见 `.env.example` 中 AI 配置段。
 
@@ -204,3 +205,4 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 | [SHARDING_MIGRATION.md](./SHARDING_MIGRATION.md) | 分表 |
 | [ERROR_CODES.md](./ERROR_CODES.md) | 错误码 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 架构 |
+| [TENANT_RESERVED.md](./TENANT_RESERVED.md) | 可选：一户一库 / PG Schema 多租户骨架 |

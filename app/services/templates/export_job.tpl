@@ -26,12 +26,13 @@ func (r *Export<<.ModelName>>s) Signature() string {
 
 func (r *Export<<.ModelName>>s) Handle(args ...any) (retErr error) {
 	var exportID uint
+	var jobCtx context.Context
 
 	defer func() {
 		if rec := recover(); rec != nil {
 			errorMsg := fmt.Sprintf("panic: %v", rec)
 			facades.Log().Errorf("Export<<.ModelName>>s Job panic: %v", rec)
-			MarkExportFailed(exportID, errorMsg)
+			MarkExportFailed(jobCtx, exportID, errorMsg)
 			retErr = fmt.Errorf("%s", errorMsg)
 		}
 	}()
@@ -41,8 +42,9 @@ func (r *Export<<.ModelName>>s) Handle(args ...any) (retErr error) {
 		return err
 	}
 	exportID = exportArgs.ExportID
+	jobCtx = JobContext(exportArgs)
 
-	lock, err := AcquireExportExecutionLock(exportID)
+	lock, err := AcquireExportExecutionLock(jobCtx, exportID)
 	if err != nil {
 		return err
 	}
@@ -51,7 +53,7 @@ func (r *Export<<.ModelName>>s) Handle(args ...any) (retErr error) {
 	}
 	defer lock.Release()
 
-	exportRecord, err := CheckAndUpdateExportStatus(exportID)
+	exportRecord, err := CheckAndUpdateExportStatus(jobCtx, exportID)
 	if err != nil {
 		return err
 	}
@@ -76,14 +78,14 @@ func (r *Export<<.ModelName>>s) Handle(args ...any) (retErr error) {
 		return nil
 	}
 	if jobErr != nil {
-		MarkExportFailed(exportID, jobErr.Error())
+		MarkExportFailed(jobCtx, exportID, jobErr.Error())
 		return jobErr
 	}
 
 	return nil
 }
 
-func (r *Export<<.ModelName>>s) writeToCSV(w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
+func (r *Export<<.ModelName>>s) writeToCSV(ctx context.Context, w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
 	var modelFilters services.<<.ModelName>>Filters
 	utils.FillFiltersFromMap(filters, &modelFilters)
 
@@ -97,7 +99,7 @@ func (r *Export<<.ModelName>>s) writeToCSV(w *csv.Writer, filters map[string]any
 			return ErrExportRecordMissing
 		}
 
-		q := services.Build<<.ModelName>>Query(context.Background(), modelFilters)
+		q := services.Build<<.ModelName>>Query(ctx, modelFilters)
 		if lastID > 0 {
 			q = q.Where("id < ?", lastID)
 		}

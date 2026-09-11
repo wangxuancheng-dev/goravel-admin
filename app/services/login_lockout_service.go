@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/goravel/framework/facades"
+
+	"goravel/app/tenancy"
 )
 
 // LoginLockoutService 登录失败锁定服务。
@@ -36,17 +38,17 @@ func (s *LoginLockoutServiceImpl) config() (maxAttempts int, lockDuration time.D
 	return maxAttempts, time.Duration(lockMinutes) * time.Minute, time.Duration(decay) * time.Minute
 }
 
-func lockKey(ip, username string) string {
-	return fmt.Sprintf("login_lock:%s:%s", ip, username)
+func (s *LoginLockoutServiceImpl) lockKey(ip, username string) string {
+	return tenancy.CacheKey(s.ctx, fmt.Sprintf("login_lock:%s:%s", ip, username))
 }
 
-func attemptsKey(ip, username string) string {
-	return fmt.Sprintf("login_attempts:%s:%s", ip, username)
+func (s *LoginLockoutServiceImpl) attemptsKey(ip, username string) string {
+	return tenancy.CacheKey(s.ctx, fmt.Sprintf("login_attempts:%s:%s", ip, username))
 }
 
 // IsLocked 检查是否锁定。
 func (s *LoginLockoutServiceImpl) IsLocked(ip, username string) (bool, int) {
-	key := lockKey(ip, username)
+	key := s.lockKey(ip, username)
 	val := facades.Cache().GetString(key, "")
 	if val == "" {
 		return false, 0
@@ -58,7 +60,7 @@ func (s *LoginLockoutServiceImpl) IsLocked(ip, username string) (bool, int) {
 // RecordFailure 记录失败，到达阈值时写入锁定标记。
 func (s *LoginLockoutServiceImpl) RecordFailure(ip, username string) (int, bool) {
 	maxAttempts, lockDuration, decayMinutes := s.config()
-	aKey := attemptsKey(ip, username)
+	aKey := s.attemptsKey(ip, username)
 
 	current := facades.Cache().GetInt(aKey, 0)
 	current++
@@ -66,7 +68,7 @@ func (s *LoginLockoutServiceImpl) RecordFailure(ip, username string) (int, bool)
 	_ = facades.Cache().Put(aKey, current, decayMinutes)
 
 	if current >= maxAttempts {
-		lKey := lockKey(ip, username)
+		lKey := s.lockKey(ip, username)
 		_ = facades.Cache().Put(lKey, "1", lockDuration)
 		lockMinutes := int(lockDuration.Minutes())
 		_ = facades.Cache().Put(lKey+"_ttl", lockMinutes, lockDuration)
@@ -78,8 +80,8 @@ func (s *LoginLockoutServiceImpl) RecordFailure(ip, username string) (int, bool)
 
 // ClearFailures 清除计数和锁定标记。
 func (s *LoginLockoutServiceImpl) ClearFailures(ip, username string) {
-	_ = facades.Cache().Forget(attemptsKey(ip, username))
-	lKey := lockKey(ip, username)
+	_ = facades.Cache().Forget(s.attemptsKey(ip, username))
+	lKey := s.lockKey(ip, username)
 	_ = facades.Cache().Forget(lKey)
 	_ = facades.Cache().Forget(lKey + "_ttl")
 }

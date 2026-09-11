@@ -164,6 +164,7 @@ const handleExport = async () => {
     if (error.response?.status === 429) {
       ElMessage.warning(t("common.already_queued"));
     } else if (!error.__handled) {
+      ElMessage.error(t("export.failed"));
       ErrorHandler.handle(error, { silent: true });
     }
   } finally {

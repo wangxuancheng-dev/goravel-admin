@@ -14,10 +14,10 @@ import (
 	"goravel/app/utils"
 )
 
-// ExportUsersArgs 导出用户任务的参数（类型别名）
+// ExportUsersArgs ???????????????
 type ExportUsersArgs = ExportArgs
 
-// ExportUsers 用户导出任务
+// ExportUsers ??????
 type ExportUsers struct{}
 
 func (r *ExportUsers) Signature() string {
@@ -26,12 +26,13 @@ func (r *ExportUsers) Signature() string {
 
 func (r *ExportUsers) Handle(args ...any) (retErr error) {
 	var exportID uint
+	var jobCtx context.Context
 
 	defer func() {
 		if rec := recover(); rec != nil {
 			errorMsg := fmt.Sprintf("panic: %v", rec)
 			facades.Log().Errorf("ExportUsers Job panic: %v", rec)
-			MarkExportFailed(exportID, errorMsg)
+			MarkExportFailed(jobCtx, exportID, errorMsg)
 			retErr = fmt.Errorf("%s", errorMsg)
 		}
 	}()
@@ -41,18 +42,19 @@ func (r *ExportUsers) Handle(args ...any) (retErr error) {
 		return err
 	}
 	exportID = exportArgs.ExportID
+	jobCtx = JobContext(exportArgs)
 
-	lock, err := AcquireExportExecutionLock(exportID)
+	lock, err := AcquireExportExecutionLock(jobCtx, exportID)
 	if err != nil {
 		return err
 	}
 	if lock == nil {
-		facades.Log().Infof("导出任务已在执行中，跳过重复投递: export_id=%d", exportID)
+		facades.Log().Infof("export execution lock not acquired: export_id=%d", exportID)
 		return nil
 	}
 	defer lock.Release()
 
-	exportRecord, err := CheckAndUpdateExportStatus(exportID)
+	exportRecord, err := CheckAndUpdateExportStatus(jobCtx, exportID)
 	if err != nil {
 		return err
 	}
@@ -84,23 +86,23 @@ func (r *ExportUsers) Handle(args ...any) (retErr error) {
 	}
 
 	if jobErr != nil {
-		MarkExportFailed(exportID, jobErr.Error())
+		MarkExportFailed(jobCtx, exportID, jobErr.Error())
 		return jobErr
 	}
 
 	return nil
 }
 
-// writeUsersToCSV 写入用户数据到 CSV（单表，无分表）
-func (r *ExportUsers) writeUsersToCSV(w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
-	// 构建筛选条件（自动填充，无需手动逐字段赋值）
+// writeUsersToCSV ??????? CSV????????
+func (r *ExportUsers) writeUsersToCSV(ctx context.Context, w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
+	// ??????????????????????
 	var userFilters services.UserFilters
 	utils.FillFiltersFromMap(filters, &userFilters)
 
 	orderBy, _ := utils.GetString(filters, "order_by")
 	_, direction := ParseOrderBy(orderBy)
 
-	// 获取时区（用于时间格式化）
+	// ?????????????
 	timezone, _ := utils.GetString(filters, "_timezone")
 
 	const chunkSize = 2000
@@ -111,10 +113,10 @@ func (r *ExportUsers) writeUsersToCSV(w *csv.Writer, filters map[string]any, lan
 			return ErrExportRecordMissing
 		}
 
-		// 使用通用查询构建（复用 UserService 的逻辑）
-		query := services.BuildUserQuery(context.Background(), userFilters).With("Currency")
+		// ??????????? UserService ????
+		query := services.BuildUserQuery(ctx, userFilters).With("Currency")
 
-		// Keyset 分页
+		// Keyset ??
 		if lastID > 0 {
 			if direction == "desc" {
 				query = query.Where("id < ?", lastID)
@@ -131,22 +133,22 @@ func (r *ExportUsers) writeUsersToCSV(w *csv.Writer, filters map[string]any, lan
 
 		var users []models.User
 		if err := query.Limit(chunkSize).Get(&users); err != nil {
-			return fmt.Errorf("查询用户失败: %v", err)
+			return fmt.Errorf("??????: %v", err)
 		}
 
 		if len(users) == 0 {
 			break
 		}
 
-		// 写入 CSV
+		// ?? CSV
 		for _, user := range users {
 			row := r.formatUserRow(user, lang, timezone)
 			if err := w.Write(row); err != nil {
-				return fmt.Errorf("写入CSV失败: %v", err)
+				return fmt.Errorf("??CSV??: %v", err)
 			}
 		}
 
-		// 更新游标
+		// ????
 		lastID = users[len(users)-1].ID
 
 		if len(users) < chunkSize {
@@ -157,28 +159,28 @@ func (r *ExportUsers) writeUsersToCSV(w *csv.Writer, filters map[string]any, lan
 	return nil
 }
 
-// formatUserRow 格式化用户行数据
+// formatUserRow ????????
 func (r *ExportUsers) formatUserRow(user models.User, lang, timezone string) []string {
-	// 状态翻译
+	// ????
 	statusKey := "disabled"
 	if user.Status == 1 {
 		statusKey = "enabled"
 	}
 	statusText := utils.TranslateKey(statusKey, lang, cast.ToString(user.Status))
 
-	// 货币名称
+	// ????
 	currencyName := ""
 	if user.Currency != nil {
 		currencyName = user.Currency.Name
 	}
 
-	// 最后登录时间
+	// ??????
 	lastLoginAt := ""
 	if user.LastLoginAt != nil {
 		lastLoginAt = FormatTimeWithTimezone(*user.LastLoginAt, timezone)
 	}
 
-	// 创建时间
+	// ????
 	createdAt := FormatCarbonWithTimezone(user.CreatedAt, timezone)
 
 	return []string{
