@@ -1,71 +1,66 @@
 package commands
 
 import (
+	"context"
 	"fmt"
-	appfacades "goravel/app/facades"
 	"time"
 
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
 
+	appfacades "goravel/app/facades"
 	"goravel/app/models"
 )
 
 type ClearLogs struct {
 }
 
-// Signature The name and signature of the console command.
 func (r *ClearLogs) Signature() string {
 	return "app:clear-logs"
 }
 
-// Description The console command description.
 func (r *ClearLogs) Description() string {
-	return "清理6个月前的日志记录（操作日志、登录日志、系统日志）"
+	return "清理6个月前的日志记录（操作日志、登录日志、系统日志；tenancy 开启时按租户执行）"
 }
 
-// Extend The console command extend.
 func (r *ClearLogs) Extend() command.Extend {
-	return command.Extend{Category: "app"}
+	return command.Extend{
+		Category: "app",
+		Flags:    []command.Flag{TenantScopeFlag()},
+	}
 }
 
-// Handle Execute the console command.
 func (r *ClearLogs) Handle(ctx console.Context) error {
-	// 计算6个月前的日期
 	monthsAgo := time.Now().AddDate(0, -6, 0)
 
-	ctx.Info("开始清理6个月前的日志...")
+	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
+		ctx.Info("开始清理6个月前的日志...")
 
-	// 清理操作日志
-	operationLogResult, err := appfacades.OrmQuery(ctx).Model(&models.OperationLog{}).
-		Where("created_at < ?", monthsAgo).
-		Delete(&models.OperationLog{})
-	if err != nil {
-		ctx.Error("清理操作日志失败: " + err.Error())
-		return err
-	}
-	ctx.Info(fmt.Sprintf("已清理操作日志: %d 条", operationLogResult.RowsAffected))
+		operationLogResult, err := appfacades.OrmQuery(bound).Model(&models.OperationLog{}).
+			Where("created_at < ?", monthsAgo).
+			Delete(&models.OperationLog{})
+		if err != nil {
+			return fmt.Errorf("清理操作日志失败: %w", err)
+		}
+		ctx.Info(fmt.Sprintf("已清理操作日志: %d 条", operationLogResult.RowsAffected))
 
-	// 清理登录日志
-	loginLogResult, err := appfacades.OrmQuery(ctx).Model(&models.LoginLog{}).
-		Where("created_at < ?", monthsAgo).
-		Delete(&models.LoginLog{})
-	if err != nil {
-		ctx.Error("清理登录日志失败: " + err.Error())
-		return err
-	}
-	ctx.Info(fmt.Sprintf("已清理登录日志: %d 条", loginLogResult.RowsAffected))
+		loginLogResult, err := appfacades.OrmQuery(bound).Model(&models.LoginLog{}).
+			Where("created_at < ?", monthsAgo).
+			Delete(&models.LoginLog{})
+		if err != nil {
+			return fmt.Errorf("清理登录日志失败: %w", err)
+		}
+		ctx.Info(fmt.Sprintf("已清理登录日志: %d 条", loginLogResult.RowsAffected))
 
-	// 清理系统日志
-	systemLogResult, err := appfacades.OrmQuery(ctx).Model(&models.SystemLog{}).
-		Where("created_at < ?", monthsAgo).
-		Delete(&models.SystemLog{})
-	if err != nil {
-		ctx.Error("清理系统日志失败: " + err.Error())
-		return err
-	}
-	ctx.Info(fmt.Sprintf("已清理系统日志: %d 条", systemLogResult.RowsAffected))
+		systemLogResult, err := appfacades.OrmQuery(bound).Model(&models.SystemLog{}).
+			Where("created_at < ?", monthsAgo).
+			Delete(&models.SystemLog{})
+		if err != nil {
+			return fmt.Errorf("清理系统日志失败: %w", err)
+		}
+		ctx.Info(fmt.Sprintf("已清理系统日志: %d 条", systemLogResult.RowsAffected))
 
-	ctx.Info("日志清理完成！")
-	return nil
+		ctx.Info("日志清理完成！")
+		return nil
+	})
 }

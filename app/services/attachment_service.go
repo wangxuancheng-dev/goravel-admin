@@ -102,6 +102,10 @@ type AttachmentServiceImpl struct {
 	systemLogService SystemLogService
 }
 
+func (s *AttachmentServiceImpl) chunkObjectPath(chunkID string, chunkIndex int) string {
+	return fmt.Sprintf("%schunks/%s/%d", helpers.TenantStoragePrefix(s.ctx), chunkID, chunkIndex)
+}
+
 func NewAttachmentService(ctx http.Context) AttachmentService {
 	// 从数据库读取文件存储配置
 	// 优先使用 file_disk，如果没有则使用 storage_disk（向后兼容），最后使用默认值 local
@@ -194,7 +198,7 @@ func (s *AttachmentServiceImpl) UploadChunk(chunkID string, chunkIndex int, chun
 	if err != nil {
 		return err
 	}
-	chunkPath := fmt.Sprintf("chunks/%s/%d", chunkID, chunkIndex)
+	chunkPath := s.chunkObjectPath(chunkID, chunkIndex)
 
 	if err := storage.Put(chunkPath, string(chunkData)); err != nil {
 		if s.ctx != nil {
@@ -221,7 +225,7 @@ func (s *AttachmentServiceImpl) MergeChunks(chunkID string, filename string, mim
 	// 检查所有分片文件是否存在
 	indices := make([]int, totalChunks)
 	for i := range indices {
-		chunkPath := fmt.Sprintf("chunks/%s/%d", chunkID, i)
+		chunkPath := s.chunkObjectPath(chunkID, i)
 		if !storage.Exists(chunkPath) {
 			return nil, apperrors.ErrChunkNotFound.WithParams(map[string]any{
 				"chunk_index": i,
@@ -286,7 +290,7 @@ func (s *AttachmentServiceImpl) MergeChunks(chunkID string, filename string, mim
 
 	// 按顺序读取并写入每个分片
 	for i := range make([]int, totalChunks) {
-		chunkPath := fmt.Sprintf("chunks/%s/%d", chunkID, i)
+		chunkPath := s.chunkObjectPath(chunkID, i)
 		chunkFullPath := filepath.Join(storageRoot, chunkPath)
 
 		// 检查分片文件是否存在
@@ -430,7 +434,7 @@ func (s *AttachmentServiceImpl) MergeChunks(chunkID string, filename string, mim
 	cleanupSuccess := true
 	cleanupCount := 0
 	for i := range make([]int, totalChunks) {
-		chunkPath := fmt.Sprintf("chunks/%s/%d", chunkID, i)
+		chunkPath := s.chunkObjectPath(chunkID, i)
 		if storage.Exists(chunkPath) {
 			if err := storage.Delete(chunkPath); err != nil {
 				// 记录删除失败到系统日志，但不影响整体流程
@@ -481,7 +485,7 @@ func (s *AttachmentServiceImpl) GetChunkProgress(chunkID string, totalChunks int
 	// 检查每个分片文件是否存在
 	indices := make([]int, totalChunks)
 	for i := range indices {
-		chunkPath := fmt.Sprintf("chunks/%s/%d", chunkID, i)
+		chunkPath := s.chunkObjectPath(chunkID, i)
 		if storage.Exists(chunkPath) {
 			uploadedCount++
 			// 只记录前 maxIndices 个索引，减少响应大小

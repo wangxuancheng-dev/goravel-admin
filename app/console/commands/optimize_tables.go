@@ -1,14 +1,15 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
-	"github.com/goravel/framework/facades"
 
 	appfacades "goravel/app/facades"
+	"goravel/app/models"
 )
 
 type OptimizeTables struct {
@@ -19,7 +20,7 @@ func (r *OptimizeTables) Signature() string {
 }
 
 func (r *OptimizeTables) Description() string {
-	return "优化表（MySQL: OPTIMIZE TABLE; PostgreSQL: VACUUM）"
+	return "优化表（MySQL: OPTIMIZE TABLE; PostgreSQL: VACUUM；tenancy 开启时按租户执行）"
 }
 
 func (r *OptimizeTables) Extend() command.Extend {
@@ -36,12 +37,12 @@ func (r *OptimizeTables) Extend() command.Extend {
 				Value: false,
 				Usage: "PostgreSQL 是否使用 VACUUM FULL（更重，可能锁表，默认 false）",
 			},
+			TenantScopeFlag(),
 		},
 	}
 }
 
 func (r *OptimizeTables) Handle(ctx console.Context) error {
-	driver := strings.ToLower(appfacades.OrmQuery(ctx).Driver())
 	full := ctx.OptionBool("full")
 
 	var tables []string
@@ -67,46 +68,45 @@ func (r *OptimizeTables) Handle(ctx console.Context) error {
 		return fmt.Errorf("请提供要优化的表名，例如：go run . artisan db:optimize-tables payments 或使用 --tables=payments,orders_202601")
 	}
 
-	rows := make([][]string, 0, len(tables))
+	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
+		driver := strings.ToLower(appfacades.OrmQuery(bound).Driver())
+		rows := make([][]string, 0, len(tables))
 
-	execOptimize := func(table string) error {
-		var sql string
-		switch driver {
-		case "mysql":
-			sql = fmt.Sprintf("OPTIMIZE TABLE `%s`", table)
-		case "postgresql":
-			if full {
-				sql = fmt.Sprintf("VACUUM (FULL, ANALYZE) %s", table)
+		execOptimize := func(table string) error {
+			var sql string
+			switch driver {
+			case "mysql":
+				sql = fmt.Sprintf("OPTIMIZE TABLE `%s`", table)
+			case "postgresql":
+				if full {
+					sql = fmt.Sprintf("VACUUM (FULL, ANALYZE) %s", table)
+				} else {
+					sql = fmt.Sprintf("VACUUM (ANALYZE) %s", table)
+				}
+			default:
+				return fmt.Errorf("unsupported database driver: %v", driver)
+			}
+			if _, err := appfacades.OrmQuery(bound).Exec(sql); err != nil {
+				return err
+			}
+			rows = append(rows, []string{table, "成功"})
+			return nil
+		}
+
+		ctx.Info("开始执行优化...")
+		for _, table := range tables {
+			if appfacades.SchemaHasTable(bound, table) {
+				if err := execOptimize(table); err != nil {
+					return fmt.Errorf("optimize %s failed: %v", table, err)
+				}
 			} else {
-				sql = fmt.Sprintf("VACUUM (ANALYZE) %s", table)
+				rows = append(rows, []string{table, "跳过（表不存在）"})
 			}
-		default:
-			return fmt.Errorf("unsupported database driver: %v", driver)
 		}
-
-		if _, err := appfacades.OrmQuery(ctx).Exec(sql); err != nil {
-			return err
+		if len(rows) > 0 {
+			ctx.Table([]string{"表名", "状态"}, rows)
 		}
-		rows = append(rows, []string{table, "成功"})
+		ctx.Info("完成")
 		return nil
-	}
-
-	ctx.Info("开始执行优化...")
-
-	for _, table := range tables {
-		if facades.Schema().HasTable(table) {
-			if err := execOptimize(table); err != nil {
-				return fmt.Errorf("optimize %s failed: %v", table, err)
-			}
-		} else {
-			rows = append(rows, []string{table, "跳过（表不存在）"})
-		}
-	}
-
-	if len(rows) > 0 {
-		ctx.Table([]string{"表名", "状态"}, rows)
-	}
-
-	ctx.Info("完成")
-	return nil
+	})
 }

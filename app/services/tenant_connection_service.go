@@ -385,6 +385,113 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 	}
 }
 
+// DropStorage drops the tenant database or schema created by CreateStorage (best-effort cleanup).
+func (s *TenantConnectionService) DropStorage(tenant *models.Tenant) error {
+	if tenant == nil {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	isolation, err := ResolveTenantIsolation(tenant.Driver, tenant.Isolation)
+	if err != nil {
+		return err
+	}
+	usePlatform := !TenantUsesCustomHost(tenant)
+	driverName := NormalizeTenantDriver(tenant.Driver)
+	s.Forget(tenant.ConnectionName)
+
+	platformDB := facades.Config().GetString("database.connections."+driverName+".database", "")
+	if platformDB == "" {
+		platformDB = facades.Config().GetString("database.connections.mysql.database", "")
+	}
+
+	switch driverName {
+	case models.TenantDriverMySQL:
+		if err := validateSQLIdent(tenant.Database); err != nil {
+			return err
+		}
+		if err := rejectDroppingPlatformDatabase(tenant.Database, platformDB); err != nil {
+			return err
+		}
+		sql := fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", tenant.Database)
+		if usePlatform {
+			_, err := appfacades.PlatformOrmQuery(nil).Exec(sql)
+			return err
+		}
+		return s.withMaintenanceOrmQuery(tenant, func(q orm.Query) error {
+			_, err := q.Exec(sql)
+			return err
+		})
+	case models.TenantDriverPostgres:
+		if isolation == models.TenantIsolationDatabase {
+			if err := validateSQLIdent(tenant.Database); err != nil {
+				return err
+			}
+			if err := rejectDroppingPlatformDatabase(tenant.Database, platformDB); err != nil {
+				return err
+			}
+			sql := fmt.Sprintf("DROP DATABASE IF EXISTS %s", quotePGIdent(tenant.Database))
+			if usePlatform {
+				_, err := appfacades.PlatformOrmQuery(nil).Exec(sql)
+				return err
+			}
+			return s.withMaintenanceOrmQuery(tenant, func(q orm.Query) error {
+				_, err := q.Exec(sql)
+				return err
+			})
+		}
+		if err := validateSQLIdent(tenant.Schema); err != nil {
+			return err
+		}
+		if err := rejectDroppingPlatformSchema(tenant.Schema); err != nil {
+			return err
+		}
+		schemaSQL := fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", quotePGIdent(tenant.Schema))
+		if usePlatform && (tenant.Database == "" || tenant.Database == platformDB) {
+			_, err := appfacades.PlatformOrmQuery(nil).Exec(schemaSQL)
+			return err
+		}
+		if err := s.EnsureRegistered(tenant); err != nil {
+			return err
+		}
+		_, err := appfacades.Orm().Connection(tenant.ConnectionName).Query().Exec(schemaSQL)
+		return err
+	default:
+		return apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")
+	}
+}
+
+func rejectDroppingPlatformDatabase(target, platformDB string) error {
+	target = strings.ToLower(strings.TrimSpace(target))
+	platformDB = strings.ToLower(strings.TrimSpace(platformDB))
+	if target == "" {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant database is empty")
+	}
+	if platformDB != "" && target == platformDB {
+		return apperrors.ErrInvalidArgument.WithMessage("refusing to drop platform database")
+	}
+	switch target {
+	case "mysql", "information_schema", "performance_schema", "sys", "postgres", "template0", "template1":
+		return apperrors.ErrInvalidArgument.WithMessage("refusing to drop system database: " + target)
+	}
+	prefix := strings.ToLower(strings.TrimSpace(facades.Config().GetString("tenancy.database_prefix", "tenant_")))
+	if prefix != "" && !strings.HasPrefix(target, prefix) {
+		return apperrors.ErrInvalidArgument.WithMessage("refusing to drop database outside tenancy prefix")
+	}
+	return nil
+}
+
+func rejectDroppingPlatformSchema(schemaName string) error {
+	schemaName = strings.ToLower(strings.TrimSpace(schemaName))
+	switch schemaName {
+	case "", "public", "pg_catalog", "information_schema":
+		return apperrors.ErrInvalidArgument.WithMessage("refusing to drop reserved schema: " + schemaName)
+	}
+	prefix := strings.ToLower(strings.TrimSpace(facades.Config().GetString("tenancy.schema_prefix", "tenant_")))
+	if prefix != "" && !strings.HasPrefix(schemaName, prefix) {
+		return apperrors.ErrInvalidArgument.WithMessage("refusing to drop schema outside tenancy prefix")
+	}
+	return nil
+}
+
 func validateSQLIdent(name string) error {
 	name = strings.TrimSpace(name)
 	if !tenantIdentPattern.MatchString(name) {

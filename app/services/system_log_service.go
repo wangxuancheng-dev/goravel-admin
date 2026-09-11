@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
-	"github.com/goravel/framework/facades"
 
 	"goravel/app/constants"
 	apperrors "goravel/app/errors"
@@ -61,15 +60,17 @@ type SystemLogServiceImpl struct {
 }
 
 var (
-	systemLogsTraceIDColumnOnce sync.Once
-	systemLogsHasTraceIDColumn  bool
+	systemLogsTraceIDCache sync.Map // connection -> bool
 )
 
-func hasSystemLogsTraceIDColumn() bool {
-	systemLogsTraceIDColumnOnce.Do(func() {
-		systemLogsHasTraceIDColumn = facades.Schema().HasTable("system_logs") && facades.Schema().HasColumn("system_logs", "trace_id")
-	})
-	return systemLogsHasTraceIDColumn
+func (s *SystemLogServiceImpl) hasTraceIDColumn() bool {
+	key := appfacades.SchemaConnectionKeyFrom(s.ctx)
+	if v, ok := systemLogsTraceIDCache.Load(key); ok {
+		return v.(bool)
+	}
+	has := appfacades.SchemaHasTable(s.ctx, "system_logs") && appfacades.SchemaHasColumn(s.ctx, "system_logs", "trace_id")
+	systemLogsTraceIDCache.Store(key, has)
+	return has
 }
 
 func NewSystemLogService(ctx context.Context) SystemLogService {
@@ -97,7 +98,7 @@ func (s *SystemLogServiceImpl) GetList(filters SystemLogFilters, page, pageSize 
 		query = query.Where("module LIKE ?", "%"+filters.Module+"%")
 	}
 	if filters.TraceID != "" {
-		if hasSystemLogsTraceIDColumn() {
+		if s.hasTraceIDColumn() {
 			query = query.Where("trace_id LIKE ?", "%"+filters.TraceID+"%")
 		}
 	}
@@ -213,7 +214,7 @@ func (s *SystemLogServiceImpl) RecordHTTP(ctx http.Context, level, module, messa
 		"created_at": time.Now(),
 		"updated_at": time.Now(),
 	}
-	if hasSystemLogsTraceIDColumn() {
+	if s.hasTraceIDColumn() {
 		payload["trace_id"] = traceID
 	}
 
@@ -251,7 +252,7 @@ func (s *SystemLogServiceImpl) Record(ctx context.Context, level, module, messag
 		"created_at": time.Now(),
 		"updated_at": time.Now(),
 	}
-	if hasSystemLogsTraceIDColumn() {
+	if s.hasTraceIDColumn() {
 		payload["trace_id"] = traceID
 	}
 

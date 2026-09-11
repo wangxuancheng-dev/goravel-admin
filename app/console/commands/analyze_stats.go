@@ -1,15 +1,16 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
-	"github.com/goravel/framework/facades"
 
 	appfacades "goravel/app/facades"
+	"goravel/app/models"
 	"goravel/app/utils"
 )
 
@@ -21,7 +22,7 @@ func (r *AnalyzeStats) Signature() string {
 }
 
 func (r *AnalyzeStats) Description() string {
-	return "更新订单分表与支付表统计信息（ANALYZE）"
+	return "更新订单分表与支付表统计信息（ANALYZE；tenancy 开启时按租户执行）"
 }
 
 func (r *AnalyzeStats) Extend() command.Extend {
@@ -54,20 +55,18 @@ func (r *AnalyzeStats) Extend() command.Extend {
 				Value: true,
 				Usage: "是否分析支付记录表（payments）",
 			},
+			TenantScopeFlag(),
 		},
 	}
 }
 
 func (r *AnalyzeStats) Handle(ctx console.Context) error {
-	driver := strings.ToLower(appfacades.OrmQuery(ctx).Driver())
-
 	monthsFlag := ctx.OptionInt("months")
 	if monthsFlag <= 0 {
 		monthsFlag = 2
 	}
 
 	monthFlag := strings.TrimSpace(ctx.Option("month"))
-
 	analyzeOrders := ctx.OptionBool("orders")
 	analyzeOrderDetails := ctx.OptionBool("order-details")
 	analyzePayments := ctx.OptionBool("payments")
@@ -87,62 +86,62 @@ func (r *AnalyzeStats) Handle(ctx console.Context) error {
 		}
 	}
 
-	ctx.Info("开始执行 ANALYZE...")
+	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
+		driver := strings.ToLower(appfacades.OrmQuery(bound).Driver())
+		ctx.Info("开始执行 ANALYZE...")
 
-	rows := make([][]string, 0, 16)
-
-	execAnalyze := func(table string) error {
-		var sql string
-		switch driver {
-		case "mysql":
-			sql = fmt.Sprintf("ANALYZE TABLE `%s`", table)
-		case "postgresql":
-			sql = fmt.Sprintf("ANALYZE %s", table)
-		default:
-			return fmt.Errorf("unsupported database driver: %v", driver)
+		rows := make([][]string, 0, 16)
+		execAnalyze := func(table string) error {
+			var sql string
+			switch driver {
+			case "mysql":
+				sql = fmt.Sprintf("ANALYZE TABLE `%s`", table)
+			case "postgresql":
+				sql = fmt.Sprintf("ANALYZE %s", table)
+			default:
+				return fmt.Errorf("unsupported database driver: %v", driver)
+			}
+			if _, err := appfacades.OrmQuery(bound).Exec(sql); err != nil {
+				return err
+			}
+			rows = append(rows, []string{table, "成功"})
+			return nil
 		}
 
-		if _, err := appfacades.OrmQuery(ctx).Exec(sql); err != nil {
-			return err
+		if analyzeOrders {
+			for _, m := range months {
+				table := utils.GetShardingTableName("orders", m)
+				if utils.ShardingTableExistsCtx(bound, table) {
+					if err := execAnalyze(table); err != nil {
+						return fmt.Errorf("analyze %s failed: %v", table, err)
+					}
+				}
+			}
 		}
-		rows = append(rows, []string{table, "成功"})
+
+		if analyzeOrderDetails {
+			for _, m := range months {
+				table := utils.GetShardingTableName("order_details", m)
+				if utils.ShardingTableExistsCtx(bound, table) {
+					if err := execAnalyze(table); err != nil {
+						return fmt.Errorf("analyze %s failed: %v", table, err)
+					}
+				}
+			}
+		}
+
+		if analyzePayments {
+			if utils.ShardingTableExistsCtx(bound, "payments") || appfacades.SchemaHasTable(bound, "payments") {
+				if err := execAnalyze("payments"); err != nil {
+					return fmt.Errorf("analyze payments failed: %v", err)
+				}
+			}
+		}
+
+		if len(rows) > 0 {
+			ctx.Table([]string{"表名", "状态"}, rows)
+		}
+		ctx.Info("完成")
 		return nil
-	}
-
-	if analyzeOrders {
-		for _, m := range months {
-			table := utils.GetShardingTableName("orders", m)
-			if facades.Schema().HasTable(table) {
-				if err := execAnalyze(table); err != nil {
-					return fmt.Errorf("analyze %s failed: %v", table, err)
-				}
-			}
-		}
-	}
-
-	if analyzeOrderDetails {
-		for _, m := range months {
-			table := utils.GetShardingTableName("order_details", m)
-			if facades.Schema().HasTable(table) {
-				if err := execAnalyze(table); err != nil {
-					return fmt.Errorf("analyze %s failed: %v", table, err)
-				}
-			}
-		}
-	}
-
-	if analyzePayments {
-		if facades.Schema().HasTable("payments") {
-			if err := execAnalyze("payments"); err != nil {
-				return fmt.Errorf("analyze payments failed: %v", err)
-			}
-		}
-	}
-
-	if len(rows) > 0 {
-		ctx.Table([]string{"表名", "状态"}, rows)
-	}
-
-	ctx.Info("完成")
-	return nil
+	})
 }

@@ -60,7 +60,7 @@ func NewSlowQueryService(ctx context.Context) SlowQueryService {
 }
 
 func (s *SlowQueryServiceImpl) CollectFromLatestLog(minDurationMS float64) error {
-	if !facades.Schema().HasTable("slow_query_logs") {
+	if !appfacades.SchemaHasTable(s.ctx, "slow_query_logs") {
 		return nil
 	}
 

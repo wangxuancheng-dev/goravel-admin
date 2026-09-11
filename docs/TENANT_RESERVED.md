@@ -91,6 +91,13 @@ go run . artisan payment:create-sharding-tables [--tenant=]
 go run . artisan search:init-orders-index [--tenant=]
 go run . artisan search:sync-orders [--tenant=]
 go run . artisan search:retry-outbox [--tenant=]
+go run . artisan app:clear-logs [--tenant=]
+go run . artisan app:clear-chunks [--tenant=]
+go run . artisan db:analyze-stats [--tenant=]
+go run . artisan db:optimize-tables {tables...} [--tenant=]
+# 写多数据命令：tenancy 开启时必须指定 --tenant
+go run . artisan order:generate-test-data --tenant={code} --count=1000
+go run . artisan payment:generate-test-data --tenant={code} --count=1000
 ```
 
 ### 建库与密码
@@ -121,4 +128,4 @@ go run . artisan search:retry-outbox [--tenant=]
 | `PlatformOrmQuery(ctx)` | 平台元数据 / 平台 token |
 | `NewPlatformTokenService` | 平台 token |
 
-硬性规则：业务用 `OrmQuery`；平台路由不挂 `Tenant` 中间件；缓存/上传走 `tenancy.CacheKey` / `StoragePrefix`；搜索索引短名在绑定租户后为 `{code}_orders`；定时分表/搜索 CLI 走 `RunTenantScope`。
+硬性规则：业务用 `OrmQuery`；平台路由不挂 `Tenant` 中间件；缓存/上传走 `tenancy.CacheKey` / `StoragePrefix`（含分片 `chunks/`）；搜索索引短名在绑定租户后为 `{code}_orders`；定时分表/搜索/清日志/清分片/ANALYZE 走 `RunTenantScope`；请求路径分表探测/DDL 走 `SchemaHasTable` / `WithSchemaContext`。

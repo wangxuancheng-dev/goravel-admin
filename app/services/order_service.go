@@ -621,7 +621,7 @@ func (s *OrderServiceImpl) sortOrders(orders []models.Order, orderBy string) {
 // querySingleTable 查询单个分表
 func (s *OrderServiceImpl) querySingleTable(tableName string, filters OrderFilters, page, pageSize int) ([]models.Order, int64, error) {
 	// 友好处理：目标分表不存在时返回空结果，而不是抛出 SQL 1146 错误。
-	if !utils.ShardingTableExists(tableName) {
+	if !utils.ShardingTableExistsCtx(s.ctx, tableName) {
 		return []models.Order{}, 0, nil
 	}
 
@@ -876,7 +876,7 @@ func (s *OrderServiceImpl) GetAllOrdersForExport(filters OrderFilters) ([]models
 	// 如果只有一个分表，直接查询
 	if len(tableNames) == 1 {
 		// 友好处理：单表导出时分表不存在，直接返回空数据。
-		if !utils.ShardingTableExists(tableNames[0]) {
+		if !utils.ShardingTableExistsCtx(s.ctx, tableNames[0]) {
 			return []models.Order{}, nil
 		}
 
@@ -1134,7 +1134,7 @@ func (s *OrderServiceImpl) GetOrdersCountInYear() (int64, error) {
 	// 使用 EXPLAIN 获取预估行数（比 COUNT 快很多）
 	for _, tableName := range tableNames {
 		// 检查表是否存在
-		if !utils.ShardingTableExists(tableName) {
+		if !utils.ShardingTableExistsCtx(s.ctx, tableName) {
 			continue
 		}
 

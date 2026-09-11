@@ -569,7 +569,7 @@ func (s *PaymentServiceImpl) findPaymentByPaymentNo(paymentNo string) (*models.P
 	if parsedTime, ok := utils.ParseShardingNoDate(paymentNo, utils.PaymentNoConfig); ok {
 		// 成功解析日期，直接查询对应分表
 		tableName := utils.GetShardingTableName("payments", parsedTime)
-		if utils.ShardingTableExists(tableName) {
+		if utils.ShardingTableExistsCtx(s.ctx, tableName) {
 			var payment models.Payment
 			if err := appfacades.OrmQuery(s.ctx).Model(&models.Payment{}).Table(tableName).Where("payment_no", paymentNo).First(&payment); err == nil {
 				return &payment, nil
@@ -584,7 +584,7 @@ func (s *PaymentServiceImpl) findPaymentByPaymentNo(paymentNo string) (*models.P
 
 	// 从最新的分表开始查询（Model 自动应用软删除过滤）
 	for i := len(tableNames) - 1; i >= 0; i-- {
-		if !utils.ShardingTableExists(tableNames[i]) {
+		if !utils.ShardingTableExistsCtx(s.ctx, tableNames[i]) {
 			continue
 		}
 		var payment models.Payment
@@ -622,7 +622,7 @@ func (s *PaymentServiceImpl) findPaymentByID(paymentID uint, paymentNo ...string
 
 	// 从最新的分表开始查询（Model 自动应用软删除过滤）
 	for i := len(tableNames) - 1; i >= 0; i-- {
-		if !utils.ShardingTableExists(tableNames[i]) {
+		if !utils.ShardingTableExistsCtx(s.ctx, tableNames[i]) {
 			continue
 		}
 		var payment models.Payment
@@ -637,7 +637,7 @@ func (s *PaymentServiceImpl) findPaymentByID(paymentID uint, paymentNo ...string
 // querySinglePaymentTable 查询单个分表
 func (s *PaymentServiceImpl) querySinglePaymentTable(tableName string, filters PaymentFilters, page, pageSize int) ([]models.Payment, int64, error) {
 	// 友好处理：目标分表不存在时返回空结果，而不是抛出 SQL 1146 错误。
-	if !utils.ShardingTableExists(tableName) {
+	if !utils.ShardingTableExistsCtx(s.ctx, tableName) {
 		return []models.Payment{}, 0, nil
 	}
 

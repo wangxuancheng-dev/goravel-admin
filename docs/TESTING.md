@@ -209,7 +209,8 @@ func (s *TokenServiceTestSuite) TestHashToken() {
 | `admin_smoke_test.go` | 登录成功、info、menus/tree |
 | `admin_module_test.go` | `info.config` 模块开关字段 |
 | `api_auth_test.go` | health、用户注册/登录校验 |
-| `platform_tenancy_test.go` | 平台登录/info/租户列表/health/改密；tenancy 开启时 admin 缺租户头与未知租户拒绝 |
+| `platform_tenancy_test.go` | 平台登录/info/租户列表/health/改密；tenancy 开启时 admin 缺租户头与未知租户拒绝；缓存/存储前缀/搜索索引短名隔离 |
+| `tenant_isolation_test.go` | 双租户真实建库 + migrate；configs 写入 A 不可见 B；无 CREATE 权限时 Skip |
 | `app/search/config_test.go` | 订单索引短名租户隔离段 / `IsOrdersIndexShortName` |
 
 ```bash

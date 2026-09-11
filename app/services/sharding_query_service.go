@@ -118,7 +118,7 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTables(tableNames []string, filt
 	// 构建 UNION ALL 查询
 	// 过滤掉不存在的分表，避免查询错误（使用短缓存）
 	existingTableNames := lo.Filter(tableNames, func(tableName string, _ int) bool {
-		return utils.ShardingTableExists(tableName)
+		return utils.ShardingTableExistsCtx(s.ctx, tableName)
 	})
 
 	if len(existingTableNames) == 0 {
@@ -247,7 +247,7 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTablesForExport(tableNames []str
 	// 构建 UNION ALL 查询
 	// 过滤掉不存在的分表，避免查询错误
 	existingTableNames := lo.Filter(tableNames, func(tableName string, _ int) bool {
-		return utils.ShardingTableExists(tableName)
+		return utils.ShardingTableExistsCtx(s.ctx, tableName)
 	})
 
 	if len(existingTableNames) == 0 {

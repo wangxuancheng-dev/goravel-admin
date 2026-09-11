@@ -45,3 +45,11 @@ func RunTenantScoped(ctx console.Context, work services.TenantWork) error {
 		return nil
 	})
 }
+
+// RunTenantScopedRequire requires --tenant when tenancy is on (for write-heavy commands).
+func RunTenantScopedRequire(ctx console.Context, work services.TenantWork) error {
+	if tenancy.Enabled() && strings.TrimSpace(ctx.Option("tenant")) == "" {
+		return fmt.Errorf("tenancy 已开启：请指定 --tenant={code|id}（避免对所有租户执行写操作）")
+	}
+	return RunTenantScoped(ctx, work)
+}

@@ -10,9 +10,9 @@ import (
 
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
-	"github.com/goravel/framework/facades"
 	"github.com/oklog/ulid/v2"
 
+	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/utils"
@@ -23,6 +23,7 @@ import (
 type GenerateTestPayments struct {
 	paymentService  services.PaymentService
 	shardingService services.ShardingService
+	dbCtx           context.Context
 }
 
 // Signature The name and signature of the console command.
@@ -41,7 +42,7 @@ func (receiver *GenerateTestPayments) Signature() string {
 
 // Description The console command description.
 func (receiver *GenerateTestPayments) Description() string {
-	return "生成支付记录测试数据（用于测试支付记录导出等功能）"
+	return "生成支付记录测试数据（tenancy 开启时必须 --tenant）"
 }
 
 // Extend The console command extend.
@@ -79,12 +80,19 @@ func (receiver *GenerateTestPayments) Extend() command.Extend {
 				Value:   "",
 				Usage:   "结束日期（格式：2006-01-02），默认为当前时间",
 			},
+			TenantScopeFlag(),
 		},
 	}
 }
 
 // Handle Execute the console command.
 func (receiver *GenerateTestPayments) Handle(ctx console.Context) error {
+	return RunTenantScopedRequire(ctx, func(_ *models.Tenant, bound context.Context) error {
+		return receiver.handleScoped(ctx, bound)
+	})
+}
+
+func (receiver *GenerateTestPayments) handleScoped(ctx console.Context, bound context.Context) error {
 	count := ctx.OptionInt("count")
 	workers := ctx.OptionInt("workers")
 	batchSize := ctx.OptionInt("batch-size")
@@ -127,6 +135,9 @@ func (receiver *GenerateTestPayments) Handle(ctx console.Context) error {
 	if startDate.After(endDate) {
 		return fmt.Errorf("开始日期不能晚于结束日期")
 	}
+
+	receiver.shardingService = services.NewShardingService(bound)
+	receiver.dbCtx = bound
 
 	ctx.Info(fmt.Sprintf("开始生成 %d 条支付记录测试数据", count))
 	ctx.Info(fmt.Sprintf("时间范围: %s 至 %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02")))
@@ -211,7 +222,11 @@ func (receiver *GenerateTestPayments) Handle(ctx console.Context) error {
 // getPaymentMethods 获取支付方式列表
 func (receiver *GenerateTestPayments) getPaymentMethods() ([]models.PaymentMethod, error) {
 	var paymentMethods []models.PaymentMethod
-	err := facades.Orm().Query().Model(&models.PaymentMethod{}).Where("is_active", true).Find(&paymentMethods)
+	dbCtx := receiver.dbCtx
+	if dbCtx == nil {
+		dbCtx = context.Background()
+	}
+	err := appfacades.OrmQuery(dbCtx).Model(&models.PaymentMethod{}).Where("is_active", true).Find(&paymentMethods)
 	return paymentMethods, err
 }
 
@@ -265,7 +280,11 @@ func (receiver *GenerateTestPayments) generateBatch(count int, startDate, endDat
 
 	// 确保分表存在（使用最早的时间）
 	tableName := utils.GetShardingTableName("payments", startDate)
-	if !utils.ShardingTableExists(tableName) {
+	dbCtx := receiver.dbCtx
+	if dbCtx == nil {
+		dbCtx = context.Background()
+	}
+	if !utils.ShardingTableExistsCtx(dbCtx, tableName) {
 		if err := receiver.ensurePaymentShardingTableExists(startDate); err != nil {
 			return fmt.Errorf("创建分表失败: %v", err)
 		}
@@ -287,7 +306,7 @@ func (receiver *GenerateTestPayments) generateBatch(count int, startDate, endDat
 	// 分表插入
 	for tableName, tablePayments := range tableGroups {
 		// 确保分表存在
-		if !utils.ShardingTableExists(tableName) {
+		if !utils.ShardingTableExistsCtx(dbCtx, tableName) {
 			// 从表名解析月份
 			if len(tableName) > 8 {
 				monthStr := tableName[len(tableName)-6:] // 提取 YYYYMM
@@ -331,7 +350,7 @@ func (receiver *GenerateTestPayments) generateBatch(count int, startDate, endDat
 			}
 		}
 
-		if err := facades.Orm().Query().Table(tableName).Create(paymentMaps); err != nil {
+		if err := appfacades.OrmQuery(dbCtx).Table(tableName).Create(paymentMaps); err != nil {
 			errorlog.Record(context.Background(), "payment", "批量插入支付记录失败", map[string]any{
 				"table_name": tableName,
 				"count":      len(paymentMaps),

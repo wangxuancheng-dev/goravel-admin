@@ -1,6 +1,7 @@
 package feature_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,7 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	appfacades "goravel/app/facades"
+	"goravel/app/search"
 	"goravel/app/services"
+	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 	"goravel/tests"
 )
 
@@ -157,4 +162,24 @@ func TestPlatformChangePassword(t *testing.T) {
 	// restore for other tests
 	_, err = services.UpsertPlatformAdmin(platformSmokeUser, platformSmokePass, "Smoke Platform")
 	require.NoError(t, err)
+}
+
+func TestTenancyCacheAndSearchIndexIsolation(t *testing.T) {
+	withTenancyDriver(t, "database")
+
+	ctxA := tenancyctx.WithTenant(context.Background(), 1, "tenant_a", "alpha")
+	ctxB := tenancyctx.WithTenant(context.Background(), 2, "tenant_b", "beta")
+
+	assert.NotEqual(t, tenancy.CacheKey(ctxA, "lock:x"), tenancy.CacheKey(ctxB, "lock:x"))
+	assert.NotEqual(t, tenancy.StoragePrefix(ctxA), tenancy.StoragePrefix(ctxB))
+	assert.Equal(t, "tenants/alpha/", tenancy.StoragePrefix(ctxA))
+	assert.Equal(t, "tenants/beta/", tenancy.StoragePrefix(ctxB))
+
+	idxA := search.OrdersIndexShortNameFor(ctxA)
+	idxB := search.OrdersIndexShortNameFor(ctxB)
+	assert.NotEqual(t, idxA, idxB)
+	assert.True(t, strings.HasPrefix(idxA, "alpha_"))
+	assert.True(t, strings.HasPrefix(idxB, "beta_"))
+
+	assert.NotEqual(t, appfacades.SchemaConnectionKeyFrom(ctxA), appfacades.SchemaConnectionKeyFrom(ctxB))
 }

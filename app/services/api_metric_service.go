@@ -6,8 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/goravel/framework/facades"
-
 	"goravel/app/models"
 )
 
@@ -83,7 +81,7 @@ func (s *ApiMetricServiceImpl) GetOverview(hours, limit int) (ApiPerformanceOver
 		ErrorTop:    []ApiPerformanceItem{},
 		QPSTop:      []ApiPerformanceItem{},
 	}
-	if !facades.Schema().HasTable("api_endpoint_metrics") {
+	if !appfacades.SchemaHasTable(s.ctx, "api_endpoint_metrics") {
 		return overview, nil
 	}
 
@@ -175,7 +173,7 @@ func (s *ApiMetricServiceImpl) GetRecentTraces(method, routeTemplate string, hou
 	if hours > 24*7 {
 		hours = 24 * 7
 	}
-	if !facades.Schema().HasTable("api_endpoint_metrics") {
+	if !appfacades.SchemaHasTable(s.ctx, "api_endpoint_metrics") {
 		return []ApiPerformanceTraceItem{}, nil
 	}
 

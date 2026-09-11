@@ -41,7 +41,7 @@ func (receiver *GenerateTestOrders) Signature() string {
 
 // Description The console command description.
 func (receiver *GenerateTestOrders) Description() string {
-	return "生成订单测试数据（用于测试订单导出等功能）"
+	return "生成订单测试数据（tenancy 开启时必须 --tenant）"
 }
 
 // Extend The console command extend.
@@ -87,13 +87,20 @@ func (receiver *GenerateTestOrders) Extend() command.Extend {
 				Value:   10,
 				Usage:   "并发工作协程数量（默认：10）",
 			},
+			TenantScopeFlag(),
 		},
 	}
 }
 
 // Handle Execute the console command.
 func (receiver *GenerateTestOrders) Handle(ctx console.Context) error {
-	receiver.shardingService = services.NewShardingService(context.Background())
+	return RunTenantScopedRequire(ctx, func(_ *models.Tenant, bound context.Context) error {
+		return receiver.handleScoped(ctx, bound)
+	})
+}
+
+func (receiver *GenerateTestOrders) handleScoped(ctx console.Context, bound context.Context) error {
+	receiver.shardingService = services.NewShardingService(bound)
 
 	runCtx, cancel := context.WithCancel(ctx)
 	receiver.cancel = cancel
@@ -289,7 +296,7 @@ func (receiver *GenerateTestOrders) Handle(ctx console.Context) error {
 
 					// 批量插入
 					for j := range batchData {
-						if err := appfacades.OrmQuery(ctx).Table(tn).Create(batchData[j]); err != nil {
+						if err := appfacades.OrmQuery(bound).Table(tn).Create(batchData[j]); err != nil {
 							errChan <- fmt.Errorf("插入订单失败: %v", err)
 							return
 						}
@@ -306,7 +313,7 @@ func (receiver *GenerateTestOrders) Handle(ctx console.Context) error {
 					// 批量查询订单ID
 					if len(orderNos) > 0 {
 						var insertedOrders []models.Order
-						if err := appfacades.OrmQuery(ctx).Table(tn).Where("order_no IN ?", orderNos).Find(&insertedOrders); err == nil {
+						if err := appfacades.OrmQuery(bound).Table(tn).Where("order_no IN ?", orderNos).Find(&insertedOrders); err == nil {
 							// 更新全局订单ID映射
 							mu.Lock()
 							for k := range insertedOrders {
@@ -439,7 +446,7 @@ func (receiver *GenerateTestOrders) Handle(ctx console.Context) error {
 							"created_at":   createdAtStr,
 							"updated_at":   createdAtStr,
 						}
-						if err := appfacades.OrmQuery(ctx).Table(dtn).Create(detailData); err != nil {
+						if err := appfacades.OrmQuery(bound).Table(dtn).Create(detailData); err != nil {
 							detailErrChan <- fmt.Errorf("插入订单详情失败: %v", err)
 							return
 						}

@@ -15,34 +15,22 @@ func Schema() schema.Schema {
 
 // SchemaHasTable checks HasTable on the tenant connection when ctx is bound.
 func SchemaHasTable(ctx context.Context, table string) bool {
-	schema := Schema()
-	if !tenancy.Enabled() || ctx == nil {
-		return schema.HasTable(table)
-	}
-	conn, ok := tenancyctx.ConnectionFrom(ctx)
-	if !ok || conn == "" {
-		return schema.HasTable(table)
-	}
-	prev := schema.GetConnection()
-	schema.SetConnection(conn)
-	defer schema.SetConnection(prev)
-	return schema.HasTable(table)
+	var exists bool
+	_ = WithSchemaContext(ctx, func() error {
+		exists = Schema().HasTable(table)
+		return nil
+	})
+	return exists
 }
 
 // SchemaHasColumn checks HasColumn on the tenant connection when ctx is bound.
 func SchemaHasColumn(ctx context.Context, table, column string) bool {
-	schema := Schema()
-	if !tenancy.Enabled() || ctx == nil {
-		return schema.HasColumn(table, column)
-	}
-	conn, ok := tenancyctx.ConnectionFrom(ctx)
-	if !ok || conn == "" {
-		return schema.HasColumn(table, column)
-	}
-	prev := schema.GetConnection()
-	schema.SetConnection(conn)
-	defer schema.SetConnection(prev)
-	return schema.HasColumn(table, column)
+	var exists bool
+	_ = WithSchemaContext(ctx, func() error {
+		exists = Schema().HasColumn(table, column)
+		return nil
+	})
+	return exists
 }
 
 // SchemaConnectionKey returns the active schema connection name (for caches).
@@ -52,4 +40,35 @@ func SchemaConnectionKey() string {
 		return conn
 	}
 	return Config().GetString("database.default", "mysql")
+}
+
+// SchemaConnectionKeyFrom prefers tenant connection from ctx, else current Schema connection.
+func SchemaConnectionKeyFrom(ctx context.Context) string {
+	if tenancy.Enabled() {
+		if conn, ok := tenancyctx.ConnectionFrom(ctx); ok && conn != "" {
+			return conn
+		}
+	}
+	return SchemaConnectionKey()
+}
+
+// WithSchemaContext runs fn with Schema (and DDL) bound to the tenant connection from ctx.
+// When tenancy is off or ctx has no tenant connection, fn runs against the current Schema connection
+// (e.g. already switched by WithTenantConnection).
+func WithSchemaContext(ctx context.Context, fn func() error) error {
+	if fn == nil {
+		return nil
+	}
+	if !tenancy.Enabled() || ctx == nil {
+		return fn()
+	}
+	conn, ok := tenancyctx.ConnectionFrom(ctx)
+	if !ok || conn == "" {
+		return fn()
+	}
+	schema := Schema()
+	prev := schema.GetConnection()
+	schema.SetConnection(conn)
+	defer schema.SetConnection(prev)
+	return fn()
 }
