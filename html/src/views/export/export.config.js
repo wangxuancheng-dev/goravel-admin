@@ -42,7 +42,22 @@ export function createExportSearchFields(t) {
       clearable: true
     },
     { prop: 'filename', label: t('export.filename'), type: 'input', width: '200px' },
-    { prop: 'disk', label: t('export.disk'), type: 'input', width: '180px' },
+    {
+      prop: 'disk',
+      label: t('export.disk'),
+      type: 'select',
+      width: '150px',
+      options: [
+        { label: 'local', value: 'local' },
+        { label: 'public', value: 'public' },
+        { label: 's3', value: 's3' },
+        { label: 'oss', value: 'oss' },
+        { label: 'cos', value: 'cos' },
+        { label: 'qiniu', value: 'qiniu' },
+        { label: 'minio', value: 'minio' }
+      ],
+      clearable: true
+    },
     {
       prop: 'status',
       label: t('log.status'),

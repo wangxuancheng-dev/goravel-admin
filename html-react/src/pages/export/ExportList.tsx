@@ -314,7 +314,20 @@ export default function ExportList() {
             ],
           },
           { name: 'filename', label: t('export.filename') },
-          { name: 'disk', label: t('export.disk') },
+          {
+            name: 'disk',
+            label: t('export.disk'),
+            type: 'select',
+            options: [
+              { label: 'local', value: 'local' },
+              { label: 'public', value: 'public' },
+              { label: 's3', value: 's3' },
+              { label: 'oss', value: 'oss' },
+              { label: 'cos', value: 'cos' },
+              { label: 'qiniu', value: 'qiniu' },
+              { label: 'minio', value: 'minio' },
+            ],
+          },
           {
             name: 'status',
             label: t('log.status'),
