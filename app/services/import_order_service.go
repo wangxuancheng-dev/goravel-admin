@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/goravel/framework/contracts/filesystem"
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 	"github.com/samber/lo"
@@ -23,6 +24,35 @@ type ImportOrderService struct {
 
 func NewImportOrderService(ctx http.Context) *ImportOrderService {
 	return &ImportOrderService{ctx: ctx}
+}
+
+// ImportUploadedCSV 校验并读取上传的 CSV，再导入订单（临时文件自动清理）。
+func (s *ImportOrderService) ImportUploadedCSV(file filesystem.File) (*ImportResult, string, error) {
+	if file == nil {
+		return nil, "", apperrors.ErrFileRequired
+	}
+
+	filename := file.GetClientOriginalName()
+	if !strings.HasSuffix(strings.ToLower(filename), ".csv") {
+		return nil, filename, apperrors.ErrInvalidFileType
+	}
+
+	storage := facades.Storage().Disk("local")
+	savedPath, err := storage.PutFile("", file)
+	if err != nil {
+		return nil, filename, err
+	}
+	defer func() {
+		_ = storage.Delete(savedPath)
+	}()
+
+	csvContent, err := storage.Get(savedPath)
+	if err != nil {
+		return nil, filename, err
+	}
+
+	result, err := s.ImportOrders(csvContent)
+	return result, filename, err
 }
 
 // ImportOrderRow 导入订单行数据

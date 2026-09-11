@@ -92,12 +92,20 @@ func EnqueueAsyncExport(ctx http.Context, in EnqueueAsyncExportInput) EnqueueAsy
 }
 
 func markAsyncExportFailed(ctx http.Context, record *models.Export, err error) {
-	if record == nil || err == nil {
+	if !applyAsyncExportFailure(record, err) {
 		return
+	}
+	_ = appfacades.OrmQuery(ctx).Save(record)
+}
+
+// applyAsyncExportFailure 将导出记录标记为失败（纯逻辑，便于单测）。
+func applyAsyncExportFailure(record *models.Export, err error) bool {
+	if record == nil || err == nil {
+		return false
 	}
 	record.Status = models.ExportStatusFailed
 	record.ErrorMsg = err.Error()
-	_ = appfacades.OrmQuery(ctx).Save(record)
+	return true
 }
 
 // OwnedExportStatusResponse 返回当前管理员自己的导出任务状态（订单/支付等共用）。

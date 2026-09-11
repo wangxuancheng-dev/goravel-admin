@@ -9,7 +9,7 @@ description: Implements the React 19 + Vite admin frontend in html-react/ using 
 - Tech stack: React 19, Vite, TypeScript, Ant Design 6, Zustand, React Router 7, react-i18next.
 - Source root: `html-react/src` with alias `@`.
 - API modules: `html-react/src/api/*.ts` via `request` from `utils/request.ts`.
-- Vue counterpart lives in `html/` — prefer React patterns below when working under `html-react/`.
+- **Dual frontend rule:** New admin UI goes in React (`html-react/`). When you change a module that already has a Vue page, keep `html/` in sync in the same change set. Do not add new Vue-only admin modules.
 
 ## Backend response contract (must match)
 - success: `{ code: 200, message: string, data?: any, trace_id?: string }`

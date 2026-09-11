@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
-	"github.com/goravel/framework/facades"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
 	"goravel/app/http/apidoc"
 	"goravel/app/http/helpers"
+	adminrequests "goravel/app/http/requests/admin"
 	"goravel/app/http/response"
 	"goravel/app/http/trans"
 	"goravel/app/jobs"
@@ -245,23 +245,25 @@ func (r *OrderController) buildOrderDetailResponse(ctx http.Context, order *mode
 }
 
 func (r *OrderController) Store(ctx http.Context) http.Response {
-	var req struct {
-		UserID    uint                    `json:"user_id" binding:"required"`
-		Amount    float64                 `json:"amount" binding:"required"`
-		Products  []services.OrderProduct `json:"products" binding:"required"`
-		RequestID string                  `json:"request_id"`
-		Remark    string                  `json:"remark"`
+	var req adminrequests.OrderCreate
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
+		return resp
 	}
-
-	if err := ctx.Request().Bind(&req); err != nil {
-		return response.Error(ctx, http.StatusBadRequest, "invalid_params")
-	}
-
 	if len(req.Products) == 0 {
 		return response.Error(ctx, http.StatusBadRequest, "empty_products")
 	}
 
-	order, details, err := r.orderService(ctx).CreateOrder(req.UserID, req.Amount, req.Products, req.RequestID, req.Remark)
+	products := make([]services.OrderProduct, len(req.Products))
+	for i, p := range req.Products {
+		products[i] = services.OrderProduct{
+			ProductID:   p.ProductID,
+			ProductName: p.ProductName,
+			Price:       p.Price,
+			Quantity:    p.Quantity,
+		}
+	}
+
+	order, details, err := r.orderService(ctx).CreateOrder(req.UserID, req.Amount, products, req.RequestID, req.Remark)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "order", http.StatusBadRequest, err, map[string]any{
 			"user_id": req.UserID,
@@ -288,14 +290,9 @@ func (r *OrderController) Store(ctx http.Context) http.Response {
 }
 
 func (r *OrderController) Update(ctx http.Context) http.Response {
-	var req struct {
-		OrderNo string `json:"order_no"`
-		Status  string `json:"status" binding:"required"`
-		Remark  string `json:"remark"`
-	}
-
-	if err := ctx.Request().Bind(&req); err != nil {
-		return response.Error(ctx, http.StatusBadRequest, "invalid_params")
+	var req adminrequests.OrderUpdate
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
+		return resp
 	}
 
 	orderNo := strings.TrimSpace(req.OrderNo)
@@ -437,38 +434,14 @@ func (r *OrderController) Import(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, "file_required")
 	}
 
-	filename := file.GetClientOriginalName()
-	if !strings.HasSuffix(strings.ToLower(filename), ".csv") {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidFileType.Code)
-	}
-
-	storage := facades.Storage().Disk("local")
-	savedPath, err := storage.PutFile("", file)
+	result, filename, err := services.NewImportOrderService(ctx).ImportUploadedCSV(file)
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, err, map[string]any{
-			"filename": filename,
-		})
-	}
-
-	csvContent, err := storage.Get(savedPath)
-	if err != nil {
-		_ = storage.Delete(savedPath)
-		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, err, map[string]any{
-			"filename": filename,
-		})
-	}
-
-	defer func() {
-		_ = storage.Delete(savedPath)
-	}()
-
-	importService := services.NewImportOrderService(ctx)
-	result, err := importService.ImportOrders(csvContent)
-	if err != nil {
-		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, err, map[string]any{
-			"filename": filename,
-			"admin_id": adminID,
-		})
+		attrs := map[string]any{"filename": filename, "admin_id": adminID}
+		fallback := http.StatusInternalServerError
+		if _, ok := apperrors.GetBusinessError(err); ok {
+			fallback = http.StatusBadRequest
+		}
+		return HandleGeneratedServiceError(ctx, "import", fallback, err, attrs)
 	}
 
 	return response.Success(ctx, http.Json{
