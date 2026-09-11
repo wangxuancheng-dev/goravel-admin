@@ -61,5 +61,9 @@ export default defineConfig(({ mode }) => {
       outDir: './dist',
       emptyOutDir: true,
     },
+    test: {
+      environment: 'happy-dom',
+      include: ['src/**/*.{test,spec}.{js,ts,tsx}'],
+    },
   }
 })

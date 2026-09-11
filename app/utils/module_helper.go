@@ -16,7 +16,7 @@ func OrdersEnabled() bool {
 
 // PaymentsEnabled reports whether the payments example module is enabled.
 func PaymentsEnabled() bool {
-	return facades.Config().GetBool("module.payments_enabled", true)
+	return facades.Config().GetBool("module.payments_enabled", false)
 }
 
 // DevToolsEnabled reports whether general dev tools (e.g. form demo) are available.

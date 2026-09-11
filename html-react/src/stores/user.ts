@@ -155,7 +155,7 @@ export const useUserStore = create<UserState>((set, get) => {
           pprofTokenRequired: !!(config?.pprof_token_required || config?.pprofTokenRequired),
           aiEnabled: !!(config?.ai_enabled || config?.aiEnabled),
           ordersEnabled: (config?.orders_enabled ?? config?.ordersEnabled ?? true) as boolean,
-          paymentsEnabled: (config?.payments_enabled ?? config?.paymentsEnabled ?? true) as boolean,
+          paymentsEnabled: (config?.payments_enabled ?? config?.paymentsEnabled ?? false) as boolean,
           devToolsEnabled: !!(config?.dev_tools_enabled || config?.devToolsEnabled),
           codeGeneratorEnabled: !!(config?.code_generator_enabled || config?.codeGeneratorEnabled),
           searchEnabled: !!(config?.search_enabled || config?.searchEnabled),

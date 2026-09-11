@@ -138,7 +138,7 @@ export const useUserStore = defineStore('user', {
         pprofTokenRequired: config?.pprof_token_required || config?.pprofTokenRequired || false,
         aiEnabled: config?.ai_enabled || config?.aiEnabled || false,
         ordersEnabled: config?.orders_enabled ?? config?.ordersEnabled ?? true,
-        paymentsEnabled: config?.payments_enabled ?? config?.paymentsEnabled ?? true,
+        paymentsEnabled: config?.payments_enabled ?? config?.paymentsEnabled ?? false,
 		devToolsEnabled: config?.dev_tools_enabled || config?.devToolsEnabled || false,
         codeGeneratorEnabled: config?.code_generator_enabled || config?.codeGeneratorEnabled || false,
         searchEnabled: !!config?.search_enabled,

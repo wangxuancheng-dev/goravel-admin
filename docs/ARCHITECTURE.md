@@ -32,7 +32,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-两套前端**对接同一 Admin API**，约定新功能同发（见前端 skill）。架构上后端一份，前端双实现。
+两套前端**对接同一 Admin API**，约定新功能同发。**Vue（`html/`）为主参考实现**，React（`html-react/`）为一等公民对等实现；对齐清单见 [FRONTEND_PARITY.md](./FRONTEND_PARITY.md)。架构上后端一份，前端双实现。
 
 可选多租户（默认 `TENANCY_DRIVER=off`）：设为 `database` 后为**一户一库/Schema**（连接级隔离，非行级 `tenant_id`）；`platform:install` 首启；平台控制台 `/api/platform`，租户业务在租户库。权威说明见 [TENANT_RESERVED.md](./TENANT_RESERVED.md)。
 
@@ -44,8 +44,8 @@
 
 | 层级 | 技术 | 版本 / 说明 |
 |------|------|-------------|
-| **后端框架** | Goravel | v1.14+ |
-| **编程语言** | Go | 1.21+（以 `go.mod` 为准） |
+| **后端框架** | Goravel | v1.18（以 `go.mod` 为准） |
+| **编程语言** | Go | 1.25+（以 `go.mod` 为准） |
 | **前端（Vue）** | Vue 3 + Element Plus + VXE-Table + Pinia | 目录 `html/` |
 | **前端（React）** | React 19 + Ant Design 6 + Zustand + React Router 7 | 目录 `html-react/` |
 | **数据库** | MySQL / PostgreSQL | 8.0+ / 15+ |

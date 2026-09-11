@@ -36,7 +36,7 @@
 | 支付回调 `HandlePaymentNotify` | ❌ 明确「待实现」；**无对外 notify 路由** |
 | 退款 API / 原路退 | ❌ 未提供（余额日志里的 refund 类型仅统计用） |
 
-**结论：** 不要把本项目默认当成可上线的收单 / 清算系统。若只做管理端，可保留 `MODULE_PAYMENTS_ENABLED=true`；若担心误用，可在 `.env` 设 `MODULE_PAYMENTS_ENABLED=false`。
+**结论：** 不要把本项目默认当成可上线的收单 / 清算系统。**默认 `MODULE_PAYMENTS_ENABLED=false`（demo-only）**；需要演示后台支付管理 UI 时再显式打开。
 
 ---
 
@@ -76,7 +76,7 @@
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `MODULE_ORDERS_ENABLED` | `true` | 关闭后隐藏订单菜单并拒绝订单 API |
-| `MODULE_PAYMENTS_ENABLED` | `true` | 关闭后隐藏支付相关菜单并拒绝支付 API |
+| `MODULE_PAYMENTS_ENABLED` | `false` | 默认关闭（支付网关能力未成品）；`true` 仅用于管理端演示 UI |
 | `APP_ENABLE_DEV_TOOL` | `false` | 生产显式 `true` 才开放开发工具。表单演示：`local/development/test` 默认可见；代码生成器：仅 `local/development` 默认可见（`test` 默认隐藏） |
 
 登录 `Info` 与 `menus/tree` 会按开关过滤菜单；前端 `userStore.config` 同步 `orders_enabled` 等字段。

@@ -144,3 +144,4 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 7. 队列表 `jobs` / `failed_jobs` 读平台连接（`QUEUE_DATABASE_CONNECTION`）。
 8. 浏览器跨域 header 解析租户时，`CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`。
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
+10. IP 黑名单查库失败时 **fail-closed**（503），禁止因基础设施故障绕过封禁。

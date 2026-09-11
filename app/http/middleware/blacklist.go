@@ -34,9 +34,9 @@ func Blacklist() http.Middleware {
 		// 查询所有启用的黑名单记录
 		var blacklists []models.Blacklist
 		if err := appfacades.OrmQuery(ctx).Where("status", 1).Get(&blacklists); err != nil {
-			// 如果查询失败，记录错误但继续处理请求（避免影响系统正常运行）
+			// fail-closed：查库失败时拒绝访问，避免封禁名单失效时被绕过
 			facades.Log().Errorf("Blacklist middleware: Failed to query blacklists: %v", err)
-			ctx.Request().Next()
+			response.Abort(ctx, http.StatusServiceUnavailable, "service_unavailable")
 			return
 		}
 

@@ -11,27 +11,12 @@ import type { ApiError, ApiResponse } from '@/types'
 import { http } from './http'
 import type { RequestConfig } from './http'
 import { applyTenantHeader } from './tenant'
+import { isAuthEndpointUrl } from './authEndpoint'
 
 let isRedirecting = false
 let last403ErrorTime = 0
 let isShowing403Error = false
 const FORBIDDEN_ERROR_COOLDOWN = 3000
-
-/**
- * Auth endpoints skip global 401→logout (Login page handles errors).
- * Must NOT match /login-logs (substring of /login).
- */
-function isAuthEndpointUrl(url = ''): boolean {
-  const path = url.split('?')[0].replace(/\/+$/, '')
-  return (
-    path === 'login' ||
-    path === 'login/captcha' ||
-    path === 'logout' ||
-    path.endsWith('/login') ||
-    path.endsWith('/login/captcha') ||
-    path.endsWith('/logout')
-  )
-}
 
 function translateErrorCode(errorCode: string, fallbackMessage: string): string {
   if (!errorCode) return fallbackMessage

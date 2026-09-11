@@ -98,6 +98,7 @@
     "invalid_token": "无效的Token",
     "user_not_found": "用户不存在",
     "ip_blocked": "您的IP地址已被封禁，无法访问",
+    "service_unavailable": "服务暂时不可用，请稍后重试",
     "domain_not_allowed": "域名不允许访问",
     "load_permissions_failed": "加载权限失败",
     "token_refresh_success": "Token刷新成功",

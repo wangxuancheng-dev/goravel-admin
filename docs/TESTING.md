@@ -13,29 +13,36 @@
 
 ```
 tests/
-├── test_case.go                      # Goravel 测试基类
+├── test_case.go                         # Goravel 测试基类
 └── feature/
-    ├── admin_auth_test.go            # 登录校验、未授权访问
-    ├── admin_smoke_test.go           # 冒烟：登录成功、info、menus/tree
-    ├── admin_module_test.go          # info.config 模块开关字段
-    └── api_auth_test.go              # health、用户注册/登录校验
+    ├── admin_auth_test.go               # 登录校验、未授权访问
+    ├── admin_auth_extra_test.go         # 错密登录、无权限访问
+    ├── admin_smoke_test.go              # 冒烟：登录成功、info、menus/tree
+    ├── admin_module_test.go             # info.config 模块开关字段
+    ├── api_auth_test.go                 # health、用户注册/登录校验
+    ├── platform_tenancy_test.go         # 平台登录 / 租户头
+    ├── tenant_isolation_test.go         # 双租户库隔离
+    └── tenancy_failclosed_test.go       # 导出/搜索缺 tenant fail-closed
 
 app/http/controllers/admin/
-└── resource_ownership_test.go        # 导出/附件归属纯逻辑
+└── resource_ownership_test.go           # 导出/附件归属纯逻辑
 
 app/http/helpers/
-└── time_converter_test.go            # 快速 Go 测试
+└── time_converter_test.go               # 快速 Go 测试
 
 app/utils/
 ├── sharding_helper_test.go
 └── traceid/traceid_test.go
 
+html/ / html-react/
+└── src/utils/*.test.*                   # vitest：租户头、登录 URL 匹配
+
 driver/
-├── kafka/queue_test.go               # 集成测试：需要本地 Kafka
-├── nsq/queue_test.go                 # 集成测试：需要本地 nsqd
-├── rabbitmq/queue_test.go            # 集成测试：需要本地 RabbitMQ
-├── redisstream/queue_test.go         # 驱动子模块测试，使用 miniredis
-└── dm/integration_test.go            # 集成测试：需要 -tags dm 和 DM_TEST_DSN
+├── kafka/queue_test.go                  # 集成测试：需要本地 Kafka
+├── nsq/queue_test.go                    # 集成测试：需要本地 nsqd
+├── rabbitmq/queue_test.go               # 集成测试：需要本地 RabbitMQ
+├── redisstream/queue_test.go            # 驱动子模块测试，使用 miniredis
+└── dm/integration_test.go               # 集成测试：需要 -tags dm 和 DM_TEST_DSN
 ```
 
 ### 运行测试
@@ -50,6 +57,10 @@ go test -v -timeout=2m ./tests/feature/...
 
 # 仅 helper / utils
 go test -v -timeout=30s ./app/http/helpers ./app/utils/...
+
+# 前端最小单测（CI frontend-* jobs）
+(cd html && npm test)
+(cd html-react && npm test)
 ```
 
 ### 集成测试（按需运行）

@@ -142,6 +142,7 @@
     "invalid_token": "Invalid token",
     "user_not_found": "User not found",
     "ip_blocked": "Your IP address has been blocked",
+    "service_unavailable": "Service temporarily unavailable, please try again later",
     "domain_not_allowed": "Domain is not allowed",
     "load_permissions_failed": "Failed to load permissions",
     "token_refresh_success": "Token refreshed successfully",

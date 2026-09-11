@@ -142,6 +142,9 @@ jobs:
       - name: Run type check
         run: npm run type-check
 
+      - name: Unit tests
+        run: npm test
+
       - name: Build frontend
         run: npm run build:ci
 
@@ -172,6 +175,9 @@ jobs:
 
       - name: Run type check
         run: npm run type-check
+
+      - name: Unit tests
+        run: npm test
 
       - name: Build frontend
         run: npm run build:ci

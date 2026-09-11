@@ -8,6 +8,7 @@ import i18n from '../i18n'
 import logger from './logger'
 import Storage from './storage'
 import { applyTenantHeader } from './tenant'
+import { isAuthEndpointUrl } from './authEndpoint'
 
 const { t } = i18n.global
 
@@ -97,22 +98,6 @@ let isRedirecting = false
 let last403ErrorTime = 0
 let isShowing403Error = false
 const FORBIDDEN_ERROR_COOLDOWN = 3000 // 3秒内的403错误只提示一次
-
-/**
- * 登录/登出接口跳过全局 401→logout（由登录页自行处理）
- * 注意：不能用 includes('/login')，否则会误匹配 /login-logs
- */
-function isAuthEndpointUrl(url = '') {
-  const path = String(url).split('?')[0].replace(/\/+$/, '')
-  return (
-    path === 'login' ||
-    path === 'login/captcha' ||
-    path === 'logout' ||
-    path.endsWith('/login') ||
-    path.endsWith('/login/captcha') ||
-    path.endsWith('/logout')
-  )
-}
 
 // 处理401错误的统一函数
 const handle401Error = (message) => {

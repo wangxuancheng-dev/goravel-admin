@@ -383,6 +383,7 @@ upx -9 main
 | [SHARDING_MIGRATION.md](./docs/SHARDING_MIGRATION.md) | Database sharding guide (creating, using, and modifying sharding tables) |
 | [BUILD.md](./docs/BUILD.md) | Build and deployment |
 | [TESTING.md](./docs/TESTING.md) | Testing guide (unit & integration) |
+| [FRONTEND_PARITY.md](./docs/FRONTEND_PARITY.md) | Vue (primary) vs React parity checklist |
 | [OPENSOURCE.md](./docs/OPENSOURCE.md) | Open-source positioning, core vs advanced modules, production configs |
 | [QUICKSTART_DOCKER.md](./docs/QUICKSTART_DOCKER.md) | Docker Compose local setup in three commands |
 | [CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Contribution guide |
