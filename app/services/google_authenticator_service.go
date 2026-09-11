@@ -125,26 +125,10 @@ func (s *GoogleAuthenticatorServiceImpl) Verify(secret, code string) bool {
 
 // IsBound 检查管理员是否绑定了谷歌验证码
 func (s *GoogleAuthenticatorServiceImpl) IsBound(adminID uint) (bool, error) {
-	// 先检查列是否存在
-	columns, err := facades.Schema().GetColumns("admins")
-	if err != nil {
-		return false, err
-	}
-
-	hasGoogleSecretColumn := false
-	for _, column := range columns {
-		if column.Name == "google_secret" {
-			hasGoogleSecretColumn = true
-			break
-		}
-	}
-
-	// 如果列不存在，返回 false（未绑定）
-	if !hasGoogleSecretColumn {
+	if !appfacades.SchemaHasColumn(s.ctx, "admins", "google_secret") {
 		return false, nil
 	}
 
-	// 列存在，检查是否有值
 	count, err := appfacades.OrmQuery(s.ctx).Table("admins").
 		Where("id", adminID).
 		Where("google_secret IS NOT NULL").

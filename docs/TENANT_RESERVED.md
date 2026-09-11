@@ -130,4 +130,6 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | `PlatformOrmQuery(ctx)` | 平台元数据 / 平台 token |
 | `NewPlatformTokenService` | 平台 token |
 
-硬性规则：业务用 `OrmQuery`；平台路由不挂 `Tenant` 中间件；缓存/上传走 `tenancy.CacheKey` / `StoragePrefix`（含分片 `chunks/`）；搜索索引短名在绑定租户后为 `{code}_orders`；定时分表/搜索/清日志/清分片/ANALYZE 走 `RunTenantScope`；请求路径分表探测/DDL 走 `SchemaHasTable` / `WithSchemaContext`。
+硬性规则：业务用 `OrmQuery`；平台路由不挂 `Tenant` 中间件；缓存/上传走 `tenancy.CacheKey` / `StoragePrefix`（含分片 `chunks/`、导出、导入/附件临时目录）；搜索索引短名在绑定租户后为 `{code}_orders`（未绑定 fail-closed，禁止回退共享索引）；异步落库用 `tenancyctx.Detach`；导出/搜索队列 fail-closed（缺 `tenant_id` 不写平台库）；HTTP 手动跑定时任务自动带 `--tenant`（禁止扫全租户）；队列 `jobs`/`failed_jobs` 读平台连接；`CORS_ALLOWED_HEADERS` 需含 `X-Tenant-ID`；定时分表/搜索/清日志/清分片/ANALYZE 走 `RunTenantScope`；请求路径分表探测/DDL 走 `SchemaHasTable` / `WithSchemaContext`（`SchemaConnLock` 串行化）。
+
+订单搜索请用 `search:*` / `SyncOrderSearch`（`SEARCH_*`）；旧版 `sync_order_elasticsearch` / `elasticsearch_sync_outbox` 链路已移除，勿再接入。

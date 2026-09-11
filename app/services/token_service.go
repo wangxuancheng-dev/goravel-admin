@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/goravel/framework/contracts/database/orm"
-	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
@@ -62,11 +61,6 @@ func (s *TokenServiceImpl) patColumns() patColumnFlags {
 		flags.ip = appfacades.SchemaHasColumn(s.ctx, "personal_access_tokens", "ip")
 		flags.os = appfacades.SchemaHasColumn(s.ctx, "personal_access_tokens", "os")
 		flags.sessionID = appfacades.SchemaHasColumn(s.ctx, "personal_access_tokens", "session_id")
-	} else if s.platform && facades.Schema().HasTable("personal_access_tokens") {
-		flags.browser = facades.Schema().HasColumn("personal_access_tokens", "browser")
-		flags.ip = facades.Schema().HasColumn("personal_access_tokens", "ip")
-		flags.os = facades.Schema().HasColumn("personal_access_tokens", "os")
-		flags.sessionID = facades.Schema().HasColumn("personal_access_tokens", "session_id")
 	}
 	actual, _ := patColumnsCache.LoadOrStore(key, flags)
 	return actual.(patColumnFlags)
