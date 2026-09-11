@@ -378,6 +378,7 @@ upx -9 main
 |----------|-------------|
 | [API.md](./docs/API.md) | Complete API reference with examples |
 | [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System architecture and design |
+| [TENANT_RESERVED.md](./docs/TENANT_RESERVED.md) | Multi-tenancy (database-per-tenant / PG schema) |
 | [DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) | Development guide: Complete CRUD module development example (using guestbook module as example, includes backend APIs and frontend pages) |
 | [SHARDING_MIGRATION.md](./docs/SHARDING_MIGRATION.md) | Database sharding guide (creating, using, and modifying sharding tables) |
 | [BUILD.md](./docs/BUILD.md) | Build and deployment |

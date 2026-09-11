@@ -128,8 +128,19 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | `tenancy.Enabled()` | 是否一户一库 |
 | `OrmQuery(ctx)` | 租户业务默认入口 |
 | `PlatformOrmQuery(ctx)` | 平台元数据 / 平台 token |
-| `NewPlatformTokenService` | 平台 token |
+| `tenancyctx.Detach(ctx)` | 异步 goroutine 保留租户连接 |
+| `tenancy.CacheKey` / `StoragePrefix` | 缓存键 / 对象存储路径前缀 |
+| `RunTenantScope` / `--tenant` | CLI 按租户执行 |
+| `SchemaHasTable` / `WithSchemaContext` | 请求路径 Schema（`SchemaConnLock`） |
 
-硬性规则：业务用 `OrmQuery`；平台路由不挂 `Tenant` 中间件；缓存/上传走 `tenancy.CacheKey` / `StoragePrefix`（含分片 `chunks/`、导出、导入/附件临时目录）；搜索索引短名在绑定租户后为 `{code}_orders`（未绑定 fail-closed，禁止回退共享索引）；异步落库用 `tenancyctx.Detach`；导出/搜索队列 fail-closed（缺 `tenant_id` 不写平台库）；HTTP 手动跑定时任务自动带 `--tenant`（禁止扫全租户）；队列 `jobs`/`failed_jobs` 读平台连接；`CORS_ALLOWED_HEADERS` 需含 `X-Tenant-ID`；定时分表/搜索/清日志/清分片/ANALYZE 走 `RunTenantScope`；请求路径分表探测/DDL 走 `SchemaHasTable` / `WithSchemaContext`（`SchemaConnLock` 串行化）。
+### 硬性规则
 
-订单搜索请用 `search:*` / `SyncOrderSearch`（`SEARCH_*`）；旧版 `sync_order_elasticsearch` / `elasticsearch_sync_outbox` 链路已移除，勿再接入。
+1. 业务用 `OrmQuery(ctx)`；平台路由**不**挂 `Tenant` 中间件。
+2. 隔离是**切库/切 Schema**，不是行级 `tenant_id` GlobalScope。
+3. 缓存/上传（含 `chunks/`、导出、导入与附件临时目录）走租户前缀。
+4. 搜索索引绑定后为 `{code}_orders`；未绑定 fail-closed，禁止回退共享 `orders`。
+5. 导出/搜索队列缺 `tenant_id` 时 fail-closed，禁止写到平台库。
+6. HTTP 手动跑定时任务自动带当前 `--tenant`，禁止扫全租户；cron 可遍历启用租户。
+7. 队列表 `jobs` / `failed_jobs` 读平台连接（`QUEUE_DATABASE_CONNECTION`）。
+8. 浏览器跨域 header 解析租户时，`CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`。
+9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。

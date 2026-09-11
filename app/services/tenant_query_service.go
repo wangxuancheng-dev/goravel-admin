@@ -9,7 +9,8 @@ import (
 	"github.com/goravel/framework/contracts/http"
 )
 
-// TenantQueryService is a thin alias of OrmQuery for readability at call sites.
+// TenantQueryService is a thin wrapper around OrmQuery for call-site readability.
+// Under TENANCY_DRIVER=database, isolation is connection-level (bound ctx), not row-level tenant_id scopes.
 type TenantQueryService struct {
 	ctx http.Context
 }
