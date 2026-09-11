@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"goravel/app/dto"
+	searchorders "goravel/app/search/orders"
 )
 
 const orderIndexDateLayout = "2006-01-02"
@@ -15,8 +15,8 @@ const orderIndexDateTimeLayout = "2006-01-02 15:04:05"
 // 索引引擎：两参数皆空则 IndexGTE/IndexLTE 为 nil（不按时间过滤）；否则为格式化后的边界字符串。
 // DB：两参数皆空则默认 [now-3个月, now]；否则按解析结果构造窗口（单侧缺失时与「近 3 个月」规则组合）。
 // 解析失败时返回 errField + errMsgKey（i18n 键，如 validation_start_time_invalid）。
-func ParseOrderSearchCreatedRange(createdFrom, createdTo string) (dto.OrderSearchCreatedRange, string, string) {
-	var out dto.OrderSearchCreatedRange
+func ParseOrderSearchCreatedRange(createdFrom, createdTo string) (searchorders.CreatedRange, string, string) {
+	var out searchorders.CreatedRange
 	fromS := strings.TrimSpace(createdFrom)
 	toS := strings.TrimSpace(createdTo)
 	now := time.Now()

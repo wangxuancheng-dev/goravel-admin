@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"goravel/app/dto"
 	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
 )
@@ -90,7 +89,7 @@ func Push(ctx context.Context, orderID uint, orderNoHint string, op string) erro
 }
 
 // SearchMyOrders 当前用户订单检索（引擎路径）。
-func SearchMyOrders(ctx context.Context, userID uint, keyword string, page, pageSize int, createdAtGTE, createdAtLTE *string) (total int64, items []dto.OrderSearchListItem, err error) {
+func SearchMyOrders(ctx context.Context, userID uint, keyword string, page, pageSize int, createdAtGTE, createdAtLTE *string) (total int64, items []ListItem, err error) {
 	filters := []search.Filter{
 		{Field: "user_id", Op: "term", Value: userID},
 	}
@@ -115,7 +114,7 @@ func SearchMyOrders(ctx context.Context, userID uint, keyword string, page, page
 
 // SearchAdminOrders 后台订单列表检索（引擎路径；复杂筛选/深翻页优先走索引）。
 // 仅使用可移植 Filter/SearchRequest；调用方应在 QueryEnabled() 为 true 时使用，失败时回退分表 DB。
-func SearchAdminOrders(ctx context.Context, userID uint, orderNo, status, keyword string, minAmount, maxAmount float64, page, pageSize int, createdAtGTE, createdAtLTE *string, sortField string, sortDesc bool) (total int64, items []dto.OrderSearchListItem, err error) {
+func SearchAdminOrders(ctx context.Context, userID uint, orderNo, status, keyword string, minAmount, maxAmount float64, page, pageSize int, createdAtGTE, createdAtLTE *string, sortField string, sortDesc bool) (total int64, items []ListItem, err error) {
 	filters := make([]search.Filter, 0, 8)
 	if userID > 0 {
 		filters = append(filters, search.Filter{Field: "user_id", Op: "term", Value: userID})
@@ -157,7 +156,7 @@ func SearchAdminOrders(ctx context.Context, userID uint, orderNo, status, keywor
 	})
 }
 
-func searchOrders(ctx context.Context, req search.SearchRequest) (total int64, items []dto.OrderSearchListItem, err error) {
+func searchOrders(ctx context.Context, req search.SearchRequest) (total int64, items []ListItem, err error) {
 	engine, err := search.Resolve()
 	if err != nil {
 		return 0, nil, err
@@ -176,9 +175,9 @@ func searchOrders(ctx context.Context, req search.SearchRequest) (total int64, i
 		return 0, nil, err
 	}
 
-	items = make([]dto.OrderSearchListItem, 0, len(res.Hits))
+	items = make([]ListItem, 0, len(res.Hits))
 	for _, hit := range res.Hits {
-		var item dto.OrderSearchListItem
+		var item ListItem
 		b, err := json.Marshal(hit)
 		if err != nil {
 			continue

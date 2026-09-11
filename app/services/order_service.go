@@ -15,7 +15,6 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/spf13/cast"
 
-	"goravel/app/dto"
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
@@ -124,7 +123,7 @@ type OrderService interface {
 	// GetOrdersCountInYear 获取最近一年的订单总数（用于仪表盘统计）
 	GetOrdersCountInYear() (int64, error)
 	// SearchMyOrdersForUser C 端「我的订单」检索：开启搜索引擎时走索引，否则走分表数据库（关键词仅匹配订单号、备注）。
-	SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr dto.OrderSearchCreatedRange) ([]dto.OrderSearchListItem, int64, error)
+	SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error)
 }
 
 // OrderFilters 订单查询筛选条件
@@ -1160,12 +1159,12 @@ func (s *OrderServiceImpl) GetOrdersCountInYear() (int64, error) {
 	return total, nil
 }
 
-func orderWithDetailsToSearchListItem(o OrderWithDetails) dto.OrderSearchListItem {
+func orderWithDetailsToSearchListItem(o OrderWithDetails) searchorders.ListItem {
 	names := make([]string, 0, len(o.Details))
 	for _, d := range o.Details {
 		names = append(names, d.ProductName)
 	}
-	return dto.OrderSearchListItem{
+	return searchorders.ListItem{
 		ID:           o.ID,
 		OrderNo:      o.OrderNo,
 		Amount:       o.Amount,
@@ -1177,7 +1176,7 @@ func orderWithDetailsToSearchListItem(o OrderWithDetails) dto.OrderSearchListIte
 }
 
 // searchMyOrdersFromDB C 端订单检索的数据库路径（分表 + 关键词 LIKE）。
-func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, page, pageSize int, tr dto.OrderSearchCreatedRange) ([]dto.OrderSearchListItem, int64, error) {
+func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error) {
 	valid, err := utils.ValidateTimeRange(tr.DBStart, tr.DBEnd)
 	if !valid {
 		return nil, 0, err
@@ -1194,7 +1193,7 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 	if err != nil {
 		return nil, 0, err
 	}
-	out := make([]dto.OrderSearchListItem, 0, len(rows))
+	out := make([]searchorders.ListItem, 0, len(rows))
 	for i := range rows {
 		out = append(out, orderWithDetailsToSearchListItem(rows[i]))
 	}
@@ -1202,7 +1201,7 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 }
 
 // SearchMyOrdersForUser C 端「我的订单」检索：当前驱动检索可用时走索引；否则走分表数据库（关键词仅订单号、备注；时间无参数时默认近 3 个月，与列表接口一致）。
-func (s *OrderServiceImpl) SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr dto.OrderSearchCreatedRange) ([]dto.OrderSearchListItem, int64, error) {
+func (s *OrderServiceImpl) SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error) {
 	if searchorders.QueryEnabled() {
 		total, items, err := searchorders.SearchMyOrders(ctx, userID, keyword, page, pageSize, tr.IndexGTE, tr.IndexLTE)
 		if err != nil {
