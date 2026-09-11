@@ -17,6 +17,7 @@ tests/
 └── feature/
     ├── admin_auth_test.go               # 登录校验、未授权访问
     ├── admin_auth_extra_test.go         # 错密登录、无权限访问
+    ├── permission_guard_test.go         # 订单/导出无权限；导出下载非所有者 forbidden
     ├── admin_smoke_test.go              # 冒烟：登录成功、info、menus/tree
     ├── admin_module_test.go             # info.config 模块开关字段
     ├── api_auth_test.go                 # health、用户注册/登录校验
@@ -42,7 +43,7 @@ app/utils/
 └── traceid/traceid_test.go
 
 html/ / html-react/
-└── src/utils/*.test.*                   # vitest：租户头、登录 URL 匹配
+└── src/utils/*.test.*                   # vitest：租户头、login URL、buildSearchParams、apiFactory
 
 driver/
 ├── kafka/queue_test.go                  # 集成测试：需要本地 Kafka

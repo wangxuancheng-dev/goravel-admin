@@ -23,6 +23,8 @@ import (
 type AuthService interface {
 	// Login 管理员登录
 	Login(ctx http.Context, username, password string) (*models.Admin, string, error)
+	// IssueAdminToken 签发管理员 access token（含 UA/IP 与 JWT TTL）
+	IssueAdminToken(ctx http.Context, adminID uint) (string, error)
 	// GetAdminInfo 获取管理员完整信息（包括权限和菜单）
 	GetAdminInfo(ctx http.Context) (*models.Admin, []models.Permission, []models.Menu, error)
 	// RecordLoginLog 记录登录日志
@@ -88,24 +90,7 @@ func (s *AuthServiceImpl) Login(ctx http.Context, username, password string) (*m
 	}
 
 	// 生成token并存入数据库（类似Laravel Sanctum）
-	// 按配置的过期时间生成token，如果需要永久token，可以在创建token时设置 expiresAt 为 nil
-	var expiresAt *time.Time
-	ttl := facades.Config().GetInt("jwt.ttl", 60) // 默认60分钟
-	if ttl > 0 {
-		// 如果配置了过期时间，设置过期时间
-		exp := time.Now().Add(time.Duration(ttl) * time.Minute)
-		expiresAt = &exp
-	}
-	// 如果 ttl 为 0 或负数，expiresAt 为 nil，表示永不过期
-
-	// 获取浏览器和操作系统信息
-	browser, os := helpers.GetBrowserAndOS(ctx)
-	// 获取真实IP地址
-	ip := helpers.GetRealIP(ctx)
-	// sessionID将在CreateToken中自动生成
-
-	// 生成token
-	plainToken, _, err := s.tokenService.CreateToken("admin", admin.ID, "admin-token", expiresAt, browser, ip, os, "")
+	plainToken, err := s.IssueAdminToken(ctx, admin.ID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -124,6 +109,33 @@ func (s *AuthServiceImpl) Login(ctx http.Context, username, password string) (*m
 	s.RecordLoginLog(ctx, admin.ID, username, 1, "login_success", requestData)
 
 	return &admin, token, nil
+}
+
+// AdminTokenExpiresAt 按 jwt.ttl 计算过期时间；ttl<=0 表示永不过期。
+func AdminTokenExpiresAt() *time.Time {
+	ttl := facades.Config().GetInt("jwt.ttl", 60)
+	if ttl <= 0 {
+		return nil
+	}
+	exp := time.Now().Add(time.Duration(ttl) * time.Minute)
+	return &exp
+}
+
+// IssueAdminToken 签发管理员 access token（含 UA/IP 与 JWT TTL）。
+func (s *AuthServiceImpl) IssueAdminToken(ctx http.Context, adminID uint) (string, error) {
+	browser, osName := helpers.GetBrowserAndOS(ctx)
+	ip := helpers.GetRealIP(ctx)
+	plainToken, _, err := s.tokenService.CreateToken(
+		"admin",
+		adminID,
+		"admin-token",
+		AdminTokenExpiresAt(),
+		browser,
+		ip,
+		osName,
+		"",
+	)
+	return plainToken, err
 }
 
 // GetAdminInfo 获取管理员完整信息（包括权限和菜单）

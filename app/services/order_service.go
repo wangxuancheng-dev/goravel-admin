@@ -10,13 +10,10 @@ import (
 	"time"
 
 	"github.com/goravel/framework/contracts/database/orm"
-	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 	"github.com/oklog/ulid/v2"
-	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
-	"goravel/app/http/helpers"
 	"goravel/app/models"
 	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
@@ -33,62 +30,6 @@ const OrderCountThreshold int64 = 100000
 func orderTenantID(ctx context.Context) uint {
 	id, _ := tenancyctx.IDFrom(ctx)
 	return id
-}
-
-// ApplyOrderFiltersToQuery 只负责通用筛选（不包含时间范围），供列表查询/导出复用，避免重复/不一致。
-func ApplyOrderFiltersToQuery(query orm.Query, filters OrderFilters) orm.Query {
-	// 用户ID筛选
-	if filters.UserID > 0 {
-		query = query.Where("user_id = ?", filters.UserID)
-	}
-
-	// 订单号模糊搜索
-	if filters.OrderNo != "" {
-		query = query.Where("order_no = ?", filters.OrderNo)
-	}
-
-	if kw := strings.TrimSpace(filters.Keyword); kw != "" {
-		pattern := "%" + kw + "%"
-		query = query.Where("(order_no LIKE ? OR remark LIKE ?)", pattern, pattern)
-	}
-
-	// 订单状态筛选
-	if filters.Status != "" {
-		query = query.Where("status = ?", filters.Status)
-	}
-
-	// 金额范围筛选
-	if filters.MinAmount > 0 {
-		query = query.Where("amount >= ?", filters.MinAmount)
-	}
-	if filters.MaxAmount > 0 {
-		query = query.Where("amount <= ?", filters.MaxAmount)
-	}
-
-	return query
-}
-
-// BuildOrderQuery 构建订单分表查询（包含时间范围 + 通用筛选），供列表查询/导出复用。
-func BuildOrderQuery(ctx context.Context, tableName string, filters OrderFilters) orm.Query {
-	query := appfacades.OrmQuery(ctx).Table(tableName)
-
-	// 时间范围（导出/列表都需要）
-	if !filters.StartTime.IsZero() {
-		query = query.Where("created_at >= ?", filters.StartTime)
-	}
-	if !filters.EndTime.IsZero() {
-		query = query.Where("created_at <= ?", filters.EndTime)
-	}
-
-	return ApplyOrderFiltersToQuery(query, filters)
-}
-
-// GetOrderDetailsTableFromOrdersTable 从订单分表名获取对应的订单详情分表名
-// ordersTableName: 订单分表名，如 "orders_202501"
-// 返回: 订单详情分表名，如 "order_details_202501"
-func GetOrderDetailsTableFromOrdersTable(ordersTableName string) string {
-	// 将 orders_YYYYMM 转换为 order_details_YYYYMM
-	return strings.Replace(ordersTableName, "orders_", "order_details_", 1)
 }
 
 type OrderService interface {
@@ -126,68 +67,6 @@ type OrderService interface {
 	SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error)
 }
 
-// OrderFilters 订单查询筛选条件
-type OrderFilters struct {
-	UserID    uint      // 用户ID（0表示不筛选）
-	OrderNo   string    // 订单号（精确匹配，后台列表）
-	Keyword   string    // 关键词（订单号、备注 LIKE，供 C 端搜索等）
-	Status    string    // 订单状态
-	MinAmount float64   // 最小金额（0表示不筛选）
-	MaxAmount float64   // 最大金额（0表示不筛选）
-	StartTime time.Time // 开始时间
-	EndTime   time.Time // 结束时间
-	OrderBy   string    // 排序字段（格式：字段:asc/desc，如：created_at:desc）
-}
-
-// ParseOrderListTimeRange 解析后台订单列表时间；开始为空默认近 7 天，结束为空表示无上界。
-// 错误返回可直接用作 response message key（invalid_start_time / invalid_end_time）。
-func ParseOrderListTimeRange(startTimeStr, endTimeStr string) (time.Time, time.Time, error) {
-	var startTime, endTime time.Time
-	var err error
-
-	if startTimeStr == "" {
-		startTime = time.Now().UTC().AddDate(0, 0, -7)
-	} else {
-		startTime, err = utils.ParseDateTime(startTimeStr)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid_start_time")
-		}
-	}
-
-	if endTimeStr == "" {
-		endTime = time.Time{}
-	} else {
-		endTime, err = utils.ParseDateTime(endTimeStr)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid_end_time")
-		}
-	}
-
-	return startTime, endTime, nil
-}
-
-// BuildOrderFiltersFromHTTP 从 query/body 构建订单列表/导出筛选（含默认时间）。
-func BuildOrderFiltersFromHTTP(ctx http.Context) (OrderFilters, error) {
-	startTime, endTime, err := ParseOrderListTimeRange(
-		helpers.GetTimeInputOrQueryParam(ctx, "start_time"),
-		helpers.GetTimeInputOrQueryParam(ctx, "end_time"),
-	)
-	if err != nil {
-		return OrderFilters{}, err
-	}
-
-	return OrderFilters{
-		UserID:    cast.ToUint(ctx.Request().Input("user_id", ctx.Request().Query("user_id", "0"))),
-		OrderNo:   ctx.Request().Input("order_no", ctx.Request().Query("order_no", "")),
-		Status:    ctx.Request().Input("status", ctx.Request().Query("status", "")),
-		MinAmount: cast.ToFloat64(ctx.Request().Input("min_amount", ctx.Request().Query("min_amount", "0"))),
-		MaxAmount: cast.ToFloat64(ctx.Request().Input("max_amount", ctx.Request().Query("max_amount", "0"))),
-		StartTime: startTime,
-		EndTime:   endTime,
-		OrderBy:   ctx.Request().Input("order_by", ctx.Request().Query("order_by", "")),
-	}, nil
-}
-
 type OrderServiceImpl struct {
 	ctx                  context.Context
 	shardingService      ShardingService
@@ -200,54 +79,6 @@ type OrderProduct struct {
 	ProductName string  `json:"product_name"`
 	Price       float64 `json:"price"`
 	Quantity    int     `json:"quantity"`
-}
-
-// OrderExportData 订单导出数据结构（用于扩展导出字段）
-type OrderExportData struct {
-	Order models.Order
-}
-
-// OrderWithDetails 订单及详情
-type OrderWithDetails struct {
-	models.Order
-	Details []models.OrderDetail `json:"details"`
-}
-
-func (s *OrderServiceImpl) OrderToJSON(order models.Order) map[string]any {
-	return map[string]any{
-		"id":         order.ID,
-		"order_no":   order.OrderNo,
-		"user_id":    order.UserID,
-		"amount":     order.Amount,
-		"status":     order.Status,
-		"remark":     order.Remark,
-		"created_at": order.CreatedAt,
-		"updated_at": order.UpdatedAt,
-	}
-}
-
-func (s *OrderServiceImpl) OrderDetailToJSON(detail models.OrderDetail) map[string]any {
-	return map[string]any{
-		"id":           detail.ID,
-		"order_id":     detail.OrderID,
-		"product_id":   detail.ProductID,
-		"product_name": detail.ProductName,
-		"price":        detail.Price,
-		"quantity":     detail.Quantity,
-		"subtotal":     detail.Subtotal,
-		"created_at":   detail.CreatedAt,
-		"updated_at":   detail.UpdatedAt,
-	}
-}
-
-func (s *OrderServiceImpl) OrderWithDetailsToJSON(item *OrderWithDetails) map[string]any {
-	payload := s.OrderToJSON(item.Order)
-	detailsList := make([]map[string]any, len(item.Details))
-	for i, detail := range item.Details {
-		detailsList[i] = s.OrderDetailToJSON(detail)
-	}
-	payload["details"] = detailsList
-	return payload
 }
 
 func NewOrderService(ctx context.Context) *OrderServiceImpl {
@@ -645,88 +476,6 @@ func (s *OrderServiceImpl) GetOrdersWithDetails(filters OrderFilters, page, page
 	}
 
 	return s.getOrdersWithDetailsFromDB(filters, page, pageSize)
-}
-
-func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
-	valid, err := utils.ValidateTimeRange(filters.StartTime, filters.EndTime)
-	if !valid {
-		return nil, 0, err
-	}
-	if err := utils.ValidateShardingDeepPagination(page, pageSize); err != nil {
-		maxRows := utils.GetMaxUnionLimitPerTable()
-		if m, ok := utils.DeepPaginationMaxFromError(err); ok {
-			maxRows = m
-		}
-		return nil, 0, apperrors.ErrDeepPaginationExceeded.WithParams(map[string]any{"max": maxRows})
-	}
-
-	var gte, lte *string
-	if !filters.StartTime.IsZero() {
-		v := utils.FormatDateTime(filters.StartTime)
-		gte = &v
-	}
-	if !filters.EndTime.IsZero() {
-		v := utils.FormatDateTime(filters.EndTime)
-		lte = &v
-	}
-
-	sortField := "created_at"
-	sortDesc := true
-	if filters.OrderBy != "" {
-		parts := strings.Split(filters.OrderBy, ":")
-		if len(parts) == 2 {
-			sortField = parts[0]
-			sortDesc = strings.ToLower(parts[1]) != "asc"
-		}
-	}
-
-	keyword := strings.TrimSpace(filters.Keyword)
-	total, items, err := searchorders.SearchAdminOrders(
-		s.ctx,
-		filters.UserID,
-		filters.OrderNo,
-		filters.Status,
-		keyword,
-		filters.MinAmount,
-		filters.MaxAmount,
-		page,
-		pageSize,
-		gte,
-		lte,
-		sortField,
-		sortDesc,
-	)
-	if err != nil {
-		return nil, 0, err
-	}
-	if len(items) == 0 {
-		return []OrderWithDetails{}, total, nil
-	}
-
-	result := make([]OrderWithDetails, 0, len(items))
-	missed := 0
-	for _, item := range items {
-		order, details, err := orderrepo.FindOrderWithDetails(s.ctx, item.ID, item.OrderNo)
-		if err != nil || order == nil {
-			missed++
-			continue
-		}
-		result = append(result, OrderWithDetails{
-			Order:   *order,
-			Details: details,
-		})
-	}
-	// 整页都回源失败：视为搜索与 DB 不一致，回退分表以免返回空页+错误 total
-	if len(result) == 0 && len(items) > 0 {
-		return nil, 0, fmt.Errorf("order search hydrate failed: %d hits, all missing in db", len(items))
-	}
-	if missed > 0 {
-		errorlog.Record(s.ctx, "order", "搜索结果回源部分失败", map[string]any{
-			"missed": missed,
-			"hits":   len(items),
-		}, "订单搜索回源部分失败: missed=%d hits=%d", missed, len(items))
-	}
-	return result, total, nil
 }
 
 func (s *OrderServiceImpl) getOrdersWithDetailsFromDB(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
@@ -1129,60 +878,4 @@ func (s *OrderServiceImpl) GetOrdersCountInYear() (int64, error) {
 	}
 
 	return total, nil
-}
-
-func orderWithDetailsToSearchListItem(o OrderWithDetails) searchorders.ListItem {
-	names := make([]string, 0, len(o.Details))
-	for _, d := range o.Details {
-		names = append(names, d.ProductName)
-	}
-	return searchorders.ListItem{
-		ID:           o.ID,
-		OrderNo:      o.OrderNo,
-		Amount:       o.Amount,
-		Status:       o.Status,
-		Remark:       o.Remark,
-		CreatedAt:    o.CreatedAt.ToDateTimeString(),
-		ProductNames: names,
-	}
-}
-
-// searchMyOrdersFromDB C 端订单检索的数据库路径（分表 + 关键词 LIKE）。
-func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error) {
-	valid, err := utils.ValidateTimeRange(tr.DBStart, tr.DBEnd)
-	if !valid {
-		return nil, 0, err
-	}
-
-	filters := OrderFilters{
-		UserID:    userID,
-		StartTime: tr.DBStart,
-		EndTime:   tr.DBEnd,
-		Keyword:   strings.TrimSpace(keyword),
-		OrderBy:   "created_at:desc",
-	}
-	// 已确定走 DB：直接分表查询，避免再进入 GetOrdersWithDetails 的引擎优先路径。
-	rows, total, err := s.getOrdersWithDetailsFromDB(filters, page, pageSize)
-	if err != nil {
-		return nil, 0, err
-	}
-	out := make([]searchorders.ListItem, 0, len(rows))
-	for i := range rows {
-		out = append(out, orderWithDetailsToSearchListItem(rows[i]))
-	}
-	return out, total, nil
-}
-
-// SearchMyOrdersForUser C 端「我的订单」检索：当前驱动检索可用时走索引；否则走分表数据库（关键词仅订单号、备注；时间无参数时默认近 3 个月，与列表接口一致）。
-func (s *OrderServiceImpl) SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error) {
-	if searchorders.QueryEnabled() {
-		total, items, err := searchorders.SearchMyOrders(ctx, userID, keyword, page, pageSize, tr.IndexGTE, tr.IndexLTE)
-		if err != nil {
-			facades.Log().Warningf("order search engine failed (driver=%s), fallback to DB: %v", search.Driver(), err)
-			return s.searchMyOrdersFromDB(userID, keyword, page, pageSize, tr)
-		}
-		return items, total, nil
-	}
-
-	return s.searchMyOrdersFromDB(userID, keyword, page, pageSize, tr)
 }

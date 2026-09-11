@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	appfacades "goravel/app/facades"
 	"strconv"
-	"time"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
@@ -293,23 +292,12 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	r.lockoutService(ctx).ClearFailures(ip, loginRequest.Username)
 
 	// 验证通过，生成token并完成登录
-	browser, os := helpers.GetBrowserAndOS(ctx)
-
-	// 生成token
-	var expiresAt *time.Time
-	ttl := facades.Config().GetInt("jwt.ttl", 60) // 默认60分钟
-	if ttl > 0 {
-		exp := time.Now().Add(time.Duration(ttl) * time.Minute)
-		expiresAt = &exp
-	}
-
-	plainToken, _, err := r.tokenService(ctx).CreateToken("admin", admin.ID, "admin-token", expiresAt, browser, ip, os, "")
+	token, err := r.authService(ctx).IssueAdminToken(ctx, admin.ID)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
-	token := plainToken
 
 	// 记录登录成功日志
 	r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 1, "login_success", requestData)
