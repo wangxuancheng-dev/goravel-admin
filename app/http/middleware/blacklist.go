@@ -9,6 +9,7 @@ import (
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
 	"goravel/app/models"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
 
@@ -17,6 +18,12 @@ func Blacklist() http.Middleware {
 		// 排除登录接口，避免管理员被封禁后无法登录
 		path := ctx.Request().Path()
 		if path == "/api/admin/login" || path == "/api/admin/login/captcha" {
+			ctx.Request().Next()
+			return
+		}
+
+		// tenancy 开启且尚未绑定租户时跳过（全局中间件早于 Tenant）；路由组内 Tenant 之后会再跑一遍。
+		if tenancy.Enabled() && !helpers.TenantBound(ctx) {
 			ctx.Request().Next()
 			return
 		}

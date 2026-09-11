@@ -178,7 +178,7 @@ func (r *ObservabilityController) AuditTimeline(ctx ghttp.Context) ghttp.Respons
 func (r *ObservabilityController) QueueDashboard(ctx ghttp.Context) ghttp.Response {
 	reader := services.NewQueueStatsReader(ctx)
 	panels, defaultConn := reader.BuildQueueDashboard()
-	pending, failed := search.CountOutboxBacklog()
+	pending, failed := search.CountOutboxBacklogCtx(ctx)
 	return response.Success(ctx, ghttp.Json{
 		"default_connection": defaultConn,
 		"connections":        panels,

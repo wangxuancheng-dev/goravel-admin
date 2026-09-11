@@ -36,30 +36,30 @@ func (r *ClearChunks) Extend() command.Extend {
 }
 
 func (r *ClearChunks) Handle(ctx console.Context) error {
-	disk := utils.GetConfigValue(context.Background(), "storage", "file_disk", "")
-	if disk == "" {
-		disk = "local"
-	}
-	if disk != "local" && disk != "public" {
-		ctx.Info(fmt.Sprintf("当前存储驱动为 %s，清理分片文件功能仅支持本地存储，跳过清理", disk))
-		return nil
-	}
-
-	storage, err := utils.StorageDisk(disk)
-	if err != nil {
-		return fmt.Errorf("打开存储驱动失败: %w", err)
-	}
-
-	var storageRoot string
-	if disk == "public" {
-		storageRoot = path.Storage("app/public")
-	} else {
-		storageRoot = path.Storage("app")
-	}
-
 	threeDaysAgo := time.Now().AddDate(0, 0, -3)
 
 	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
+		disk := utils.GetConfigValue(bound, "storage", "file_disk", "")
+		if disk == "" {
+			disk = "local"
+		}
+		if disk != "local" && disk != "public" {
+			ctx.Info(fmt.Sprintf("当前存储驱动为 %s，清理分片文件功能仅支持本地存储，跳过清理", disk))
+			return nil
+		}
+
+		storage, err := utils.StorageDisk(disk)
+		if err != nil {
+			return fmt.Errorf("打开存储驱动失败: %w", err)
+		}
+
+		var storageRoot string
+		if disk == "public" {
+			storageRoot = path.Storage("app/public")
+		} else {
+			storageRoot = path.Storage("app")
+		}
+
 		prefix := helpers.TenantStoragePrefix(bound)
 		relChunks := strings.TrimSuffix(prefix, "/") + "/chunks"
 		if prefix == "" {

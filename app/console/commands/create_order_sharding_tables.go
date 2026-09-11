@@ -11,17 +11,12 @@ import (
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/utils"
-	"goravel/app/utils/errorlog"
 )
 
-type CreateOrderShardingTables struct {
-	shardingService services.ShardingService
-}
+type CreateOrderShardingTables struct{}
 
 func NewCreateOrderShardingTables() *CreateOrderShardingTables {
-	return &CreateOrderShardingTables{
-		shardingService: services.NewShardingService(context.Background()),
-	}
+	return &CreateOrderShardingTables{}
 }
 
 func (r *CreateOrderShardingTables) Signature() string {
@@ -58,7 +53,8 @@ func (r *CreateOrderShardingTables) Handle(ctx console.Context) error {
 		return err
 	}
 
-	return RunTenantScoped(ctx, func(_ *models.Tenant, _ context.Context) error {
+	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
+		shardingService := services.NewShardingService(bound)
 		createdCount := 0
 		skippedCount := 0
 
@@ -66,35 +62,25 @@ func (r *CreateOrderShardingTables) Handle(ctx console.Context) error {
 			tableName := utils.GetShardingTableName("orders", month)
 			detailTableName := utils.GetShardingTableName("order_details", month)
 
-			if utils.ShardingTableExists(tableName) {
+			if utils.ShardingTableExistsCtx(bound, tableName) {
 				ctx.Info(fmt.Sprintf("分表 %s 已存在，跳过", tableName))
 				skippedCount++
 			} else {
-				if err := r.shardingService.CreateShardingTable(tableName, "orders"); err != nil {
-					errorlog.Record(context.Background(), "sharding", "创建分表失败", map[string]any{
-						"table_name":      tableName,
-						"base_table_name": "orders",
-						"error":           err.Error(),
-					}, "创建分表 %s 失败: %v", tableName, err)
+				if err := shardingService.CreateShardingTable(tableName, "orders"); err != nil {
 					return fmt.Errorf("创建分表 %s 失败: %v", tableName, err)
 				}
-				utils.MarkShardingTableExists(tableName)
+				utils.MarkShardingTableExistsCtx(bound, tableName)
 				ctx.Info(fmt.Sprintf("✓ 创建分表: %s", tableName))
 				createdCount++
 			}
 
-			if utils.ShardingTableExists(detailTableName) {
+			if utils.ShardingTableExistsCtx(bound, detailTableName) {
 				ctx.Info(fmt.Sprintf("分表 %s 已存在，跳过", detailTableName))
 			} else {
-				if err := r.shardingService.CreateShardingTable(detailTableName, "order_details"); err != nil {
-					errorlog.Record(context.Background(), "sharding", "创建分表失败", map[string]any{
-						"table_name":      detailTableName,
-						"base_table_name": "order_details",
-						"error":           err.Error(),
-					}, "创建分表 %s 失败: %v", detailTableName, err)
+				if err := shardingService.CreateShardingTable(detailTableName, "order_details"); err != nil {
 					return fmt.Errorf("创建分表 %s 失败: %v", detailTableName, err)
 				}
-				utils.MarkShardingTableExists(detailTableName)
+				utils.MarkShardingTableExistsCtx(bound, detailTableName)
 				ctx.Info(fmt.Sprintf("✓ 创建分表: %s", detailTableName))
 			}
 		}

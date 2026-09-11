@@ -176,20 +176,16 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	var loginRequest admin.Login
 	errors, err := ctx.Request().ValidateRequest(&loginRequest)
 	if err != nil {
-		requestData := r.getLoginRequestData(ctx)
-		r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "validation_failed", requestData)
 		return response.Error(ctx, http.StatusBadRequest, err.Error())
 	}
 	if errors != nil {
-		requestData := r.getLoginRequestData(ctx)
-		r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "validation_failed", requestData)
 		return response.ValidationError(ctx, http.StatusBadRequest, "validation_failed", errors.All())
 	}
 
 	requestData := r.getLoginRequestData(ctx)
 	ip := helpers.GetRealIP(ctx)
 
-	// 一户一库：先绑定租户，后续 OrmQuery 打到租户库
+	// 一户一库：先绑定租户，后续 OrmQuery / 登录日志打到租户库
 	if tenancy.Enabled() {
 		hint := loginRequest.TenantCode
 		if hint == "" {

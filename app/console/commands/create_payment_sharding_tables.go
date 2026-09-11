@@ -10,17 +10,12 @@ import (
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/utils"
-	"goravel/app/utils/errorlog"
 )
 
-type CreatePaymentShardingTables struct {
-	shardingService services.ShardingService
-}
+type CreatePaymentShardingTables struct{}
 
 func NewCreatePaymentShardingTables() *CreatePaymentShardingTables {
-	return &CreatePaymentShardingTables{
-		shardingService: services.NewShardingService(context.Background()),
-	}
+	return &CreatePaymentShardingTables{}
 }
 
 func (r *CreatePaymentShardingTables) Signature() string {
@@ -57,25 +52,22 @@ func (r *CreatePaymentShardingTables) Handle(ctx console.Context) error {
 		return err
 	}
 
-	return RunTenantScoped(ctx, func(_ *models.Tenant, _ context.Context) error {
+	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
+		shardingService := services.NewShardingService(bound)
 		createdCount := 0
 		skippedCount := 0
 
 		for _, month := range months {
 			tableName := utils.GetShardingTableName("payments", month)
-			if utils.ShardingTableExists(tableName) {
+			if utils.ShardingTableExistsCtx(bound, tableName) {
 				ctx.Info(fmt.Sprintf("分表 %s 已存在，跳过", tableName))
 				skippedCount++
 				continue
 			}
-			if err := r.shardingService.CreateShardingTable(tableName, "payments"); err != nil {
-				errorlog.Record(context.Background(), "sharding", "创建支付记录分表失败", map[string]any{
-					"table_name": tableName,
-					"error":      err.Error(),
-				}, "创建支付记录分表 %s 失败: %v", tableName, err)
+			if err := shardingService.CreateShardingTable(tableName, "payments"); err != nil {
 				return fmt.Errorf("创建支付记录分表 %s 失败: %v", tableName, err)
 			}
-			utils.MarkShardingTableExists(tableName)
+			utils.MarkShardingTableExistsCtx(bound, tableName)
 			ctx.Info(fmt.Sprintf("✓ 创建分表: %s", tableName))
 			createdCount++
 		}

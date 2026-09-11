@@ -50,14 +50,14 @@ func Admin() {
 		// 登录：body 内解析租户；验证码 / 公开附件：Header 解析租户（off 时 Tenant 为 no-op）
 		router.Middleware(middleware.Lang()).Group(func(router route.Router) {
 			router.Middleware(httpmiddleware.Throttle("login")).Post("login", adminAuthController.Login)
-			router.Middleware(middleware.Tenant()).Group(func(router route.Router) {
+			router.Middleware(middleware.Tenant(), middleware.Blacklist()).Group(func(router route.Router) {
 				router.Get("login/captcha", adminAuthController.Captcha)
 				router.Get("public/images/{id}", attachmentController.PublicPreview)
 			})
 		})
 
-		// 已登录：Tenant → Jwt（off 时 Tenant 为 no-op）
-		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Jwt()).Group(func(router route.Router) {
+		// 已登录：Tenant → Blacklist → Jwt（off 时 Tenant 为 no-op）
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt()).Group(func(router route.Router) {
 			// 认证相关
 			router.Get("info", adminAuthController.Info)
 
@@ -105,8 +105,8 @@ func Admin() {
 			// 目前 attachmentController.Preview 已经是处理图片流的了
 		})
 
-		// 业务 CRUD：Tenant → Jwt → Permission
-		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Jwt(), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
+		// 业务 CRUD：Tenant → Blacklist → Jwt → Permission
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt(), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
 
 			router.Put("profile", adminAuthController.UpdateProfile)
 

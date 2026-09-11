@@ -14,6 +14,7 @@ import (
 	"goravel/app/errors"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 	"goravel/app/utils/logger"
@@ -354,6 +355,7 @@ func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, usernam
 
 	// 异步查询 IP 地理位置信息并更新日志记录
 	// 这样不会阻塞登录流程
+	persistCtx := tenancyctx.Detach(ctx)
 	go func() {
 		// 添加 panic 恢复机制
 		defer func() {
@@ -362,14 +364,14 @@ func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, usernam
 			}
 		}()
 
-		// 添加上下文超时控制（5秒超时）
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// 添加上下文超时控制（5秒超时）；Detach 保留租户连接，避免写到平台库
+		bg, cancel := context.WithTimeout(persistCtx, 5*time.Second)
 		defer cancel()
 
 		location := utils.GetIPLocation(ip)
 		if location != "" {
 			// 更新登录日志的 Location 字段
-			if _, err := appfacades.OrmQuery(ctx).
+			if _, err := appfacades.OrmQuery(bg).
 				Model(&models.LoginLog{}).
 				Where("id", loginLog.ID).
 				Update("location", location); err != nil {
@@ -379,8 +381,8 @@ func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, usernam
 
 		// 检查上下文是否超时
 		select {
-		case <-ctx.Done():
-			if ctx.Err() == context.DeadlineExceeded {
+		case <-bg.Done():
+			if bg.Err() == context.DeadlineExceeded {
 				facades.Log().Errorf("IP location update timeout for login log ID: %d", loginLog.ID)
 			}
 		default:

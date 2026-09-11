@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
+	"goravel/app/http/helpers"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
@@ -38,7 +39,13 @@ func (s *ImportOrderService) ImportUploadedCSV(file filesystem.File) (*ImportRes
 	}
 
 	storage := facades.Storage().Disk("local")
-	savedPath, err := storage.PutFile("", file)
+	tmpDir := strings.TrimSuffix(helpers.TenantStoragePrefix(s.ctx), "/")
+	if tmpDir == "" {
+		tmpDir = "imports"
+	} else {
+		tmpDir = tmpDir + "/imports"
+	}
+	savedPath, err := storage.PutFile(tmpDir, file)
 	if err != nil {
 		return nil, filename, err
 	}

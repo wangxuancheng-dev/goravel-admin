@@ -24,6 +24,14 @@ func NewAttachmentController() *AttachmentController {
 	return &AttachmentController{}
 }
 
+func attachmentTempDir(ctx http.Context) string {
+	prefix := strings.TrimSuffix(helpers.TenantStoragePrefix(ctx), "/")
+	if prefix == "" {
+		return "tmp"
+	}
+	return prefix + "/tmp"
+}
+
 func (r *AttachmentController) AttachmentService(ctx http.Context) services.AttachmentService {
 	return services.NewAttachmentService(ctx)
 }
@@ -67,7 +75,8 @@ func (r *AttachmentController) Upload(ctx http.Context) http.Response {
 	}
 
 	// 保存文件到临时位置，PutFile 返回保存后的路径
-	savedPath, err := storage.PutFile("", file)
+	tmpDir := attachmentTempDir(ctx)
+	savedPath, err := storage.PutFile(tmpDir, file)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"filename": filename,
@@ -200,7 +209,8 @@ func (r *AttachmentController) ChunkUpload(ctx http.Context) http.Response {
 		}
 
 		// 保存文件到临时位置
-		savedPath, err := storage.PutFile("", file)
+		tmpDir := attachmentTempDir(ctx)
+		savedPath, err := storage.PutFile(tmpDir, file)
 		if err != nil {
 			return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 				"chunk_id":    chunkID,

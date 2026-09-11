@@ -29,6 +29,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sync/singleflight"
 
+	"goravel/app/http/helpers"
 	"goravel/app/http/response"
 	"goravel/app/utils/errorlog"
 	wsnotifications "goravel/app/websocket/notifications"
@@ -620,6 +621,23 @@ func isLocalHost(host string) bool {
 	return host == "" || host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "0.0.0.0"
 }
 
+// monitorDBConnectionName resolves which database.connections.* entry to read host/port from.
+func monitorDBConnectionName(ctx http.Context, driver string) string {
+	if conn, ok := helpers.GetTenantConnectionFromContext(ctx); ok && conn != "" {
+		return conn
+	}
+	connectionName := facades.Config().GetString("database.default", "")
+	if connectionName == "" {
+		if driver == "postgresql" {
+			return "postgres"
+		}
+		if driver == "mysql" {
+			return "mysql"
+		}
+	}
+	return connectionName
+}
+
 // getMySQLInfoFromDB 通过数据库连接获取MySQL信息
 func getMySQLInfoFromDB(ctx http.Context) map[string]any {
 	result := map[string]any{
@@ -639,18 +657,9 @@ func getMySQLInfoFromDB(ctx http.Context) map[string]any {
 		}
 	}()
 
-	// 获取数据库连接配置
+	// 获取数据库连接配置（租户绑定后看租户库）
 	driver := strings.ToLower(appfacades.OrmQuery(ctx).Driver())
-	// 获取默认连接名（用于读取配置）
-	connectionName := facades.Config().GetString("database.default", "")
-	// 如果连接名为空，尝试根据驱动名推断
-	if connectionName == "" {
-		if driver == "postgresql" {
-			connectionName = "postgres"
-		} else if driver == "mysql" {
-			connectionName = "mysql"
-		}
-	}
+	connectionName := monitorDBConnectionName(ctx, driver)
 	dbHost := facades.Config().GetString(fmt.Sprintf("database.connections.%s.host", connectionName), "127.0.0.1")
 	dbPort := facades.Config().GetInt(fmt.Sprintf("database.connections.%s.port", connectionName), 3306)
 
@@ -665,9 +674,8 @@ func getMySQLInfoFromDB(ctx http.Context) map[string]any {
 		// 本地数据库可能会通过进程监控获取CPU、内存等信息，但这里先不设置
 	}
 
-	// 尝试连接数据库获取信息
-	ormInstance := facades.Orm()
-	if ormInstance == nil {
+	query := appfacades.OrmQuery(ctx)
+	if query == nil {
 		return result
 	}
 
@@ -682,8 +690,7 @@ func getMySQLInfoFromDB(ctx http.Context) map[string]any {
 	hasData := false
 
 	// 获取MySQL版本
-	query := ormInstance.Query()
-	if query != nil {
+	{
 		var versionResult struct {
 			Version string `gorm:"column:version"`
 		}
@@ -800,18 +807,9 @@ func getPostgreSQLInfoFromDB(ctx http.Context) map[string]any {
 		}
 	}()
 
-	// 获取数据库连接配置
+	// 获取数据库连接配置（租户绑定后看租户库）
 	driver := strings.ToLower(appfacades.OrmQuery(ctx).Driver())
-	// 获取默认连接名（用于读取配置）
-	connectionName := facades.Config().GetString("database.default", "")
-	// 如果连接名为空，尝试根据驱动名推断
-	if connectionName == "" {
-		if driver == "postgresql" {
-			connectionName = "postgres"
-		} else if driver == "mysql" {
-			connectionName = "mysql"
-		}
-	}
+	connectionName := monitorDBConnectionName(ctx, driver)
 	dbHost := facades.Config().GetString(fmt.Sprintf("database.connections.%s.host", connectionName), "127.0.0.1")
 	dbPort := facades.Config().GetInt(fmt.Sprintf("database.connections.%s.port", connectionName), 5432)
 
@@ -824,9 +822,8 @@ func getPostgreSQLInfoFromDB(ctx http.Context) map[string]any {
 		result["type"] = "local"
 	}
 
-	// 尝试连接数据库获取信息
-	ormInstance := facades.Orm()
-	if ormInstance == nil {
+	query := appfacades.OrmQuery(ctx)
+	if query == nil {
 		return result
 	}
 
@@ -837,9 +834,8 @@ func getPostgreSQLInfoFromDB(ctx http.Context) map[string]any {
 	}
 
 	// 执行PostgreSQL查询
-	query := ormInstance.Query()
 	hasData := false
-	if query != nil {
+	{
 		// 获取PostgreSQL版本
 		var versionResult struct {
 			Version string `gorm:"column:version"`
@@ -1145,16 +1141,7 @@ func (r *MonitorController) getProcessesInfo(ctx http.Context) map[string]any {
 	var connectionName string
 	if facades.Orm() != nil {
 		driver = strings.ToLower(appfacades.OrmQuery(ctx).Driver())
-		// 获取默认连接名（用于读取配置）
-		connectionName = facades.Config().GetString("database.default", "")
-		// 如果连接名为空，尝试根据驱动名推断
-		if connectionName == "" {
-			if driver == "postgresql" {
-				connectionName = "postgres"
-			} else if driver == "mysql" {
-				connectionName = "mysql"
-			}
-		}
+		connectionName = monitorDBConnectionName(ctx, driver)
 	} else {
 		driver = ""
 		connectionName = ""
