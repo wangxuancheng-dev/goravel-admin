@@ -40,7 +40,7 @@ func NormalizeTenantCode(code string) (string, error) {
 
 // ResolveTenantIsolation MySQL 强制 database；PG 允许 database|schema
 func ResolveTenantIsolation(driverName, isolation string) (string, error) {
-	driverName = strings.ToLower(strings.TrimSpace(driverName))
+	driverName = NormalizeTenantDriver(driverName)
 	isolation = strings.ToLower(strings.TrimSpace(isolation))
 	if isolation == "" {
 		isolation = models.TenantIsolationDatabase
@@ -58,6 +58,17 @@ func ResolveTenantIsolation(driverName, isolation string) (string, error) {
 		return isolation, nil
 	default:
 		return "", apperrors.ErrInvalidArgument.WithMessage("driver must be mysql or postgres")
+	}
+}
+
+// NormalizeTenantDriver returns lowercase mysql|postgres (empty stays empty for caller default).
+func NormalizeTenantDriver(driverName string) string {
+	driverName = strings.ToLower(strings.TrimSpace(driverName))
+	switch driverName {
+	case "pgsql", "postgresql":
+		return models.TenantDriverPostgres
+	default:
+		return driverName
 	}
 }
 
@@ -119,7 +130,7 @@ func (s *TenantConnectionService) Forget(connectionName string) {
 }
 
 func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (map[string]any, error) {
-	driverName := tenant.Driver
+	driverName := NormalizeTenantDriver(tenant.Driver)
 	if driverName == "" {
 		driverName = facades.Config().GetString("database.default", "mysql")
 	}
@@ -209,7 +220,7 @@ func TenantUsesCustomHost(tenant *models.Tenant) bool {
 }
 
 func (s *TenantConnectionService) resolveEndpoint(tenant *models.Tenant) (driverName, host string, port int, username, password string, err error) {
-	driverName = tenant.Driver
+	driverName = NormalizeTenantDriver(tenant.Driver)
 	if driverName == "" {
 		driverName = facades.Config().GetString("database.default", "mysql")
 	}
@@ -310,8 +321,9 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 	}
 
 	usePlatform := !TenantUsesCustomHost(tenant)
+	driverName := NormalizeTenantDriver(tenant.Driver)
 
-	switch tenant.Driver {
+	switch driverName {
 	case models.TenantDriverMySQL:
 		if err := validateSQLIdent(tenant.Database); err != nil {
 			return err

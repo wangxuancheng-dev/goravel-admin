@@ -124,9 +124,9 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		return nil, apperrors.ErrTenantExists
 	}
 
-	driverName := strings.TrimSpace(input.Driver)
+	driverName := NormalizeTenantDriver(input.Driver)
 	if driverName == "" {
-		driverName = facades.Config().GetString("database.default", "mysql")
+		driverName = NormalizeTenantDriver(facades.Config().GetString("database.default", "mysql"))
 	}
 	isolation, err := ResolveTenantIsolation(driverName, input.Isolation)
 	if err != nil {
@@ -172,9 +172,12 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	if _, err := appfacades.PlatformOrmQuery(nil).Model(&tenant).Update(map[string]any{
 		"connection_name": tenant.ConnectionName,
 	}); err != nil {
+		_, _ = appfacades.PlatformOrmQuery(nil).Delete(&tenant)
 		return nil, err
 	}
 	if err := s.conn.CreateStorageWithOptions(&tenant, input.SkipCreate); err != nil {
+		s.conn.Forget(tenant.ConnectionName)
+		_, _ = appfacades.PlatformOrmQuery(nil).Delete(&tenant)
 		return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
 	if input.Migrate {

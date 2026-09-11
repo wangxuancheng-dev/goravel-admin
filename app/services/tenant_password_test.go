@@ -43,6 +43,22 @@ func TestRevealTenantPasswordLegacyPlain(t *testing.T) {
 	}
 }
 
+func TestNormalizeTenantDriver(t *testing.T) {
+	cases := map[string]string{
+		"":           "",
+		"MySQL":      "mysql",
+		" postgres ": "postgres",
+		"pgsql":      "postgres",
+		"PostgreSQL": "postgres",
+		"mysql":      "mysql",
+	}
+	for in, want := range cases {
+		if got := NormalizeTenantDriver(in); got != want {
+			t.Fatalf("%q => %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestTenantUsesCustomHost(t *testing.T) {
 	if TenantUsesCustomHost(nil) {
 		t.Fatal("nil")
