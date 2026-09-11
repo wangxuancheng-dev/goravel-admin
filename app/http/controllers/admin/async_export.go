@@ -122,12 +122,8 @@ func OwnedExportStatusResponse(ctx http.Context) http.Response {
 		})
 	}
 
-	adminID, err := helpers.GetAdminIDFromContext(ctx)
-	if err != nil {
-		return response.Error(ctx, http.StatusUnauthorized, "unauthorized")
-	}
-	if exportRecord.AdminID != adminID {
-		return response.Error(ctx, http.StatusForbidden, "forbidden")
+	if resp := ForbidUnlessOwnerOrSuper(ctx, exportRecord.AdminID); resp != nil {
+		return resp
 	}
 
 	fileURL := ""

@@ -212,18 +212,18 @@ func (s *PaymentGatewayServiceImpl) QueryPaymentOrder(payment *models.Payment) (
 	}
 }
 
-// queryWechatPayment 查询微信支付订单状态
+// queryWechatPayment 查询微信支付订单状态（示例骨架，未对接真实查询 API）
 func (s *PaymentGatewayServiceImpl) queryWechatPayment(payment *models.Payment, config map[string]any) (map[string]any, error) {
-	// 实现微信支付查询逻辑
-	// 这里需要根据 gopay 的微信支付文档实现
-	return nil, fmt.Errorf("微信支付查询功能待实现")
+	_ = payment
+	_ = config
+	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
-// queryAlipayPayment 查询支付宝支付订单状态
+// queryAlipayPayment 查询支付宝支付订单状态（示例骨架，未对接真实查询 API）
 func (s *PaymentGatewayServiceImpl) queryAlipayPayment(payment *models.Payment, config map[string]any) (map[string]any, error) {
-	// 实现支付宝支付查询逻辑
-	// 这里需要根据 gopay 的支付宝文档实现
-	return nil, fmt.Errorf("支付宝支付查询功能待实现")
+	_ = payment
+	_ = config
+	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
 // HandlePaymentNotify 处理支付回调通知
@@ -239,16 +239,16 @@ func (s *PaymentGatewayServiceImpl) HandlePaymentNotify(paymentMethod *models.Pa
 	}
 }
 
-// handleWechatNotify 处理微信支付回调
+// handleWechatNotify 处理微信支付回调（示例骨架；仓库未暴露对外 notify 路由）
 func (s *PaymentGatewayServiceImpl) handleWechatNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
-	// 实现微信支付回调处理逻辑
-	// 这里需要根据 gopay 的微信支付文档实现
-	return nil, fmt.Errorf("微信支付回调处理功能待实现")
+	_ = paymentMethod
+	_ = notifyData
+	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
-// handleAlipayNotify 处理支付宝支付回调
+// handleAlipayNotify 处理支付宝支付回调（示例骨架；仓库未暴露对外 notify 路由）
 func (s *PaymentGatewayServiceImpl) handleAlipayNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
-	// 实现支付宝支付回调处理逻辑
-	// 这里需要根据 gopay 的支付宝文档实现
-	return nil, fmt.Errorf("支付宝支付回调处理功能待实现")
+	_ = paymentMethod
+	_ = notifyData
+	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }

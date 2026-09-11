@@ -318,6 +318,9 @@ func (r *AttachmentController) Download(ctx http.Context) http.Response {
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
+	if resp := ForbidUnlessAttachmentReadable(ctx, attachment); resp != nil {
+		return resp
+	}
 
 	if attachment.Path == "" || attachment.Disk == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrFilePathRequired.Code)
@@ -403,6 +406,9 @@ func (r *AttachmentController) Preview(ctx http.Context) http.Response {
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
+	if resp := ForbidUnlessAttachmentReadable(ctx, attachment); resp != nil {
+		return resp
+	}
 
 	return r.serveAttachmentContent(ctx, attachment, "inline")
 }
@@ -418,6 +424,9 @@ func (r *AttachmentController) Destroy(ctx http.Context) http.Response {
 	attachment, err := attachmentService.GetByID(id)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	if resp := ForbidUnlessAttachmentMutable(ctx, attachment); resp != nil {
+		return resp
 	}
 
 	if err := attachmentService.DeleteFile(attachment); err != nil {
@@ -455,6 +464,11 @@ func (r *AttachmentController) BatchDestroy(ctx http.Context) http.Response {
 			"ids": ids,
 		})
 	}
+	for i := range attachments {
+		if resp := ForbidUnlessAttachmentMutable(ctx, &attachments[i]); resp != nil {
+			return resp
+		}
+	}
 
 	// 删除文件和记录
 	for _, attachment := range attachments {
@@ -480,6 +494,14 @@ func (r *AttachmentController) UpdateDisplayName(ctx http.Context) http.Response
 	attachmentService := r.AttachmentService(ctx)
 	displayName := ctx.Request().Input("display_name", "")
 
+	attachment, err := attachmentService.GetByID(id)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	if resp := ForbidUnlessAttachmentMutable(ctx, attachment); resp != nil {
+		return resp
+	}
+
 	if err := attachmentService.UpdateDisplayName(id, displayName); err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"attachId": id,
@@ -487,7 +509,7 @@ func (r *AttachmentController) UpdateDisplayName(ctx http.Context) http.Response
 	}
 
 	// 重新获取更新后的附件
-	attachment, err := attachmentService.GetByID(id)
+	attachment, err = attachmentService.GetByID(id)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
@@ -511,6 +533,14 @@ func (r *AttachmentController) UpdateCategory(ctx http.Context) http.Response {
 	}
 
 	attachmentService := r.AttachmentService(ctx)
+	attachment, err := attachmentService.GetByID(id)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	if resp := ForbidUnlessAttachmentMutable(ctx, attachment); resp != nil {
+		return resp
+	}
+
 	if err := attachmentService.UpdateCategory(id, uint(categoryID)); err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"attachId":    id,
@@ -518,7 +548,7 @@ func (r *AttachmentController) UpdateCategory(ctx http.Context) http.Response {
 		})
 	}
 
-	attachment, err := attachmentService.GetByID(id)
+	attachment, err = attachmentService.GetByID(id)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
@@ -542,6 +572,14 @@ func (r *AttachmentController) UpdateVisibility(ctx http.Context) http.Response 
 
 	isPublic := isPublicStr == "1" || strings.EqualFold(isPublicStr, "true")
 	attachmentService := r.AttachmentService(ctx)
+	attachment, err := attachmentService.GetByID(id)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	if resp := ForbidUnlessAttachmentMutable(ctx, attachment); resp != nil {
+		return resp
+	}
+
 	if err := attachmentService.UpdateVisibility(id, isPublic); err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"attachId":  id,
@@ -549,7 +587,7 @@ func (r *AttachmentController) UpdateVisibility(ctx http.Context) http.Response 
 		})
 	}
 
-	attachment, err := attachmentService.GetByID(id)
+	attachment, err = attachmentService.GetByID(id)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}

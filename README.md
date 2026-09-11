@@ -279,7 +279,7 @@ See [docs/SHARDING_MIGRATION.md](./docs/SHARDING_MIGRATION.md) and [docs/OPENSOU
 
 ### Production Config
 
-- **Minimal production** (admin-focused, no sharding / ES): [docs/OPENSOURCE.md](./docs/OPENSOURCE.md#3-最小生产配置)
+- **Minimal production** (admin-focused, no sharding / ES): [docs/OPENSOURCE.md](./docs/OPENSOURCE.md#3-最小生产配置) · template [`.env.production.example`](./.env.production.example)
 - **Full advanced stack** (queues, sharding, ES, OTEL): [docs/OPENSOURCE.md](./docs/OPENSOURCE.md#4-完整进阶配置可选)
 
 ### Security Features

@@ -54,6 +54,16 @@ func (r *ExportController) Destroy(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
+	export, err := r.exportRecordService(ctx).GetByID(id)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusNotFound, err, map[string]any{
+			"exportId": id,
+		})
+	}
+	if resp := ForbidUnlessOwnerOrSuper(ctx, export.AdminID); resp != nil {
+		return resp
+	}
+
 	if err := r.exportRecordService(ctx).DeleteWithFile(id); err != nil {
 		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, err, map[string]any{
 			"exportId": id,
@@ -75,6 +85,9 @@ func (r *ExportController) Download(ctx http.Context) http.Response {
 		return HandleGeneratedServiceError(ctx, "export", http.StatusNotFound, err, map[string]any{
 			"exportId": id,
 		})
+	}
+	if resp := ForbidUnlessOwnerOrSuper(ctx, export.AdminID); resp != nil {
+		return resp
 	}
 
 	if export.Path == "" || export.Disk == "" {
@@ -138,6 +151,18 @@ func (r *ExportController) BatchDestroy(ctx http.Context) http.Response {
 
 	ids := req.IDs
 
+	exports, err := r.exportRecordService(ctx).GetByIDs(ids)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, err, map[string]any{
+			"ids": ids,
+		})
+	}
+	for i := range exports {
+		if resp := ForbidUnlessOwnerOrSuper(ctx, exports[i].AdminID); resp != nil {
+			return resp
+		}
+	}
+
 	if err := r.exportRecordService(ctx).BatchDeleteWithFiles(ids); err != nil {
 		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, err, map[string]any{
 			"ids": ids,
@@ -167,6 +192,17 @@ func (r *ExportController) StreamExportProgress(ctx http.Context) http.Response 
 		}
 	}
 
+	exportRecordSvc := r.exportRecordService(ctx)
+	owned, err := exportRecordSvc.GetByID(exportID)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusNotFound, err, map[string]any{
+			"exportId": exportID,
+		})
+	}
+	if resp := ForbidUnlessOwnerOrSuper(ctx, owned.AdminID); resp != nil {
+		return resp
+	}
+
 	writer := ctx.Response().Writer()
 	writer.Header().Set("Content-Type", "text/event-stream")
 	writer.Header().Set("Cache-Control", "no-cache")
@@ -192,8 +228,6 @@ func (r *ExportController) StreamExportProgress(ctx http.Context) http.Response 
 
 	lastStatus := uint8(255)
 	lastPath := ""
-
-	exportRecordSvc := r.exportRecordService(ctx)
 
 	for {
 		select {

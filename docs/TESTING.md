@@ -17,7 +17,11 @@ tests/
 └── feature/
     ├── admin_auth_test.go            # 登录校验、未授权访问
     ├── admin_smoke_test.go           # 冒烟：登录成功、info、menus/tree
+    ├── admin_module_test.go          # info.config 模块开关字段
     └── api_auth_test.go              # health、用户注册/登录校验
+
+app/http/controllers/admin/
+└── resource_ownership_test.go        # 导出/附件归属纯逻辑
 
 app/http/helpers/
 └── time_converter_test.go            # 快速 Go 测试
@@ -173,85 +177,44 @@ func (s *TokenServiceTestSuite) TestHashToken() {
 
 ## CI/CD 集成
 
-### GitHub Actions 示例
+真实工作流见 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)：
 
-```yaml
-# .github/workflows/test.yml
-name: Tests
+| Job | 内容 |
+|-----|------|
+| `backend` | 排除 `tests/feature` / `driver/` 的快速 `go test` |
+| `backend-integration` | MySQL 8 + Redis 7 → `artisan migrate` → `go test ./tests/feature/...` |
+| `frontend-vue` / `frontend-react` | `type-check` + `build:ci` |
 
-on: [push, pull_request]
-
-jobs:
-  backend-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-      - run: go test -v ./tests/...
-```
+本地复现 integration：准备好 MySQL/Redis，配置 `.env` 后执行 migrate，再跑 feature 包。
 
 ---
 
 ## 测试覆盖率目标
 
-| 模块类型 | 当前状态 | 目标覆盖率 |
-|----------|----------|------------|
-| Services | ✅ 已添加 | 60%+ |
-| Controllers | ✅ 已添加（集成测试） | 40%+ |
+| 模块类型 | 当前状态 | 目标 |
+|----------|----------|------|
+| Helpers / 纯逻辑 | ✅ 有单测 | 持续补充 |
+| Feature 冒烟 | ✅ 登录 / info / 模块开关 / API 鉴权 | 按模块增量 |
+| Services 全覆盖 | 部分 | 关键路径优先 |
 
 ---
 
-## Controller 集成测试
+## Feature 冒烟测试
 
-后端 Controller 集成测试位于 `tests/feature/` 目录：
-
-### 测试文件
+位于 `tests/feature/`：
 
 | 文件 | 覆盖内容 |
 |------|----------|
-| `admin_api_test.go` | 管理员登录、信息、列表、角色、菜单、部门、日志等 |
-| `blacklist_api_test.go` | 黑名单 CRUD、IP格式验证、批量删除 |
-| `permission_test.go` | 权限列表、角色权限绑定 |
-
-### 运行集成测试
+| `admin_auth_test.go` | 登录校验、未授权 |
+| `admin_smoke_test.go` | 登录成功、info、menus/tree |
+| `admin_module_test.go` | `info.config` 模块开关字段 |
+| `api_auth_test.go` | health、用户注册/登录校验 |
 
 ```bash
-# 运行所有集成测试（需要 Docker）
-go test -v ./tests/feature/...
-
-# 运行特定测试
-go test -v -run TestAdminApiTestSuite ./tests/feature/...
-go test -v -run TestBlacklistApiTestSuite ./tests/feature/...
+go test -v -timeout=5m ./tests/feature/...
 ```
 
-### 测试示例
-
-```go
-func (s *AdminApiTestSuite) TestLogin_Success() {
-    body := strings.NewReader(`{"username":"admin","password":"admin123"}`)
-    resp, err := s.Http(s.T()).
-        WithHeader("Content-Type", "application/json").
-        Post("/api/admin/login", body)
-
-    s.Require().NoError(err)
-    resp.AssertSuccessful()
-
-    content, err := resp.Content()
-    s.Require().NoError(err)
-
-    var result map[string]any
-    json.Unmarshal([]byte(content), &result)
-    s.Equal(float64(200), result["code"])
-}
-```
-
-### 注意事项
-
-- 集成测试需要 Docker 环境（自动创建测试数据库和 Redis）
-- 每个测试会执行 `RefreshDatabase()` 重置数据库
-- 使用 `Seed()` 填充测试数据
+前置：可连数据库、已 `migrate`；不依赖 Docker-in-Docker。勿假设存在已删除的 `admin_api_test.go` / `blacklist_api_test.go` 套件名。
 
 ---
 

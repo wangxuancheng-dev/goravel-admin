@@ -248,6 +248,10 @@ user store | app store | tabs（若启用）
 
 两边都保存 token、菜单树、权限码、语言与时区等，供请求头与按钮显隐使用。
 
+### 资源归属
+
+导出下载 / SSE / 删除，以及私有附件的读改删，校验 `admin_id`（所有者或配置 `admin.super_admin_id`）。公开附件可读，改删仍需归属。见 `ForbidUnlessOwnerOrSuper`。
+
 ---
 
 ## 数据库设计

@@ -43,6 +43,71 @@ jobs:
           mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|/driver/|node_modules')
           go test -count=1 -timeout=3m "${PKGS[@]}"
 
+  backend-integration:
+    name: Backend Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: goravel
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Prepare env
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          sed -i \
+            -e 's/^APP_ENV=.*/APP_ENV=test/' \
+            -e 's/^APP_DEBUG=.*/APP_DEBUG=false/' \
+            -e 's/^APP_KEY=.*/APP_KEY=base64:Y2ktdGVzdC1hcHAta2V5LTMyLWJ5dGVzLWxvbmchISE=/' \
+            -e 's/^JWT_SECRET=.*/JWT_SECRET=ci-jwt-secret-change-me-not-for-prod/' \
+            -e 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' \
+            -e 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' \
+            -e 's/^DB_PORT=.*/DB_PORT=3306/' \
+            -e 's/^DB_DATABASE=.*/DB_DATABASE=goravel/' \
+            -e 's/^DB_USERNAME=.*/DB_USERNAME=root/' \
+            -e 's/^DB_PASSWORD=.*/DB_PASSWORD=root/' \
+            -e 's/^CACHE_STORE=.*/CACHE_STORE=redis/' \
+            -e 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=sync/' \
+            -e 's/^REDIS_HOST=.*/REDIS_HOST=127.0.0.1/' \
+            -e 's/^REDIS_PORT=.*/REDIS_PORT=6379/' \
+            .env
+
+      - name: Migrate
+        run: go run . artisan migrate
+
+      - name: Feature / smoke tests
+        run: go test -count=1 -timeout=5m ./tests/feature/...
+
   frontend-vue:
     name: Frontend Vue
     runs-on: ubuntu-latest

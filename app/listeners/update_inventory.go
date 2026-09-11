@@ -62,8 +62,7 @@ func (receiver *UpdateInventory) Handle(args ...any) error {
 		return errors.ErrInvalidArgument.WithMessage("order ID exceeds maximum value")
 	}
 
-	// 同步执行：立即更新库存（需要立即生效，避免超卖）
-	facades.Log().Infof("[同步] 更新库存，订单 ID: %d", orderID)
-	// 实际场景中这里会立即更新商品库存
+	// 二次开发扩展点：在此扣减/锁定 SKU 库存；当前仅记日志便于演示事件链
+	facades.Log().Infof("[同步] 库存更新 hook（未接库存域时仅记日志），订单 ID: %d", orderID)
 	return nil
 }

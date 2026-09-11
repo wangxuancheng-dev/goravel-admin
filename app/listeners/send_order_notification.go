@@ -56,8 +56,7 @@ func (receiver *SendOrderNotification) Handle(args ...any) error {
 		return errors.ErrInvalidArgument.WithMessage("order ID exceeds maximum value")
 	}
 
-	// 模拟发送通知（耗时操作）
-	facades.Log().Infof("[队列] 发送订单通知，订单 ID: %d", orderID)
-	// 实际场景中这里会发送短信、推送通知等
+	// 二次开发扩展点：在此接入短信 / 站内信 / 推送等真实通知渠道
+	facades.Log().Infof("[队列] 订单通知 hook（未接渠道时仅记日志），订单 ID: %d", orderID)
 	return nil
 }

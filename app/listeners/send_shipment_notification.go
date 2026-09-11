@@ -77,7 +77,6 @@ func (receiver *SendShipmentNotification) Handle(args ...any) error {
 		facades.Log().Infof("[队列] 发货通知备注过长，已截断至 %d 字符", maxRemarkLength)
 	}
 
-	facades.Log().Infof("[队列] 发送发货通知，订单 ID: %d, 备注: %s", orderID, remark)
-	// 实际场景中这里会发送发货通知
+	facades.Log().Infof("[队列] 发货通知 hook（未接渠道时仅记日志），订单 ID: %d, 备注: %s", orderID, remark)
 	return nil
 }

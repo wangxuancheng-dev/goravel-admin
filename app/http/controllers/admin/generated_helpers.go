@@ -75,6 +75,8 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusBadRequest
 	case code == "account_disabled" || code == "forbidden":
 		return http.StatusForbidden
+	case code == "payment_gateway_not_implemented":
+		return http.StatusNotImplemented
 	case code == "not_logged_in" || code == "username_or_password_error" || code == "unauthorized":
 		return http.StatusUnauthorized
 	case code == "query_failed" || code == "create_failed" || code == "update_failed" || code == "delete_failed" || code == "operation_failed":

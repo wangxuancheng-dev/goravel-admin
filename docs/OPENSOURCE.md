@@ -118,8 +118,15 @@ SWAGGER_ENABLED=false
 3. HTTPS + 反向代理  
 4. 关闭或限权：Swagger、pprof、代码生成器  
 5. 日志磁盘与备份策略就绪  
+6. 使用 `.env.production.example` 起步，**勿**直接用 `docker-compose.yml` 默认口令上生产  
 
 部署细节见 [BUILD.md](./BUILD.md)、[DOCKER_DEPLOY.md](./DOCKER_DEPLOY.md)。
+
+### 资源归属（管理端）
+
+- **导出**：下载 / 进度 SSE / 删除仅本人或配置的 `admin.super_admin_id`  
+- **附件**：私有文件读/写同归属规则；公开附件（`is_public=1`）已登录管理员可读，改删仍需所有者或超管  
+- **支付**：查询 / 回调能力返回 `payment_gateway_not_implemented`（501），勿当收单核心
 
 ---
 
@@ -176,12 +183,13 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 
 ```text
 □ README 写清适用 / 不适用场景
-□ .env.example 可对照最小 / 进阶配置
+□ .env.example / .env.production.example 可对照最小生产配置
 □ migrate + seed 可一键初始化
-□ CI：build / vet / 测试 / 前端构建通过
+□ CI：unit + feature（MySQL/Redis）+ Vue/React type-check/build
 □ 演示账号与生产密钥分离说明
 □ 进阶模块（分表 / ES / 队列）标注为可选
 □ 冒烟集成测试：登录、鉴权接口、基础业务读接口
+□ 导出 / 私有附件具备归属校验
 ```
 
 ---

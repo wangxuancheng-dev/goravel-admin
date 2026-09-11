@@ -3,6 +3,7 @@ package jobs
 import (
 	"time"
 
+	"github.com/goravel/framework/contracts/mail"
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/errors"
@@ -149,11 +150,9 @@ func (r *SendEmail) ShouldRetry(err error, attempt int) (retryable bool, delay t
 // 返回:
 //   - error: 错误信息
 func sendEmail(to, subject, content string) error {
-	// 实际场景中这里会调用邮件服务发送邮件
-	// 例如：使用 SMTP、SendGrid、Mailgun 等服务
-	// 模拟：随机失败（用于测试重试）
-	// if rand.Intn(3) == 0 {
-	//     return fmt.Errorf("邮件服务暂时不可用")
-	// }
-	return nil
+	return facades.Mail().
+		To([]string{to}).
+		Subject(subject).
+		Content(mail.Content{Html: content}).
+		Send()
 }

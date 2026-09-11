@@ -144,6 +144,7 @@ var (
 	ErrCreatePaymentFailed     = NewBusinessError("create_payment_failed", "创建支付记录失败")
 	ErrPaymentAmountInvalid    = NewBusinessError("payment_amount_invalid", "支付金额无效")
 	ErrPaymentStatusInvalid    = NewBusinessError("payment_status_invalid", "支付状态无效")
+	ErrPaymentGatewayNotImplemented = NewBusinessError("payment_gateway_not_implemented", "支付网关该能力尚未实现，详见开源文档支付边界说明")
 
 	// 导出相关错误
 	ErrExportRecordNotFound    = NewBusinessError("record_not_found", "导出记录不存在")

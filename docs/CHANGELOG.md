@@ -10,6 +10,10 @@
 - ✨ 分表查询服务、可插拔订单搜索驱动
 - ✨ 支付方式 / 支付记录 / 网关服务拆分；订单筛选与导入下沉
 - 📚 Docker Compose 本地一键（MySQL + Redis + seed）与 CI（Go 单测 + Vue/React build）
+- 🔒 导出下载/进度/删除与附件读改删增加归属校验（所有者或 `admin.super_admin_id`）
+- 🧪 CI 增加 `backend-integration`（MySQL + Redis + `tests/feature`）
+- 📧 `send_email` 任务改为走框架 Mail；支付网关未实现能力返回稳定 `payment_gateway_not_implemented`
+- 📚 `.env.production.example`、架构双前端与开源上线检查对齐
 - ⚠️ 支付第三方回调 / 查询 / 退款仅为示例骨架，非正式支付中台（见 OPENSOURCE.md）
 
 ## [1.0.0] - 2024-12-25

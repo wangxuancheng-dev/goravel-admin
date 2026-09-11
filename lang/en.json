@@ -277,6 +277,7 @@
     "create_payment_failed": "Failed to create payment record",
     "payment_amount_invalid": "Invalid payment amount",
     "payment_status_invalid": "Invalid payment status",
+    "payment_gateway_not_implemented": "Payment gateway capability is not implemented; see open-source payment boundary docs",
     "payment_method_code_exists": "Payment method code already exists",
     "enabled": "Enabled",
     "disabled": "Disabled",
