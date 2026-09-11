@@ -7,7 +7,6 @@ import (
 
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
-	"github.com/goravel/framework/facades"
 
 	"goravel/app/services"
 	"goravel/app/utils"
@@ -104,7 +103,7 @@ func (r *CreateOrderShardingTables) Handle(ctx console.Context) error {
 		detailTableName := utils.GetShardingTableName("order_details", month)
 
 		// 创建订单主表
-		if facades.Schema().HasTable(tableName) {
+		if utils.ShardingTableExists(tableName) {
 			ctx.Info(fmt.Sprintf("分表 %s 已存在，跳过", tableName))
 			skippedCount++
 		} else {
@@ -116,12 +115,13 @@ func (r *CreateOrderShardingTables) Handle(ctx console.Context) error {
 				}, "创建分表 %s 失败: %v", tableName, err)
 				return fmt.Errorf("创建分表 %s 失败: %v", tableName, err)
 			}
+			utils.MarkShardingTableExists(tableName)
 			ctx.Info(fmt.Sprintf("✓ 创建分表: %s", tableName))
 			createdCount++
 		}
 
 		// 创建订单详情表
-		if facades.Schema().HasTable(detailTableName) {
+		if utils.ShardingTableExists(detailTableName) {
 			ctx.Info(fmt.Sprintf("分表 %s 已存在，跳过", detailTableName))
 		} else {
 			if err := r.shardingService.CreateShardingTable(detailTableName, "order_details"); err != nil {
@@ -132,6 +132,7 @@ func (r *CreateOrderShardingTables) Handle(ctx console.Context) error {
 				}, "创建分表 %s 失败: %v", detailTableName, err)
 				return fmt.Errorf("创建分表 %s 失败: %v", detailTableName, err)
 			}
+			utils.MarkShardingTableExists(detailTableName)
 			ctx.Info(fmt.Sprintf("✓ 创建分表: %s", detailTableName))
 		}
 	}

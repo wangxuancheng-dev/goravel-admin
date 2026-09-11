@@ -27,6 +27,8 @@
 
 - `orders` - 订单主表
 - `order_details` - 订单详情表
+- `payments` - 支付记录表
+- `user_balance_logs` - 用户余额流水（哈希分表）
 
 ## 创建分表
 

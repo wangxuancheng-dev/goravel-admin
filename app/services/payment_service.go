@@ -21,7 +21,6 @@ import (
 	"goravel/app/models"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
-	"goravel/database/migrations"
 )
 
 type PaymentService interface {
@@ -58,7 +57,7 @@ type PaymentService interface {
 	GetPayments(filters PaymentFilters, page, pageSize int) ([]models.Payment, int64, error)
 	// CreatePayment 创建支付记录
 	CreatePayment(orderNo string, paymentMethodID uint, userID uint, amount float64, remark string) (*models.Payment, error)
-	// UpdatePaymentStatus 更新支付状态（paymentNo 可选，提供则更快定位分表）
+	// UpdatePaymentStatus 更新支付状态（必须提供 paymentNo 以定位分表）
 	UpdatePaymentStatus(paymentID uint, status string, thirdPartyNo string, payTime *time.Time, failReason string, notifyData map[string]any, paymentNo ...string) error
 
 	// CreatePaymentOrder 创建支付订单（调用第三方支付）
@@ -485,10 +484,17 @@ func (s *PaymentServiceImpl) GetPaymentByPaymentNo(paymentNo string) (*models.Pa
 
 // GetPayments 获取支付记录列表（支持分表，限制不超过3个月）
 func (s *PaymentServiceImpl) GetPayments(filters PaymentFilters, page, pageSize int) ([]models.Payment, int64, error) {
-	// 验证时间范围不超过3个月
+	// 验证时间范围不超过配置月数
 	valid, err := utils.ValidateTimeRange(filters.StartTime, filters.EndTime)
 	if !valid {
 		return nil, 0, err
+	}
+	if err := utils.ValidateShardingDeepPagination(page, pageSize); err != nil {
+		maxRows := utils.GetMaxUnionLimitPerTable()
+		if m, ok := utils.DeepPaginationMaxFromError(err); ok {
+			maxRows = m
+		}
+		return nil, 0, apperrors.ErrDeepPaginationExceeded.WithParams(map[string]any{"max": maxRows})
 	}
 
 	// 获取需要查询的所有分表
@@ -509,7 +515,7 @@ func (s *PaymentServiceImpl) GetPayments(filters PaymentFilters, page, pageSize 
 	}
 
 	if err != nil {
-		return nil, 0, apperrors.ErrQueryFailed.WithError(err)
+		return nil, 0, err
 	}
 
 	// 批量加载支付方式
@@ -604,19 +610,22 @@ func (s *PaymentServiceImpl) CreatePayment(orderNo string, paymentMethodID uint,
 	return payment, nil
 }
 
-// UpdatePaymentStatus 更新支付状态（支持分表）
-// paymentNo 可选，如果提供则可以更快定位分表
+// UpdatePaymentStatus 更新支付状态（支持分表）。必须提供 paymentNo 以正确定位分表。
 func (s *PaymentServiceImpl) UpdatePaymentStatus(paymentID uint, status string, thirdPartyNo string, payTime *time.Time, failReason string, notifyData map[string]any, paymentNo ...string) error {
-	// 先查找支付记录以确定分表
-	var payment *models.Payment
-	var err error
-	if len(paymentNo) > 0 && paymentNo[0] != "" {
-		payment, err = s.findPaymentByPaymentNo(paymentNo[0])
-	} else {
-		payment, err = s.findPaymentByID(paymentID)
+	no := ""
+	if len(paymentNo) > 0 {
+		no = strings.TrimSpace(paymentNo[0])
 	}
+	if no == "" {
+		return apperrors.ErrPaymentNoRequired
+	}
+
+	payment, err := s.findPaymentByPaymentNo(no)
 	if err != nil {
 		return apperrors.ErrPaymentNotFound.WithError(err)
+	}
+	if paymentID > 0 && payment.ID != paymentID {
+		return apperrors.ErrPaymentNotFound
 	}
 
 	// 确定分表名
@@ -1066,7 +1075,7 @@ func (s *PaymentServiceImpl) findPaymentByPaymentNo(paymentNo string) (*models.P
 	if parsedTime, ok := utils.ParseShardingNoDate(paymentNo, utils.PaymentNoConfig); ok {
 		// 成功解析日期，直接查询对应分表
 		tableName := utils.GetShardingTableName("payments", parsedTime)
-		if facades.Schema().HasTable(tableName) {
+		if utils.ShardingTableExists(tableName) {
 			var payment models.Payment
 			if err := appfacades.OrmQuery(s.ctx).Model(&models.Payment{}).Table(tableName).Where("payment_no", paymentNo).First(&payment); err == nil {
 				return &payment, nil
@@ -1074,14 +1083,14 @@ func (s *PaymentServiceImpl) findPaymentByPaymentNo(paymentNo string) (*models.P
 		}
 	}
 
-	// 如果无法从支付单号解析日期，或者在对应分表中找不到，遍历最近6个月的分表
+	// 如果无法从支付单号解析日期，或者在对应分表中找不到，遍历最近 N 个月的分表
 	now := time.Now().UTC()
-	startTime := now.AddDate(0, -6, 0)
+	startTime := now.AddDate(0, -utils.GetIDLookupScanMonths(), 0)
 	tableNames := utils.GetShardingTableNames("payments", startTime, now)
 
 	// 从最新的分表开始查询（Model 自动应用软删除过滤）
 	for i := len(tableNames) - 1; i >= 0; i-- {
-		if !facades.Schema().HasTable(tableNames[i]) {
+		if !utils.ShardingTableExists(tableNames[i]) {
 			continue
 		}
 		var payment models.Payment
@@ -1112,14 +1121,14 @@ func (s *PaymentServiceImpl) findPaymentByID(paymentID uint, paymentNo ...string
 		return nil, apperrors.ErrPaymentNotFound
 	}
 
-	// 查询最近6个月的分表（足够覆盖大部分场景）
+	// 查询最近 N 个月的分表（无单号时的兜底扫描）
 	now := time.Now().UTC()
-	startTime := now.AddDate(0, -6, 0)
+	startTime := now.AddDate(0, -utils.GetIDLookupScanMonths(), 0)
 	tableNames := utils.GetShardingTableNames("payments", startTime, now)
 
 	// 从最新的分表开始查询（Model 自动应用软删除过滤）
 	for i := len(tableNames) - 1; i >= 0; i-- {
-		if !facades.Schema().HasTable(tableNames[i]) {
+		if !utils.ShardingTableExists(tableNames[i]) {
 			continue
 		}
 		var payment models.Payment
@@ -1134,7 +1143,7 @@ func (s *PaymentServiceImpl) findPaymentByID(paymentID uint, paymentNo ...string
 // querySinglePaymentTable 查询单个分表
 func (s *PaymentServiceImpl) querySinglePaymentTable(tableName string, filters PaymentFilters, page, pageSize int) ([]models.Payment, int64, error) {
 	// 友好处理：目标分表不存在时返回空结果，而不是抛出 SQL 1146 错误。
-	if !facades.Schema().HasTable(tableName) {
+	if !utils.ShardingTableExists(tableName) {
 		return []models.Payment{}, 0, nil
 	}
 
@@ -1183,18 +1192,8 @@ func (s *PaymentServiceImpl) queryMultiplePaymentTablesWithUnion(tableNames []st
 // ensurePaymentShardingTableExists 确保支付记录分表存在
 func (s *PaymentServiceImpl) ensurePaymentShardingTableExists(paymentTime time.Time) (string, error) {
 	tableName := utils.GetShardingTableName("payments", paymentTime)
-
-	// 检查分表是否存在
-	if !facades.Schema().HasTable(tableName) {
-		// 使用迁移函数创建分表
-		if err := migrations.CreatePaymentsShardingTable(tableName); err != nil {
-			errorlog.Record(s.ctx, "payment", "创建支付记录分表失败", map[string]any{
-				"table_name": tableName,
-				"error":      err.Error(),
-			}, "创建支付记录分表失败: %v", err)
-			return "", fmt.Errorf("创建支付记录分表失败: %v", err)
-		}
+	if err := s.shardingService.EnsureShardingTable(tableName, "payments"); err != nil {
+		return "", err
 	}
-
 	return tableName, nil
 }

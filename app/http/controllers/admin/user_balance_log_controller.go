@@ -64,8 +64,7 @@ func (c *UserBalanceLogController) buildUserBalanceLogFilters(ctx http.Context) 
 }
 
 func (c *UserBalanceLogController) Index(ctx http.Context) http.Response {
-	page := helpers.GetIntQuery(ctx, "page", 1)
-	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
+	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
 
 	filters, resp := c.buildUserBalanceLogFilters(ctx)
 	if resp != nil {

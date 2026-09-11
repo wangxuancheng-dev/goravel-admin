@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"fmt"
+
 	"github.com/goravel/framework/facades"
 	"github.com/spf13/cast"
 )
@@ -36,10 +38,51 @@ func GetIDLookupScanMonths() int {
 }
 
 // GetUserBalanceLogsShards 用户余额变动记录哈希分表数量。
+// 上线后应视为冻结配置；勿热改，否则历史数据路由失效。
 func GetUserBalanceLogsShards() int {
 	shards := cast.ToInt(facades.Config().Get("sharding.user_balance_logs_shards", 4))
 	if shards <= 0 {
 		return 4
 	}
 	return shards
+}
+
+// DefaultMaxUnionLimitPerTable 跨分表 UNION 单表拉取上限默认值。
+const DefaultMaxUnionLimitPerTable = 10000
+
+// GetMaxUnionLimitPerTable 跨分表 UNION 分页时每个分表最多拉取的行数。
+func GetMaxUnionLimitPerTable() int {
+	n := cast.ToInt(facades.Config().Get("sharding.max_union_limit_per_table", DefaultMaxUnionLimitPerTable))
+	if n <= 0 {
+		return DefaultMaxUnionLimitPerTable
+	}
+	return n
+}
+
+// ValidateShardingDeepPagination 校验跨分表深分页：offset+pageSize 不得超过单表拉取上限。
+func ValidateShardingDeepPagination(page, pageSize int) error {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	offset := (page - 1) * pageSize
+	maxRows := GetMaxUnionLimitPerTable()
+	if offset+pageSize > maxRows {
+		return fmt.Errorf("deep_pagination_exceeded:%d", maxRows)
+	}
+	return nil
+}
+
+// DeepPaginationMaxFromError 从 ValidateShardingDeepPagination 错误中解析 max（供服务层转 BusinessError）。
+func DeepPaginationMaxFromError(err error) (int, bool) {
+	if err == nil {
+		return 0, false
+	}
+	var max int
+	if _, scanErr := fmt.Sscanf(err.Error(), "deep_pagination_exceeded:%d", &max); scanErr != nil {
+		return 0, false
+	}
+	return max, true
 }

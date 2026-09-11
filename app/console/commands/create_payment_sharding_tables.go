@@ -7,18 +7,20 @@ import (
 
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
-	"github.com/goravel/framework/facades"
 
+	"goravel/app/services"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
-	"goravel/database/migrations"
 )
 
 type CreatePaymentShardingTables struct {
+	shardingService services.ShardingService
 }
 
 func NewCreatePaymentShardingTables() *CreatePaymentShardingTables {
-	return &CreatePaymentShardingTables{}
+	return &CreatePaymentShardingTables{
+		shardingService: services.NewShardingService(context.Background()),
+	}
 }
 
 // Signature The name and signature of the console command.
@@ -99,21 +101,22 @@ func (r *CreatePaymentShardingTables) Handle(ctx console.Context) error {
 	for _, month := range months {
 		tableName := utils.GetShardingTableName("payments", month)
 
-		// 创建支付记录分表
-		if facades.Schema().HasTable(tableName) {
+		if utils.ShardingTableExists(tableName) {
 			ctx.Info(fmt.Sprintf("分表 %s 已存在，跳过", tableName))
 			skippedCount++
-		} else {
-			if err := migrations.CreatePaymentsShardingTable(tableName); err != nil {
-				errorlog.Record(context.Background(), "sharding", "创建支付记录分表失败", map[string]any{
-					"table_name": tableName,
-					"error":      err.Error(),
-				}, "创建支付记录分表 %s 失败: %v", tableName, err)
-				return fmt.Errorf("创建支付记录分表 %s 失败: %v", tableName, err)
-			}
-			ctx.Info(fmt.Sprintf("✓ 创建分表: %s", tableName))
-			createdCount++
+			continue
 		}
+
+		if err := r.shardingService.CreateShardingTable(tableName, "payments"); err != nil {
+			errorlog.Record(context.Background(), "sharding", "创建支付记录分表失败", map[string]any{
+				"table_name": tableName,
+				"error":      err.Error(),
+			}, "创建支付记录分表 %s 失败: %v", tableName, err)
+			return fmt.Errorf("创建支付记录分表 %s 失败: %v", tableName, err)
+		}
+		utils.MarkShardingTableExists(tableName)
+		ctx.Info(fmt.Sprintf("✓ 创建分表: %s", tableName))
+		createdCount++
 	}
 
 	ctx.Info(fmt.Sprintf("\n完成！创建了 %d 个分表，跳过了 %d 个已存在的分表", createdCount, skippedCount))

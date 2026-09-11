@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/goravel/framework/facades"
 	"github.com/samber/lo"
 
 	apperrors "goravel/app/errors"
@@ -86,6 +85,14 @@ func NewShardingQueryService(ctx context.Context, config ShardingQueryConfig) Sh
 
 // QueryMultipleTables 查询多个分表（带分页）
 func (s *ShardingQueryServiceImpl) QueryMultipleTables(tableNames []string, filters any, page, pageSize int, result any) (int64, error) {
+	if err := utils.ValidateShardingDeepPagination(page, pageSize); err != nil {
+		maxRows := utils.GetMaxUnionLimitPerTable()
+		if m, ok := utils.DeepPaginationMaxFromError(err); ok {
+			maxRows = m
+		}
+		return 0, apperrors.ErrDeepPaginationExceeded.WithParams(map[string]any{"max": maxRows})
+	}
+
 	// 构建 WHERE 条件
 	whereClause, whereConditions := s.config.BuildWhereClause(filters)
 	if whereClause == "" {
@@ -101,21 +108,17 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTables(tableNames []string, filt
 	columnsStr := s.getColumnsForUnion()
 
 	// 优化：每个分表先排序和限制，然后再合并（避免合并大量数据后再排序）
-	// 计算每个分表需要查询的数量
-	// 为了确保合并后有足够的数据进行分页，每个分表查询更多数据
-	// 公式：limitPerTable = (page * pageSize) + pageSize，确保有足够数据
 	offset := (page - 1) * pageSize
 	limitPerTable := offset + pageSize + pageSize // 额外查询一页数据，确保有足够数据
-
-	// 如果 limitPerTable 太大（超过10000），限制为10000，避免单个查询太慢
-	if limitPerTable > 10000 {
-		limitPerTable = 10000
+	maxLimit := utils.GetMaxUnionLimitPerTable()
+	if limitPerTable > maxLimit {
+		limitPerTable = maxLimit
 	}
 
 	// 构建 UNION ALL 查询
-	// 过滤掉不存在的分表，避免查询错误
+	// 过滤掉不存在的分表，避免查询错误（使用短缓存）
 	existingTableNames := lo.Filter(tableNames, func(tableName string, _ int) bool {
-		return facades.Schema().HasTable(tableName)
+		return utils.ShardingTableExists(tableName)
 	})
 
 	if len(existingTableNames) == 0 {
@@ -244,7 +247,7 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTablesForExport(tableNames []str
 	// 构建 UNION ALL 查询
 	// 过滤掉不存在的分表，避免查询错误
 	existingTableNames := lo.Filter(tableNames, func(tableName string, _ int) bool {
-		return facades.Schema().HasTable(tableName)
+		return utils.ShardingTableExists(tableName)
 	})
 
 	if len(existingTableNames) == 0 {

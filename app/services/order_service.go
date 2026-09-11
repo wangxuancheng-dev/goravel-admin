@@ -103,13 +103,11 @@ type OrderService interface {
 	GetAllOrdersForExport(filters OrderFilters) ([]models.Order, error)
 	// GetAllOrdersWithDetailsForExport 获取所有订单及详情用于导出（限制不超过3个月，不分页）
 	GetAllOrdersWithDetailsForExport(filters OrderFilters) ([]OrderWithDetails, error)
-	// UpdateOrder 更新订单（状态和备注）
-	// 如果提供了订单号，优先使用订单号查找订单（更高效，可直接定位分表）
+	// UpdateOrder 更新订单（必须提供 order_no 以定位分表）
 	UpdateOrder(orderID uint, orderTime time.Time, status string, remark string, orderNo ...string) error
 	// UpdateOrderByOrderNo 根据订单号更新订单（状态和备注）
 	UpdateOrderByOrderNo(orderNo string, status string, remark string) error
-	// DeleteOrder 删除订单
-	// 如果提供了订单号，优先使用订单号查找订单（更高效，可直接定位分表）
+	// DeleteOrder 删除订单（必须提供 order_no 以定位分表）
 	DeleteOrder(orderID uint, orderTime time.Time, orderNo ...string) error
 	// DeleteOrderByOrderNo 根据订单号删除订单
 	DeleteOrderByOrderNo(orderNo string) error
@@ -387,12 +385,19 @@ func (s *OrderServiceImpl) GetOrderByOrderNo(orderNo string) (*models.Order, []m
 	return orderrepo.FindOrderWithDetails(s.ctx, 0, orderNo)
 }
 
-// GetOrders 查询订单列表（限制不超过3个月）
+// GetOrders 查询订单列表（限制时间跨度；深分页受 max_union_limit_per_table 约束）
 func (s *OrderServiceImpl) GetOrders(filters OrderFilters, page, pageSize int) ([]models.Order, int64, error) {
-	// 验证时间范围不超过3个月
+	// 验证时间范围不超过配置月数
 	valid, err := utils.ValidateTimeRange(filters.StartTime, filters.EndTime)
 	if !valid {
 		return nil, 0, err
+	}
+	if err := utils.ValidateShardingDeepPagination(page, pageSize); err != nil {
+		maxRows := utils.GetMaxUnionLimitPerTable()
+		if m, ok := utils.DeepPaginationMaxFromError(err); ok {
+			maxRows = m
+		}
+		return nil, 0, apperrors.ErrDeepPaginationExceeded.WithParams(map[string]any{"max": maxRows})
 	}
 
 	// 获取需要查询的所有分表
@@ -557,7 +562,7 @@ func (s *OrderServiceImpl) sortOrders(orders []models.Order, orderBy string) {
 // querySingleTable 查询单个分表
 func (s *OrderServiceImpl) querySingleTable(tableName string, filters OrderFilters, page, pageSize int) ([]models.Order, int64, error) {
 	// 友好处理：目标分表不存在时返回空结果，而不是抛出 SQL 1146 错误。
-	if !facades.Schema().HasTable(tableName) {
+	if !utils.ShardingTableExists(tableName) {
 		return []models.Order{}, 0, nil
 	}
 
@@ -594,8 +599,107 @@ func (s *OrderServiceImpl) querySingleTable(tableName string, filters OrderFilte
 	return orders, total, nil
 }
 
-// GetOrdersWithDetails 查询订单列表（包含详情，限制不超过3个月）
+// GetOrdersWithDetails 查询订单列表（包含详情）。
+// 当当前搜索驱动检索可用时优先走引擎，再按 order_no 回源 DB 加载明细；失败则回退分表查询。
 func (s *OrderServiceImpl) GetOrdersWithDetails(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
+	if searchorders.QueryEnabled() {
+		rows, total, err := s.getOrdersWithDetailsFromSearch(filters, page, pageSize)
+		if err == nil {
+			return rows, total, nil
+		}
+		// 驱动未实现或临时故障：回退分表，避免把引擎专属错误抛给前端
+		errorlog.Record(s.ctx, "order", "搜索引擎列表失败，回退分表查询", map[string]any{
+			"driver": search.Driver(),
+			"error":  err.Error(),
+		}, "搜索引擎订单列表失败: %v", err)
+	}
+
+	return s.getOrdersWithDetailsFromDB(filters, page, pageSize)
+}
+
+func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
+	valid, err := utils.ValidateTimeRange(filters.StartTime, filters.EndTime)
+	if !valid {
+		return nil, 0, err
+	}
+	if err := utils.ValidateShardingDeepPagination(page, pageSize); err != nil {
+		maxRows := utils.GetMaxUnionLimitPerTable()
+		if m, ok := utils.DeepPaginationMaxFromError(err); ok {
+			maxRows = m
+		}
+		return nil, 0, apperrors.ErrDeepPaginationExceeded.WithParams(map[string]any{"max": maxRows})
+	}
+
+	var gte, lte *string
+	if !filters.StartTime.IsZero() {
+		v := utils.FormatDateTime(filters.StartTime)
+		gte = &v
+	}
+	if !filters.EndTime.IsZero() {
+		v := utils.FormatDateTime(filters.EndTime)
+		lte = &v
+	}
+
+	sortField := "created_at"
+	sortDesc := true
+	if filters.OrderBy != "" {
+		parts := strings.Split(filters.OrderBy, ":")
+		if len(parts) == 2 {
+			sortField = parts[0]
+			sortDesc = strings.ToLower(parts[1]) != "asc"
+		}
+	}
+
+	keyword := strings.TrimSpace(filters.Keyword)
+	total, items, err := searchorders.SearchAdminOrders(
+		s.ctx,
+		filters.UserID,
+		filters.OrderNo,
+		filters.Status,
+		keyword,
+		filters.MinAmount,
+		filters.MaxAmount,
+		page,
+		pageSize,
+		gte,
+		lte,
+		sortField,
+		sortDesc,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(items) == 0 {
+		return []OrderWithDetails{}, total, nil
+	}
+
+	result := make([]OrderWithDetails, 0, len(items))
+	missed := 0
+	for _, item := range items {
+		order, details, err := orderrepo.FindOrderWithDetails(s.ctx, item.ID, item.OrderNo)
+		if err != nil || order == nil {
+			missed++
+			continue
+		}
+		result = append(result, OrderWithDetails{
+			Order:   *order,
+			Details: details,
+		})
+	}
+	// 整页都回源失败：视为搜索与 DB 不一致，回退分表以免返回空页+错误 total
+	if len(result) == 0 && len(items) > 0 {
+		return nil, 0, fmt.Errorf("order search hydrate failed: %d hits, all missing in db", len(items))
+	}
+	if missed > 0 {
+		errorlog.Record(s.ctx, "order", "搜索结果回源部分失败", map[string]any{
+			"missed": missed,
+			"hits":   len(items),
+		}, "订单搜索回源部分失败: missed=%d hits=%d", missed, len(items))
+	}
+	return result, total, nil
+}
+
+func (s *OrderServiceImpl) getOrdersWithDetailsFromDB(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
 	// 先查询订单列表
 	orders, total, err := s.GetOrders(filters, page, pageSize)
 	if err != nil {
@@ -713,7 +817,7 @@ func (s *OrderServiceImpl) GetAllOrdersForExport(filters OrderFilters) ([]models
 	// 如果只有一个分表，直接查询
 	if len(tableNames) == 1 {
 		// 友好处理：单表导出时分表不存在，直接返回空数据。
-		if !facades.Schema().HasTable(tableNames[0]) {
+		if !utils.ShardingTableExists(tableNames[0]) {
 			return []models.Order{}, nil
 		}
 
@@ -805,18 +909,16 @@ func (s *OrderServiceImpl) GetAllOrdersWithDetailsForExport(filters OrderFilters
 	return result, nil
 }
 
-// UpdateOrder 更新订单（状态和备注）
-// 如果提供了订单号，优先使用订单号查找订单（更高效，可直接定位分表）
+// UpdateOrder 更新订单（状态和备注）。跨分表场景必须提供 order_no 以正确定位分表。
 func (s *OrderServiceImpl) UpdateOrder(orderID uint, orderTime time.Time, status string, remark string, orderNo ...string) error {
-	// 先查找订单获取 created_at
-	// 如果提供了订单号，优先使用订单号查找
-	var order *models.Order
-	var err error
-	if len(orderNo) > 0 && orderNo[0] != "" {
-		order, err = s.findOrderByID(orderID, orderNo[0])
-	} else {
-		order, err = s.findOrderByID(orderID)
+	no := ""
+	if len(orderNo) > 0 {
+		no = strings.TrimSpace(orderNo[0])
 	}
+	if no == "" {
+		return apperrors.ErrOrderNoRequired
+	}
+	order, err := s.findOrderByID(orderID, no)
 	if err != nil {
 		return err
 	}
@@ -842,18 +944,16 @@ func (s *OrderServiceImpl) UpdateOrder(orderID uint, orderTime time.Time, status
 	return nil
 }
 
-// DeleteOrder 删除订单（软删除）
-// 如果提供了订单号，优先使用订单号查找订单（更高效，可直接定位分表）
+// DeleteOrder 删除订单（软删除）。跨分表场景必须提供 order_no 以正确定位分表。
 func (s *OrderServiceImpl) DeleteOrder(orderID uint, orderTime time.Time, orderNo ...string) error {
-	// 先查找订单获取 created_at（只查询未删除的订单）
-	// 如果提供了订单号，优先使用订单号查找
-	var order *models.Order
-	var err error
-	if len(orderNo) > 0 && orderNo[0] != "" {
-		order, err = s.findOrderByID(orderID, orderNo[0])
-	} else {
-		order, err = s.findOrderByID(orderID)
+	no := ""
+	if len(orderNo) > 0 {
+		no = strings.TrimSpace(orderNo[0])
 	}
+	if no == "" {
+		return apperrors.ErrOrderNoRequired
+	}
+	order, err := s.findOrderByID(orderID, no)
 	if err != nil {
 		return err
 	}
@@ -975,7 +1075,7 @@ func (s *OrderServiceImpl) GetOrdersCountInYear() (int64, error) {
 	// 使用 EXPLAIN 获取预估行数（比 COUNT 快很多）
 	for _, tableName := range tableNames {
 		// 检查表是否存在
-		if !facades.Schema().HasTable(tableName) {
+		if !utils.ShardingTableExists(tableName) {
 			continue
 		}
 
@@ -1042,12 +1142,12 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 	return out, total, nil
 }
 
-// SearchMyOrdersForUser C 端「我的订单」检索：search 启用时走当前驱动（含商品名等多字段）；否则走分表数据库（关键词仅订单号、备注；时间无参数时默认近 3 个月，与列表接口一致）。
+// SearchMyOrdersForUser C 端「我的订单」检索：当前驱动检索可用时走索引；否则走分表数据库（关键词仅订单号、备注；时间无参数时默认近 3 个月，与列表接口一致）。
 func (s *OrderServiceImpl) SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr dto.OrderSearchCreatedRange) ([]dto.OrderSearchListItem, int64, error) {
-	if search.Enabled() {
+	if searchorders.QueryEnabled() {
 		total, items, err := searchorders.SearchMyOrders(ctx, userID, keyword, page, pageSize, tr.IndexGTE, tr.IndexLTE)
 		if err != nil {
-			facades.Log().Warningf("order search engine failed, fallback to DB: %v", err)
+			facades.Log().Warningf("order search engine failed (driver=%s), fallback to DB: %v", search.Driver(), err)
 			return s.searchMyOrdersFromDB(userID, keyword, page, pageSize, tr)
 		}
 		return items, total, nil

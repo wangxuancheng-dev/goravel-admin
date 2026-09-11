@@ -29,6 +29,9 @@ func NewEngine(cfg config.Config) (*Engine, error) {
 
 func (e *Engine) Name() string { return search.DriverMeilisearch }
 
+// QueryReady 骨架阶段检索尚未可用；实现 SDK 后改为 true。
+func (e *Engine) QueryReady() bool { return false }
+
 func (e *Engine) fullIndex(index string) string {
 	return e.prefix + index
 }

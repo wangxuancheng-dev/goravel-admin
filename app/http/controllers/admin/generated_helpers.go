@@ -42,6 +42,8 @@ func HandleGeneratedServiceError(ctx http.Context, module string, status int, er
 
 func businessErrorStatus(code string, fallback int) int {
 	switch {
+	case code == "deep_pagination_exceeded" || code == "time_range_exceeded" || code == "start_time_after_end_time":
+		return http.StatusBadRequest
 	case code == "params_error" || code == "invalid_argument" || code == "validation_failed":
 		return http.StatusBadRequest
 	case strings.HasSuffix(code, "_required"):

@@ -233,8 +233,7 @@ func (r *OrderController) parseTimeRange(startTimeStr, endTimeStr string) (time.
 // @Router       /api/admin/orders [get]
 // @Security     BearerAuth
 func (r *OrderController) Index(ctx http.Context) http.Response {
-	page := helpers.GetIntQuery(ctx, "page", 1)
-	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
+	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
 
 	// Build filters shared with export.
 	filters, resp := r.buildFilters(ctx)
@@ -245,7 +244,7 @@ func (r *OrderController) Index(ctx http.Context) http.Response {
 	// Query order list with details.
 	ordersWithDetails, total, err := r.orderService(ctx).GetOrdersWithDetails(filters, page, pageSize)
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "order", http.StatusInternalServerError, err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "order", http.StatusBadRequest, err, map[string]any{
 			"filters": filters,
 		})
 	}

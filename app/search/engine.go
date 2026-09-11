@@ -26,17 +26,19 @@ type Engine interface {
 	EnsureIndex(ctx context.Context, index string) error
 }
 
-// Filter 通用过滤条件。
+// Filter 通用过滤条件（驱动负责翻译；业务层勿写引擎专属 DSL）。
 type Filter struct {
 	Field string
-	Op    string // term | gte | lte
+	Op    string // 可移植操作：term | gte | lte
 	Value any
 }
 
 // SearchRequest 引擎无关的检索请求。
+// SearchFields 仅为字段名（如 order_no），不要写 ES 的 order_no^2；加权用 FieldBoosts。
 type SearchRequest struct {
 	Keyword      string
-	SearchFields []string // 如 order_no^2, product_names
+	SearchFields []string           // 纯字段名，跨驱动可移植
+	FieldBoosts  map[string]float64 // 可选；仅支持加权的驱动（如 ES）使用
 	Filters      []Filter
 	Page         int
 	PageSize     int
@@ -48,4 +50,21 @@ type SearchRequest struct {
 type SearchResult struct {
 	Total int64
 	Hits  []map[string]any
+}
+
+// QueryReadyEngine 可选能力：驱动声明全文/筛选检索是否已真正可用。
+// 骨架驱动（如未完成的 Meilisearch）应返回 false，避免业务层每次空跑再回退。
+type QueryReadyEngine interface {
+	QueryReady() bool
+}
+
+// EngineQueryReady 判断引擎是否可用于订单等业务检索。
+func EngineQueryReady(e Engine) bool {
+	if e == nil || e.Name() == DriverNull {
+		return false
+	}
+	if q, ok := e.(QueryReadyEngine); ok {
+		return q.QueryReady()
+	}
+	return true
 }

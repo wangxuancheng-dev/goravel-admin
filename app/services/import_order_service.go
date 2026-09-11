@@ -323,7 +323,7 @@ func (s *ImportOrderService) importOrderGroup(orderService OrderService, orderKe
 			}
 		}
 
-		if err := orderService.UpdateOrder(order.ID, orderTime, status, remark); err != nil {
+		if err := orderService.UpdateOrder(order.ID, orderTime, status, remark, order.OrderNo); err != nil {
 			// 状态更新失败不影响导入，只记录日志
 			facades.Log().Warningf("导入订单后更新状态失败: order_id=%d, status=%s, error=%v", order.ID, status, err)
 		}

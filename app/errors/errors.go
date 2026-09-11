@@ -159,6 +159,9 @@ var (
 	// 分表相关错误
 	ErrBaseTableNotRegistered    = NewBusinessError("base_table_not_registered", "未注册的基础表名: {base_table_name}")
 	ErrCreateShardingTableFailed = NewBusinessError("create_sharding_table_failed", "创建分表 {table_name} 失败")
+	ErrDeepPaginationExceeded    = NewBusinessError("deep_pagination_exceeded", "分页过深，请缩小时间范围或增加筛选条件（offset+page_size 不能超过 {max}）")
+	ErrOrderNoRequired           = NewBusinessError("order_no_required", "订单号不能为空")
+	ErrPaymentNoRequired         = NewBusinessError("payment_no_required", "支付单号不能为空")
 
 	// 操作相关错误
 	ErrCreateFailed          = NewBusinessError("create_failed", "创建失败")

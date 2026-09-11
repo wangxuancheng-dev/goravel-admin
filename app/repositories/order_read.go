@@ -11,7 +11,8 @@ import (
 	"goravel/app/utils"
 )
 
-// FindOrderByID 通过订单 ID 查找主表记录（可选订单号以加速定位分表）。
+// FindOrderByID 通过订单 ID 查找主表记录。
+// 写路径与精确定位请务必传 orderNo；仅 ID 时只扫描最近 id_lookup_scan_months 个月，且跨月 id 可能撞号。
 func FindOrderByID(ctx context.Context, orderID uint, orderNo ...string) (*models.Order, error) {
 	if len(orderNo) > 0 && orderNo[0] != "" {
 		order, err := FindOrderByOrderNo(ctx, orderNo[0])

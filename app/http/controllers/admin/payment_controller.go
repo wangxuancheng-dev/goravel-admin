@@ -110,8 +110,7 @@ func (c *PaymentController) buildFilters(ctx http.Context) (services.PaymentFilt
 }
 
 func (c *PaymentController) Index(ctx http.Context) http.Response {
-	page := helpers.GetIntQuery(ctx, "page", 1)
-	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
+	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
 
 	filters, resp := c.buildFilters(ctx)
 	if resp != nil {
@@ -120,7 +119,7 @@ func (c *PaymentController) Index(ctx http.Context) http.Response {
 
 	payments, total, err := c.PaymentService(ctx).GetPayments(filters, page, pageSize)
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "payment", http.StatusInternalServerError, err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "payment", http.StatusBadRequest, err, map[string]any{
 			"filters": filters,
 		})
 	}

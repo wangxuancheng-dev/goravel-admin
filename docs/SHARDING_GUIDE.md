@@ -20,9 +20,10 @@
 #### 时间分表（按月分表）
 - `orders` - 订单主表
 - `order_details` - 订单详情表
+- `payments` - 支付记录表
 
 #### 哈希分表（按ID哈希分表）
-- `user_balance_logs` - 用户余额变动记录表（按 `user_id` 哈希分表，4个分表）
+- `user_balance_logs` - 用户余额变动记录表（按 `user_id` 哈希分表，默认 4 个分表；**上线后分片数视为冻结，变更需数据迁移**）
 
 ### 分表策略对比
 
@@ -77,6 +78,9 @@ func (s *ShardingServiceImpl) registerOrderTables() {
 	// 注册订单详情表（调用 migrations 中的函数）
 	s.RegisterTableCreator("order_details", migrations.CreateOrderDetailsShardingTable)
 }
+
+// 同时注册支付分表：
+// s.RegisterTableCreator("payments", migrations.CreatePaymentsShardingTable)
 ```
 
 #### 3. 创建分表命令（可选）
@@ -143,9 +147,16 @@ for _, tableName := range tableNames {
 - **分表方式**：按业务ID哈希分表
 - **分表键字段**：业务ID（如 `user_id`），类型为 `uint`
 - **分表名称格式**：`{base_table_name}_{shard_index}`，例如 `user_balance_logs_0`
-- **分表数量**：固定数量，建议为 2 的幂次（如 4, 8, 16, 32, 64 等）
+- **分表数量**：固定数量，建议为 2 的幂次（如 4, 8, 16, 32, 64 等）。**写入生产数据后视为冻结**，修改 `sharding.user_balance_logs_shards` 必须伴随数据再平衡，否则历史记录路由失效。
 - **分表逻辑**：`shardingKey % numberOfShards`
 - **查询特点**：通常只查询单个分表，不支持跨分表查询
+
+### 列表深分页与单号契约
+
+- 跨分表 UNION 分页：`offset + page_size` 不得超过 `sharding.max_union_limit_per_table`（默认 10000），超限返回 `deep_pagination_exceeded`。
+- 订单/支付写路径（更新、删除、状态变更）必须带业务单号（`order_no` / `payment_no`），不要只靠自增 `id`。
+- 订单后台列表在搜索同步开启时优先走搜索引擎，失败再回退分表 DB。
+- 生产环境建议依赖定时预建表；`EnsureShardingTable` 仅为兜底（带短缓存与同名表创建锁）。
 
 ### 创建哈希分表
 

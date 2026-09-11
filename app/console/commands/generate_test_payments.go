@@ -17,12 +17,12 @@ import (
 	"goravel/app/services"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
-	"goravel/database/migrations"
 )
 
 // GenerateTestPayments 生成测试支付记录数据
 type GenerateTestPayments struct {
-	paymentService services.PaymentService
+	paymentService  services.PaymentService
+	shardingService services.ShardingService
 }
 
 // Signature The name and signature of the console command.
@@ -265,7 +265,7 @@ func (receiver *GenerateTestPayments) generateBatch(count int, startDate, endDat
 
 	// 确保分表存在（使用最早的时间）
 	tableName := utils.GetShardingTableName("payments", startDate)
-	if !facades.Schema().HasTable(tableName) {
+	if !utils.ShardingTableExists(tableName) {
 		if err := receiver.ensurePaymentShardingTableExists(startDate); err != nil {
 			return fmt.Errorf("创建分表失败: %v", err)
 		}
@@ -287,7 +287,7 @@ func (receiver *GenerateTestPayments) generateBatch(count int, startDate, endDat
 	// 分表插入
 	for tableName, tablePayments := range tableGroups {
 		// 确保分表存在
-		if !facades.Schema().HasTable(tableName) {
+		if !utils.ShardingTableExists(tableName) {
 			// 从表名解析月份
 			if len(tableName) > 8 {
 				monthStr := tableName[len(tableName)-6:] // 提取 YYYYMM
@@ -353,14 +353,9 @@ func randomTimeInRange(start, end time.Time) time.Time {
 
 // ensurePaymentShardingTableExists 确保支付记录分表存在
 func (receiver *GenerateTestPayments) ensurePaymentShardingTableExists(paymentTime time.Time) error {
-	tableName := utils.GetShardingTableName("payments", paymentTime)
-
-	if !facades.Schema().HasTable(tableName) {
-		// 使用迁移函数创建分表
-		if err := migrations.CreatePaymentsShardingTable(tableName); err != nil {
-			return fmt.Errorf("创建支付记录分表失败: %v", err)
-		}
+	if receiver.shardingService == nil {
+		receiver.shardingService = services.NewShardingService(context.Background())
 	}
-
-	return nil
+	tableName := utils.GetShardingTableName("payments", paymentTime)
+	return receiver.shardingService.EnsureShardingTable(tableName, "payments")
 }

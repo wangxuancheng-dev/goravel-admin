@@ -109,7 +109,7 @@ func (e *Engine) Search(ctx context.Context, index string, req search.SearchRequ
 
 	boolQ := map[string]any{"filter": filters}
 	if kw := strings.TrimSpace(req.Keyword); kw != "" {
-		fields := req.SearchFields
+		fields := buildElasticsearchSearchFields(req.SearchFields, req.FieldBoosts)
 		if len(fields) == 0 {
 			fields = []string{"*"}
 		}
@@ -185,6 +185,32 @@ func (e *Engine) Search(ctx context.Context, index string, req search.SearchRequ
 		hits = append(hits, h.Source)
 	}
 	return &search.SearchResult{Total: parsed.Hits.Total.Value, Hits: hits}, nil
+}
+
+// buildElasticsearchSearchFields 将可移植字段名 + 可选加权转为 ES multi_match fields（field^boost）。
+func buildElasticsearchSearchFields(fields []string, boosts map[string]float64) []string {
+	if len(fields) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(fields))
+	for _, raw := range fields {
+		field := strings.TrimSpace(raw)
+		if field == "" {
+			continue
+		}
+		// 兼容误传入的 ES 语法，剥掉已有 ^boost
+		if i := strings.IndexByte(field, '^'); i >= 0 {
+			field = field[:i]
+		}
+		if boosts != nil {
+			if b, ok := boosts[field]; ok && b > 0 {
+				out = append(out, fmt.Sprintf("%s^%g", field, b))
+				continue
+			}
+		}
+		out = append(out, field)
+	}
+	return out
 }
 
 // Client 暴露底层客户端（命令/高级用途）。
