@@ -7,7 +7,6 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
-	"github.com/goravel/framework/support/carbon"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
@@ -212,50 +211,6 @@ func (r *OrderController) parseTimeRange(startTimeStr, endTimeStr string) (time.
 	return startTime, endTime, nil
 }
 
-// formatOrderStatus returns localized status text.
-func (r *OrderController) formatOrderStatus(ctx http.Context, status string) string {
-	switch status {
-	case "pending":
-		return trans.Get(ctx, "order_status_pending")
-	case "paid":
-		return trans.Get(ctx, "order_status_paid")
-	case "cancelled":
-		return trans.Get(ctx, "order_status_cancelled")
-	default:
-		return status
-	}
-}
-
-// formatTime converts several time types to string.
-func (r *OrderController) formatTime(t any) string {
-	if t == nil {
-		return ""
-	}
-
-	switch v := t.(type) {
-	case time.Time:
-		return utils.FormatDateTime(v)
-	case *time.Time:
-		return utils.FormatDateTimePtr(v)
-	case carbon.DateTime:
-		if v.IsZero() {
-			return ""
-		}
-		return v.ToDateTimeString()
-	case *carbon.DateTime:
-		if v == nil || v.IsZero() {
-			return ""
-		}
-		return v.ToDateTimeString()
-	default:
-		// Fallback for other types.
-		if str := fmt.Sprintf("%v", t); str != "" && str != "<nil>" {
-			return str
-		}
-		return ""
-	}
-}
-
 // Index returns paginated order list.
 // @Summary      Get order list
 // @Description  Returns paginated orders with filters; time range is limited.
@@ -392,19 +347,22 @@ func (r *OrderController) Store(ctx http.Context) http.Response {
 }
 
 func (r *OrderController) Update(ctx http.Context) http.Response {
-	// 浣跨敤璁㈠崟鍙锋煡璇紙鍙洿鎺ュ畾浣嶅垎琛級
-	orderNo := ctx.Request().Query("order_no", "")
-	if orderNo == "" {
-		return response.Error(ctx, http.StatusBadRequest, "order_no_required")
-	}
-
 	var req struct {
-		Status string `json:"status" binding:"required"`
-		Remark string `json:"remark"`
+		OrderNo string `json:"order_no"`
+		Status  string `json:"status" binding:"required"`
+		Remark  string `json:"remark"`
 	}
 
 	if err := ctx.Request().Bind(&req); err != nil {
 		return response.Error(ctx, http.StatusBadRequest, "invalid_params")
+	}
+
+	orderNo := strings.TrimSpace(req.OrderNo)
+	if orderNo == "" {
+		orderNo = strings.TrimSpace(ctx.Request().Query("order_no", ""))
+	}
+	if orderNo == "" {
+		return response.Error(ctx, http.StatusBadRequest, "order_no_required")
 	}
 
 	if err := r.orderService(ctx).UpdateOrderByOrderNo(orderNo, req.Status, req.Remark); err != nil {
@@ -431,8 +389,10 @@ func (r *OrderController) Update(ctx http.Context) http.Response {
 // @Router       /api/admin/orders/{id} [delete]
 // @Security     BearerAuth
 func (r *OrderController) Destroy(ctx http.Context) http.Response {
-	// 浣跨敤璁㈠崟鍙锋煡璇紙鍙洿鎺ュ畾浣嶅垎琛級
-	orderNo := ctx.Request().Query("order_no", "")
+	orderNo := strings.TrimSpace(ctx.Request().Input("order_no", ctx.Request().Query("order_no", "")))
+	if orderNo == "" {
+		return response.Error(ctx, http.StatusBadRequest, "order_no_required")
+	}
 
 	if err := r.orderService(ctx).DeleteOrderByOrderNo(orderNo); err != nil {
 		return HandleGeneratedServiceError(ctx, "order", http.StatusInternalServerError, err, map[string]any{
@@ -522,63 +482,7 @@ func (r *OrderController) Export(ctx http.Context) http.Response {
 // @Router       /api/admin/orders/export/status/{id} [get]
 // @Security     BearerAuth
 func (r *OrderController) GetExportStatus(ctx http.Context) http.Response {
-	exportID := helpers.GetUintRoute(ctx, "id")
-	if exportID == 0 {
-		return response.Error(ctx, http.StatusBadRequest, "id_required")
-	}
-
-	exportRecordService := services.NewExportRecordService(ctx)
-	exportRecord, err := exportRecordService.GetByID(exportID)
-	if err != nil {
-		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, err, map[string]any{
-			"export_id": exportID,
-		})
-	}
-
-	// Permission check: only owner can access.
-	adminID, err := helpers.GetAdminIDFromContext(ctx)
-	if err != nil {
-		return response.Error(ctx, http.StatusUnauthorized, "unauthorized")
-	}
-	if exportRecord.AdminID != adminID {
-		return response.Error(ctx, http.StatusForbidden, "forbidden")
-	}
-
-	// Build file URL.
-	fileURL := ""
-	if exportRecord.Path != "" && exportRecord.Status == models.ExportStatusSuccess {
-		exportService := services.NewExportService(ctx)
-		if exportRecord.Disk == "local" || exportRecord.Disk == "public" {
-			fileURL = fmt.Sprintf("/api/admin/exports/%d/download", exportRecord.ID)
-		} else {
-			fileURL = exportService.GetExportURL(exportRecord.Path)
-		}
-	}
-
-	return response.Success(ctx, http.Json{
-		"id":          exportRecord.ID,
-		"status":      exportRecord.Status,
-		"status_text": r.getExportStatusText(ctx, exportRecord.Status),
-		"file_url":    fileURL,
-		"filename":    exportRecord.Filename,
-		"size":        exportRecord.Size,
-		"error_msg":   exportRecord.ErrorMsg,
-		"created_at":  r.formatTime(exportRecord.CreatedAt),
-		"updated_at":  r.formatTime(exportRecord.UpdatedAt),
-	})
-}
-
-func (r *OrderController) getExportStatusText(ctx http.Context, status uint8) string {
-	switch status {
-	case models.ExportStatusProcessing:
-		return trans.Get(ctx, "processing")
-	case models.ExportStatusSuccess:
-		return trans.Get(ctx, "success")
-	case models.ExportStatusFailed:
-		return trans.Get(ctx, "failed")
-	default:
-		return trans.Get(ctx, "unknown")
-	}
+	return OwnedExportStatusResponse(ctx)
 }
 
 func (r *OrderController) Import(ctx http.Context) http.Response {

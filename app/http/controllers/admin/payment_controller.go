@@ -1,14 +1,12 @@
 package admin
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
-	appfacades "goravel/app/facades"
 	"goravel/app/http/apidoc"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
@@ -200,44 +198,5 @@ func (c *PaymentController) Export(ctx http.Context) http.Response {
 }
 
 func (c *PaymentController) GetExportStatus(ctx http.Context) http.Response {
-	exportID := helpers.GetUintRoute(ctx, "id")
-	if exportID == 0 {
-		return response.Error(ctx, http.StatusBadRequest, "id_required")
-	}
-
-	var exportRecord models.Export
-	if err := appfacades.OrmQuery(ctx).Where("id", exportID).FirstOrFail(&exportRecord); err != nil {
-		return response.Error(ctx, http.StatusNotFound, "record_not_found")
-	}
-
-	result := http.Json{
-		"id":          exportRecord.ID,
-		"status":      exportRecord.Status,
-		"status_text": c.getExportStatusText(ctx, exportRecord.Status),
-		"path":        exportRecord.Path,
-		"filename":    exportRecord.Filename,
-		"size":        exportRecord.Size,
-		"error_msg":   exportRecord.ErrorMsg,
-		"created_at":  exportRecord.CreatedAt,
-		"updated_at":  exportRecord.UpdatedAt,
-	}
-
-	if exportRecord.Status == models.ExportStatusSuccess && exportRecord.Path != "" {
-		result["download_url"] = fmt.Sprintf("/api/admin/exports/%d/download", exportRecord.ID)
-	}
-
-	return response.Success(ctx, result)
-}
-
-func (c *PaymentController) getExportStatusText(ctx http.Context, status uint8) string {
-	switch status {
-	case models.ExportStatusProcessing:
-		return trans.Get(ctx, "processing")
-	case models.ExportStatusSuccess:
-		return trans.Get(ctx, "success")
-	case models.ExportStatusFailed:
-		return trans.Get(ctx, "failed")
-	default:
-		return trans.Get(ctx, "unknown")
-	}
+	return OwnedExportStatusResponse(ctx)
 }

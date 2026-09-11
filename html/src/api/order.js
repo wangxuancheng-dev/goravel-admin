@@ -50,9 +50,16 @@ export function getOrderDetail(id, params = {}) {
 
 export const {
   create: createOrder,
-  update: updateOrder,
-  delete: deleteOrder
+  update: updateOrder
 } = orderApi
+
+export function deleteOrder(id, params = {}) {
+  return request({
+    url: `/orders/${id}`,
+    method: 'delete',
+    params: Object.keys(params).length ? params : undefined
+  })
+}
 
 export const exportOrder = orderApi.export
 export const getExportStatus = orderApi.exportStatus

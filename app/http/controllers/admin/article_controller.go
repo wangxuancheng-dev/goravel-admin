@@ -1,7 +1,8 @@
 package admin
 
 import (
-	"github.com/spf13/cast"
+	"goravel/app/jobs"
+	"goravel/app/utils"
 
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
@@ -110,47 +111,25 @@ func (c *ArticleController) Destroy(ctx http.Context) http.Response {
 // Export exports Article records.
 func (c *ArticleController) Export(ctx http.Context) http.Response {
 	filters := c.buildArticleFilters(ctx)
-	lock := helpers.AcquireExportLock(ctx, "articles")
-	if lock.Unauthorized {
+	filtersMap := utils.ExportFiltersToMap(filters)
+	result := EnqueueAsyncExport(ctx, EnqueueAsyncExportInput{
+		LockResource: "articles",
+		ExportType:   "articles",
+		Filters:      filtersMap,
+		Job:          &jobs.ExportArticles{},
+	})
+	if result.Unauthorized {
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
 	}
-	if lock.Blocked {
+	if result.Blocked {
 		return response.Error(ctx, http.StatusTooManyRequests, apperrors.ErrGetLockFailed.Code)
 	}
-	adminID := lock.AdminID
-
-	list, err := c.ArticleService(ctx).GetAllArticleForExport(filters)
-	if err != nil {
-		return HandleGeneratedServiceError(ctx, "article", http.StatusInternalServerError, err, map[string]any{
-			"action":   "export_articles",
-			"admin_id": adminID,
-		})
+	if result.Err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, result.Err, nil)
 	}
 
-	headers := []string{
-		"admin_id",
-		"title",
-		"content",
-		"status",
-		"created_at",
-		"updated_at",
-	}
-
-	timezone := helpers.GetCurrentTimezone(ctx)
-	var data [][]string
-	for _, row := range list {
-		r := []string{
-			cast.ToString(row.AdminId),
-			row.Title,
-			row.Content,
-			cast.ToString(row.Status),
-			helpers.FormatCarbonWithTimezone(row.CreatedAt, timezone),
-			helpers.FormatCarbonWithTimezone(row.UpdatedAt, timezone),
-		}
-		data = append(data, r)
-	}
-
-	ctx.WithValue("export_type", "articles")
-
-	return response.Export(ctx, "exported", headers, data, "articles")
+	return response.Success(ctx, http.Json{
+		"export_id": result.ExportID,
+		"message":   "queued",
+	})
 }

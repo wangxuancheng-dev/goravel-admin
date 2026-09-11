@@ -154,20 +154,16 @@ const handleExport = async () => {
   isExporting.value = true;
   try {
     const response = await exportArticle(searchForm);
-    const fileUrl = response?.data?.file_url;
-    if (fileUrl) {
-      window.open(fileUrl, "_blank");
-      ElMessage.success(t("export.success"));
-    } else {
-      ElMessage.success(t("export.success"));
-      router.push("/exports");
-    }
+    const exportId = response?.data?.export_id || response?.data?.id;
+    ElMessage.success(
+      exportId ? t("export.task_submitted") : t("common.operation_success"),
+    );
+    router.push("/exports");
   } catch (error) {
     logger.error("Export error:", error);
     if (error.response?.status === 429) {
       ElMessage.warning(t("common.already_queued"));
     } else if (!error.__handled) {
-      ElMessage.error(t("export.failed"));
       ErrorHandler.handle(error, { silent: true });
     }
   } finally {

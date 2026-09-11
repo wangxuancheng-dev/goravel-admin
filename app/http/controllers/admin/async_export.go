@@ -2,15 +2,21 @@ package admin
 
 import (
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/contracts/queue"
 	"github.com/goravel/framework/facades"
+	"github.com/goravel/framework/support/carbon"
 
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
+	"goravel/app/http/response"
+	"goravel/app/http/trans"
 	"goravel/app/jobs"
 	"goravel/app/models"
+	"goravel/app/services"
 	"goravel/app/utils"
 )
 
@@ -92,4 +98,88 @@ func markAsyncExportFailed(ctx http.Context, record *models.Export, err error) {
 	record.Status = models.ExportStatusFailed
 	record.ErrorMsg = err.Error()
 	_ = appfacades.OrmQuery(ctx).Save(record)
+}
+
+// OwnedExportStatusResponse 返回当前管理员自己的导出任务状态（订单/支付等共用）。
+func OwnedExportStatusResponse(ctx http.Context) http.Response {
+	exportID := helpers.GetUintRoute(ctx, "id")
+	if exportID == 0 {
+		return response.Error(ctx, http.StatusBadRequest, "id_required")
+	}
+
+	exportRecord, err := services.NewExportRecordService(ctx).GetByID(exportID)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, err, map[string]any{
+			"export_id": exportID,
+		})
+	}
+
+	adminID, err := helpers.GetAdminIDFromContext(ctx)
+	if err != nil {
+		return response.Error(ctx, http.StatusUnauthorized, "unauthorized")
+	}
+	if exportRecord.AdminID != adminID {
+		return response.Error(ctx, http.StatusForbidden, "forbidden")
+	}
+
+	fileURL := ""
+	if exportRecord.Path != "" && exportRecord.Status == models.ExportStatusSuccess {
+		if exportRecord.Disk == "local" || exportRecord.Disk == "public" {
+			fileURL = fmt.Sprintf("/api/admin/exports/%d/download", exportRecord.ID)
+		} else {
+			fileURL = services.NewExportService(ctx).GetExportURL(exportRecord.Path)
+		}
+	}
+
+	return response.Success(ctx, http.Json{
+		"id":          exportRecord.ID,
+		"status":      exportRecord.Status,
+		"status_text": exportStatusText(ctx, exportRecord.Status),
+		"file_url":    fileURL,
+		"filename":    exportRecord.Filename,
+		"size":        exportRecord.Size,
+		"error_msg":   exportRecord.ErrorMsg,
+		"created_at":  formatExportTimestamp(exportRecord.CreatedAt),
+		"updated_at":  formatExportTimestamp(exportRecord.UpdatedAt),
+	})
+}
+
+func exportStatusText(ctx http.Context, status uint8) string {
+	switch status {
+	case models.ExportStatusProcessing:
+		return trans.Get(ctx, "processing")
+	case models.ExportStatusSuccess:
+		return trans.Get(ctx, "success")
+	case models.ExportStatusFailed:
+		return trans.Get(ctx, "failed")
+	default:
+		return trans.Get(ctx, "unknown")
+	}
+}
+
+func formatExportTimestamp(t any) string {
+	if t == nil {
+		return ""
+	}
+	switch v := t.(type) {
+	case time.Time:
+		return utils.FormatDateTime(v)
+	case *time.Time:
+		return utils.FormatDateTimePtr(v)
+	case carbon.DateTime:
+		if v.IsZero() {
+			return ""
+		}
+		return v.ToDateTimeString()
+	case *carbon.DateTime:
+		if v == nil || v.IsZero() {
+			return ""
+		}
+		return v.ToDateTimeString()
+	default:
+		if str := fmt.Sprintf("%v", t); str != "" && str != "<nil>" {
+			return str
+		}
+		return ""
+	}
 }

@@ -13,8 +13,7 @@ import { handlePaginatedTableChange } from '@/utils/tableChange'
 import { useCrudActions } from '@/hooks/useCrudActions'
 import { usePermission } from '@/hooks/usePermission'
 
-import { App } from 'antd'
-import { useNavigate } from 'react-router-dom'
+import { useQueuedExport } from '@/hooks/useQueuedExport'
 
 import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
@@ -68,33 +67,11 @@ export default function ArticleList() {
     deleteApi: deleteArticle,
   })
 
-  const { message } = App.useApp()
-  const navigate = useNavigate()
-  const [exporting, setExporting] = useState(false)
-  const handleExport = async () => {
-    if (exporting) return
-    setExporting(true)
-    try {
-      const response = await exportArticle(searchForm)
-      const data = (response.data || {}) as { file_url?: string; export_id?: number | string }
-      if (data.file_url) {
-        window.open(data.file_url, '_blank')
-        message.success(t('export.success'))
-      } else {
-        message.success(t('export.success'))
-        navigate('/exports')
-      }
-    } catch (error) {
-      const err = error as { response?: { status?: number }; __handled?: boolean }
-      if (err.response?.status === 429) {
-        message.warning(t('common.already_queued'))
-      } else if (!err.__handled) {
-        message.error(t('export.failed'))
-      }
-    } finally {
-      setExporting(false)
-    }
-  }
+  const { exporting, handleExport } = useQueuedExport({
+    exportApi: exportArticle,
+    getParams: () => searchForm,
+    redirectPath: '/exports',
+  })
 
   const columns: ColumnsType<ArticleRow> = [
     { title: t('table.id'), dataIndex: 'id', width: 80, sorter: true },

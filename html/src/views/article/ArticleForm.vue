@@ -124,7 +124,7 @@ const formFields = computed(() => {
   fields.push({
     prop: "status",
     label: t("status"),
-    type: "select",
+    type: "radio",
     disabled: loading.value,
     apiUrl: "/options?type=dictionary&dictionary_type=status",
     clearable: true,
