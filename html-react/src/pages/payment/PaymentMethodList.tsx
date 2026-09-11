@@ -79,14 +79,13 @@ export default function PaymentMethodList() {
 
   const columns: ColumnsType<PaymentMethodRow> = [
     { title: t('table.id'), dataIndex: 'id', width: 80, sorter: true },
-    { title: t('payment_method.name'), dataIndex: 'name', width: 120, ellipsis: true, sorter: true },
-    { title: t('payment_method.code'), dataIndex: 'code', width: 160, sorter: true },
+    { title: t('payment_method.name'), dataIndex: 'name', width: 160, ellipsis: true, sorter: true },
     {
       title: t('payment_method.type'),
       dataIndex: 'type',
       width: 140,
       sorter: true,
-      render: (type: string) => getPaymentMethodTypeLabel(t, type),
+      render: (type: string) => <Tag>{getPaymentMethodTypeLabel(t, type)}</Tag>,
     },
     {
       title: t('table.status'),
@@ -145,11 +144,6 @@ export default function PaymentMethodList() {
             placeholder: t('payment_method.name_placeholder'),
           },
           {
-            name: 'code',
-            label: t('payment_method.code'),
-            placeholder: t('payment_method.code_placeholder'),
-          },
-          {
             name: 'type',
             label: t('payment_method.type'),
             type: 'select',
@@ -165,11 +159,6 @@ export default function PaymentMethodList() {
               { label: t('common.enabled'), value: '1' },
               { label: t('common.disabled'), value: '0' },
             ],
-          },
-          {
-            name: 'description',
-            label: t('table.description'),
-            placeholder: t('payment_method.description_placeholder'),
           },
         ]}
         values={searchForm}

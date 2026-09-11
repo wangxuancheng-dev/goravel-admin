@@ -21,6 +21,12 @@
     @page-change="loadData"
     @sort-change="handleSortChange"
   >
+    <template #type="{ row }">
+      <el-tag type="info" effect="plain">
+        {{ getPaymentMethodTypeLabel(t, row.type) }}
+      </el-tag>
+    </template>
+
     <template #is_active="{ row }">
       <el-tag :type="row.is_active ? 'success' : 'danger'">
         {{ row.is_active ? $t('common.enabled') : $t('common.disabled') }}
@@ -58,7 +64,8 @@ import { getPaymentMethodList, deletePaymentMethod } from '@/api/paymentMethod'
 import {
   paymentMethodInitialSearchForm,
   createPaymentMethodSearchFields,
-  createPaymentMethodTableColumns
+  createPaymentMethodTableColumns,
+  getPaymentMethodTypeLabel
 } from './paymentMethod.config'
 
 const { t } = useI18n()

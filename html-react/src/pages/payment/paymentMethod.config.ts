@@ -21,12 +21,33 @@ export interface PaymentMethodSearchForm {
 
 export interface PaymentMethodConfigField {
   key: string
-  label: string
-  type: 'input' | 'textarea'
+  type: 'input' | 'textarea' | 'select'
   inputType?: 'password' | 'text'
   required?: boolean
   rows?: number
-  placeholder?: string
+  group: 'basic' | 'advanced'
+  labelKey: string
+  placeholderKey: string
+  tipKey?: string
+  options?: { label: string; value: string }[]
+}
+
+export const PAYMENT_METHOD_TYPES: PaymentMethodType[] = [
+  'wechat',
+  'alipay',
+  'qq',
+  'allinpay',
+  'lakala',
+  'paypal',
+  'apple',
+  'saobei',
+]
+
+export const CONFIG_KEY_ALIASES: Partial<Record<PaymentMethodType, Record<string, string>>> = {
+  wechat: {
+    api_key: 'api_v3_key',
+    cert_path: 'private_key_path',
+  },
 }
 
 export const paymentMethodInitialSearchForm: PaymentMethodSearchForm = {
@@ -39,156 +60,83 @@ export const paymentMethodInitialSearchForm: PaymentMethodSearchForm = {
 
 export const PAYMENT_TYPE_CONFIG_FIELDS: Record<PaymentMethodType, PaymentMethodConfigField[]> = {
   wechat: [
-    { key: 'app_id', label: 'AppID', type: 'input', required: true, placeholder: '请输入微信AppID' },
-    {
-      key: 'app_secret',
-      label: 'AppSecret',
-      type: 'input',
-      inputType: 'password',
-      required: true,
-      placeholder: '请输入微信AppSecret',
-    },
-    { key: 'mch_id', label: '商户号(MchID)', type: 'input', required: true, placeholder: '请输入商户号' },
-    {
-      key: 'api_key',
-      label: 'API密钥',
-      type: 'input',
-      inputType: 'password',
-      required: true,
-      placeholder: '请输入API密钥',
-    },
-    { key: 'cert_path', label: '证书路径', type: 'input', placeholder: '请输入证书路径（可选）' },
-    { key: 'notify_url', label: '通知地址', type: 'input', placeholder: '请输入支付通知回调地址（可选）' },
+    { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_app_id_ph', tipKey: 'tip_wechat_app_id' },
+    { key: 'mch_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_mch_id', placeholderKey: 'cfg_mch_id_ph', tipKey: 'tip_wechat_mch_id' },
+    { key: 'api_v3_key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_api_v3_key', placeholderKey: 'cfg_api_v3_key_ph', tipKey: 'tip_wechat_api_v3_key' },
+    { key: 'cert_serial_no', type: 'input', required: true, group: 'basic', labelKey: 'cfg_cert_serial_no', placeholderKey: 'cfg_cert_serial_no_ph', tipKey: 'tip_wechat_cert_serial' },
+    { key: 'private_key_path', type: 'input', group: 'advanced', labelKey: 'cfg_private_key_path', placeholderKey: 'cfg_private_key_path_ph', tipKey: 'tip_wechat_private_key' },
+    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
   ],
   alipay: [
-    { key: 'app_id', label: 'AppID', type: 'input', required: true, placeholder: '请输入支付宝AppID' },
-    {
-      key: 'private_key',
-      label: '应用私钥',
-      type: 'textarea',
-      rows: 5,
-      required: true,
-      placeholder: '请输入应用私钥',
-    },
-    {
-      key: 'public_key',
-      label: '支付宝公钥',
-      type: 'textarea',
-      rows: 5,
-      required: true,
-      placeholder: '请输入支付宝公钥',
-    },
-    { key: 'gateway', label: '网关地址', type: 'input', placeholder: '请输入网关地址（可选）' },
-    { key: 'notify_url', label: '通知地址', type: 'input', placeholder: '请输入支付通知回调地址（可选）' },
+    { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_alipay_app_id_ph', tipKey: 'tip_alipay_app_id' },
+    { key: 'private_key', type: 'textarea', rows: 4, required: true, group: 'basic', labelKey: 'cfg_private_key', placeholderKey: 'cfg_private_key_ph', tipKey: 'tip_alipay_private_key' },
+    { key: 'public_key', type: 'textarea', rows: 4, required: true, group: 'basic', labelKey: 'cfg_alipay_public_key', placeholderKey: 'cfg_alipay_public_key_ph', tipKey: 'tip_alipay_public_key' },
+    { key: 'gateway', type: 'input', group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
+    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
   ],
   qq: [
-    { key: 'app_id', label: 'AppID', type: 'input', required: true, placeholder: '请输入QQ支付AppID' },
-    {
-      key: 'app_key',
-      label: 'AppKey',
-      type: 'input',
-      inputType: 'password',
-      required: true,
-      placeholder: '请输入QQ支付AppKey',
-    },
-    { key: 'mch_id', label: '商户号', type: 'input', required: true, placeholder: '请输入商户号' },
-    { key: 'notify_url', label: '通知地址', type: 'input', placeholder: '请输入支付通知回调地址（可选）' },
+    { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_qq_app_id_ph' },
+    { key: 'app_key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_app_key', placeholderKey: 'cfg_app_key_ph' },
+    { key: 'mch_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_mch_id', placeholderKey: 'cfg_mch_id_ph' },
+    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
   ],
   allinpay: [
-    { key: 'merchant_id', label: '商户号', type: 'input', required: true, placeholder: '请输入通联商户号' },
-    { key: 'app_id', label: 'AppID', type: 'input', required: true, placeholder: '请输入通联AppID' },
-    {
-      key: 'app_key',
-      label: 'AppKey',
-      type: 'input',
-      inputType: 'password',
-      required: true,
-      placeholder: '请输入通联AppKey',
-    },
-    { key: 'gateway', label: '网关地址', type: 'input', placeholder: '请输入网关地址（可选）' },
-    { key: 'notify_url', label: '通知地址', type: 'input', placeholder: '请输入支付通知回调地址（可选）' },
+    { key: 'merchant_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_merchant_id', placeholderKey: 'cfg_allinpay_merchant_ph' },
+    { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_allinpay_app_id_ph' },
+    { key: 'app_key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_app_key', placeholderKey: 'cfg_app_key_ph' },
+    { key: 'gateway', type: 'input', group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
+    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
   ],
   lakala: [
-    { key: 'merchant_id', label: '商户号', type: 'input', required: true, placeholder: '请输入拉卡拉商户号' },
-    { key: 'terminal_id', label: '终端号', type: 'input', required: true, placeholder: '请输入终端号' },
-    {
-      key: 'key',
-      label: '密钥',
-      type: 'input',
-      inputType: 'password',
-      required: true,
-      placeholder: '请输入密钥',
-    },
-    { key: 'gateway', label: '网关地址', type: 'input', placeholder: '请输入网关地址（可选）' },
-    { key: 'notify_url', label: '通知地址', type: 'input', placeholder: '请输入支付通知回调地址（可选）' },
+    { key: 'merchant_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_merchant_id', placeholderKey: 'cfg_lakala_merchant_ph' },
+    { key: 'terminal_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_terminal_id', placeholderKey: 'cfg_terminal_id_ph' },
+    { key: 'key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_secret_key', placeholderKey: 'cfg_secret_key_ph' },
+    { key: 'gateway', type: 'input', group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
+    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
   ],
   paypal: [
-    { key: 'client_id', label: 'Client ID', type: 'input', required: true, placeholder: '请输入PayPal Client ID' },
+    { key: 'client_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_client_id', placeholderKey: 'cfg_client_id_ph' },
+    { key: 'client_secret', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_client_secret', placeholderKey: 'cfg_client_secret_ph' },
     {
-      key: 'client_secret',
-      label: 'Client Secret',
-      type: 'input',
-      inputType: 'password',
-      required: true,
-      placeholder: '请输入PayPal Client Secret',
+      key: 'mode',
+      type: 'select',
+      group: 'advanced',
+      labelKey: 'cfg_mode',
+      placeholderKey: 'cfg_mode_ph',
+      options: [
+        { label: 'Sandbox', value: 'sandbox' },
+        { label: 'Live', value: 'live' },
+      ],
     },
-    { key: 'mode', label: '模式', type: 'input', placeholder: '请输入模式（sandbox/live，可选）' },
-    { key: 'notify_url', label: '通知地址', type: 'input', placeholder: '请输入支付通知回调地址（可选）' },
+    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
   ],
   apple: [
-    { key: 'merchant_id', label: '商户ID', type: 'input', required: true, placeholder: '请输入Apple Pay商户ID' },
-    { key: 'key_id', label: 'Key ID', type: 'input', required: true, placeholder: '请输入Key ID' },
-    {
-      key: 'private_key',
-      label: '私钥',
-      type: 'textarea',
-      rows: 5,
-      required: true,
-      placeholder: '请输入私钥',
-    },
-    { key: 'certificate', label: '证书', type: 'textarea', rows: 5, placeholder: '请输入证书（可选）' },
+    { key: 'merchant_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_apple_merchant_id', placeholderKey: 'cfg_apple_merchant_id_ph' },
+    { key: 'key_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_key_id', placeholderKey: 'cfg_key_id_ph' },
+    { key: 'private_key', type: 'textarea', rows: 4, required: true, group: 'basic', labelKey: 'cfg_private_key', placeholderKey: 'cfg_private_key_ph' },
+    { key: 'certificate', type: 'textarea', rows: 4, group: 'advanced', labelKey: 'cfg_certificate', placeholderKey: 'cfg_certificate_ph' },
   ],
   saobei: [
-    { key: 'merchant_id', label: '商户号', type: 'input', required: true, placeholder: '请输入扫呗商户号' },
-    { key: 'terminal_id', label: '终端号', type: 'input', required: true, placeholder: '请输入终端号' },
-    {
-      key: 'key',
-      label: '密钥',
-      type: 'input',
-      inputType: 'password',
-      required: true,
-      placeholder: '请输入密钥',
-    },
-    { key: 'gateway', label: '网关地址', type: 'input', placeholder: '请输入网关地址（可选）' },
-    { key: 'notify_url', label: '通知地址', type: 'input', placeholder: '请输入支付通知回调地址（可选）' },
+    { key: 'merchant_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_merchant_id', placeholderKey: 'cfg_saobei_merchant_ph' },
+    { key: 'terminal_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_terminal_id', placeholderKey: 'cfg_terminal_id_ph' },
+    { key: 'key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_secret_key', placeholderKey: 'cfg_secret_key_ph' },
+    { key: 'gateway', type: 'input', group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
+    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
   ],
 }
 
 export function createPaymentMethodTypeOptions(t: TFunction) {
-  return [
-    { label: t('payment_method.type_wechat'), value: 'wechat' },
-    { label: t('payment_method.type_alipay'), value: 'alipay' },
-    { label: t('payment_method.type_qq'), value: 'qq' },
-    { label: t('payment_method.type_allinpay'), value: 'allinpay' },
-    { label: t('payment_method.type_lakala'), value: 'lakala' },
-    { label: t('payment_method.type_paypal'), value: 'paypal' },
-    { label: t('payment_method.type_apple'), value: 'apple' },
-    { label: t('payment_method.type_saobei'), value: 'saobei' },
-  ]
+  return PAYMENT_METHOD_TYPES.map((value) => ({
+    label: t(`payment_method.type_${value}`),
+    value,
+  }))
 }
 
 export function getPaymentMethodTypeLabel(t: TFunction, type?: string): string {
-  const map: Record<string, string> = {
-    wechat: t('payment_method.type_wechat'),
-    alipay: t('payment_method.type_alipay'),
-    qq: t('payment_method.type_qq'),
-    allinpay: t('payment_method.type_allinpay'),
-    lakala: t('payment_method.type_lakala'),
-    paypal: t('payment_method.type_paypal'),
-    apple: t('payment_method.type_apple'),
-    saobei: t('payment_method.type_saobei'),
-  }
-  return map[type || ''] || String(type ?? '-')
+  if (!type) return '-'
+  const key = `payment_method.type_${type}`
+  const label = t(key)
+  return label === key ? String(type) : label
 }
 
 export function getConfigFieldsForType(type?: string): PaymentMethodConfigField[] {
@@ -196,7 +144,46 @@ export function getConfigFieldsForType(type?: string): PaymentMethodConfigField[
   return PAYMENT_TYPE_CONFIG_FIELDS[type as PaymentMethodType] || []
 }
 
+export function getConfigFieldsByGroup(type: string | undefined, group: 'basic' | 'advanced') {
+  return getConfigFieldsForType(type).filter((f) => f.group === group)
+}
+
 export function createEmptyConfig(type?: string): Record<string, string> {
   const fields = getConfigFieldsForType(type)
   return Object.fromEntries(fields.map((field) => [field.key, '']))
+}
+
+export function generatePaymentCode(type?: string): string {
+  const suffix = Date.now().toString(36).slice(-5)
+  return `${type || 'pay'}_${suffix}`
+}
+
+export function normalizeConfigForForm(type: string | undefined, configData: Record<string, unknown> = {}) {
+  const fields = getConfigFieldsForType(type)
+  const aliases = CONFIG_KEY_ALIASES[(type || '') as PaymentMethodType] || {}
+  const config = createEmptyConfig(type)
+
+  fields.forEach((field) => {
+    let value = configData[field.key]
+    if ((value === undefined || value === null || value === '') && aliases) {
+      const legacyKey = Object.keys(aliases).find((k) => aliases[k] === field.key)
+      if (legacyKey && configData[legacyKey] != null) {
+        value = configData[legacyKey]
+      }
+    }
+    config[field.key] = value !== undefined && value !== null ? String(value) : ''
+  })
+
+  return config
+}
+
+export function collectConfigPayload(type: string | undefined, formConfig: Record<string, string> = {}) {
+  const config: Record<string, string> = {}
+  getConfigFieldsForType(type).forEach((field) => {
+    const value = formConfig[field.key]
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      config[field.key] = String(value).trim()
+    }
+  })
+  return config
 }
