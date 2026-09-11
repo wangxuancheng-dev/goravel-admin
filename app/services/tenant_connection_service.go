@@ -347,10 +347,19 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 	return fn()
 }
 
-// SeedTenant 在租户连接上执行 db:seed
-func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant) error {
+// SeedTenant 在租户连接上执行 db:seed。
+// seeders 为空则跑全部；否则等价于 db:seed --seeder=Name（可多个）。
+func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...string) error {
 	return s.WithTenantConnection(tenant, func() error {
-		return facades.Artisan().Call("db:seed")
+		cmd := "db:seed --force"
+		for _, name := range seeders {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			cmd += " --seeder=" + name
+		}
+		return facades.Artisan().Call(cmd)
 	})
 }
 

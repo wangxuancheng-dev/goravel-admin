@@ -38,10 +38,13 @@ go run . artisan tenant:create acme "Acme" --driver=postgres --isolation=schema 
 
 go run . artisan tenant:migrate acme
 go run . artisan tenant:seed acme
+go run . artisan tenant:seed acme --class=MenuSeeder
+go run . artisan tenant:seed acme --class=MenuSeeder --class=PermissionSeeder
+go run . artisan tenant:seed acme --seeder=GeneratedModulesSeeder   # 同 --class，对齐 db:seed
 go run . artisan tenant:migrate-all
 ```
 
-`--migrate` 会在 migrate 后自动 `tenant:seed`。
+`--migrate` 会在 migrate 后自动完整 `tenant:seed`（全部 Seeder）。只补某一类数据用 `--class` / `--seeder`。
 
 ## 代码约定（必读）
 
