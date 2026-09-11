@@ -14,10 +14,11 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"goravel/app/dto"
-	esorders "goravel/app/elasticsearch/orders"
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
 	orderrepo "goravel/app/repositories"
+	"goravel/app/search"
+	searchorders "goravel/app/search/orders"
 	"goravel/app/support"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
@@ -114,7 +115,7 @@ type OrderService interface {
 	DeleteOrderByOrderNo(orderNo string) error
 	// GetOrdersCountInYear 获取最近一年的订单总数（用于仪表盘统计）
 	GetOrdersCountInYear() (int64, error)
-	// SearchMyOrdersForUser C 端「我的订单」检索：开启 ES 时走索引，否则走分表数据库（关键词仅匹配订单号、备注）。
+	// SearchMyOrdersForUser C 端「我的订单」检索：开启搜索引擎时走索引，否则走分表数据库（关键词仅匹配订单号、备注）。
 	SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr dto.OrderSearchCreatedRange) ([]dto.OrderSearchListItem, int64, error)
 }
 
@@ -363,7 +364,7 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 		details = append(details, detail)
 	}
 
-	support.RequestOrderElasticsearchSync(order.ID, order.OrderNo, "index")
+	support.RequestOrderSearchSync(order.ID, order.OrderNo, "index")
 
 	return order, details, nil
 }
@@ -837,7 +838,7 @@ func (s *OrderServiceImpl) UpdateOrder(orderID uint, orderTime time.Time, status
 	if err != nil {
 		return err
 	}
-	support.RequestOrderElasticsearchSync(orderID, order.OrderNo, "index")
+	support.RequestOrderSearchSync(orderID, order.OrderNo, "index")
 	return nil
 }
 
@@ -878,7 +879,7 @@ func (s *OrderServiceImpl) DeleteOrder(orderID uint, orderTime time.Time, orderN
 	if err != nil {
 		return err
 	}
-	support.RequestOrderElasticsearchSync(orderID, order.OrderNo, "delete")
+	support.RequestOrderSearchSync(orderID, order.OrderNo, "delete")
 	return nil
 }
 
@@ -906,7 +907,7 @@ func (s *OrderServiceImpl) UpdateOrderByOrderNo(orderNo string, status string, r
 	if err != nil {
 		return err
 	}
-	support.RequestOrderElasticsearchSync(order.ID, orderNo, "index")
+	support.RequestOrderSearchSync(order.ID, orderNo, "index")
 	return nil
 }
 
@@ -939,7 +940,7 @@ func (s *OrderServiceImpl) DeleteOrderByOrderNo(orderNo string) error {
 	if err != nil {
 		return err
 	}
-	support.RequestOrderElasticsearchSync(order.ID, orderNo, "delete")
+	support.RequestOrderSearchSync(order.ID, orderNo, "delete")
 	return nil
 }
 
@@ -1041,12 +1042,12 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 	return out, total, nil
 }
 
-// SearchMyOrdersForUser C 端「我的订单」检索：ELASTICSEARCH_ENABLED 时走 ES（含商品名等多字段）；否则走分表数据库（关键词仅订单号、备注；时间无参数时默认近 3 个月，与列表接口一致）。
+// SearchMyOrdersForUser C 端「我的订单」检索：search 启用时走当前驱动（含商品名等多字段）；否则走分表数据库（关键词仅订单号、备注；时间无参数时默认近 3 个月，与列表接口一致）。
 func (s *OrderServiceImpl) SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr dto.OrderSearchCreatedRange) ([]dto.OrderSearchListItem, int64, error) {
-	if facades.Config().GetBool("elasticsearch.enabled", false) {
-		total, items, err := esorders.SearchMyOrders(ctx, userID, keyword, page, pageSize, tr.ESGTE, tr.ESLTE)
+	if search.Enabled() {
+		total, items, err := searchorders.SearchMyOrders(ctx, userID, keyword, page, pageSize, tr.IndexGTE, tr.IndexLTE)
 		if err != nil {
-			facades.Log().Warningf("order ES search failed, fallback to DB: %v", err)
+			facades.Log().Warningf("order search engine failed, fallback to DB: %v", err)
 			return s.searchMyOrdersFromDB(userID, keyword, page, pageSize, tr)
 		}
 		return items, total, nil

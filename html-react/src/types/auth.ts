@@ -31,7 +31,8 @@ export interface FeatureConfig {
   paymentsEnabled: boolean
   devToolsEnabled: boolean
   codeGeneratorEnabled: boolean
-  elasticsearchEnabled: boolean
+  searchEnabled: boolean
+  searchDriver: string
   otelEnabled: boolean
 }
 

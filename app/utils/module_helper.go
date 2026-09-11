@@ -6,6 +6,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/models"
+	"goravel/app/search"
 )
 
 // OrdersEnabled reports whether the orders example module is enabled.
@@ -97,9 +98,9 @@ func appEnv() string {
 	return strings.ToLower(strings.TrimSpace(facades.Config().GetString("app.env", "production")))
 }
 
-// ElasticsearchEnabled reports whether Elasticsearch integration is enabled.
-func ElasticsearchEnabled() bool {
-	return facades.Config().GetBool("elasticsearch.enabled", false)
+// SearchEnabled reports whether the search engine integration is enabled.
+func SearchEnabled() bool {
+	return search.Enabled()
 }
 
 // OTELEnabled reports whether OpenTelemetry exporters are configured.

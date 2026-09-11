@@ -36,7 +36,7 @@ func Boot() contractsfoundation.Application {
 				"about", "key:generate",
 				"schedule:*", "queue:*", "migrate*",
 				"db:*", "cache:*", "config:*", "lang:*",
-				"app:*", "order:*", "payment:*", "es:*", "token:*",
+				"app:*", "order:*", "payment:*", "search:*", "token:*",
 			}
 			if !facades.Config().GetBool("app.allow_maintenance_commands", false) {
 				filtered = append([]string{"up", "down"}, filtered...)

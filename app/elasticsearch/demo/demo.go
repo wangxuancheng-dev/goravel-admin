@@ -23,7 +23,7 @@ func Client() (*elasticsearch.Client, error) {
 	}
 	c, ok := raw.(*elasticsearch.Client)
 	if !ok || c == nil {
-		return nil, fmt.Errorf("elasticsearch 客户端未注册：请设置 ELASTICSEARCH_ENABLED=true")
+		return nil, fmt.Errorf("elasticsearch 客户端未注册：请设置 SEARCH_ENABLED=true 且 SEARCH_DRIVER=elasticsearch")
 	}
 	return c, nil
 }

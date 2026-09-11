@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/goravel/framework/contracts/console"
@@ -10,22 +11,23 @@ import (
 
 	"goravel/app/binding"
 	esdemo "goravel/app/elasticsearch/demo"
+	"goravel/app/search"
 )
 
-// ElasticsearchExample 演示 Ping / 写入 / 搜索 / 删除（需 ELASTICSEARCH_ENABLED=true）。
+// ElasticsearchExample 演示 Ping / 写入 / 搜索 / 删除（需 SEARCH_DRIVER=elasticsearch）。
 type ElasticsearchExample struct{}
 
 func (r *ElasticsearchExample) Signature() string {
-	return "es:example"
+	return "search:es-example"
 }
 
 func (r *ElasticsearchExample) Description() string {
-	return "Elasticsearch 示例：ping | index | search | delete（需 .env 开启 ELASTICSEARCH_ENABLED）"
+	return "Elasticsearch 驱动示例：ping | index | search | delete"
 }
 
 func (r *ElasticsearchExample) Extend() command.Extend {
 	return command.Extend{
-		Category: "elasticsearch",
+		Category: "search",
 		Flags: []command.Flag{
 			&command.StringFlag{
 				Name:    "op",
@@ -48,8 +50,8 @@ func (r *ElasticsearchExample) Extend() command.Extend {
 }
 
 func (r *ElasticsearchExample) Handle(ctx console.Context) error {
-	if !facades.Config().GetBool("elasticsearch.enabled", false) {
-		ctx.Warning("未启用 Elasticsearch。请在 .env 设置 ELASTICSEARCH_ENABLED=true 并配置 ELASTICSEARCH_URLS 等变量。")
+	if !search.Enabled() || search.Driver() != search.DriverElasticsearch {
+		ctx.Warning("请设置 SEARCH_ENABLED=true 且 SEARCH_DRIVER=elasticsearch。")
 		return nil
 	}
 
@@ -59,55 +61,51 @@ func (r *ElasticsearchExample) Handle(ctx console.Context) error {
 	}
 
 	op := ctx.Option("op")
-	c := context.Background()
+	id := ctx.Option("id")
+	q := ctx.Option("q")
+	runCtx := context.Background()
+	index := esdemo.DemoIndex()
 
 	switch op {
 	case "ping", "":
-		if err := esdemo.Ping(c); err != nil {
+		if err := esdemo.Ping(runCtx); err != nil {
 			ctx.Error(err.Error())
 			return err
 		}
-		ctx.Success("Ping 成功，集群可达")
-		return nil
-
+		ctx.Success("ping ok")
 	case "index":
-		index := esdemo.DemoIndex()
 		doc := map[string]any{
-			"title":       "Goravel ES 示例文档",
-			"description": "这是一条用于演示索引与搜索的示例数据",
-			"tags":        []string{"demo", "goravel"},
+			"title":   "Goravel 搜索示例",
+			"content": "这是一条写入 Elasticsearch 的演示文档",
 		}
-		id := ctx.Option("id")
-		if err := esdemo.IndexDocument(c, index, id, doc); err != nil {
+		if err := esdemo.IndexDocument(runCtx, index, id, doc); err != nil {
 			ctx.Error(err.Error())
 			return err
 		}
-		ctx.Success(fmt.Sprintf("已写入索引 %s 文档 id=%s", index, id))
-		ctx.Info("可执行: go run . artisan es:example --op=search")
-		return nil
-
+		ctx.Success("indexed id=" + id + " index=" + index)
 	case "search":
-		index := esdemo.DemoIndex()
-		raw, err := esdemo.SearchMatch(c, index, "title", ctx.Option("q"), 5)
+		raw, err := esdemo.SearchMatch(runCtx, index, "content", q, 10)
 		if err != nil {
 			ctx.Error(err.Error())
 			return err
 		}
-		ctx.Info(string(raw))
-		return nil
-
+		var parsed struct {
+			Hits struct {
+				Total struct {
+					Value int64 `json:"value"`
+				} `json:"total"`
+			} `json:"hits"`
+		}
+		_ = json.Unmarshal(raw, &parsed)
+		ctx.Success(fmt.Sprintf("search q=%q hits=%d", q, parsed.Hits.Total.Value))
 	case "delete":
-		index := esdemo.DemoIndex()
-		id := ctx.Option("id")
-		if err := esdemo.DeleteDocument(c, index, id); err != nil {
+		if err := esdemo.DeleteDocument(runCtx, index, id); err != nil {
 			ctx.Error(err.Error())
 			return err
 		}
-		ctx.Success(fmt.Sprintf("已删除索引 %s 文档 id=%s（若不存在则忽略 404）", index, id))
-		return nil
-
+		ctx.Success("deleted id=" + id)
 	default:
-		ctx.Error("未知 --op，支持: ping | index | search | delete")
-		return fmt.Errorf("invalid op")
+		ctx.Error("unknown op: " + op)
 	}
+	return nil
 }

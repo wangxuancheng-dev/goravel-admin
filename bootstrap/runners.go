@@ -7,8 +7,8 @@ import (
 	"github.com/goravel/framework/contracts/foundation"
 	"github.com/goravel/framework/contracts/queue"
 
-	esworker "goravel/app/elasticsearch/worker"
 	"goravel/app/facades"
+	"goravel/app/search"
 	"goravel/app/services"
 )
 
@@ -108,27 +108,27 @@ func (r *LongRunningQueueRunner) Shutdown() error {
 	return nil
 }
 
-// ElasticsearchQueueRunner ES 同步等任务专用逻辑队列（与默认队列隔离，避免阻塞其它 Job）
-type ElasticsearchQueueRunner struct {
+// SearchQueueRunner 搜索引擎同步任务专用逻辑队列（与默认队列隔离）。
+type SearchQueueRunner struct {
 	worker queue.Worker
 	mu     sync.Mutex
 }
 
-func (r *ElasticsearchQueueRunner) Signature() string {
-	return "queue-elasticsearch"
+func (r *SearchQueueRunner) Signature() string {
+	return "queue-search"
 }
 
-func (r *ElasticsearchQueueRunner) ShouldRun() bool {
+func (r *SearchQueueRunner) ShouldRun() bool {
 	if !shouldRunQueueRunner(r.Signature()) {
 		return false
 	}
-	return esworker.ShouldRunQueueWorker()
+	return search.ShouldRunQueueWorker()
 }
 
-func (r *ElasticsearchQueueRunner) Run() error {
+func (r *SearchQueueRunner) Run() error {
 	tries := facades.Config().GetInt("queue.tries", 5)
-	concurrent := facades.Config().GetInt("queue.elasticsearch_concurrent", 2)
-	queueName := facades.Config().GetString("elasticsearch.sync_queue", "elasticsearch")
+	concurrent := facades.Config().GetInt("queue.search_concurrent", 2)
+	queueName := search.SyncQueue()
 
 	r.mu.Lock()
 	r.worker = facades.Queue().Worker(queue.Args{
@@ -139,9 +139,10 @@ func (r *ElasticsearchQueueRunner) Run() error {
 	})
 	r.mu.Unlock()
 
-	facades.Log().Infof("Elasticsearch 同步队列启动 - 队列: %s, 并发数: %d, 最大重试: %d", queueName, concurrent, tries)
+	facades.Log().Infof("搜索同步队列启动 - driver=%s 队列=%s 并发=%d 最大重试=%d", search.Driver(), queueName, concurrent, tries)
 	systemLogService := services.NewSystemLogService(context.Background())
-	_ = systemLogService.Record(context.Background(), "info", "queue", "Elasticsearch 同步队列启动", map[string]any{
+	_ = systemLogService.Record(context.Background(), "info", "queue", "搜索同步队列启动", map[string]any{
+		"driver":     search.Driver(),
 		"queue":      queueName,
 		"concurrent": concurrent,
 		"tries":      tries,
@@ -150,7 +151,7 @@ func (r *ElasticsearchQueueRunner) Run() error {
 	return r.worker.Run()
 }
 
-func (r *ElasticsearchQueueRunner) Shutdown() error {
+func (r *SearchQueueRunner) Shutdown() error {
 	r.mu.Lock()
 	worker := r.worker
 	r.mu.Unlock()
@@ -165,7 +166,7 @@ func QueueRunners() []foundation.Runner {
 	return []foundation.Runner{
 		&DefaultQueueRunner{},
 		&LongRunningQueueRunner{},
-		&ElasticsearchQueueRunner{},
+		&SearchQueueRunner{},
 		// &TestQueueRunner{}, // 需要时再取消下面整块注释并取消本行注释；config 见 queue.test_concurrent
 	}
 }

@@ -22,7 +22,7 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		ScheduleTracked("db:analyze-stats").DailyAt("19:30").OnOneServer(),
 		ScheduleTracked("order:create-sharding-tables").Monthly().OnOneServer(),
 		ScheduleTracked("payment:create-sharding-tables").Monthly().OnOneServer(),
-		ScheduleTracked("es:retry-outbox").Hourly().OnOneServer(),
+		ScheduleTracked("search:retry-outbox").Hourly().OnOneServer(),
 	}
 }
 
@@ -42,8 +42,8 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.AnalyzeStats{},
 		&commands.OptimizeTables{},
 		&commands.ElasticsearchExample{},
-		&commands.InitOrdersElasticsearchIndex{},
-		&commands.SyncOrdersElasticsearch{},
-		&commands.RetryElasticsearchOutbox{},
+		&commands.InitOrdersSearchIndex{},
+		&commands.SyncOrdersSearch{},
+		&commands.RetrySearchOutbox{},
 	}
 }

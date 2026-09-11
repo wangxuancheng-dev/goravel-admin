@@ -35,7 +35,7 @@ func (receiver *QueueServiceProvider) Jobs() []queue.Job {
 		&jobs.ExportPayments{},
 		&jobs.ExportUsers{},
 		&jobs.ExportArticles{},
-		// 同步任务
-		&queuejobs.SyncOrderToElasticsearch{},
+		// 搜索引擎同步任务（可切换 driver）
+		&queuejobs.SyncOrderSearch{},
 	}
 }

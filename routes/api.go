@@ -38,7 +38,7 @@ func Api() {
 			router.Get("info", authController.Info)
 			// 登出
 			router.Post("logout", authController.Logout)
-			// ES 关键词搜「我的订单」演示（需开启 ELASTICSEARCH_ENABLED，索引需已有数据）
+			// 关键词搜「我的订单」（需 SEARCH_ENABLED=true，索引需已有数据）
 			router.Get("orders/search", orderSearchController.SearchMyOrders)
 		})
 

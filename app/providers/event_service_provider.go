@@ -22,8 +22,8 @@ func (receiver *EventServiceProvider) Boot(app foundation.Application) {
 
 func (receiver *EventServiceProvider) listen() map[event.Event][]event.Listener {
 	return map[event.Event][]event.Listener{
-		&events.OrderElasticsearchSync{}: {
-			&listeners.SyncOrderElasticsearch{},
+		&events.OrderSearchSync{}: {
+			&listeners.SyncOrderSearch{},
 		},
 	}
 }

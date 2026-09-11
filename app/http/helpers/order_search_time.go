@@ -8,11 +8,11 @@ import (
 	"goravel/app/dto"
 )
 
-const orderESDateLayout = "2006-01-02"
-const orderESDateTimeLayout = "2006-01-02 15:04:05"
+const orderIndexDateLayout = "2006-01-02"
+const orderIndexDateTimeLayout = "2006-01-02 15:04:05"
 
 // ParseOrderSearchCreatedRange 解析 created_from / created_to。
-// ES：两参数皆空则 ESGTE/ESLTE 为 nil（不按时间过滤）；否则为格式化后的边界字符串。
+// 索引引擎：两参数皆空则 IndexGTE/IndexLTE 为 nil（不按时间过滤）；否则为格式化后的边界字符串。
 // DB：两参数皆空则默认 [now-3个月, now]；否则按解析结果构造窗口（单侧缺失时与「近 3 个月」规则组合）。
 // 解析失败时返回 errField + errMsgKey（i18n 键，如 validation_start_time_invalid）。
 func ParseOrderSearchCreatedRange(createdFrom, createdTo string) (dto.OrderSearchCreatedRange, string, string) {
@@ -30,8 +30,8 @@ func ParseOrderSearchCreatedRange(createdFrom, createdTo string) (dto.OrderSearc
 			return out, "created_from", "validation.datetime.start_time_invalid"
 		}
 		fromT, hasFrom = t, true
-		s := t.Format(orderESDateTimeLayout)
-		out.ESGTE = &s
+		s := t.Format(orderIndexDateTimeLayout)
+		out.IndexGTE = &s
 	}
 	if toS != "" {
 		t, err := parseOrderCreatedBound(toS, false)
@@ -39,8 +39,8 @@ func ParseOrderSearchCreatedRange(createdFrom, createdTo string) (dto.OrderSearc
 			return out, "created_to", "validation.datetime.end_time_invalid"
 		}
 		toT, hasTo = t, true
-		s := t.Format(orderESDateTimeLayout)
-		out.ESLTE = &s
+		s := t.Format(orderIndexDateTimeLayout)
+		out.IndexLTE = &s
 	}
 	if hasFrom && hasTo && fromT.After(toT) {
 		return out, "created_to", "validation.range.time_inverted"
@@ -67,8 +67,8 @@ func ParseOrderSearchCreatedRange(createdFrom, createdTo string) (dto.OrderSearc
 func parseOrderCreatedBound(s string, isStartBound bool) (time.Time, error) {
 	s = strings.TrimSpace(s)
 	loc := time.Local
-	if len(s) == len(orderESDateLayout) {
-		t, err := time.ParseInLocation(orderESDateLayout, s, loc)
+	if len(s) == len(orderIndexDateLayout) {
+		t, err := time.ParseInLocation(orderIndexDateLayout, s, loc)
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -77,8 +77,8 @@ func parseOrderCreatedBound(s string, isStartBound bool) (time.Time, error) {
 		}
 		return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, loc), nil
 	}
-	if len(s) > len(orderESDateLayout) {
-		return time.ParseInLocation(orderESDateTimeLayout, s, loc)
+	if len(s) > len(orderIndexDateLayout) {
+		return time.ParseInLocation(orderIndexDateTimeLayout, s, loc)
 	}
 	return time.Time{}, fmt.Errorf("invalid datetime length")
 }

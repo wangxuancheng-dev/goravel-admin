@@ -127,8 +127,8 @@ func init() {
 		//   - 导出、大文件、长耗时：通常 1；允许并行多条时再 2～3，注意数据库与磁盘压力
 		"concurrent":              config.Env("QUEUE_CONCURRENT", 3),              // 默认队列；见上注释
 		"long_running_concurrent": config.Env("QUEUE_LONG_RUNNING_CONCURRENT", 1), // 耗时队列；见上注释
-		// Elasticsearch 同步队列（逻辑名见 config elasticsearch.sync_queue，默认 elasticsearch）
-		"elasticsearch_concurrent": config.Env("QUEUE_ELASTICSEARCH_CONCURRENT", 2),
+		// 搜索引擎同步队列（逻辑名见 config search.sync_queue）
+		"search_concurrent": config.Env("QUEUE_SEARCH_CONCURRENT", 2),
 		// "test_concurrent":         config.Env("QUEUE_TEST_CONCURRENT", 1),         // 逻辑队列 test，见 bootstrap.TestQueueRunner
 	})
 }

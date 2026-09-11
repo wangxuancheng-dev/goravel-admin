@@ -40,7 +40,8 @@ func TestAdminInfoExposesModuleConfig(t *testing.T) {
 		"payments_enabled",
 		"dev_tools_enabled",
 		"code_generator_enabled",
-		"elasticsearch_enabled",
+		"search_enabled",
+		"search_driver",
 		"otel_enabled",
 	} {
 		_, ok := cfg[key]

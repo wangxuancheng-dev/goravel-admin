@@ -2,45 +2,45 @@ package listeners
 
 import (
 	"github.com/goravel/framework/contracts/event"
-	"github.com/goravel/framework/facades"
 
 	"goravel/app/errors"
 	"goravel/app/events"
+	"goravel/app/search"
 	"goravel/app/support"
 )
 
-// SyncOrderElasticsearch 订单 ES 同步监听器（异步入队）。
-type SyncOrderElasticsearch struct{}
+// SyncOrderSearch 订单搜索同步监听器（异步入队）。
+type SyncOrderSearch struct{}
 
-func (receiver *SyncOrderElasticsearch) Signature() string {
-	return "sync_order_elasticsearch_listener"
+func (receiver *SyncOrderSearch) Signature() string {
+	return "sync_order_search_listener"
 }
 
-func (receiver *SyncOrderElasticsearch) Queue(args ...any) event.Queue {
+func (receiver *SyncOrderSearch) Queue(args ...any) event.Queue {
 	return event.Queue{
 		Enable:     true,
 		Connection: "",
-		Queue:      facades.Config().GetString("elasticsearch.sync_queue", "elasticsearch"),
+		Queue:      search.SyncQueue(),
 	}
 }
 
-func (receiver *SyncOrderElasticsearch) Handle(args ...any) error {
+func (receiver *SyncOrderSearch) Handle(args ...any) error {
 	if len(args) < 1 {
-		return errors.ErrInvalidArgument.WithMessage("missing order elasticsearch sync args")
+		return errors.ErrInvalidArgument.WithMessage("missing order search sync args")
 	}
 
-	var syncArgs events.OrderElasticsearchSyncArgs
+	var syncArgs events.OrderSearchSyncArgs
 	switch v := args[0].(type) {
-	case events.OrderElasticsearchSyncArgs:
+	case events.OrderSearchSyncArgs:
 		syncArgs = v
 	case map[string]any:
-		syncArgs = events.OrderElasticsearchSyncArgs{
+		syncArgs = events.OrderSearchSyncArgs{
 			OrderID: uintFromAny(v["order_id"]),
 			OrderNo: stringFromAny(v["order_no"]),
 			Op:      stringFromAny(v["op"]),
 		}
 	default:
-		return errors.ErrInvalidArgument.WithMessage("invalid order elasticsearch sync args")
+		return errors.ErrInvalidArgument.WithMessage("invalid order search sync args")
 	}
 
 	if syncArgs.OrderID == 0 {
@@ -50,7 +50,7 @@ func (receiver *SyncOrderElasticsearch) Handle(args ...any) error {
 		return errors.ErrInvalidArgument.WithMessage("invalid op")
 	}
 
-	support.DispatchOrderElasticsearchSync(syncArgs.OrderID, syncArgs.OrderNo, syncArgs.Op)
+	support.DispatchOrderSearchSync(syncArgs.OrderID, syncArgs.OrderNo, syncArgs.Op)
 	return nil
 }
 

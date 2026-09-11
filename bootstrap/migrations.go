@@ -66,7 +66,7 @@ func Migrations() []schema.Migration {
 		&migrations.M20260426021000CreateApiEndpointMetricsTable{},
 		&migrations.M20260115152848ArticleTable{},
 		&migrations.M20260710000001AdjustSoftDeleteUniqueIndexes{},
-		&migrations.M20260711000001CreateElasticsearchSyncOutboxTable{},
+		&migrations.M20260711000001CreateSearchSyncOutboxTable{},
 		&migrations.M20260716000001CreateAttachmentCategoriesTable{},
 		&migrations.M20260717000001AddIsPublicToAttachmentsTable{},
 	}

@@ -13,8 +13,8 @@ func TestParseOrderSearchCreatedRange_EmptyUsesDBDefaultWindow(t *testing.T) {
 	if field != "" || key != "" {
 		t.Fatalf("expected no validation error, got field=%q key=%q", field, key)
 	}
-	if out.ESGTE != nil || out.ESLTE != nil {
-		t.Fatal("expected ES bounds to be nil when both inputs are empty")
+	if out.IndexGTE != nil || out.IndexLTE != nil {
+		t.Fatal("expected index bounds to be nil when both inputs are empty")
 	}
 	if out.DBEnd.Before(before.Add(-time.Second)) || out.DBEnd.After(after.Add(time.Second)) {
 		t.Fatalf("unexpected DBEnd: %v", out.DBEnd)
@@ -50,13 +50,13 @@ func TestParseOrderSearchCreatedRange_ValidDateOnly(t *testing.T) {
 	if field != "" || key != "" {
 		t.Fatalf("expected no validation error, got field=%q key=%q", field, key)
 	}
-	if out.ESGTE == nil || out.ESLTE == nil {
-		t.Fatal("expected ES bounds to be set")
+	if out.IndexGTE == nil || out.IndexLTE == nil {
+		t.Fatal("expected index bounds to be set")
 	}
-	if *out.ESGTE != "2026-07-01 00:00:00" {
-		t.Fatalf("unexpected ESGTE: %s", *out.ESGTE)
+	if *out.IndexGTE != "2026-07-01 00:00:00" {
+		t.Fatalf("unexpected IndexGTE: %s", *out.IndexGTE)
 	}
-	if *out.ESLTE != "2026-07-10 23:59:59" {
-		t.Fatalf("unexpected ESLTE: %s", *out.ESLTE)
+	if *out.IndexLTE != "2026-07-10 23:59:59" {
+		t.Fatalf("unexpected IndexLTE: %s", *out.IndexLTE)
 	}
 }

@@ -1,4 +1,4 @@
-package esorders
+package elasticsearch
 
 import "testing"
 

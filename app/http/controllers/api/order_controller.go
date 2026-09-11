@@ -11,6 +11,7 @@ import (
 	apirequests "goravel/app/http/requests/api"
 	"goravel/app/http/response"
 	"goravel/app/http/trans"
+	"goravel/app/search"
 	"goravel/app/services"
 )
 
@@ -26,7 +27,7 @@ func (c *OrderController) orderService(ctx http.Context) services.OrderService {
 }
 
 
-// SearchMyOrders GET：当前登录用户检索自己的订单。开启 ELASTICSEARCH_ENABLED 时走 ES（可多字段含商品名）；否则走分表数据库（关键词仅订单号、备注；无时间参数时默认近 3 个月）。
+// SearchMyOrders GET：当前登录用户检索自己的订单。开启搜索引擎时走索引（可多字段含商品名）；否则走分表数据库。
 func (c *OrderController) SearchMyOrders(ctx http.Context) http.Response {
 	var req apirequests.OrderSearch
 	errors, err := ctx.Request().ValidateRequest(&req)
@@ -59,8 +60,8 @@ func (c *OrderController) SearchMyOrders(ctx http.Context) http.Response {
 		if resp := timeRangeErrorResponse(ctx, err); resp != nil {
 			return resp
 		}
-		if facades.Config().GetBool("elasticsearch.enabled", false) {
-			facades.Log().Errorf("order ES search: %v", err)
+		if search.Enabled() {
+			facades.Log().Errorf("order search: %v", err)
 			return response.Error(ctx, http.StatusBadGateway, "search_failed")
 		}
 		facades.Log().Errorf("order DB search: %v", err)

@@ -10,47 +10,39 @@ import (
 	"github.com/goravel/framework/facades"
 	"github.com/spf13/cast"
 
-	esorders "goravel/app/elasticsearch/orders"
+	"goravel/app/search"
+	searchorders "goravel/app/search/orders"
 	"goravel/app/services"
 	"goravel/app/utils"
 )
 
-// SyncOrdersElasticsearch 手动将订单同步到 Elasticsearch（受 ELASTICSEARCH_* 与 SYNC_ORDERS 开关约束）。
-type SyncOrdersElasticsearch struct {
+// SyncOrdersSearch 手动将订单同步到当前搜索驱动。
+type SyncOrdersSearch struct {
 	cancel context.CancelFunc
 }
 
-func (r *SyncOrdersElasticsearch) Signature() string {
-	return "es:sync-orders"
+func (r *SyncOrdersSearch) Signature() string {
+	return "search:sync-orders"
 }
 
-func (r *SyncOrdersElasticsearch) Description() string {
-	return "手动同步订单到 Elasticsearch（默认最近 3 个月，与列表导出时间窗口一致）"
+func (r *SyncOrdersSearch) Description() string {
+	return "手动同步订单到当前搜索引擎（默认最近 3 个月）"
 }
 
-func (r *SyncOrdersElasticsearch) Extend() command.Extend {
+func (r *SyncOrdersSearch) Extend() command.Extend {
 	return command.Extend{
-		Category: "elasticsearch",
+		Category: "search",
 		Flags: []command.Flag{
-			&command.StringFlag{
-				Name:  "from",
-				Usage: "开始时间 RFC3339，可选；与 --to 成对使用",
-			},
-			&command.StringFlag{
-				Name:  "to",
-				Usage: "结束时间 RFC3339，可选",
-			},
-			&command.StringFlag{
-				Name:  "order-id",
-				Usage: "仅同步指定订单 ID",
-			},
+			&command.StringFlag{Name: "from", Usage: "开始时间 RFC3339，可选；与 --to 成对使用"},
+			&command.StringFlag{Name: "to", Usage: "结束时间 RFC3339，可选"},
+			&command.StringFlag{Name: "order-id", Usage: "仅同步指定订单 ID"},
 		},
 	}
 }
 
-func (r *SyncOrdersElasticsearch) Handle(ctx console.Context) error {
-	if !esorders.SyncEnabled() {
-		ctx.Warning("未开启订单 ES 同步。需 ELASTICSEARCH_ENABLED=true 且 ELASTICSEARCH_SYNC_ORDERS=true。")
+func (r *SyncOrdersSearch) Handle(ctx console.Context) error {
+	if !search.OrdersSyncEnabled() {
+		ctx.Warning("未开启订单搜索同步。需 SEARCH_ENABLED=true、SEARCH_DRIVER≠null，且 SEARCH_SYNC_ORDERS=true。")
 		return nil
 	}
 
@@ -61,12 +53,12 @@ func (r *SyncOrdersElasticsearch) Handle(ctx console.Context) error {
 	svc := services.NewOrderService(context.Background())
 
 	if id := cast.ToUint(ctx.Option("order-id")); id > 0 {
-		ctx.Info(fmt.Sprintf("同步订单 id=%d ...", id))
-		if err := esorders.InitOrdersIndex(runCtx); err != nil {
+		ctx.Info(fmt.Sprintf("同步订单 id=%d driver=%s ...", id, search.Driver()))
+		if err := searchorders.InitIndex(runCtx); err != nil {
 			ctx.Error(err.Error())
 			return err
 		}
-		if err := esorders.PushOrderToElasticsearch(runCtx, id, "", "index"); err != nil {
+		if err := searchorders.Push(runCtx, id, "", "index"); err != nil {
 			ctx.Error(err.Error())
 			return err
 		}
@@ -108,8 +100,8 @@ func (r *SyncOrdersElasticsearch) Handle(ctx console.Context) error {
 		ctx.Error(err.Error())
 		return err
 	}
-	ctx.Info(fmt.Sprintf("共 %d 条，开始写入 ES...", len(list)))
-	if err := esorders.InitOrdersIndex(runCtx); err != nil {
+	ctx.Info(fmt.Sprintf("共 %d 条，开始写入 %s...", len(list), search.Driver()))
+	if err := searchorders.InitIndex(runCtx); err != nil {
 		ctx.Error(err.Error())
 		return err
 	}
@@ -119,9 +111,9 @@ func (r *SyncOrdersElasticsearch) Handle(ctx console.Context) error {
 			ctx.Warning("收到停止信号，已中断同步")
 			return runCtx.Err()
 		}
-		if err := esorders.PushOrderToElasticsearch(runCtx, row.ID, row.OrderNo, "index"); err != nil {
+		if err := searchorders.Push(runCtx, row.ID, row.OrderNo, "index"); err != nil {
 			fail++
-			facades.Log().Warningf("es sync order id=%d: %v", row.ID, err)
+			facades.Log().Warningf("search sync order id=%d: %v", row.ID, err)
 		}
 		if (i+1)%500 == 0 {
 			ctx.Info(fmt.Sprintf("已处理 %d/%d", i+1, len(list)))
@@ -135,7 +127,7 @@ func (r *SyncOrdersElasticsearch) Handle(ctx console.Context) error {
 	return nil
 }
 
-func (r *SyncOrdersElasticsearch) Shutdown(ctx console.Context) error {
+func (r *SyncOrdersSearch) Shutdown(ctx console.Context) error {
 	if r.cancel != nil {
 		r.cancel()
 	}

@@ -130,18 +130,19 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 并配置定时任务创建未来分表（见分表文档）。
 
-### 4.3 Elasticsearch
+### 4.3 搜索引擎（Elasticsearch / Meilisearch）
 
 ```ini
-ELASTICSEARCH_ENABLED=true
-ELASTICSEARCH_SYNC_ORDERS=true
+SEARCH_DRIVER=elasticsearch
+SEARCH_ENABLED=true
+SEARCH_SYNC_ORDERS=true
+SEARCH_QUEUE=search
+SEARCH_SYNC_WORKER=auto
+# SEARCH_OUTBOX_ENABLED=true
 ELASTICSEARCH_URLS=http://127.0.0.1:9200
-ELASTICSEARCH_QUEUE=elasticsearch
-ELASTICSEARCH_SYNC_WORKER=auto
-# ELASTICSEARCH_OUTBOX_ENABLED=true
 ```
 
-需要 ES 集群 + elasticsearch 队列 Worker。Outbox 积压可用 `go run . artisan es:retry-outbox` 补偿（已加入每小时定时任务）。
+需要搜索集群 + `queue-search` Worker。Outbox 积压可用 `go run . artisan search:retry-outbox` 补偿（已加入每小时定时任务）。初始化索引：`search:init-orders-index`，全量同步：`search:sync-orders`。
 
 ### 4.4 OpenTelemetry
 

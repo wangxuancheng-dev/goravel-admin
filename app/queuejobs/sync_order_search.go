@@ -8,21 +8,21 @@ import (
 	"github.com/goravel/framework/facades"
 	"github.com/spf13/cast"
 
-	esorders "goravel/app/elasticsearch/orders"
 	"goravel/app/errors"
+	"goravel/app/search"
+	searchorders "goravel/app/search/orders"
 	"goravel/app/utils"
 )
 
-// SyncOrderToElasticsearch 订单 ES 同步队列任务（参数为 map：order_id, op, 可选 order_no）。
-// 独立包避免 jobs 与 services 循环引用。
-type SyncOrderToElasticsearch struct{}
+// SyncOrderSearch 订单搜索同步队列任务。
+type SyncOrderSearch struct{}
 
-func (r *SyncOrderToElasticsearch) Signature() string {
-	return "sync_order_elasticsearch"
+func (r *SyncOrderSearch) Signature() string {
+	return "sync_order_search"
 }
 
-func (r *SyncOrderToElasticsearch) Handle(args ...any) error {
-	if !esorders.SyncEnabled() {
+func (r *SyncOrderSearch) Handle(args ...any) error {
+	if !search.OrdersSyncEnabled() {
 		return nil
 	}
 	if len(args) < 1 {
@@ -52,11 +52,11 @@ func (r *SyncOrderToElasticsearch) Handle(args ...any) error {
 	}
 	orderNo, _ := utils.GetString(m, "order_no")
 	ctx := context.Background()
-	if err := esorders.PushOrderToElasticsearch(ctx, orderID, orderNo, op); err != nil {
-		facades.Log().Errorf("SyncOrderToElasticsearch failed: order_id=%d op=%s err=%v", orderID, op, err)
-		utils.MarkElasticsearchSyncOutboxFailed(orderID, op, err.Error())
+	if err := searchorders.Push(ctx, orderID, orderNo, op); err != nil {
+		facades.Log().Errorf("SyncOrderSearch failed: order_id=%d op=%s err=%v", orderID, op, err)
+		search.MarkSyncOutboxFailed(orderID, op, err.Error())
 		return err
 	}
-	utils.MarkElasticsearchSyncOutboxProcessed(orderID, op)
+	search.MarkSyncOutboxProcessed(orderID, op)
 	return nil
 }

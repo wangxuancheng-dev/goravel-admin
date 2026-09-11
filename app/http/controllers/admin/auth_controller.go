@@ -15,6 +15,7 @@ import (
 	"goravel/app/http/requests/admin"
 	"goravel/app/http/response"
 	"goravel/app/models"
+	"goravel/app/search"
 	"goravel/app/services"
 	"goravel/app/utils"
 )
@@ -431,7 +432,8 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 			"dev_tools_enabled":               utils.DevToolsEnabled(),
 			"code_generator_enabled":          utils.CodeGeneratorEnabled(),
 			"code_generator_frontends":        utils.CodeGeneratorFrontends(),
-			"elasticsearch_enabled":           utils.ElasticsearchEnabled(),
+			"search_enabled":                  utils.SearchEnabled(),
+			"search_driver":                   search.Driver(),
 			"otel_enabled":                    utils.OTELEnabled(),
 		},
 	})

@@ -15,7 +15,8 @@ const defaultConfig: FeatureConfig = {
   paymentsEnabled: true,
   devToolsEnabled: false,
   codeGeneratorEnabled: false,
-  elasticsearchEnabled: false,
+  searchEnabled: false,
+  searchDriver: 'null',
   otelEnabled: false,
 }
 
@@ -157,7 +158,8 @@ export const useUserStore = create<UserState>((set, get) => {
           paymentsEnabled: (config?.payments_enabled ?? config?.paymentsEnabled ?? true) as boolean,
           devToolsEnabled: !!(config?.dev_tools_enabled || config?.devToolsEnabled),
           codeGeneratorEnabled: !!(config?.code_generator_enabled || config?.codeGeneratorEnabled),
-          elasticsearchEnabled: !!(config?.elasticsearch_enabled || config?.elasticsearchEnabled),
+          searchEnabled: !!(config?.search_enabled || config?.searchEnabled),
+          searchDriver: (config?.search_driver || config?.searchDriver || 'null') as string,
           otelEnabled: !!(config?.otel_enabled || config?.otelEnabled),
         },
       })

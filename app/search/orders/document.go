@@ -1,9 +1,9 @@
-package esorders
+package orders
 
 import "goravel/app/models"
 
-// OrderDocument 构建写入 ES 的订单文档（字段变更集中在此，便于与 mapping 对齐）。
-func OrderDocument(order *models.Order, details []models.OrderDetail) map[string]any {
+// Document 构建写入搜索引擎的订单文档（字段与各驱动 mapping/settings 对齐）。
+func Document(order *models.Order, details []models.OrderDetail) map[string]any {
 	names := make([]string, 0, len(details))
 	for _, d := range details {
 		names = append(names, d.ProductName)
