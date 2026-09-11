@@ -32,11 +32,11 @@
 |------|------|
 | 支付方式 CRUD、支付记录列表/详情/导出 | ✅ 可用 |
 | 微信 / 支付宝下单客户端调用（gopay） | ⚠️ 示例代码，需自备商户配置 |
-| 支付结果查询 `QueryPaymentOrder` | ❌ 明确「待实现」 |
-| 支付回调 `HandlePaymentNotify` | ❌ 明确「待实现」；**无对外 notify 路由** |
+| 支付结果查询 `POST /api/admin/payments/{id}/query` | ⚠️ 路由已接好，网关返回 `payment_gateway_not_implemented`（501） |
+| 支付回调 `POST /api/payment/notify/{wechat\|alipay}` | ⚠️ 公开路由已接好，网关返回 `payment_gateway_not_implemented`（501）；**未做验签/落库** |
 | 退款 API / 原路退 | ❌ 未提供（余额日志里的 refund 类型仅统计用） |
 
-**结论：** 不要把本项目默认当成可上线的收单 / 清算系统。**默认 `MODULE_PAYMENTS_ENABLED=false`（demo-only）**；需要演示后台支付管理 UI 时再显式打开。
+**结论：** 不要把本项目默认当成可上线的收单 / 清算系统。**默认 `MODULE_PAYMENTS_ENABLED=false`（demo-only）**；需要演示后台支付管理 UI 时再显式打开。回调/查询路由仅便于二次开发对接，不等于可用网关。
 
 ---
 

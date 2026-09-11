@@ -217,6 +217,7 @@ func (s *PermissionSeeder) Run() error {
 		// 支付记录管理
 		{Name: "支付记录列表", Slug: "payment.index", Method: "GET", Path: "/api/admin/payments", Description: "查看支付记录列表", Status: 1, Sort: 1, MenuID: paymentRecordMenu.ID},
 		{Name: "支付记录详情", Slug: "payment.show", Method: "GET", Path: "/api/admin/payments/*", Description: "查看支付记录详情", Status: 1, Sort: 2, MenuID: paymentRecordMenu.ID},
+		{Name: "支付结果查询", Slug: "payment.query", Method: "POST", Path: "/api/admin/payments/*/query", Description: "查询第三方支付状态（骨架）", Status: 1, Sort: 3, MenuID: paymentRecordMenu.ID},
 	}
 
 	for _, perm := range permissions {

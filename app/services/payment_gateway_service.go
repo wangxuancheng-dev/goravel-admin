@@ -15,7 +15,7 @@ import (
 )
 
 // PaymentGatewayService 第三方支付下单/查询/回调（与后台支付记录 CRUD 解耦）。
-// 注意：Query / Notify 仍为示例骨架（待实现），不要当作生产收单能力；见 docs/OPENSOURCE.md。
+// Query / Notify 已挂公开或管理端路由，但实现仍返回 ErrPaymentGatewayNotImplemented；见 docs/OPENSOURCE.md。
 type PaymentGatewayService interface {
 	CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error)
 	QueryPaymentOrder(payment *models.Payment) (map[string]any, error)
@@ -239,14 +239,14 @@ func (s *PaymentGatewayServiceImpl) HandlePaymentNotify(paymentMethod *models.Pa
 	}
 }
 
-// handleWechatNotify 处理微信支付回调（示例骨架；仓库未暴露对外 notify 路由）
+// handleWechatNotify 处理微信支付回调（骨架：固定 NotImplemented，路由见 /api/payment/notify/wechat）
 func (s *PaymentGatewayServiceImpl) handleWechatNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
 	_ = paymentMethod
 	_ = notifyData
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
-// handleAlipayNotify 处理支付宝支付回调（示例骨架；仓库未暴露对外 notify 路由）
+// handleAlipayNotify 处理支付宝支付回调（骨架：固定 NotImplemented，路由见 /api/payment/notify/alipay）
 func (s *PaymentGatewayServiceImpl) handleAlipayNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
 	_ = paymentMethod
 	_ = notifyData

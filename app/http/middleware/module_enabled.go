@@ -13,8 +13,7 @@ func moduleEnabled(enabled func() bool, code string) http.Middleware {
 			ctx.Request().Next()
 			return
 		}
-		response.Error(ctx, http.StatusForbidden, code)
-		ctx.Request().Abort()
+		response.Abort(ctx, http.StatusForbidden, code)
 	})
 }
 

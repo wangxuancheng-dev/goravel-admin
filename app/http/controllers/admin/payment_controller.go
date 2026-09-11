@@ -118,6 +118,28 @@ func (c *PaymentController) Show(ctx http.Context) http.Response {
 	return response.Success(ctx, c.PaymentService(ctx).PaymentToJSON(payment))
 }
 
+// Query asks the payment gateway for third-party status (scaffold: returns payment_gateway_not_implemented).
+func (c *PaymentController) Query(ctx http.Context) http.Response {
+	paymentNo := ctx.Request().Route("id")
+	if paymentNo == "" {
+		return response.Error(ctx, http.StatusBadRequest, "payment_no_required")
+	}
+	payment, err := c.PaymentService(ctx).GetPaymentByPaymentNo(paymentNo)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "payment", http.StatusNotFound, err, map[string]any{
+			"payment_no": paymentNo,
+		})
+	}
+
+	result, err := services.NewPaymentGatewayService(ctx).QueryPaymentOrder(payment)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "payment", http.StatusNotImplemented, err, map[string]any{
+			"payment_no": paymentNo,
+		})
+	}
+	return response.Success(ctx, result)
+}
+
 func (c *PaymentController) Export(ctx http.Context) http.Response {
 	filters, resp := c.buildFilters(ctx)
 	if resp != nil {

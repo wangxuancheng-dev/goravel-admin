@@ -14,6 +14,7 @@ func Api() {
 	authController := api.NewAuthController()
 	orderSearchController := api.NewOrderController()
 	queueTestController := api.NewQueueTestController()
+	paymentNotifyController := api.NewPaymentNotifyController()
 	attachmentController := admin.NewAttachmentController()
 	publicConfigController := api.NewPublicConfigController()
 
@@ -21,6 +22,8 @@ func Api() {
 	facades.Route().Prefix("api").Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist()).Group(func(router route.Router) {
 		router.Get("public/files/{id}", attachmentController.PublicPreview)
 		router.Get("public/customer-service", publicConfigController.CustomerService)
+		// 支付回调骨架：固定返回 payment_gateway_not_implemented（非生产收单）
+		router.Post("payment/notify/{type}", paymentNotifyController.Notify)
 	})
 
 	// C端用户路由组：统一前缀
