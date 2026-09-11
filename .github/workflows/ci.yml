@@ -19,11 +19,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 后端 CI（编译 / 集成测试）需 MySQL 等环境，暂无线上/CI 数据库时可跳过。
-  # 本地有库后恢复 backend / backend-integration job 即可。
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
-  frontend:
-    name: Frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Unit tests (no external services)
+        run: |
+          set -euo pipefail
+          mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|/driver/|node_modules')
+          go test -count=1 -timeout=3m "${PKGS[@]}"
+
+  frontend-vue:
+    name: Frontend Vue
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -41,6 +62,37 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: html/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm install --no-save @rollup/rollup-linux-x64-gnu
+
+      - name: Run type check
+        run: npm run type-check
+
+      - name: Build frontend
+        run: npm run build:ci
+
+  frontend-react:
+    name: Frontend React
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: html-react
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: html-react/package-lock.json
 
       - name: Install dependencies
         run: |

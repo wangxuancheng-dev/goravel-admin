@@ -15,6 +15,7 @@ import (
 )
 
 // PaymentGatewayService 第三方支付下单/查询/回调（与后台支付记录 CRUD 解耦）。
+// 注意：Query / Notify 仍为示例骨架（待实现），不要当作生产收单能力；见 docs/OPENSOURCE.md。
 type PaymentGatewayService interface {
 	CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error)
 	QueryPaymentOrder(payment *models.Payment) (map[string]any, error)

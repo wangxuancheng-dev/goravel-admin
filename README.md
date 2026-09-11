@@ -15,7 +15,7 @@ Welcome to star, PR and issues！
 This project includes a complete admin management system built with Goravel framework.
 
 ```bash
-git clone https://github.com/1768177868/goravel-admin.git
+git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ```
 
 > Demo https://admin.xuancheng888.top 
@@ -119,6 +119,7 @@ Enable only when needed (see [OPENSOURCE.md](./docs/OPENSOURCE.md)):
 - Elasticsearch order sync / search
 - Redis async queues, long-running export jobs, extra queue drivers
 - OpenTelemetry export to Jaeger / Grafana
+- Payment admin sample (**not a full acquiring stack**: no production notify/refund — see [OPENSOURCE.md](./docs/OPENSOURCE.md))
 
 ### Tech Stack
 
@@ -138,9 +139,20 @@ Enable only when needed (see [OPENSOURCE.md](./docs/OPENSOURCE.md)):
 | i18n | vue-i18n | react-i18next |
 | Shared | Vite, Axios, ECharts, same Admin API | Vite, Axios, ECharts, same Admin API |
 
-Both frontends talk to `/api/admin`. React covers most Vue modules; the code generator page is still deferred (placeholder). Details: [html-react/README.md](./html-react/README.md).
+Both frontends talk to `/api/admin` and **must ship new admin features together**. React covers the main modules (including code generator and AI Lab). Details: [html-react/README.md](./html-react/README.md).
 
-### Quick Start
+### Three-minute Docker (recommended)
+
+```bash
+cp .env.docker.example .env
+docker compose up -d --build
+# When healthy: http://localhost:3000
+# Default login: admin / admin123 (change ASAP)
+```
+
+For UI development, run Vite separately (Vue `html/` → `:3007`, React `html-react/` → `:3008`) against `http://127.0.0.1:3000`.
+
+### Quick Start (local Go + your own database)
 
 1. **Backend Setup:**
    ```bash
@@ -371,6 +383,9 @@ upx -9 main
 | [BUILD.md](./docs/BUILD.md) | Build and deployment |
 | [TESTING.md](./docs/TESTING.md) | Testing guide (unit & integration) |
 | [OPENSOURCE.md](./docs/OPENSOURCE.md) | Open-source positioning, core vs advanced modules, production configs |
+| [QUICKSTART_DOCKER.md](./docs/QUICKSTART_DOCKER.md) | Docker Compose local setup in three commands |
+| [CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Contribution guide |
+| [CHANGELOG.md](./docs/CHANGELOG.md) | Changelog |
 | [Frontend Guide (Vue)](./html/DEVELOPMENT.md) | Vue frontend development guide |
 | [Frontend Guide (React)](./html-react/README.md) | React frontend overview & setup |
 

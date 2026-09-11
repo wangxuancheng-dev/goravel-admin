@@ -1,11 +1,75 @@
-version: '3'
+# Local / demo stack: MySQL + Redis + API
+# Usage:
+#   cp .env.docker.example .env
+#   docker compose up -d --build
+#   # seed runs automatically when RUN_SEED=true (default in this compose)
+#
+# App:   http://localhost:3000
+# Login: admin / admin123  (change after first login)
+#
+# Production blue/green: see docs/DOCKER_DEPLOY.md (docker-compose.blue.yml / green.yml)
 
 services:
-  goravel:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: goravel
+      MYSQL_USER: goravel
+      MYSQL_PASSWORD: goravel
+    ports:
+      - "3306:3306"
+    volumes:
+      - goravel_mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - goravel_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
     build:
       context: .
+    restart: unless-stopped
     env_file:
       - .env
     ports:
       - "3000:3000"
-    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: goravel
+      DB_USERNAME: goravel
+      DB_PASSWORD: goravel
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CACHE_STORE: redis
+      # Local compose defaults to sync queue so one container is enough.
+      QUEUE_CONNECTION: sync
+      RUN_SEED: "true"
+      SKIP_MIGRATE: "false"
+
+volumes:
+  goravel_mysql_data:
+  goravel_redis_data:

@@ -23,7 +23,7 @@
 
 ### 报告 Bug
 
-1. 检查 [Issues](https://github.com/your-repo/issues) 确认问题未被报告
+1. 检查 [Issues](https://github.com/wangxuancheng-dev/goravel-admin/issues) 确认问题未被报告
 2. 使用 Bug 模板创建新 Issue
 3. 提供详细的复现步骤和环境信息
 
@@ -57,7 +57,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-repo/goravel-admin.git
+git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 cd goravel-admin
 
 # 2. 安装后端依赖
@@ -300,8 +300,8 @@ git push origin feature/your-feature-name
 
 ## 联系我们
 
-- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-repo/discussions)
+- **Issues**: [GitHub Issues](https://github.com/wangxuancheng-dev/goravel-admin/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/wangxuancheng-dev/goravel-admin/discussions)
 - **Discord**: [Goravel Discord](https://discord.gg/cFc5csczzS)
 
 ---

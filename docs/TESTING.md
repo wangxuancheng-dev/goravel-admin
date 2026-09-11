@@ -37,9 +37,9 @@ driver/
 ### 运行测试
 
 ```bash
-# 快速后端门禁（CI 默认使用，排除 tests/feature）
-PKGS=$(go list ./... | grep -v '/tests/feature$')
-go test -v -timeout=2m $PKGS
+# 快速后端门禁（CI 默认使用，排除 tests/feature、driver 子模块、node_modules）
+mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|/driver/|node_modules')
+go test -count=1 -timeout=3m "${PKGS[@]}"
 
 # 冒烟 / feature 集成测试（需 migrate 后的数据库）
 go test -v -timeout=2m ./tests/feature/...

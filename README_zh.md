@@ -15,7 +15,7 @@ Goravel 是一个功能完整、可扩展性良好的 Web 应用框架。作为�
 本项目包含一个基于 Goravel 框架构建的完整后台管理系统。
 
 ```bash
-git clone https://github.com/1768177868/goravel-admin.git
+git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ```
 
 > 演示站 https://admin.xuancheng888.top
@@ -117,6 +117,7 @@ git clone https://github.com/1768177868/goravel-admin.git
 - Elasticsearch 订单同步与检索
 - Redis 异步队列、导出长任务、多队列驱动（Kafka / RabbitMQ / NSQ 等）
 - OpenTelemetry 导出到 Jaeger / Grafana
+- 支付管理示例（**非完整收单**：无可用回调 / 退款，见 [OPENSOURCE.md](./docs/OPENSOURCE.md#11-支付模块边界必读)）
 
 ### 技术栈
 
@@ -137,9 +138,20 @@ git clone https://github.com/1768177868/goravel-admin.git
 | 国际化 | vue-i18n | react-i18next |
 | 共用 | Vite、Axios、ECharts，同一套 Admin API | Vite、Axios、ECharts，同一套 Admin API |
 
-两套前端都对接 `/api/admin`。React 已覆盖大部分 Vue 模块；代码生成器页面按约定暂缓（占位）。详情见 [html-react/README.md](./html-react/README.md)。
+两套前端都对接 `/api/admin`，**新功能需 Vue + React 同发**。React 已覆盖主要管理模块（含代码生成器、AI 实验室等）。详情见 [html-react/README.md](./html-react/README.md)。
 
-### 快速开始
+### 三分钟 Docker 跑通（推荐）
+
+```bash
+cp .env.docker.example .env
+docker compose up -d --build
+# 等待健康检查通过后访问 http://localhost:3000
+# 默认账号 admin / admin123（请尽快修改）
+```
+
+前端本地开发仍用 Vite（Vue `html/` → `:3007`，React `html-react/` → `:3008`），API 指向 `http://127.0.0.1:3000`。
+
+### 快速开始（本机 Go + 自备数据库）
 
 1. **后端配置：**
    ```bash
@@ -367,6 +379,9 @@ upx -9 main
 | [BUILD.md](./docs/BUILD.md) | 编译打包与部署 |
 | [TESTING.md](./docs/TESTING.md) | 测试指南（单元测试 & 集成测试） |
 | [OPENSOURCE.md](./docs/OPENSOURCE.md) | 开源定位、核心/进阶模块、最小与进阶生产配置 |
+| [QUICKSTART_DOCKER.md](./docs/QUICKSTART_DOCKER.md) | Docker Compose 本地三分钟跑通 |
+| [CONTRIBUTING.md](./docs/CONTRIBUTING.md) | 贡献指南 |
+| [CHANGELOG.md](./docs/CHANGELOG.md) | 版本变更记录 |
 | [前端开发指南（Vue）](./html/DEVELOPMENT.md) | Vue 前端开发文档 |
 | [前端说明（React）](./html-react/README.md) | React 前端概览与启动说明 |
 
