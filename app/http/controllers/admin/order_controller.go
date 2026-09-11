@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -20,8 +19,7 @@ import (
 	"goravel/app/utils"
 )
 
-type OrderController struct {}
-
+type OrderController struct{}
 
 // OrderResponse swagger response for order summary.
 type OrderResponse struct {
@@ -143,72 +141,16 @@ func (r *OrderController) orderService(ctx http.Context) services.OrderService {
 	return services.NewOrderService(ctx)
 }
 
-
 // buildFilters builds filters shared by list/export endpoints.
-// It accepts both query params (GET) and body params (POST).
 func (r *OrderController) buildFilters(ctx http.Context) (services.OrderFilters, http.Response) {
-	// Prefer request body, fallback to query params for compatibility.
-	userID := cast.ToUint(ctx.Request().Input("user_id", ctx.Request().Query("user_id", "0")))
-	orderNo := ctx.Request().Input("order_no", ctx.Request().Query("order_no", ""))
-	status := ctx.Request().Input("status", ctx.Request().Query("status", ""))
-	minAmount := cast.ToFloat64(ctx.Request().Input("min_amount", ctx.Request().Query("min_amount", "0")))
-	maxAmount := cast.ToFloat64(ctx.Request().Input("max_amount", ctx.Request().Query("max_amount", "0")))
-	orderBy := ctx.Request().Input("order_by", ctx.Request().Query("order_by", ""))
-
-	// Parse time params and normalize to UTC time strings.
-	startTimeStr := getTimeInputOrQueryUTC(ctx, "start_time")
-	endTimeStr := getTimeInputOrQueryUTC(ctx, "end_time")
-
-	startTime, endTime, err := r.parseTimeRange(startTimeStr, endTimeStr)
+	filters, err := services.BuildOrderFiltersFromHTTP(ctx)
 	if err != nil {
 		return services.OrderFilters{}, response.Error(ctx, http.StatusBadRequest, err.Error())
 	}
-
-	// Validate time range (default limit: 3 months).
-	if resp := validateTimeRangeResponse(ctx, startTime, endTime, 3); resp != nil {
+	if resp := validateTimeRangeResponse(ctx, filters.StartTime, filters.EndTime, 3); resp != nil {
 		return services.OrderFilters{}, resp
 	}
-
-	return services.OrderFilters{
-		UserID:    userID,
-		OrderNo:   orderNo,
-		Status:    status,
-		MinAmount: minAmount,
-		MaxAmount: maxAmount,
-		StartTime: startTime,
-		EndTime:   endTime,
-		OrderBy:   orderBy,
-	}, nil
-}
-
-// parseTimeRange parses time range; default start is now - 7 days.
-func (r *OrderController) parseTimeRange(startTimeStr, endTimeStr string) (time.Time, time.Time, error) {
-	var startTime, endTime time.Time
-	var err error
-
-	if startTimeStr == "" {
-		// Default to recent 7 days in UTC.
-		startTime = time.Now().UTC().AddDate(0, 0, -7)
-	} else {
-		// Parse UTC datetime string.
-		startTime, err = utils.ParseDateTime(startTimeStr)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid_start_time")
-		}
-	}
-
-	if endTimeStr == "" {
-		// Empty end time means no upper bound.
-		endTime = time.Time{}
-	} else {
-		// Parse UTC datetime string.
-		endTime, err = utils.ParseDateTime(endTimeStr)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid_end_time")
-		}
-	}
-
-	return startTime, endTime, nil
+	return filters, nil
 }
 
 // Index returns paginated order list.

@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/goravel/framework/contracts/database/orm"
+	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 	"github.com/oklog/ulid/v2"
+	"github.com/spf13/cast"
 
 	"goravel/app/dto"
 	apperrors "goravel/app/errors"
+	"goravel/app/http/helpers"
 	"goravel/app/models"
 	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
@@ -128,6 +131,55 @@ type OrderFilters struct {
 	StartTime time.Time // 开始时间
 	EndTime   time.Time // 结束时间
 	OrderBy   string    // 排序字段（格式：字段:asc/desc，如：created_at:desc）
+}
+
+// ParseOrderListTimeRange 解析后台订单列表时间；开始为空默认近 7 天，结束为空表示无上界。
+// 错误返回可直接用作 response message key（invalid_start_time / invalid_end_time）。
+func ParseOrderListTimeRange(startTimeStr, endTimeStr string) (time.Time, time.Time, error) {
+	var startTime, endTime time.Time
+	var err error
+
+	if startTimeStr == "" {
+		startTime = time.Now().UTC().AddDate(0, 0, -7)
+	} else {
+		startTime, err = utils.ParseDateTime(startTimeStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid_start_time")
+		}
+	}
+
+	if endTimeStr == "" {
+		endTime = time.Time{}
+	} else {
+		endTime, err = utils.ParseDateTime(endTimeStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid_end_time")
+		}
+	}
+
+	return startTime, endTime, nil
+}
+
+// BuildOrderFiltersFromHTTP 从 query/body 构建订单列表/导出筛选（含默认时间）。
+func BuildOrderFiltersFromHTTP(ctx http.Context) (OrderFilters, error) {
+	startTime, endTime, err := ParseOrderListTimeRange(
+		helpers.GetTimeInputOrQueryParam(ctx, "start_time"),
+		helpers.GetTimeInputOrQueryParam(ctx, "end_time"),
+	)
+	if err != nil {
+		return OrderFilters{}, err
+	}
+
+	return OrderFilters{
+		UserID:    cast.ToUint(ctx.Request().Input("user_id", ctx.Request().Query("user_id", "0"))),
+		OrderNo:   ctx.Request().Input("order_no", ctx.Request().Query("order_no", "")),
+		Status:    ctx.Request().Input("status", ctx.Request().Query("status", "")),
+		MinAmount: cast.ToFloat64(ctx.Request().Input("min_amount", ctx.Request().Query("min_amount", "0"))),
+		MaxAmount: cast.ToFloat64(ctx.Request().Input("max_amount", ctx.Request().Query("max_amount", "0"))),
+		StartTime: startTime,
+		EndTime:   endTime,
+		OrderBy:   ctx.Request().Input("order_by", ctx.Request().Query("order_by", "")),
+	}, nil
 }
 
 type OrderServiceImpl struct {

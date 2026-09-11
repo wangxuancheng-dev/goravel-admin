@@ -44,8 +44,8 @@ func NewPaymentMethodController() *PaymentMethodController {
 	return &PaymentMethodController{}
 }
 
-func (c *PaymentMethodController) PaymentService(ctx http.Context) services.PaymentService {
-	return services.NewPaymentService(ctx)
+func (c *PaymentMethodController) PaymentMethodService(ctx http.Context) services.PaymentMethodService {
+	return services.NewPaymentMethodService(ctx)
 }
 
 func (c *PaymentMethodController) buildPaymentMethodFilters(ctx http.Context) services.PaymentMethodFilters {
@@ -75,14 +75,14 @@ func (c *PaymentMethodController) Index(ctx http.Context) http.Response {
 	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
 	filters := c.buildPaymentMethodFilters(ctx)
 
-	paymentMethods, total, err := c.PaymentService(ctx).GetPaymentMethods(filters, page, pageSize)
+	paymentMethods, total, err := c.PaymentMethodService(ctx).GetPaymentMethods(filters, page, pageSize)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusInternalServerError, err, map[string]any{
 			"filters": filters,
 		})
 	}
 
-	svc := c.PaymentService(ctx)
+	svc := c.PaymentMethodService(ctx)
 	paymentMethodList := make([]http.Json, len(paymentMethods))
 	for i, pm := range paymentMethods {
 		paymentMethodList[i] = svc.PaymentMethodListItem(pm)
@@ -111,13 +111,13 @@ func (c *PaymentMethodController) Index(ctx http.Context) http.Response {
 // @Security     BearerAuth
 func (c *PaymentMethodController) Show(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	paymentMethod, err := c.PaymentService(ctx).GetPaymentMethodByID(id)
+	paymentMethod, err := c.PaymentMethodService(ctx).GetPaymentMethodByID(id)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
 	// Keep flat detail payload for existing Vue/React form loaders.
-	return response.Success(ctx, c.PaymentService(ctx).PaymentMethodDetail(paymentMethod))
+	return response.Success(ctx, c.PaymentMethodService(ctx).PaymentMethodDetail(paymentMethod))
 }
 
 // Store 创建支付方式
@@ -144,7 +144,7 @@ func (c *PaymentMethodController) Store(ctx http.Context) http.Response {
 		return resp
 	}
 
-	paymentMethod, err := c.PaymentService(ctx).CreatePaymentMethodFromRequest(&req)
+	paymentMethod, err := c.PaymentMethodService(ctx).CreatePaymentMethodFromRequest(&req)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusInternalServerError, err, map[string]any{
 			"name": req.Name,
@@ -152,7 +152,7 @@ func (c *PaymentMethodController) Store(ctx http.Context) http.Response {
 		})
 	}
 
-	return response.Success(ctx, c.PaymentService(ctx).PaymentMethodListItem(*paymentMethod))
+	return response.Success(ctx, c.PaymentMethodService(ctx).PaymentMethodListItem(*paymentMethod))
 }
 
 // Update 更新支付方式
@@ -180,7 +180,7 @@ func (c *PaymentMethodController) Update(ctx http.Context) http.Response {
 		return resp
 	}
 
-	paymentMethod, err := c.PaymentService(ctx).UpdatePaymentMethodByRequest(ctx, id, &req)
+	paymentMethod, err := c.PaymentMethodService(ctx).UpdatePaymentMethodByRequest(ctx, id, &req)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
@@ -204,7 +204,7 @@ func (c *PaymentMethodController) Update(ctx http.Context) http.Response {
 // @Security     BearerAuth
 func (c *PaymentMethodController) Destroy(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	if err := c.PaymentService(ctx).DeletePaymentMethod(id); err != nil {
+	if err := c.PaymentMethodService(ctx).DeletePaymentMethod(id); err != nil {
 		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 	return response.Success(ctx, "delete_success", http.Json{})

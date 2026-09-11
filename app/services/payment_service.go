@@ -7,48 +7,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dromara/carbon/v2"
-	"github.com/go-pay/gopay"
-	"github.com/go-pay/gopay/alipay"
-	"github.com/go-pay/gopay/wechat/v3"
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
-	"github.com/goravel/framework/facades"
+	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
-	admin "goravel/app/http/requests/admin"
+	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
 
 type PaymentService interface {
-	// GetPaymentMethodByID 根据ID获取支付方式
-	GetPaymentMethodByID(id uint) (*models.PaymentMethod, error)
-	// GetPaymentMethodByCode 根据代码获取支付方式
-	GetPaymentMethodByCode(code string) (*models.PaymentMethod, error)
-	// GetPaymentMethods 获取支付方式列表
-	GetPaymentMethods(filters PaymentMethodFilters, page, pageSize int) ([]models.PaymentMethod, int64, error)
-	// CreatePaymentMethod 创建支付方式
-	CreatePaymentMethod(name, code, paymentType string, config map[string]any, isActive bool, sort int, description string) (*models.PaymentMethod, error)
-	// CreatePaymentMethodFromRequest 按请求创建支付方式
-	CreatePaymentMethodFromRequest(req *admin.PaymentMethodCreate) (*models.PaymentMethod, error)
-	// UpdatePaymentMethod 更新支付方式（保留兼容）
-	UpdatePaymentMethod(id uint, name string, config map[string]any, isActive bool, sort int, description string) error
-	// UpdatePaymentMethodModel 更新支付方式（Save）
-	UpdatePaymentMethodModel(paymentMethod *models.PaymentMethod) error
-	// UpdatePaymentMethodByRequest 按请求部分更新支付方式
-	UpdatePaymentMethodByRequest(httpCtx http.Context, id uint, req *admin.PaymentMethodUpdate) (*models.PaymentMethod, error)
-	// DeletePaymentMethod 删除支付方式
-	DeletePaymentMethod(id uint) error
-	// PaymentMethodListItem 列表行（不含敏感配置）
-	PaymentMethodListItem(pm models.PaymentMethod) map[string]any
-	// PaymentMethodDetail 详情（含解析后的 config）
-	PaymentMethodDetail(pm *models.PaymentMethod) map[string]any
 	// PaymentToJSON 支付记录列表/详情展示字段
 	PaymentToJSON(payment *models.Payment) map[string]any
-
 	// GetPaymentByID 根据ID获取支付记录
 	GetPaymentByID(id uint) (*models.Payment, error)
 	// GetPaymentByPaymentNo 根据支付单号获取支付记录
@@ -59,34 +32,6 @@ type PaymentService interface {
 	CreatePayment(orderNo string, paymentMethodID uint, userID uint, amount float64, remark string) (*models.Payment, error)
 	// UpdatePaymentStatus 更新支付状态（必须提供 paymentNo 以定位分表）
 	UpdatePaymentStatus(paymentID uint, status string, thirdPartyNo string, payTime *time.Time, failReason string, notifyData map[string]any, paymentNo ...string) error
-
-	// CreatePaymentOrder 创建支付订单（调用第三方支付）
-	CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error)
-	// QueryPaymentOrder 查询支付订单状态
-	QueryPaymentOrder(payment *models.Payment) (map[string]any, error)
-	// HandlePaymentNotify 处理支付回调通知
-	HandlePaymentNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error)
-}
-
-// PaymentMethodFilters 支付方式查询过滤器
-type PaymentMethodFilters struct {
-	Name        string
-	Code        string
-	Type        string
-	IsActive    string
-	Description string
-	OrderBy     string
-}
-
-func BuildPaymentMethodFiltersFromHTTP(ctx http.Context) PaymentMethodFilters {
-	return PaymentMethodFilters{
-		Name:        ctx.Request().Query("name", ""),
-		Code:        ctx.Request().Query("code", ""),
-		Type:        ctx.Request().Query("type", ""),
-		IsActive:    ctx.Request().Query("is_active", ""),
-		Description: ctx.Request().Query("description", ""),
-		OrderBy:     ctx.Request().Query("order_by", ""),
-	}
 }
 
 // PaymentFilters 支付记录查询过滤器
@@ -99,6 +44,54 @@ type PaymentFilters struct {
 	StartTime       time.Time
 	EndTime         time.Time
 	OrderBy         string
+}
+
+// ParsePaymentListTimeRange 解析支付列表时间；开始为空默认近 7 天，结束为空默认当前时间。
+func ParsePaymentListTimeRange(startTimeStr, endTimeStr string) (time.Time, time.Time, error) {
+	var startTime, endTime time.Time
+	var err error
+
+	if startTimeStr == "" {
+		startTime = time.Now().UTC().AddDate(0, 0, -7)
+	} else {
+		startTime, err = utils.ParseDateTime(startTimeStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid_start_time")
+		}
+	}
+
+	if endTimeStr == "" {
+		endTime = time.Now().UTC()
+	} else {
+		endTime, err = utils.ParseDateTime(endTimeStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid_end_time")
+		}
+	}
+
+	return startTime, endTime, nil
+}
+
+// BuildPaymentFiltersFromHTTP 从 query/body 构建支付列表/导出筛选（含默认时间）。
+func BuildPaymentFiltersFromHTTP(ctx http.Context) (PaymentFilters, error) {
+	startTime, endTime, err := ParsePaymentListTimeRange(
+		helpers.GetTimeInputOrQueryParam(ctx, "start_time"),
+		helpers.GetTimeInputOrQueryParam(ctx, "end_time"),
+	)
+	if err != nil {
+		return PaymentFilters{}, err
+	}
+
+	return PaymentFilters{
+		PaymentNo:       ctx.Request().Input("payment_no", ctx.Request().Query("payment_no", "")),
+		OrderNo:         ctx.Request().Input("order_no", ctx.Request().Query("order_no", "")),
+		PaymentMethodID: cast.ToUint(ctx.Request().Input("payment_method_id", ctx.Request().Query("payment_method_id", "0"))),
+		UserID:          cast.ToUint(ctx.Request().Input("user_id", ctx.Request().Query("user_id", "0"))),
+		Status:          ctx.Request().Input("status", ctx.Request().Query("status", "")),
+		StartTime:       startTime,
+		EndTime:         endTime,
+		OrderBy:         ctx.Request().Input("order_by", ctx.Request().Query("order_by", "")),
+	}, nil
 }
 
 // PaymentCountThreshold 支付记录分页统计优化阈值（超过此值使用执行计划估算）
@@ -179,248 +172,6 @@ func NewPaymentService(ctx context.Context) PaymentService {
 	return service
 }
 
-// GetPaymentMethodByID 根据ID获取支付方式
-func (s *PaymentServiceImpl) GetPaymentMethodByID(id uint) (*models.PaymentMethod, error) {
-	var paymentMethod models.PaymentMethod
-	if err := appfacades.OrmQuery(s.ctx).Where("id", id).FirstOrFail(&paymentMethod); err != nil {
-		return nil, apperrors.ErrPaymentMethodNotFound.WithError(err)
-	}
-	return &paymentMethod, nil
-}
-
-// GetPaymentMethodByCode 根据代码获取支付方式
-func (s *PaymentServiceImpl) GetPaymentMethodByCode(code string) (*models.PaymentMethod, error) {
-	var paymentMethod models.PaymentMethod
-	if err := appfacades.OrmQuery(s.ctx).Where("code", code).Where("is_active", true).FirstOrFail(&paymentMethod); err != nil {
-		return nil, apperrors.ErrPaymentMethodNotFound.WithError(err)
-	}
-	return &paymentMethod, nil
-}
-
-// GetPaymentMethods 获取支付方式列表
-func (s *PaymentServiceImpl) GetPaymentMethods(filters PaymentMethodFilters, page, pageSize int) ([]models.PaymentMethod, int64, error) {
-	query := appfacades.OrmQuery(s.ctx).Model(&models.PaymentMethod{})
-
-	// 应用筛选条件
-	if filters.Name != "" {
-		query = query.Where("name LIKE ?", "%"+filters.Name+"%")
-	}
-	if filters.Code != "" {
-		query = query.Where("code", filters.Code)
-	}
-	if filters.Type != "" {
-		query = query.Where("type", filters.Type)
-	}
-	if filters.IsActive != "" {
-		switch filters.IsActive {
-		case "1":
-			query = query.Where("is_active", true)
-		case "0":
-			query = query.Where("is_active", false)
-		}
-	}
-
-	// 应用排序
-	if filters.OrderBy != "" {
-		query = s.applyOrderBy(query, filters.OrderBy)
-	} else {
-		query = query.Order("sort asc").Order("id desc")
-	}
-
-	// 分页查询
-	var paymentMethods []models.PaymentMethod
-	var total int64
-	if err := query.Paginate(page, pageSize, &paymentMethods, &total); err != nil {
-		return nil, 0, apperrors.ErrQueryFailed.WithError(err)
-	}
-
-	return paymentMethods, total, nil
-}
-
-// validatePaymentMethodCodeUnique 校验支付方式代码唯一性（软删后仍占位）。
-func (s *PaymentServiceImpl) validatePaymentMethodCodeUnique(code string, excludeID uint) error {
-	if code == "" {
-		return nil
-	}
-	exists, err := utils.ExistsColumnValue(s.ctx, "payment_methods", nil, utils.UniqueReuseDeny, "code", code, excludeID)
-	if err != nil {
-		return apperrors.ErrCreateFailed.WithError(err)
-	}
-	if exists {
-		return apperrors.ErrPaymentMethodCodeExists
-	}
-	return nil
-}
-
-// CreatePaymentMethod 创建支付方式
-func (s *PaymentServiceImpl) CreatePaymentMethod(name, code, paymentType string, config map[string]any, isActive bool, sort int, description string) (*models.PaymentMethod, error) {
-	if err := s.validatePaymentMethodCodeUnique(code, 0); err != nil {
-		return nil, err
-	}
-	// 序列化配置
-	configJSON, err := json.Marshal(config)
-	if err != nil {
-		return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
-	}
-
-	// 使用 map 创建，确保 IsActive 为 false 时也能正确保存
-	// GORM 在处理结构体时会忽略零值字段，使用 map 可以确保所有字段都被保存
-	now := carbon.Now()
-	paymentMethod := &models.PaymentMethod{}
-	createData := map[string]any{
-		"name":        name,
-		"code":        code,
-		"type":        paymentType,
-		"config":      string(configJSON),
-		"is_active":   isActive,
-		"sort":        sort,
-		"description": description,
-		"created_at":  now,
-		"updated_at":  now,
-	}
-
-	if err := appfacades.OrmQuery(s.ctx).Model(paymentMethod).Create(createData); err != nil {
-		return nil, apperrors.ErrCreateFailed.WithError(err)
-	}
-
-	return paymentMethod, nil
-}
-
-// CreatePaymentMethodFromRequest 按请求创建支付方式
-func (s *PaymentServiceImpl) CreatePaymentMethodFromRequest(req *admin.PaymentMethodCreate) (*models.PaymentMethod, error) {
-	return s.CreatePaymentMethod(req.Name, req.Code, req.Type, req.Config, req.IsActive, req.Sort, req.Description)
-}
-
-// UpdatePaymentMethod 更新支付方式
-func (s *PaymentServiceImpl) UpdatePaymentMethod(id uint, name string, config map[string]any, isActive bool, sort int, description string) error {
-	paymentMethod, err := s.GetPaymentMethodByID(id)
-	if err != nil {
-		return err
-	}
-
-	// 序列化配置
-	var configJSON string
-	if config != nil {
-		configBytes, err := json.Marshal(config)
-		if err != nil {
-			return apperrors.ErrPaymentConfigRequired.WithError(err)
-		}
-		configJSON = string(configBytes)
-	} else {
-		configJSON = paymentMethod.Config // 保持原有配置
-	}
-
-	updateData := map[string]any{
-		"name":        name,
-		"config":      configJSON,
-		"is_active":   isActive,
-		"sort":        sort,
-		"description": description,
-	}
-
-	if _, err := appfacades.OrmQuery(s.ctx).Where("id", id).Update(&models.PaymentMethod{}, updateData); err != nil {
-		return apperrors.ErrUpdateFailed.WithError(err)
-	}
-
-	return nil
-}
-
-// UpdatePaymentMethodModel 更新支付方式（新模式）
-func (s *PaymentServiceImpl) UpdatePaymentMethodModel(paymentMethod *models.PaymentMethod) error {
-	if err := appfacades.OrmQuery(s.ctx).Save(paymentMethod); err != nil {
-		return apperrors.ErrUpdateFailed.WithError(err)
-	}
-	return nil
-}
-
-// UpdatePaymentMethodByRequest 按请求部分更新支付方式
-func (s *PaymentServiceImpl) UpdatePaymentMethodByRequest(httpCtx http.Context, id uint, req *admin.PaymentMethodUpdate) (*models.PaymentMethod, error) {
-	paymentMethod, err := s.GetPaymentMethodByID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	allInputs := httpCtx.Request().All()
-
-	if req.Name != nil {
-		paymentMethod.Name = *req.Name
-	}
-	if _, exists := allInputs["config"]; exists {
-		if req.Config == nil {
-			return nil, apperrors.ErrPaymentConfigRequired
-		}
-		configBytes, err := json.Marshal(req.Config)
-		if err != nil {
-			return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
-		}
-		paymentMethod.Config = string(configBytes)
-	}
-	if req.IsActive != nil {
-		paymentMethod.IsActive = *req.IsActive
-	}
-	if req.Sort != nil {
-		paymentMethod.Sort = *req.Sort
-	}
-	if req.Description != nil {
-		paymentMethod.Description = *req.Description
-	}
-
-	if err := s.UpdatePaymentMethodModel(paymentMethod); err != nil {
-		return nil, err
-	}
-	return paymentMethod, nil
-}
-
-// DeletePaymentMethod 删除支付方式
-func (s *PaymentServiceImpl) DeletePaymentMethod(id uint) error {
-	_, err := s.GetPaymentMethodByID(id)
-	if err != nil {
-		return err
-	}
-
-	if _, err := appfacades.OrmQuery(s.ctx).Where("id", id).Delete(&models.PaymentMethod{}); err != nil {
-		return apperrors.ErrDeleteFailed.WithError(err)
-	}
-
-	return nil
-}
-
-func (s *PaymentServiceImpl) PaymentMethodListItem(pm models.PaymentMethod) map[string]any {
-	return map[string]any{
-		"id":          pm.ID,
-		"name":        pm.Name,
-		"code":        pm.Code,
-		"type":        pm.Type,
-		"is_active":   pm.IsActive,
-		"sort":        pm.Sort,
-		"description": pm.Description,
-		"created_at":  pm.CreatedAt,
-		"updated_at":  pm.UpdatedAt,
-	}
-}
-
-func (s *PaymentServiceImpl) PaymentMethodDetail(pm *models.PaymentMethod) map[string]any {
-	config := make(map[string]any)
-	if pm.Config != "" {
-		if err := json.Unmarshal([]byte(pm.Config), &config); err != nil {
-			config = make(map[string]any)
-		}
-	}
-
-	return map[string]any{
-		"id":          pm.ID,
-		"name":        pm.Name,
-		"code":        pm.Code,
-		"type":        pm.Type,
-		"config":      config,
-		"is_active":   pm.IsActive,
-		"sort":        pm.Sort,
-		"description": pm.Description,
-		"created_at":  pm.CreatedAt,
-		"updated_at":  pm.UpdatedAt,
-	}
-}
-
 func (s *PaymentServiceImpl) PaymentToJSON(payment *models.Payment) map[string]any {
 	payload := map[string]any{
 		"id":                payment.ID,
@@ -457,7 +208,7 @@ func (s *PaymentServiceImpl) GetPaymentByID(id uint) (*models.Payment, error) {
 	}
 	// 手动加载支付方式
 	if payment.PaymentMethodID > 0 {
-		paymentMethod, err := s.GetPaymentMethodByID(payment.PaymentMethodID)
+		paymentMethod, err := NewPaymentMethodService(s.ctx).GetPaymentMethodByID(payment.PaymentMethodID)
 		if err == nil {
 			payment.PaymentMethod = *paymentMethod
 		}
@@ -474,7 +225,7 @@ func (s *PaymentServiceImpl) GetPaymentByPaymentNo(paymentNo string) (*models.Pa
 	}
 	// 手动加载支付方式
 	if payment.PaymentMethodID > 0 {
-		paymentMethod, err := s.GetPaymentMethodByID(payment.PaymentMethodID)
+		paymentMethod, err := NewPaymentMethodService(s.ctx).GetPaymentMethodByID(payment.PaymentMethodID)
 		if err == nil {
 			payment.PaymentMethod = *paymentMethod
 		}
@@ -564,7 +315,7 @@ func (s *PaymentServiceImpl) CreatePayment(orderNo string, paymentMethodID uint,
 	}
 
 	// 验证支付方式
-	paymentMethod, err := s.GetPaymentMethodByID(paymentMethodID)
+	paymentMethod, err := NewPaymentMethodService(s.ctx).GetPaymentMethodByID(paymentMethodID)
 	if err != nil {
 		return nil, err
 	}
@@ -658,263 +409,6 @@ func (s *PaymentServiceImpl) UpdatePaymentStatus(paymentID uint, status string, 
 	}
 
 	return nil
-}
-
-// CreatePaymentOrder 创建支付订单（调用第三方支付）
-func (s *PaymentServiceImpl) CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error) {
-	// 获取支付方式
-	paymentMethod, err := s.GetPaymentMethodByID(payment.PaymentMethodID)
-	if err != nil {
-		return nil, err
-	}
-
-	// 解析配置
-	var config map[string]any
-	if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
-		return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
-	}
-
-	// 根据支付类型调用不同的支付接口
-	switch paymentMethod.Type {
-	case "wechat":
-		return s.createWechatPayment(payment, config, clientIP)
-	case "alipay":
-		return s.createAlipayPayment(payment, config, clientIP)
-	default:
-		return nil, apperrors.ErrInvalidPaymentType.WithMessage(fmt.Sprintf("不支持的支付类型: %s", paymentMethod.Type))
-	}
-}
-
-// createWechatPayment 创建微信支付订单
-func (s *PaymentServiceImpl) createWechatPayment(payment *models.Payment, config map[string]any, clientIP string) (map[string]any, error) {
-	// 这里需要根据 gopay 的微信支付文档实现
-	// 示例代码，实际使用时需要根据 gopay 的最新 API 调整
-	// 参考: https://github.com/go-pay/gopay/tree/main/wechat/v3
-
-	// 获取配置参数
-	appID, _ := config["app_id"].(string)
-	mchID, _ := config["mch_id"].(string)
-	apiV3Key, _ := config["api_v3_key"].(string)
-	certSerialNo, _ := config["cert_serial_no"].(string)
-	privateKeyPath, _ := config["private_key_path"].(string)
-
-	if appID == "" || mchID == "" || apiV3Key == "" {
-		return nil, apperrors.ErrPaymentConfigRequired.WithMessage("微信支付配置不完整")
-	}
-
-	// 创建微信支付客户端
-	client, err := wechat.NewClientV3(appID, mchID, apiV3Key, certSerialNo)
-	if err != nil {
-		return nil, apperrors.ErrCreatePaymentFailed.WithError(err)
-	}
-	// 设置私钥（如果需要）
-	if privateKeyPath != "" {
-		// 这里需要根据 gopay 的实际 API 设置私钥
-		// client.SetPrivateKey(...)
-	}
-
-	// 设置回调地址（需要从配置中读取）
-	notifyURL, _ := config["notify_url"].(string)
-	if notifyURL == "" {
-		notifyURL = fmt.Sprintf("%s/api/payment/notify/wechat", facades.Config().GetString("app.url"))
-	}
-
-	// 创建支付订单
-	bm := make(gopay.BodyMap)
-	bm.Set("out_trade_no", payment.PaymentNo)
-	bm.Set("description", payment.Remark)
-	bm.Set("amount", map[string]any{
-		"total":    int(payment.Amount * 100), // 转换为分
-		"currency": "CNY",
-	})
-	bm.Set("notify_url", notifyURL)
-	bm.Set("payer", map[string]any{
-		"openid": config["openid"], // 需要从订单或用户信息中获取
-	})
-
-	// 注意：这里需要根据 gopay 的最新 API 调用
-	// 示例代码，实际使用时需要根据 gopay 的最新文档调整
-	ctx := context.Background()
-	wxRsp, err := client.V3TransactionJsapi(ctx, bm)
-	if err != nil {
-		return nil, apperrors.ErrCreatePaymentFailed.WithError(err)
-	}
-
-	if wxRsp.Code != wechat.Success {
-		return nil, apperrors.ErrCreatePaymentFailed.WithMessage(wxRsp.Error)
-	}
-
-	return map[string]any{
-		"payment_no": payment.PaymentNo,
-		"prepay_id":  wxRsp.Response.PrepayId,
-		// PaySign 可能需要从其他地方获取或计算
-	}, nil
-}
-
-// createAlipayPayment 创建支付宝支付订单
-func (s *PaymentServiceImpl) createAlipayPayment(payment *models.Payment, config map[string]any, clientIP string) (map[string]any, error) {
-	// 这里需要根据 gopay 的支付宝文档实现
-	// 示例代码，实际使用时需要根据 gopay 的最新 API 调整
-	// 参考: https://github.com/go-pay/gopay/tree/main/alipay
-
-	// 获取配置参数
-	appID, _ := config["app_id"].(string)
-	privateKey, _ := config["private_key"].(string)
-	// appCertPublicKey, _ := config["app_cert_public_key"].(string)
-	// alipayRootCert, _ := config["alipay_root_cert"].(string)
-	// alipayPublicCert, _ := config["alipay_public_cert"].(string)
-
-	if appID == "" || privateKey == "" {
-		return nil, apperrors.ErrPaymentConfigRequired.WithMessage("支付宝配置不完整")
-	}
-
-	// 创建支付宝客户端
-	client, err := alipay.NewClient(appID, privateKey, false)
-	if err != nil {
-		return nil, apperrors.ErrCreatePaymentFailed.WithError(err)
-	}
-
-	// 设置证书（如果需要）
-	// 注意：这里需要根据 gopay 的最新 API 设置证书
-	// 示例代码，实际使用时需要根据 gopay 的最新文档调整
-	// if appCertPublicKey != "" {
-	// 	client.SetAppCertPublicKey(appCertPublicKey)
-	// }
-	// if alipayRootCert != "" {
-	// 	client.SetAlipayRootCert(alipayRootCert)
-	// }
-	// if alipayPublicCert != "" {
-	// 	client.SetAlipayPublicCert(alipayPublicCert)
-	// }
-
-	// 设置回调地址
-	notifyURL, _ := config["notify_url"].(string)
-	if notifyURL == "" {
-		notifyURL = fmt.Sprintf("%s/api/payment/notify/alipay", facades.Config().GetString("app.url"))
-	}
-	client.SetNotifyUrl(notifyURL)
-
-	// 创建支付订单
-	bm := make(gopay.BodyMap)
-	bm.Set("out_trade_no", payment.PaymentNo)
-	bm.Set("subject", payment.Remark)
-	bm.Set("total_amount", fmt.Sprintf("%.2f", payment.Amount))
-	bm.Set("product_code", "QUICK_MSECURITY_PAY")
-
-	ctx := context.Background()
-	payUrl, err := client.TradeAppPay(ctx, bm)
-	if err != nil {
-		return nil, apperrors.ErrCreatePaymentFailed.WithError(err)
-	}
-
-	return map[string]any{
-		"payment_no": payment.PaymentNo,
-		"pay_url":    payUrl,
-	}, nil
-}
-
-// QueryPaymentOrder 查询支付订单状态
-func (s *PaymentServiceImpl) QueryPaymentOrder(payment *models.Payment) (map[string]any, error) {
-	// 获取支付方式
-	paymentMethod, err := s.GetPaymentMethodByID(payment.PaymentMethodID)
-	if err != nil {
-		return nil, err
-	}
-
-	// 解析配置
-	var config map[string]any
-	if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
-		return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
-	}
-
-	// 根据支付类型查询
-	switch paymentMethod.Type {
-	case "wechat":
-		return s.queryWechatPayment(payment, config)
-	case "alipay":
-		return s.queryAlipayPayment(payment, config)
-	default:
-		return nil, apperrors.ErrInvalidPaymentType.WithMessage(fmt.Sprintf("不支持的支付类型: %s", paymentMethod.Type))
-	}
-}
-
-// queryWechatPayment 查询微信支付订单状态
-func (s *PaymentServiceImpl) queryWechatPayment(payment *models.Payment, config map[string]any) (map[string]any, error) {
-	// 实现微信支付查询逻辑
-	// 这里需要根据 gopay 的微信支付文档实现
-	return nil, fmt.Errorf("微信支付查询功能待实现")
-}
-
-// queryAlipayPayment 查询支付宝支付订单状态
-func (s *PaymentServiceImpl) queryAlipayPayment(payment *models.Payment, config map[string]any) (map[string]any, error) {
-	// 实现支付宝支付查询逻辑
-	// 这里需要根据 gopay 的支付宝文档实现
-	return nil, fmt.Errorf("支付宝支付查询功能待实现")
-}
-
-// HandlePaymentNotify 处理支付回调通知
-func (s *PaymentServiceImpl) HandlePaymentNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
-	// 根据支付类型处理回调
-	switch paymentMethod.Type {
-	case "wechat":
-		return s.handleWechatNotify(paymentMethod, notifyData)
-	case "alipay":
-		return s.handleAlipayNotify(paymentMethod, notifyData)
-	default:
-		return nil, apperrors.ErrInvalidPaymentType.WithMessage(fmt.Sprintf("不支持的支付类型: %s", paymentMethod.Type))
-	}
-}
-
-// handleWechatNotify 处理微信支付回调
-func (s *PaymentServiceImpl) handleWechatNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
-	// 实现微信支付回调处理逻辑
-	// 这里需要根据 gopay 的微信支付文档实现
-	return nil, fmt.Errorf("微信支付回调处理功能待实现")
-}
-
-// handleAlipayNotify 处理支付宝支付回调
-func (s *PaymentServiceImpl) handleAlipayNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
-	// 实现支付宝支付回调处理逻辑
-	// 这里需要根据 gopay 的支付宝文档实现
-	return nil, fmt.Errorf("支付宝支付回调处理功能待实现")
-}
-
-// buildPaymentMethodWhereClause 构建支付方式查询的 WHERE 条件
-func (s *PaymentServiceImpl) buildPaymentMethodWhereClause(filters PaymentMethodFilters) (string, []any) {
-	var conditions []string
-	var args []any
-
-	if filters.Name != "" {
-		conditions = append(conditions, "name LIKE ?")
-		args = append(args, "%"+filters.Name+"%")
-	}
-	if filters.Code != "" {
-		conditions = append(conditions, "code = ?")
-		args = append(args, filters.Code)
-	}
-	if filters.Type != "" {
-		conditions = append(conditions, "type = ?")
-		args = append(args, filters.Type)
-	}
-	if filters.IsActive != "" {
-		switch filters.IsActive {
-		case "1":
-			conditions = append(conditions, "is_active = ?")
-			args = append(args, true)
-		case "0":
-			conditions = append(conditions, "is_active = ?")
-			args = append(args, false)
-		}
-	}
-	if filters.Description != "" {
-		conditions = append(conditions, "description LIKE ?")
-		args = append(args, "%"+filters.Description+"%")
-	}
-
-	if len(conditions) == 0 {
-		return "", nil
-	}
-	return strings.Join(conditions, " AND "), args
 }
 
 // buildPaymentWhereClause 构建支付记录查询的 WHERE 条件

@@ -78,13 +78,13 @@ These admin modules follow the code generator pattern end-to-end:
 | `position`, `attachment_category`, `blacklist`, `dictionary`, `permission`, `role` | Full CRUD |
 | `menu`, `department` | Tree/index special cases kept; CRUD uses shared helpers |
 | `admin` | CRUD migrated; Export / 2FA actions remain hand-written |
-| `payment_method` | CRUD migrated (flat Show/Store detail payload kept) |
+| `payment_method` | CRUD via `PaymentMethodService` (split from payment god service) |
 | `password` | UpdateOwnPassword / ResetPassword in AdminService + shared helpers |
 | `login-log`, `operation-log`, `system-log` | List/Show/Delete/Batch/Clean migrated; title/module options in service |
 | `user` | CRUD + UpdateBalance/ResetPassword/Export use shared helper |
 | `user_balance_log` | List/statistics use shared error helper; `Store` remains hand-written (sharding) |
-| `payment` | Index/Show thin + `PaymentToJSON`; export/queue remain hand-written |
-| `order` | Index/Show/Store/Update/Destroy thin + JSON helpers; import/export orchestration uses shared error helper |
+| `payment` | Index/Show thin + `PaymentToJSON` + `BuildPaymentFiltersFromHTTP`; gateway is `PaymentGatewayService`; export/queue remain hand-written |
+| `order` | Index/Show/Store/Update/Destroy thin + `BuildOrderFiltersFromHTTP`; import/export orchestration uses shared error helper |
 | `attachment` | Index filters/`AttachmentToJSON` + shared error helper; upload/chunk/stream stay HTTP-layer |
 | `online_admin` | Full list/kick via `online_admin_service` |
 | `config` | GetByGroup/Save/TestEmail via `config_service` |

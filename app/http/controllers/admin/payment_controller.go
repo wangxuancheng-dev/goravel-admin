@@ -1,10 +1,7 @@
 package admin
 
 import (
-	"time"
-
 	"github.com/goravel/framework/contracts/http"
-	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
 	"goravel/app/http/apidoc"
@@ -67,46 +64,14 @@ func (c *PaymentController) PaymentService(ctx http.Context) services.PaymentSer
 }
 
 func (c *PaymentController) buildFilters(ctx http.Context) (services.PaymentFilters, http.Response) {
-	paymentNo := ctx.Request().Input("payment_no", ctx.Request().Query("payment_no", ""))
-	orderNo := ctx.Request().Input("order_no", ctx.Request().Query("order_no", ""))
-	paymentMethodID := cast.ToUint(ctx.Request().Input("payment_method_id", ctx.Request().Query("payment_method_id", "0")))
-	userID := cast.ToUint(ctx.Request().Input("user_id", ctx.Request().Query("user_id", "0")))
-	status := ctx.Request().Input("status", ctx.Request().Query("status", ""))
-	orderBy := ctx.Request().Input("order_by", ctx.Request().Query("order_by", ""))
-
-	var startTime, endTime time.Time
-	if parsedStartTime, resp := parseOptionalTimeFromInputOrQuery(ctx, "start_time", "invalid_start_time"); resp != nil {
-		return services.PaymentFilters{}, resp
-	} else {
-		startTime = parsedStartTime
+	filters, err := services.BuildPaymentFiltersFromHTTP(ctx)
+	if err != nil {
+		return services.PaymentFilters{}, response.Error(ctx, http.StatusBadRequest, err.Error())
 	}
-	if parsedEndTime, resp := parseOptionalTimeFromInputOrQuery(ctx, "end_time", "invalid_end_time"); resp != nil {
-		return services.PaymentFilters{}, resp
-	} else {
-		endTime = parsedEndTime
-	}
-
-	if startTime.IsZero() {
-		startTime = time.Now().UTC().AddDate(0, 0, -7)
-	}
-	if endTime.IsZero() {
-		endTime = time.Now().UTC()
-	}
-
-	if resp := validateTimeRangeResponse(ctx, startTime, endTime); resp != nil {
+	if resp := validateTimeRangeResponse(ctx, filters.StartTime, filters.EndTime); resp != nil {
 		return services.PaymentFilters{}, resp
 	}
-
-	return services.PaymentFilters{
-		PaymentNo:       paymentNo,
-		OrderNo:         orderNo,
-		PaymentMethodID: paymentMethodID,
-		UserID:          userID,
-		Status:          status,
-		StartTime:       startTime,
-		EndTime:         endTime,
-		OrderBy:         orderBy,
-	}, nil
+	return filters, nil
 }
 
 func (c *PaymentController) Index(ctx http.Context) http.Response {
