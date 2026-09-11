@@ -85,10 +85,12 @@ jobs:
         run: |
           set -euo pipefail
           cp .env.example .env
+          # Goravel requires APP_KEY to be exactly 32 chars (no base64: prefix).
+          # Invalid keys make Config exit 0 before migrate runs — CI would go green falsely.
           sed -i \
             -e 's/^APP_ENV=.*/APP_ENV=test/' \
             -e 's/^APP_DEBUG=.*/APP_DEBUG=false/' \
-            -e 's/^APP_KEY=.*/APP_KEY=base64:Y2ktdGVzdC1hcHAta2V5LTMyLWJ5dGVzLWxvbmchISE=/' \
+            -e 's/^APP_KEY=.*/APP_KEY=ci-test-app-key-32-bytes-long!!!/' \
             -e 's/^JWT_SECRET=.*/JWT_SECRET=ci-jwt-secret-change-me-not-for-prod/' \
             -e 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' \
             -e 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' \
@@ -103,7 +105,11 @@ jobs:
             .env
 
       - name: Migrate
-        run: go run . artisan migrate
+        run: |
+          set -euo pipefail
+          go run . artisan migrate 2>&1 | tee migrate.log
+          # Config exits 0 on bad APP_KEY; migrate Handle also returns nil on error.
+          grep -q 'Migration success' migrate.log
 
       - name: Feature / smoke tests
         run: go test -count=1 -timeout=5m ./tests/feature/...

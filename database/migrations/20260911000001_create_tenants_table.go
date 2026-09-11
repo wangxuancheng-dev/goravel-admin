@@ -24,7 +24,7 @@ func (m *M20260911000001CreateTenantsTable) Up() error {
 		table.String("database", 128).Comment("目标 database 名")
 		table.String("schema", 128).Nullable().Comment("PG schema；database 隔离可空")
 		table.String("username", 128).Nullable().Comment("空则回落平台用户")
-		table.String("password", 1024).Nullable().Comment("空则回落平台密码；存 APP_KEY 加密密文")
+		table.Text("password").Nullable().Comment("空则回落平台密码；存 APP_KEY 加密密文")
 		table.String("connection_name", 64).Comment("运行时 connection 名")
 		table.Timestamps()
 		table.SoftDeletes()

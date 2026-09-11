@@ -28,7 +28,7 @@ type Tenant struct {
 	Database       string `gorm:"size:128;not null;comment:目标 database 名" json:"database"`
 	Schema         string `gorm:"size:128;comment:PG schema 名；database 隔离时可空" json:"schema"`
 	Username       string `gorm:"size:128;comment:空则回落平台用户" json:"username"`
-	Password       string `gorm:"size:1024;comment:空则回落平台密码；APP_KEY 加密" json:"-"`
+	Password       string `gorm:"type:text;comment:空则回落平台密码；APP_KEY 加密" json:"-"`
 	ConnectionName string `gorm:"size:64;uniqueIndex;not null;comment:运行时 connection 名" json:"connection_name"`
 	orm.SoftDeletes
 }
