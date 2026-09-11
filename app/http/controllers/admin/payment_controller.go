@@ -1,17 +1,14 @@
 package admin
 
 import (
-	"encoding/json"
 	"fmt"
-	appfacades "goravel/app/facades"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
-	"github.com/goravel/framework/contracts/queue"
-	"github.com/goravel/framework/facades"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
+	appfacades "goravel/app/facades"
 	"goravel/app/http/apidoc"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
@@ -22,8 +19,7 @@ import (
 	"goravel/app/utils"
 )
 
-type PaymentController struct {}
-
+type PaymentController struct{}
 
 type PaymentMethodSimple struct {
 	ID   uint   `json:"id" example:"1"`
@@ -50,7 +46,7 @@ type PaymentResponse struct {
 }
 
 type PaymentListData struct {
-	Data []PaymentResponse `json:"data"`
+	List []PaymentResponse `json:"list"`
 	apidoc.Pagination
 }
 
@@ -68,12 +64,11 @@ func NewPaymentController() *PaymentController {
 	return &PaymentController{}
 }
 
-func (r *PaymentController) paymentService(ctx http.Context) services.PaymentService {
+func (c *PaymentController) PaymentService(ctx http.Context) services.PaymentService {
 	return services.NewPaymentService(ctx)
 }
 
-
-func (r *PaymentController) buildFilters(ctx http.Context) (services.PaymentFilters, http.Response) {
+func (c *PaymentController) buildFilters(ctx http.Context) (services.PaymentFilters, http.Response) {
 	paymentNo := ctx.Request().Input("payment_no", ctx.Request().Query("payment_no", ""))
 	orderNo := ctx.Request().Input("order_no", ctx.Request().Query("order_no", ""))
 	paymentMethodID := cast.ToUint(ctx.Request().Input("payment_method_id", ctx.Request().Query("payment_method_id", "0")))
@@ -116,128 +111,55 @@ func (r *PaymentController) buildFilters(ctx http.Context) (services.PaymentFilt
 	}, nil
 }
 
-func (r *PaymentController) Index(ctx http.Context) http.Response {
+func (c *PaymentController) Index(ctx http.Context) http.Response {
 	page := helpers.GetIntQuery(ctx, "page", 1)
 	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
 
-	filters, resp := r.buildFilters(ctx)
+	filters, resp := c.buildFilters(ctx)
 	if resp != nil {
 		return resp
 	}
 
-	payments, total, err := r.paymentService(ctx).GetPayments(filters, page, pageSize)
+	payments, total, err := c.PaymentService(ctx).GetPayments(filters, page, pageSize)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "payment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "payment", http.StatusInternalServerError, err, map[string]any{
 			"filters": filters,
 		})
 	}
 
+	svc := c.PaymentService(ctx)
 	paymentList := make([]http.Json, len(payments))
-	for i, payment := range payments {
-		paymentJson := http.Json{
-			"id":                payment.ID,
-			"payment_no":        payment.PaymentNo,
-			"order_no":          payment.OrderNo,
-			"payment_method_id": payment.PaymentMethodID,
-			"user_id":           payment.UserID,
-			"amount":            payment.Amount,
-			"status":            payment.Status,
-			"third_party_no":    payment.ThirdPartyNo,
-			"pay_time":          r.formatPayTime(payment.PayTime),
-			"fail_reason":       payment.FailReason,
-			"remark":            payment.Remark,
-			"created_at":        payment.CreatedAt,
-			"updated_at":        payment.UpdatedAt,
-		}
-
-		if payment.PaymentMethod.ID > 0 {
-			paymentJson["payment_method"] = http.Json{
-				"id":   payment.PaymentMethod.ID,
-				"name": payment.PaymentMethod.Name,
-				"code": payment.PaymentMethod.Code,
-				"type": payment.PaymentMethod.Type,
-			}
-		}
-
-		paymentList[i] = paymentJson
+	for i := range payments {
+		paymentList[i] = svc.PaymentToJSON(&payments[i])
 	}
 
 	return response.Success(ctx, http.Json{
-		"data":      paymentList,
+		"list":      paymentList,
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,
 	})
 }
 
-func (r *PaymentController) Show(ctx http.Context) http.Response {
+func (c *PaymentController) Show(ctx http.Context) http.Response {
 	paymentNo := ctx.Request().Route("id")
 	if paymentNo == "" {
 		return response.Error(ctx, http.StatusBadRequest, "payment_no_required")
 	}
-	payment, err := r.paymentService(ctx).GetPaymentByPaymentNo(paymentNo)
+	payment, err := c.PaymentService(ctx).GetPaymentByPaymentNo(paymentNo)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrPaymentNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "payment", http.StatusNotFound, err, map[string]any{
+			"payment_no": paymentNo,
+		})
 	}
 
-	paymentJson := http.Json{
-		"id":                payment.ID,
-		"payment_no":        payment.PaymentNo,
-		"order_no":          payment.OrderNo,
-		"payment_method_id": payment.PaymentMethodID,
-		"user_id":           payment.UserID,
-		"amount":            payment.Amount,
-		"status":            payment.Status,
-		"third_party_no":    payment.ThirdPartyNo,
-		"pay_time":          r.formatPayTime(payment.PayTime),
-		"fail_reason":       payment.FailReason,
-		"remark":            payment.Remark,
-		"created_at":        payment.CreatedAt,
-		"updated_at":        payment.UpdatedAt,
-	}
-
-	if payment.PaymentMethod.ID > 0 {
-		paymentJson["payment_method"] = http.Json{
-			"id":   payment.PaymentMethod.ID,
-			"name": payment.PaymentMethod.Name,
-			"code": payment.PaymentMethod.Code,
-			"type": payment.PaymentMethod.Type,
-		}
-	}
-
-	return response.Success(ctx, paymentJson)
+	return response.Success(ctx, c.PaymentService(ctx).PaymentToJSON(payment))
 }
 
-func (r *PaymentController) formatPayTime(t *time.Time) string {
-	return utils.FormatDateTimePtr(t)
-}
-
-func (r *PaymentController) Export(ctx http.Context) http.Response {
-	lock := helpers.AcquireExportLock(ctx, "payments")
-	if lock.Unauthorized {
-		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
-	}
-	if lock.Blocked {
-		return response.Error(ctx, http.StatusTooManyRequests, apperrors.ErrGetLockFailed.Code)
-	}
-	adminID := lock.AdminID
-
-	filters, resp := r.buildFilters(ctx)
+func (c *PaymentController) Export(ctx http.Context) http.Response {
+	filters, resp := c.buildFilters(ctx)
 	if resp != nil {
 		return resp
-	}
-
-	disk := helpers.ResolveExportDisk(ctx)
-
-	exportRecord := models.Export{
-		AdminID: adminID,
-		Type:    models.ExportTypePayments,
-		Status:  models.ExportStatusProcessing,
-		Disk:    disk,
-		Path:    "",
-	}
-	if err := appfacades.OrmQuery(ctx).Create(&exportRecord); err != nil {
-		return response.ErrorWithLog(ctx, "export", err)
 	}
 
 	filtersMap := map[string]any{
@@ -255,48 +177,29 @@ func (r *PaymentController) Export(ctx http.Context) http.Response {
 		filtersMap["end_time"] = utils.FormatDateTime(filters.EndTime)
 	}
 
-	lang := r.getCurrentLanguage(ctx)
-	timezone := helpers.GetCurrentTimezone(ctx)
-
-	exportArgsStruct := jobs.ExportPaymentsArgs{
-		ExportID: exportRecord.ID,
-		AdminID:  adminID,
-		Filters:  filtersMap,
-		Type:     "payments",
-		Language: lang,
-		Timezone: timezone,
+	result := EnqueueAsyncExport(ctx, EnqueueAsyncExportInput{
+		LockResource: "payments",
+		ExportType:   models.ExportTypePayments,
+		Filters:      filtersMap,
+		Job:          &jobs.ExportPayments{},
+	})
+	if result.Unauthorized {
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
 	}
-
-	exportArgsJSON, err := json.Marshal(exportArgsStruct)
-	if err != nil {
-		exportRecord.Status = models.ExportStatusFailed
-		exportRecord.ErrorMsg = err.Error()
-		appfacades.OrmQuery(ctx).Save(&exportRecord)
-		return response.ErrorWithLog(ctx, "export", err)
+	if result.Blocked {
+		return response.Error(ctx, http.StatusTooManyRequests, apperrors.ErrGetLockFailed.Code)
 	}
-
-	exportArgs := []queue.Arg{
-		{
-			Type:  "string",
-			Value: string(exportArgsJSON),
-		},
-	}
-
-	if err := facades.Queue().Job(&jobs.ExportPayments{}, exportArgs).OnQueue("long-running").Dispatch(); err != nil {
-		lock.Release()
-		exportRecord.Status = models.ExportStatusFailed
-		exportRecord.ErrorMsg = err.Error()
-		appfacades.OrmQuery(ctx).Save(&exportRecord)
-		return response.ErrorWithLog(ctx, "export", err)
+	if result.Err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, result.Err, nil)
 	}
 
 	return response.Success(ctx, http.Json{
-		"export_id": exportRecord.ID,
+		"export_id": result.ExportID,
 		"message":   trans.Get(ctx, "queued"),
 	})
 }
 
-func (r *PaymentController) GetExportStatus(ctx http.Context) http.Response {
+func (c *PaymentController) GetExportStatus(ctx http.Context) http.Response {
 	exportID := helpers.GetUintRoute(ctx, "id")
 	if exportID == 0 {
 		return response.Error(ctx, http.StatusBadRequest, "id_required")
@@ -310,7 +213,7 @@ func (r *PaymentController) GetExportStatus(ctx http.Context) http.Response {
 	result := http.Json{
 		"id":          exportRecord.ID,
 		"status":      exportRecord.Status,
-		"status_text": r.getExportStatusText(ctx, exportRecord.Status),
+		"status_text": c.getExportStatusText(ctx, exportRecord.Status),
 		"path":        exportRecord.Path,
 		"filename":    exportRecord.Filename,
 		"size":        exportRecord.Size,
@@ -326,11 +229,7 @@ func (r *PaymentController) GetExportStatus(ctx http.Context) http.Response {
 	return response.Success(ctx, result)
 }
 
-func (r *PaymentController) getCurrentLanguage(ctx http.Context) string {
-	return utils.GetCurrentLanguage(ctx)
-}
-
-func (r *PaymentController) getExportStatusText(ctx http.Context, status uint8) string {
+func (c *PaymentController) getExportStatusText(ctx http.Context, status uint8) string {
 	switch status {
 	case models.ExportStatusProcessing:
 		return trans.Get(ctx, "processing")

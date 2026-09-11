@@ -28,7 +28,8 @@ func HandleGeneratedServiceError(ctx http.Context, module string, status int, er
 		return nil
 	}
 	if businessErr, ok := apperrors.GetBusinessError(err); ok {
-		return response.Error(ctx, businessErrorStatus(businessErr.Code, status), businessErr.Code)
+		// Pass the BusinessError itself so response.Error can apply i18n + WithParams placeholders.
+		return response.Error(ctx, businessErrorStatus(businessErr.Code, status), businessErr)
 	}
 	if status >= stdhttp.StatusInternalServerError {
 		if attrs == nil {
@@ -51,11 +52,24 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusBadRequest
 	case code == "password_encrypt_failed":
 		return http.StatusInternalServerError
-	case code == "too_many_requests":
+	case code == "too_many_requests" || code == "login_locked":
 		return http.StatusTooManyRequests
-	case strings.HasPrefix(code, "role_protected_"):
+	case code == "schedule_busy":
+		return http.StatusConflict
+	case code == "old_password_error" ||
+		code == "google_code_invalid" ||
+		code == "google_code_required" ||
+		code == "google_authenticator_not_bound" ||
+		code == "google_authenticator_already_bound":
+		return http.StatusBadRequest
+	case code == "token_refresh_failed":
+		return http.StatusUnauthorized
+	case strings.HasPrefix(code, "role_protected_") ||
+		strings.HasPrefix(code, "admin_protected_") ||
+		strings.HasPrefix(code, "admin_cannot_") ||
+		code == "protected_admin":
 		return http.StatusForbidden
-	case strings.Contains(code, "_has_") || strings.HasPrefix(code, "protected_"):
+	case strings.Contains(code, "_has_"):
 		return http.StatusBadRequest
 	case code == "account_disabled" || code == "forbidden":
 		return http.StatusForbidden
@@ -63,10 +77,9 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusUnauthorized
 	case code == "query_failed" || code == "create_failed" || code == "update_failed" || code == "delete_failed" || code == "operation_failed":
 		return http.StatusInternalServerError
+	case strings.HasSuffix(code, "_failed"):
+		return http.StatusInternalServerError
 	default:
-		if fallback >= stdhttp.StatusInternalServerError {
-			return http.StatusBadRequest
-		}
 		return fallback
 	}
 }

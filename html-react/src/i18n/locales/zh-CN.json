@@ -28,6 +28,7 @@
     "description": "描述",
     "password": "密码",
     "query_failed": "查询失败",
+    "operation_success": "操作成功",
     "operation_failed": "操作失败",
     "schedule_command_required": "请选择要执行的定时任务",
     "schedule_command_not_allowed": "不允许执行该命令",
@@ -859,7 +860,10 @@
     "extension": "后缀名",
     "size": "文件大小",
     "download_success": "下载成功",
-    "download_failed": "无法构造下载链接"
+    "download_failed": "无法构造下载链接",
+    "task_submitted": "导出任务已提交，请稍候",
+    "success": "导出成功",
+    "failed": "导出失败"
   },
   "attachment": {
     "upload": "上传文件",

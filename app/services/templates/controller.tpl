@@ -3,17 +3,7 @@
 import (
 <<if .HasExport>>
 <<if .ExportAsync>>
-	"encoding/json"
-<<end>>
-<<end>>
-	"github.com/goravel/framework/contracts/http"
-<<if .HasExport>>
-<<if .ExportAsync>>
-	"github.com/goravel/framework/contracts/queue"
-	"github.com/goravel/framework/facades"
 	"goravel/app/jobs"
-	appfacades "goravel/app/facades"
-	"goravel/app/models"
 	"goravel/app/utils"
 <<end>>
 <<if not .ExportAsync>>
@@ -26,6 +16,8 @@ import (
 	adminrequests "goravel/app/http/requests/admin"
 	"goravel/app/http/response"
 	"goravel/app/services"
+
+	"github.com/goravel/framework/contracts/http"
 )
 
 type <<.ControllerName>> struct {}
@@ -176,6 +168,30 @@ func (c *<<.ControllerName>>) Destroy(ctx http.Context) http.Response {
 // Export exports <<.ModelName>> records.
 func (c *<<.ControllerName>>) Export(ctx http.Context) http.Response {
 <<- if .HasExport>>
+	filters := c.build<<.ModelName>>Filters(ctx)
+<<- if .ExportAsync>>
+	filtersMap := utils.ExportFiltersToMap(filters)
+	result := EnqueueAsyncExport(ctx, EnqueueAsyncExportInput{
+		LockResource: "<<.ModuleName>>s",
+		ExportType:   "<<.ModuleName>>s",
+		Filters:      filtersMap,
+		Job:          &jobs.Export<<.ModelName>>s{},
+	})
+	if result.Unauthorized {
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
+	}
+	if result.Blocked {
+		return response.Error(ctx, http.StatusTooManyRequests, apperrors.ErrGetLockFailed.Code)
+	}
+	if result.Err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, result.Err, nil)
+	}
+
+	return response.Success(ctx, http.Json{
+		"export_id": result.ExportID,
+		"message":   "queued",
+	})
+<<- else>>
 	lock := helpers.AcquireExportLock(ctx, "<<.ModuleName>>s")
 	if lock.Unauthorized {
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
@@ -185,64 +201,9 @@ func (c *<<.ControllerName>>) Export(ctx http.Context) http.Response {
 	}
 	adminID := lock.AdminID
 
-	filters := c.build<<.ModelName>>Filters(ctx)
-<<- if .ExportAsync>>
-	filtersMap := utils.ExportFiltersToMap(filters)
-	lang := utils.GetCurrentLanguage(ctx)
-	timezone := helpers.GetCurrentTimezone(ctx)
-
-	exportRecord := models.Export{
-		AdminID: adminID,
-		Type:    "<<.ModuleName>>s",
-		Status:  models.ExportStatusProcessing,
-		Disk:    helpers.ResolveExportDisk(ctx),
-		Path:    "",
-	}
-	if err := appfacades.OrmQuery(ctx).Create(&exportRecord); err != nil {
-		return response.ErrorWithLog(ctx, "export", err)
-	}
-
-	exportArgsStruct := jobs.ExportArgs{
-		ExportID: exportRecord.ID,
-		AdminID:  adminID,
-		Filters:  filtersMap,
-		Type:     "<<.ModuleName>>s",
-		Language: lang,
-		Timezone: timezone,
-	}
-
-	exportArgsJSON, err := json.Marshal(exportArgsStruct)
-	if err != nil {
-		exportRecord.Status = models.ExportStatusFailed
-		exportRecord.ErrorMsg = err.Error()
-		appfacades.OrmQuery(ctx).Save(&exportRecord)
-		return response.ErrorWithLog(ctx, "export", err)
-	}
-
-	exportArgs := []queue.Arg{
-		{
-			Type:  "string",
-			Value: string(exportArgsJSON),
-		},
-	}
-
-	if err := facades.Queue().Job(&jobs.Export<<.ModelName>>s{}, exportArgs).OnQueue("long-running").Dispatch(); err != nil {
-		lock.Release()
-		exportRecord.Status = models.ExportStatusFailed
-		exportRecord.ErrorMsg = err.Error()
-		appfacades.OrmQuery(ctx).Save(&exportRecord)
-		return response.ErrorWithLog(ctx, "export", err)
-	}
-
-	return response.Success(ctx, http.Json{
-		"export_id": exportRecord.ID,
-		"message":   "queued",
-	})
-<<- else>>
-
 	list, err := c.<<.ServiceName>>(ctx).GetAll<<.ModelName>>ForExport(filters)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "<<.ModuleName>>", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "<<.ModuleName>>", http.StatusInternalServerError, err, map[string]any{
 			"action":   "export_<<.ModuleName>>s",
 			"admin_id": adminID,
 		})

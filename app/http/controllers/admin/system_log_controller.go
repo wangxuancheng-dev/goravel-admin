@@ -1,72 +1,37 @@
 package admin
 
 import (
-	appfacades "goravel/app/facades"
-	"sort"
-	"time"
-
 	"github.com/goravel/framework/contracts/http"
 
 	"goravel/app/constants"
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
-	"goravel/app/models"
 	"goravel/app/services"
 )
 
-type SystemLogController struct {}
+type SystemLogController struct{}
 
+type SystemLogBatchDestroyRequest struct {
+	IDs []uint `json:"ids"`
+}
 
 func NewSystemLogController() *SystemLogController {
 	return &SystemLogController{}
 }
 
-func (r *SystemLogController) systemLogService(ctx http.Context) services.SystemLogService {
+func (c *SystemLogController) SystemLogService(ctx http.Context) services.SystemLogService {
 	return services.NewSystemLogService(ctx)
 }
 
-
-// findSystemLogByID 根据ID查找系统日志，如果不存在则返回错误响应
-func (r *SystemLogController) findSystemLogByID(ctx http.Context, id uint) (*models.SystemLog, http.Response) {
-	log, err := r.systemLogService(ctx).GetByID(id)
-	if err != nil {
-		return nil, response.Error(ctx, http.StatusNotFound, apperrors.ErrLogNotFound.Code)
-	}
-	return log, nil
-}
-
-// buildFilters 构建查询过滤器
-func (r *SystemLogController) buildFilters(ctx http.Context) services.SystemLogFilters {
-	level := ctx.Request().Query("level", "")
-	module := ctx.Request().Query("module", "")
-	traceID := ctx.Request().Query("trace_id", "")
-	message := ctx.Request().Query("message", "")
-	startTime := getTimeQueryUTC(ctx, "start_time")
-	endTime := getTimeQueryUTC(ctx, "end_time")
-	orderBy := ctx.Request().Query("order_by", "")
-
-	return services.SystemLogFilters{
-		Level:     level,
-		Module:    module,
-		TraceID:   traceID,
-		Message:   message,
-		StartTime: startTime,
-		EndTime:   endTime,
-		OrderBy:   orderBy,
-	}
-}
-
-// Index 获取系统日志列表
-func (r *SystemLogController) Index(ctx http.Context) http.Response {
-	filters := r.buildFilters(ctx)
-
+func (c *SystemLogController) Index(ctx http.Context) http.Response {
+	filters := services.BuildSystemLogFiltersFromHTTP(ctx)
 	page := helpers.GetIntQuery(ctx, "page", 1)
 	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
 
-	logs, total, err := r.systemLogService(ctx).GetList(filters, page, pageSize)
+	logs, total, err := c.SystemLogService(ctx).GetList(filters, page, pageSize)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "system-log", err)
+		return HandleGeneratedServiceError(ctx, "system-log", http.StatusInternalServerError, err, nil)
 	}
 
 	return response.Success(ctx, http.Json{
@@ -77,110 +42,50 @@ func (r *SystemLogController) Index(ctx http.Context) http.Response {
 	})
 }
 
-// Show 获取系统日志详情
-func (r *SystemLogController) Show(ctx http.Context) http.Response {
+func (c *SystemLogController) Show(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	log, resp := r.findSystemLogByID(ctx, id)
-	if resp != nil {
-		return resp
+	log, err := c.SystemLogService(ctx).GetByID(id)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "system-log", http.StatusNotFound, err, map[string]any{"id": id})
 	}
-
 	return response.Success(ctx, http.Json{
 		"log": *log,
 	})
 }
 
-// Destroy 删除系统日志
-func (r *SystemLogController) Destroy(ctx http.Context) http.Response {
+func (c *SystemLogController) Destroy(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	log, resp := r.findSystemLogByID(ctx, id)
-	if resp != nil {
-		return resp
+	if err := c.SystemLogService(ctx).Delete(id); err != nil {
+		return HandleGeneratedServiceError(ctx, "system-log", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
-
-	if _, err := appfacades.OrmQuery(ctx).Delete(log); err != nil {
-		return response.ErrorWithLog(ctx, "system-log", err, map[string]any{
-			"log_id": log.ID,
-		})
-	}
-
-	return response.Success(ctx)
+	return response.Success(ctx, "delete_success", http.Json{})
 }
 
-type SystemLogBatchDestroyRequest struct {
-	IDs []uint `json:"ids"`
-}
-
-// BatchDestroy 批量删除系统日志
-func (r *SystemLogController) BatchDestroy(ctx http.Context) http.Response {
+func (c *SystemLogController) BatchDestroy(ctx http.Context) http.Response {
 	var req SystemLogBatchDestroyRequest
-
-	// 使用结构体绑定
 	if err := ctx.Request().Bind(&req); err != nil {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrParamsError.Code)
 	}
-
-	if len(req.IDs) == 0 {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDsRequired.Code)
-	}
-
-	ids := req.IDs
-
-	// 使用工具函数转换为 []any
-	idsAny := helpers.ConvertUintSliceToAny(ids)
-
-	if _, err := appfacades.OrmQuery(ctx).WhereIn("id", idsAny).Delete(&models.SystemLog{}); err != nil {
-		return response.ErrorWithLog(ctx, "system-log", err, map[string]any{
-			"ids": ids,
+	if err := c.SystemLogService(ctx).BatchDelete(req.IDs); err != nil {
+		return HandleGeneratedServiceError(ctx, "system-log", http.StatusInternalServerError, err, map[string]any{
+			"ids": req.IDs,
 		})
 	}
-
-	return response.Success(ctx)
+	return response.Success(ctx, "delete_success", http.Json{})
 }
 
-// Clean 清理系统日志
-// 删除指定天数之前的日志，默认删除30天前的日志
-func (r *SystemLogController) Clean(ctx http.Context) http.Response {
+func (c *SystemLogController) Clean(ctx http.Context) http.Response {
 	days := helpers.GetIntQuery(ctx, "days", constants.DefaultCleanLogDays)
-	if days <= 0 {
-		days = constants.DefaultCleanLogDays
-	}
-
-	cutoffTime := time.Now().AddDate(0, 0, -days)
-	if _, err := appfacades.OrmQuery(ctx).Model(&models.SystemLog{}).Where("created_at < ?", cutoffTime).Delete(&models.SystemLog{}); err != nil {
-		return response.ErrorWithLog(ctx, "system-log", err, map[string]any{
+	if err := c.SystemLogService(ctx).Clean(days); err != nil {
+		return HandleGeneratedServiceError(ctx, "system-log", http.StatusInternalServerError, err, map[string]any{
 			"days": days,
 		})
 	}
-
-	return response.Success(ctx)
+	return response.Success(ctx, "clean_success", http.Json{})
 }
 
-// GetModuleOptions 获取系统日志模块选项（用于前端筛选下拉）
-func (r *SystemLogController) GetModuleOptions(ctx http.Context) http.Response {
-	var modules []string
-	_ = appfacades.OrmQuery(ctx).Model(&models.SystemLog{}).
-		Select("DISTINCT module").
-		Where("module IS NOT NULL AND module != ''").
-		Order("module ASC").
-		Pluck("module", &modules)
-
-	// 去重并排序，避免数据库方言差异导致顺序不稳定
-	moduleSet := make(map[string]struct{}, len(modules))
-	uniqueModules := make([]string, 0, len(modules))
-	for _, module := range modules {
-		if module == "" {
-			continue
-		}
-		if _, exists := moduleSet[module]; exists {
-			continue
-		}
-		moduleSet[module] = struct{}{}
-		uniqueModules = append(uniqueModules, module)
-	}
-	sort.Strings(uniqueModules)
-
+func (c *SystemLogController) GetModuleOptions(ctx http.Context) http.Response {
 	return response.Success(ctx, http.Json{
-		"modules": uniqueModules,
+		"modules": c.SystemLogService(ctx).GetModuleOptions(),
 	})
 }

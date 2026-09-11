@@ -58,6 +58,10 @@ type AttachmentService interface {
 	UpdateCategory(id uint, categoryID uint) error
 	// UpdateVisibility 更新附件公开/私有状态
 	UpdateVisibility(id uint, isPublic bool) error
+	// AttachmentToJSON 附件列表/详情展示字段（含 file_url）
+	AttachmentToJSON(attachment *models.Attachment) map[string]any
+	// AttachmentListToJSON 附件列表展示字段
+	AttachmentListToJSON(items []models.Attachment) []map[string]any
 }
 
 // AttachmentFilters 附件查询过滤器
@@ -73,6 +77,23 @@ type AttachmentFilters struct {
 	StartTime   string
 	EndTime     string
 	OrderBy     string
+}
+
+// BuildAttachmentFiltersFromHTTP reads list filters from query or body.
+func BuildAttachmentFiltersFromHTTP(ctx http.Context) AttachmentFilters {
+	return AttachmentFilters{
+		AdminID:     ctx.Request().Query("admin_id", ""),
+		Filename:    ctx.Request().Query("filename", ""),
+		DisplayName: ctx.Request().Query("display_name", ""),
+		Keyword:     ctx.Request().Query("keyword", ""),
+		CategoryID:  ctx.Request().Query("category_id", ""),
+		IsPublic:    ctx.Request().Query("is_public", ""),
+		FileType:    ctx.Request().Query("file_type", ""),
+		Extension:   ctx.Request().Query("extension", ""),
+		StartTime:   helpers.GetTimeInputOrQueryParam(ctx, "start_time"),
+		EndTime:     helpers.GetTimeInputOrQueryParam(ctx, "end_time"),
+		OrderBy:     ctx.Request().Query("order_by", ""),
+	}
 }
 
 type AttachmentServiceImpl struct {
@@ -568,6 +589,48 @@ func (s *AttachmentServiceImpl) GetFileURL(attachment *models.Attachment) string
 	return AttachmentPrivatePreviewURL(attachment.ID)
 }
 
+// AttachmentToJSON 附件列表/详情展示字段（含 file_url）
+func (s *AttachmentServiceImpl) AttachmentToJSON(attachment *models.Attachment) map[string]any {
+	if attachment == nil {
+		return nil
+	}
+	payload := map[string]any{
+		"id":           attachment.ID,
+		"admin_id":     attachment.AdminID,
+		"category_id":  attachment.CategoryID,
+		"disk":         attachment.Disk,
+		"path":         attachment.Path,
+		"filename":     attachment.Filename,
+		"display_name": attachment.DisplayName,
+		"extension":    attachment.Extension,
+		"mime_type":    attachment.MimeType,
+		"size":         attachment.Size,
+		"status":       attachment.Status,
+		"file_type":    attachment.FileType,
+		"is_public":    attachment.IsPublic,
+		"chunk_id":     attachment.ChunkID,
+		"created_at":   attachment.CreatedAt,
+		"updated_at":   attachment.UpdatedAt,
+		"file_url":     s.GetFileURL(attachment),
+	}
+	if attachment.Admin != nil {
+		payload["admin"] = attachment.Admin
+	}
+	if attachment.Category != nil {
+		payload["category"] = attachment.Category
+	}
+	return payload
+}
+
+// AttachmentListToJSON 附件列表展示字段
+func (s *AttachmentServiceImpl) AttachmentListToJSON(items []models.Attachment) []map[string]any {
+	list := make([]map[string]any, len(items))
+	for i := range items {
+		list[i] = s.AttachmentToJSON(&items[i])
+	}
+	return list
+}
+
 // GetFileType 根据MIME类型判断文件类型
 func (s *AttachmentServiceImpl) GetFileType(mimeType string) string {
 	if strings.HasPrefix(mimeType, "image/") {
@@ -668,7 +731,7 @@ func (s *AttachmentServiceImpl) GetList(filters AttachmentFilters, page, pageSiz
 func (s *AttachmentServiceImpl) UpdateDisplayName(id uint, displayName string) error {
 	var attachment models.Attachment
 	if err := appfacades.OrmQuery(s.ctx).Where("id", id).FirstOrFail(&attachment); err != nil {
-		return fmt.Errorf("附件不存在: %v", err)
+		return apperrors.ErrAttachmentNotFound.WithError(err)
 	}
 
 	attachment.DisplayName = displayName

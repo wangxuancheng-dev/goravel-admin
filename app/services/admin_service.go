@@ -2,17 +2,19 @@ package services
 
 import (
 	"context"
-	appfacades "goravel/app/facades"
 	"slices"
 
 	"github.com/goravel/framework/contracts/database/orm"
+	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 	"github.com/goravel/framework/support/str"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
+	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
+	admin "goravel/app/http/requests/admin"
 	"goravel/app/models"
 	"goravel/app/utils"
 )
@@ -36,8 +38,16 @@ type AdminService interface {
 	GetProtectedAdminIDs() map[uint]bool
 	// GetDepartmentAndChildrenIDs 获取部门及其子部门ID
 	GetDepartmentAndChildrenIDs(departmentID uint) []uint
-	// Update 更新管理员
+	// Update 更新管理员（Save）
 	Update(admin *models.Admin) error
+	// UpdateByRequest 按请求部分更新管理员（含状态/角色守卫）
+	UpdateByRequest(httpCtx http.Context, id uint, req *admin.AdminUpdate) (*models.Admin, error)
+	// Delete 删除管理员（受保护/自删校验）
+	Delete(id uint, actorAdminID uint) error
+	// UpdateOwnPassword 当前管理员修改自己的密码
+	UpdateOwnPassword(adminID uint, oldPassword, newPassword string) error
+	// ResetPassword 管理员重置指定账号密码
+	ResetPassword(adminID uint, newPassword string) error
 	// NormalizeRoleIDs 去重并保持顺序
 	NormalizeRoleIDs(roleIDs []uint) []uint
 	// RoleIDsChanged 判断角色集合是否发生变化（忽略顺序）
@@ -54,6 +64,10 @@ type AdminService interface {
 	ValidateStatusChange(adminID uint, newStatus uint8) error
 	// ValidateRoleChange 校验角色变更是否合法
 	ValidateRoleChange(adminID uint, currentRoles []models.Role, newRoleIDs []uint) error
+	// ToListItem 列表行展示字段
+	ToListItem(admin models.Admin) map[string]any
+	// ToDetail 详情展示字段
+	ToDetail(admin *models.Admin) map[string]any
 }
 
 // AdminFilters 管理员查询过滤器
@@ -67,6 +81,20 @@ type AdminFilters struct {
 	StartTime    string
 	EndTime      string
 	OrderBy      string
+}
+
+func BuildAdminFiltersFromHTTP(ctx http.Context) AdminFilters {
+	return AdminFilters{
+		Username:     ctx.Request().Input("username", ctx.Request().Query("username", "")),
+		Status:       ctx.Request().Input("status", ctx.Request().Query("status", "")),
+		RoleID:       ctx.Request().Input("role_id", ctx.Request().Query("role_id", "")),
+		DepartmentID: ctx.Request().Input("department_id", ctx.Request().Query("department_id", "")),
+		PositionID:   ctx.Request().Input("position_id", ctx.Request().Query("position_id", "")),
+		Is2FABound:   ctx.Request().Input("is_2fa_bound", ctx.Request().Query("is_2fa_bound", "")),
+		StartTime:    helpers.GetTimeInputOrQueryParam(ctx, "start_time"),
+		EndTime:      helpers.GetTimeInputOrQueryParam(ctx, "end_time"),
+		OrderBy:      ctx.Request().Input("order_by", ctx.Request().Query("order_by", "")),
+	}
 }
 
 type CreateAdminInput struct {
@@ -200,7 +228,7 @@ func (s *AdminServiceImpl) GetList(filters AdminFilters, page, pageSize int) ([]
 	var admins []models.Admin
 	var total int64
 	if err := query.With("Department").With("Position").With("Roles").Paginate(page, pageSize, &admins, &total); err != nil {
-		return nil, 0, err
+		return nil, 0, apperrors.ErrQueryFailed.WithError(err)
 	}
 
 	return admins, total, nil
@@ -232,6 +260,158 @@ func (s *AdminServiceImpl) Update(admin *models.Admin) error {
 		return apperrors.ErrUpdateFailed.WithError(err)
 	}
 	return nil
+}
+
+// UpdateByRequest 按请求部分更新管理员（含状态/角色守卫）
+func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *admin.AdminUpdate) (*models.Admin, error) {
+	adminModel, err := s.GetByID(id, false, true)
+	if err != nil {
+		return nil, err
+	}
+
+	allInputs := httpCtx.Request().All()
+
+	if req.Nickname != nil {
+		adminModel.Nickname = *req.Nickname
+	}
+	if req.Email != nil {
+		adminModel.Email = *req.Email
+	}
+	if req.Phone != nil {
+		adminModel.Phone = *req.Phone
+	}
+	if req.DepartmentID != nil {
+		adminModel.DepartmentID = *req.DepartmentID
+	}
+	if req.PositionID != nil {
+		adminModel.PositionID = *req.PositionID
+	}
+	if req.Status != nil {
+		if err := s.ValidateStatusChange(adminModel.ID, *req.Status); err != nil {
+			return nil, err
+		}
+		adminModel.Status = *req.Status
+	}
+	if req.Password != nil && *req.Password != "" {
+		hashedPassword, err := facades.Hash().Make(*req.Password)
+		if err != nil {
+			return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
+		}
+		adminModel.Password = hashedPassword
+	}
+
+	if err := s.Update(adminModel); err != nil {
+		return nil, err
+	}
+
+	if _, exists := allInputs["role_ids"]; exists {
+		deduplicatedRoleIDs := s.NormalizeRoleIDs(req.RoleIDs)
+		if err := s.ValidateRoleChange(adminModel.ID, adminModel.Roles, deduplicatedRoleIDs); err != nil {
+			return nil, err
+		}
+		if err := s.SyncRoles(adminModel, deduplicatedRoleIDs); err != nil {
+			return nil, apperrors.ErrUpdateFailed.WithError(err)
+		}
+	}
+
+	return adminModel, nil
+}
+
+// Delete 删除管理员（受保护/自删校验）
+func (s *AdminServiceImpl) Delete(id uint, actorAdminID uint) error {
+	if s.IsProtectedAdmin(id) {
+		return apperrors.ErrAdminProtectedCannotDelete
+	}
+	if actorAdminID > 0 && actorAdminID == id {
+		return apperrors.ErrAdminCannotDeleteSelf
+	}
+
+	adminModel, err := s.GetByID(id, false, false)
+	if err != nil {
+		return err
+	}
+	if _, err := appfacades.OrmQuery(s.ctx).Delete(adminModel); err != nil {
+		return apperrors.ErrDeleteFailed.WithError(err)
+	}
+	return nil
+}
+
+// UpdateOwnPassword 当前管理员修改自己的密码
+func (s *AdminServiceImpl) UpdateOwnPassword(adminID uint, oldPassword, newPassword string) error {
+	adminModel, err := s.GetByID(adminID, false, false)
+	if err != nil {
+		return err
+	}
+	if !facades.Hash().Check(oldPassword, adminModel.Password) {
+		return apperrors.ErrOldPasswordError
+	}
+	hashedPassword, err := facades.Hash().Make(newPassword)
+	if err != nil {
+		return apperrors.ErrPasswordEncryptFailed.WithError(err)
+	}
+	adminModel.Password = hashedPassword
+	if err := s.Update(adminModel); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ResetPassword 管理员重置指定账号密码
+func (s *AdminServiceImpl) ResetPassword(adminID uint, newPassword string) error {
+	adminModel, err := s.GetByID(adminID, false, false)
+	if err != nil {
+		return err
+	}
+	hashedPassword, err := facades.Hash().Make(newPassword)
+	if err != nil {
+		return apperrors.ErrPasswordEncryptFailed.WithError(err)
+	}
+	adminModel.Password = hashedPassword
+	if err := s.Update(adminModel); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *AdminServiceImpl) ToListItem(adminModel models.Admin) map[string]any {
+	return map[string]any{
+		"id":             adminModel.ID,
+		"username":       adminModel.Username,
+		"nickname":       adminModel.Nickname,
+		"avatar":         adminModel.Avatar,
+		"email":          adminModel.Email,
+		"phone":          adminModel.Phone,
+		"status":         adminModel.Status,
+		"is_2fa_bound":   adminModel.GoogleSecret != "",
+		"is_super_admin": s.IsSuperAdmin(adminModel.ID),
+		"department_id":  adminModel.DepartmentID,
+		"department":     adminModel.Department,
+		"position_id":    adminModel.PositionID,
+		"position":       adminModel.Position,
+		"roles":          adminModel.Roles,
+		"created_at":     adminModel.CreatedAt,
+		"updated_at":     adminModel.UpdatedAt,
+	}
+}
+
+func (s *AdminServiceImpl) ToDetail(adminModel *models.Admin) map[string]any {
+	return map[string]any{
+		"id":             adminModel.ID,
+		"username":       adminModel.Username,
+		"nickname":       adminModel.Nickname,
+		"avatar":         adminModel.Avatar,
+		"email":          adminModel.Email,
+		"phone":          adminModel.Phone,
+		"status":         adminModel.Status,
+		"is_super_admin": s.IsSuperAdmin(adminModel.ID),
+		"department_id":  adminModel.DepartmentID,
+		"department":     adminModel.Department,
+		"position_id":    adminModel.PositionID,
+		"position":       adminModel.Position,
+		"roles":          adminModel.Roles,
+		"created_at":     adminModel.CreatedAt,
+		"updated_at":     adminModel.UpdatedAt,
+	}
 }
 
 // ValidateUsernameUnique 校验管理员用户名唯一性（软删后仍占位）。

@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -96,7 +97,7 @@ func (r *Export<<.ModelName>>s) writeToCSV(w *csv.Writer, filters map[string]any
 			return ErrExportRecordMissing
 		}
 
-		q := services.Build<<.ModelName>>Query(modelFilters)
+		q := services.Build<<.ModelName>>Query(context.Background(), modelFilters)
 		if lastID > 0 {
 			q = q.Where("id < ?", lastID)
 		}

@@ -9,20 +9,20 @@ import (
 )
 
 type MenuUpdate struct {
-	ParentID   uint   `form:"parent_id" json:"parent_id"`
-	Title      string `form:"title" json:"title"`
-	Slug       string `form:"slug" json:"slug"`
-	Icon       string `form:"icon" json:"icon"`
-	Path       string `form:"path" json:"path"`
-	Component  string `form:"component" json:"component"`
-	Permission string `form:"permission" json:"permission"`
-	Type       uint8  `form:"type" json:"type"`
-	Status     uint8  `form:"status" json:"status"`
-	Sort       int    `form:"sort" json:"sort"`
-	IsHidden   uint8  `form:"is_hidden" json:"is_hidden"`
-	LinkType   uint8  `form:"link_type" json:"link_type"`
-	OpenType   uint8  `form:"open_type" json:"open_type"`
-	NoCache    uint8  `form:"no_cache" json:"no_cache"`
+	ParentID   *uint   `form:"parent_id" json:"parent_id"`
+	Title      *string `form:"title" json:"title"`
+	Slug       *string `form:"slug" json:"slug"`
+	Icon       *string `form:"icon" json:"icon"`
+	Path       *string `form:"path" json:"path"`
+	Component  *string `form:"component" json:"component"`
+	Permission *string `form:"permission" json:"permission"`
+	Type       *uint8  `form:"type" json:"type"`
+	Status     *uint8  `form:"status" json:"status"`
+	Sort       *int    `form:"sort" json:"sort"`
+	IsHidden   *uint8  `form:"is_hidden" json:"is_hidden"`
+	LinkType   *uint8  `form:"link_type" json:"link_type"`
+	OpenType   *uint8  `form:"open_type" json:"open_type"`
+	NoCache    *uint8  `form:"no_cache" json:"no_cache"`
 }
 
 func (r *MenuUpdate) Authorize(ctx http.Context) error {
@@ -44,15 +44,11 @@ func (r *MenuUpdate) Rules(ctx http.Context) map[string]any {
 		"no_cache":   "in:0,1",
 	}
 
-	// 根据 link_type 动态设置 path 的验证规则
 	linkType := ctx.Request().Input("link_type")
 	if linkType == "2" {
-		// 外部链接：需要验证为完整的 URL
 		rules["path"] = "max:1000|url"
 	} else {
-		// 内部页面：只需要长度验证
 		rules["path"] = "max:1000"
-		// 内部页面不验证 open_type
 		delete(rules, "open_type")
 	}
 
@@ -74,7 +70,6 @@ func (r *MenuUpdate) Attributes(ctx http.Context) map[string]any {
 }
 
 func (r *MenuUpdate) PrepareForValidation(ctx http.Context, data validation.Data) error {
-	// 将数字字段转换为字符串，以便 in 规则能正确验证
 	if err := helpers.PrepareNumericFieldForValidation(data, "type"); err != nil {
 		return err
 	}

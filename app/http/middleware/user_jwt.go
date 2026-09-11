@@ -4,7 +4,7 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
-	"goravel/app/http/trans"
+	"goravel/app/http/response"
 	"goravel/app/models"
 )
 
@@ -16,17 +16,11 @@ func UserJwt() http.Middleware {
 			// 如果Header中没有token，尝试从URL参数中获取
 			if token := ctx.Request().Query("_token", ""); token != "" {
 				if _, err := facades.Auth(ctx).Guard("user").Parse(token); err != nil {
-					_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-						"code":    http.StatusUnauthorized,
-						"message": trans.Get(ctx, "invalid_token"),
-					}).Abort()
+					response.Abort(ctx, http.StatusUnauthorized, "invalid_token")
 					return
 				}
 			} else {
-				_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-					"code":    http.StatusUnauthorized,
-					"message": trans.Get(ctx, "not_logged_in"),
-				}).Abort()
+				response.Abort(ctx, http.StatusUnauthorized, "not_logged_in")
 				return
 			}
 		}
@@ -34,27 +28,18 @@ func UserJwt() http.Middleware {
 		// 获取用户信息
 		var user models.User
 		if err := facades.Auth(ctx).Guard("user").User(&user); err != nil {
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    http.StatusUnauthorized,
-				"message": trans.Get(ctx, "user_not_found"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "user_not_found")
 			return
 		}
 
 		if user.ID == 0 {
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    http.StatusUnauthorized,
-				"message": trans.Get(ctx, "user_not_found"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "user_not_found")
 			return
 		}
 
 		// 检查用户状态
 		if user.Status == 0 {
-			_ = ctx.Response().Json(http.StatusForbidden, http.Json{
-				"code":    http.StatusForbidden,
-				"message": trans.Get(ctx, "account_disabled"),
-			}).Abort()
+			response.Abort(ctx, http.StatusForbidden, "account_disabled")
 			return
 		}
 

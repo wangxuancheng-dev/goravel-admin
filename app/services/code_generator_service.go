@@ -1130,7 +1130,7 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			ListFields: templateFields,
 		}
 	case "list_page", "list_page_config":
-		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 	case "react_api":
 		return struct {
 			ModelName   string
@@ -1152,7 +1152,7 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasExport:   hasExport,
 		}
 	case "react_list_page", "react_list_page_config", "react_form_modal":
-		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 	case "form_page":
 		formFields := applyTreeListFieldFlags(templateFields, optionEnabled(options, "is_tree_list", false))
 		// 检查是否有 editor 类型的字段
@@ -1723,7 +1723,7 @@ func (s *CodeGeneratorServiceImpl) generateFrontendAPI(moduleName, tableName str
 func (s *CodeGeneratorServiceImpl) buildListPageTemplateData(
 	moduleName string,
 	templateFields []TemplateFieldConfig,
-	hasCreate, hasEdit, hasDelete, hasExport, enableBatchActions, showToolbar, isTreeList bool,
+	hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, isTreeList bool,
 ) any {
 	formFields := applyTreeListFieldFlags(templateFields, isTreeList)
 
@@ -1748,6 +1748,7 @@ func (s *CodeGeneratorServiceImpl) buildListPageTemplateData(
 		HasEdit            bool
 		HasDelete          bool
 		HasExport          bool
+		ExportAsync        bool
 		EnableBatchActions bool
 		ShowToolbar        bool
 		IsTreeList         bool
@@ -1775,6 +1776,7 @@ func (s *CodeGeneratorServiceImpl) buildListPageTemplateData(
 		HasEdit:             hasEdit,
 		HasDelete:           hasDelete,
 		HasExport:           hasExport,
+		ExportAsync:         exportAsync,
 		EnableBatchActions:  enableBatchActions,
 		ShowToolbar:         showToolbar,
 		IsTreeList:          isTreeList,
@@ -1888,6 +1890,7 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPageConfig(moduleName, ta
 	hasEdit := true
 	hasDelete := true
 	hasExport := false
+	exportAsync := false
 	enableBatchActions := false
 	showToolbar := true
 
@@ -1904,6 +1907,9 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPageConfig(moduleName, ta
 		if val, ok := options["has_export"]; ok {
 			hasExport = val
 		}
+		if val, ok := options["export_async"]; ok {
+			exportAsync = val
+		}
 		if val, ok := options["enable_batch_actions"]; ok {
 			enableBatchActions = val
 		}
@@ -1913,7 +1919,7 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPageConfig(moduleName, ta
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {
@@ -1937,6 +1943,7 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPage(moduleName, tableNam
 	hasEdit := true
 	hasDelete := true
 	hasExport := false
+	exportAsync := false
 	enableBatchActions := false
 	showToolbar := true
 
@@ -1953,6 +1960,9 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPage(moduleName, tableNam
 		if val, ok := options["has_export"]; ok {
 			hasExport = val
 		}
+		if val, ok := options["export_async"]; ok {
+			exportAsync = val
+		}
 		if val, ok := options["enable_batch_actions"]; ok {
 			enableBatchActions = val
 		}
@@ -1962,7 +1972,7 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPage(moduleName, tableNam
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {

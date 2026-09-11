@@ -3,14 +3,16 @@ package services
 import (
 	"context"
 	"encoding/json"
-	appfacades "goravel/app/facades"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
+	"goravel/app/constants"
 	apperrors "goravel/app/errors"
+	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/utils/traceid"
@@ -21,6 +23,10 @@ type SystemLogService interface {
 	GetByID(id uint) (*models.SystemLog, error)
 	// GetList 获取系统日志列表
 	GetList(filters SystemLogFilters, page, pageSize int) ([]models.SystemLog, int64, error)
+	Delete(id uint) error
+	BatchDelete(ids []uint) error
+	Clean(days int) error
+	GetModuleOptions() []string
 	// RecordHTTP 记录系统日志（HTTP context）
 	RecordHTTP(ctx http.Context, level, module, message string, attributes map[string]any) error
 	// Record 记录系统日志（标准 context）
@@ -36,6 +42,18 @@ type SystemLogFilters struct {
 	StartTime string
 	EndTime   string
 	OrderBy   string
+}
+
+func BuildSystemLogFiltersFromHTTP(ctx http.Context) SystemLogFilters {
+	return SystemLogFilters{
+		Level:     ctx.Request().Query("level", ""),
+		Module:    ctx.Request().Query("module", ""),
+		TraceID:   ctx.Request().Query("trace_id", ""),
+		Message:   ctx.Request().Query("message", ""),
+		StartTime: helpers.GetTimeInputOrQueryParam(ctx, "start_time"),
+		EndTime:   helpers.GetTimeInputOrQueryParam(ctx, "end_time"),
+		OrderBy:   ctx.Request().Query("order_by", ""),
+	}
 }
 
 type SystemLogServiceImpl struct {
@@ -104,10 +122,67 @@ func (s *SystemLogServiceImpl) GetList(filters SystemLogFilters, page, pageSize 
 	var logs []models.SystemLog
 	var total int64
 	if err := query.Paginate(page, pageSize, &logs, &total); err != nil {
-		return nil, 0, err
+		return nil, 0, apperrors.ErrQueryFailed.WithError(err)
 	}
 
 	return logs, total, nil
+}
+
+func (s *SystemLogServiceImpl) Delete(id uint) error {
+	log, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if _, err := appfacades.OrmQuery(s.ctx).Delete(log); err != nil {
+		return apperrors.ErrDeleteFailed.WithError(err)
+	}
+	return nil
+}
+
+func (s *SystemLogServiceImpl) BatchDelete(ids []uint) error {
+	if len(ids) == 0 {
+		return apperrors.ErrIDsRequired
+	}
+	idsAny := helpers.ConvertUintSliceToAny(ids)
+	if _, err := appfacades.OrmQuery(s.ctx).WhereIn("id", idsAny).Delete(&models.SystemLog{}); err != nil {
+		return apperrors.ErrDeleteFailed.WithError(err)
+	}
+	return nil
+}
+
+func (s *SystemLogServiceImpl) Clean(days int) error {
+	if days <= 0 {
+		days = constants.DefaultCleanLogDays
+	}
+	cutoffTime := time.Now().AddDate(0, 0, -days)
+	if _, err := appfacades.OrmQuery(s.ctx).Model(&models.SystemLog{}).Where("created_at < ?", cutoffTime).Delete(&models.SystemLog{}); err != nil {
+		return apperrors.ErrDeleteFailed.WithError(err)
+	}
+	return nil
+}
+
+func (s *SystemLogServiceImpl) GetModuleOptions() []string {
+	var modules []string
+	_ = appfacades.OrmQuery(s.ctx).Model(&models.SystemLog{}).
+		Select("DISTINCT module").
+		Where("module IS NOT NULL AND module != ''").
+		Order("module ASC").
+		Pluck("module", &modules)
+
+	moduleSet := make(map[string]struct{}, len(modules))
+	uniqueModules := make([]string, 0, len(modules))
+	for _, module := range modules {
+		if module == "" {
+			continue
+		}
+		if _, exists := moduleSet[module]; exists {
+			continue
+		}
+		moduleSet[module] = struct{}{}
+		uniqueModules = append(uniqueModules, module)
+	}
+	sort.Strings(uniqueModules)
+	return uniqueModules
 }
 
 // RecordHTTP 记录系统日志（HTTP context）

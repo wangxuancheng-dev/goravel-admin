@@ -3,13 +3,10 @@ package admin
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	adminrequests "goravel/app/http/requests/admin"
 	"goravel/app/http/response"
-	"goravel/app/models"
 	"goravel/app/services"
-	"goravel/app/utils"
 )
 
 type DepartmentController struct{}
@@ -18,116 +15,46 @@ func NewDepartmentController() *DepartmentController {
 	return &DepartmentController{}
 }
 
-func (r *DepartmentController) treeService(ctx http.Context) services.TreeService {
-	return services.NewTreeServiceImpl(ctx)
+func (c *DepartmentController) buildDepartmentFilters(ctx http.Context) services.DepartmentFilters {
+	return services.BuildDepartmentFiltersFromHTTP(ctx)
 }
 
-func (r *DepartmentController) departmentService(ctx http.Context) services.DepartmentService {
-	return services.NewDepartmentServiceImpl(ctx, r.treeService(ctx))
+func (c *DepartmentController) DepartmentService(ctx http.Context) services.DepartmentService {
+	return services.NewDepartmentService(ctx)
 }
 
-// findDepartmentByID 根据ID查找部门，如果不存在则返回错误响应
-func (r *DepartmentController) findDepartmentByID(ctx http.Context, id uint) (*models.Department, http.Response) {
-	department, err := r.departmentService(ctx).GetByID(id)
+func (c *DepartmentController) Index(ctx http.Context) http.Response {
+	filters := c.buildDepartmentFilters(ctx)
+	list, err := c.DepartmentService(ctx).GetIndex(filters)
 	if err != nil {
-		return nil, response.Error(ctx, http.StatusNotFound, apperrors.ErrDepartmentNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "department", http.StatusInternalServerError, err, nil)
 	}
-	return department, nil
-}
-
-// buildFilters 构建查询过滤器
-func (r *DepartmentController) buildFilters(ctx http.Context) services.DepartmentFilters {
-	name := ctx.Request().Query("name", "")
-	status := ctx.Request().Query("status", "")
-	// 使用辅助函数自动转换时区
-	startTime := getTimeQueryUTC(ctx, "start_time")
-	endTime := getTimeQueryUTC(ctx, "end_time")
-	orderBy := ctx.Request().Query("order_by", "")
-
-	return services.DepartmentFilters{
-		Name:      name,
-		Status:    status,
-		StartTime: startTime,
-		EndTime:   endTime,
-		OrderBy:   orderBy,
-	}
-}
-
-// Index 部门列表（树形结构）
-func (r *DepartmentController) Index(ctx http.Context) http.Response {
-	name := ctx.Request().Query("name", "")
-	status := ctx.Request().Query("status", "")
-	// 使用辅助函数自动转换时区
-	startTime := getTimeQueryUTC(ctx, "start_time")
-	endTime := getTimeQueryUTC(ctx, "end_time")
-
-	// 如果有搜索条件，返回扁平列表；否则返回树形结构
-	if name != "" || status != "" || startTime != "" || endTime != "" {
-		filters := r.buildFilters(ctx)
-		// 搜索时获取所有匹配的记录，不限制分页
-		departments, _, err := r.departmentService(ctx).GetList(filters, 1, 10000)
-		if err != nil {
-			return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrQueryFailed.Code)
-		}
-
-		return response.Success(ctx, http.Json{
-			"list": departments,
-		})
-	}
-
-	// 无搜索条件时返回树形结构（前端可直接使用的格式）
-	departments, err := r.treeService(ctx).BuildDepartmentTree(0)
-	if err != nil {
-		return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrQueryFailed.Code)
-	}
-
-	// 转换为前端格式
-	treeData := utils.ConvertDepartmentTree(departments)
-
 	return response.Success(ctx, http.Json{
-		"list": treeData,
+		"list": list,
 	})
 }
 
-// Show 部门详情
-func (r *DepartmentController) Show(ctx http.Context) http.Response {
+func (c *DepartmentController) Show(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	department, resp := r.findDepartmentByID(ctx, id)
-	if resp != nil {
-		return resp
+	department, err := c.DepartmentService(ctx).GetByID(id)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "department", http.StatusNotFound, err, map[string]any{"id": id})
 	}
-
 	return response.Success(ctx, http.Json{
 		"department": *department,
 	})
 }
 
-// Store 创建部门
-func (r *DepartmentController) Store(ctx http.Context) http.Response {
-	// 使用请求验证
-	var departmentCreate adminrequests.DepartmentCreate
-	errors, err := ctx.Request().ValidateRequest(&departmentCreate)
-	if err != nil {
-		return response.Error(ctx, http.StatusBadRequest, err.Error())
-	}
-	if errors != nil {
-		return response.ValidationError(ctx, http.StatusBadRequest, "validation_failed", errors.All())
+func (c *DepartmentController) Store(ctx http.Context) http.Response {
+	var req adminrequests.DepartmentCreate
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
+		return resp
 	}
 
-	department, err := r.departmentService(ctx).Create(
-		departmentCreate.ParentID,
-		departmentCreate.Name,
-		departmentCreate.Code,
-		departmentCreate.Leader,
-		departmentCreate.Phone,
-		departmentCreate.Email,
-		departmentCreate.Remark,
-		departmentCreate.Status,
-		departmentCreate.Sort,
-	)
+	department, err := c.DepartmentService(ctx).Create(&req)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "department", err, map[string]any{
-			"name": departmentCreate.Name,
+		return HandleGeneratedServiceError(ctx, "department", http.StatusInternalServerError, err, map[string]any{
+			"name": req.Name,
 		})
 	}
 
@@ -136,59 +63,17 @@ func (r *DepartmentController) Store(ctx http.Context) http.Response {
 	})
 }
 
-// Update 更新部门
-func (r *DepartmentController) Update(ctx http.Context) http.Response {
+func (c *DepartmentController) Update(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	department, resp := r.findDepartmentByID(ctx, id)
-	if resp != nil {
+
+	var req adminrequests.DepartmentUpdate
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
 		return resp
 	}
 
-	// 使用请求验证
-	var departmentUpdate adminrequests.DepartmentUpdate
-	errors, err := ctx.Request().ValidateRequest(&departmentUpdate)
+	department, err := c.DepartmentService(ctx).Update(id, &req)
 	if err != nil {
-		return response.Error(ctx, http.StatusBadRequest, err.Error())
-	}
-	if errors != nil {
-		return response.ValidationError(ctx, http.StatusBadRequest, "validation_failed", errors.All())
-	}
-
-	// 使用 All() 方法检查字段是否存在
-	allInputs := ctx.Request().All()
-
-	if _, exists := allInputs["name"]; exists {
-		department.Name = departmentUpdate.Name
-	}
-	if _, exists := allInputs["parent_id"]; exists {
-		department.ParentID = departmentUpdate.ParentID
-	}
-	if _, exists := allInputs["code"]; exists {
-		department.Code = departmentUpdate.Code
-	}
-	if _, exists := allInputs["leader"]; exists {
-		department.Leader = departmentUpdate.Leader
-	}
-	if _, exists := allInputs["phone"]; exists {
-		department.Phone = departmentUpdate.Phone
-	}
-	if _, exists := allInputs["email"]; exists {
-		department.Email = departmentUpdate.Email
-	}
-	if _, exists := allInputs["status"]; exists {
-		department.Status = departmentUpdate.Status
-	}
-	if _, exists := allInputs["sort"]; exists {
-		department.Sort = departmentUpdate.Sort
-	}
-	if _, exists := allInputs["remark"]; exists {
-		department.Remark = departmentUpdate.Remark
-	}
-
-	if err := r.departmentService(ctx).Update(department); err != nil {
-		return response.ErrorWithLog(ctx, "department", err, map[string]any{
-			"department_id": department.ID,
-		})
+		return HandleGeneratedServiceError(ctx, "department", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 
 	return response.Success(ctx, http.Json{
@@ -196,37 +81,10 @@ func (r *DepartmentController) Update(ctx http.Context) http.Response {
 	})
 }
 
-// Destroy 删除部门
-func (r *DepartmentController) Destroy(ctx http.Context) http.Response {
+func (c *DepartmentController) Destroy(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	department, resp := r.findDepartmentByID(ctx, id)
-	if resp != nil {
-		return resp
+	if err := c.DepartmentService(ctx).Delete(id); err != nil {
+		return HandleGeneratedServiceError(ctx, "department", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
-
-	// 检查是否有子部门
-	hasChildren, err := r.treeService(ctx).HasDepartmentChildren(id)
-	if err != nil {
-		return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrQueryFailed.Code)
-	}
-	if hasChildren {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrDepartmentHasChildren.Code)
-	}
-
-	// 检查是否有管理员
-	hasAdmins, err := r.departmentService(ctx).HasAdmins(id)
-	if err != nil {
-		return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrQueryFailed.Code)
-	}
-	if hasAdmins {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrDepartmentHasAdmins.Code)
-	}
-
-	if err := r.departmentService(ctx).Delete(department); err != nil {
-		return response.ErrorWithLog(ctx, "department", err, map[string]any{
-			"department_id": department.ID,
-		})
-	}
-
-	return response.Success(ctx)
+	return response.Success(ctx, "delete_success", http.Json{})
 }

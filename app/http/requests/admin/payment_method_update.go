@@ -7,11 +7,11 @@ import (
 )
 
 type PaymentMethodUpdate struct {
-	Name        string         `form:"name" json:"name"`
+	Name        *string        `form:"name" json:"name"`
 	Config      map[string]any `form:"config" json:"config"`
-	IsActive    bool           `form:"is_active" json:"is_active"`
-	Sort        int            `form:"sort" json:"sort"`
-	Description string         `form:"description" json:"description"`
+	IsActive    *bool          `form:"is_active" json:"is_active"`
+	Sort        *int           `form:"sort" json:"sort"`
+	Description *string        `form:"description" json:"description"`
 }
 
 func (r *PaymentMethodUpdate) Authorize(ctx http.Context) error {
@@ -20,7 +20,7 @@ func (r *PaymentMethodUpdate) Authorize(ctx http.Context) error {
 
 func (r *PaymentMethodUpdate) Rules(ctx http.Context) map[string]any {
 	return map[string]any{
-		"name":      "required|max:50",
+		"name":      "max:50",
 		"is_active": "boolean",
 		"sort":      "min:0",
 	}
@@ -33,11 +33,3 @@ func (r *PaymentMethodUpdate) Attributes(ctx http.Context) map[string]any {
 		"sort":      trans.Get(ctx, "validation.attributes.sort"),
 	}
 }
-
-// func (r *PaymentMethodUpdate) PrepareForValidation(ctx http.Context, data validation.Data) error {
-// 	// return helpers.PrepareNumericFieldForValidation(data, "sort")
-// 	if val, exist := data.Get("sort"); !exist || val == nil || val == "" {
-// 		return data.Set("sort", 0)
-// 	}
-// 	return nil
-// }

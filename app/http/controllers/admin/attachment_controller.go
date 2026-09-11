@@ -24,68 +24,28 @@ func NewAttachmentController() *AttachmentController {
 	return &AttachmentController{}
 }
 
+func (r *AttachmentController) AttachmentService(ctx http.Context) services.AttachmentService {
+	return services.NewAttachmentService(ctx)
+}
+
 // Index 附件列表
 func (r *AttachmentController) Index(ctx http.Context) http.Response {
 	page := helpers.GetIntQuery(ctx, "page", 1)
 	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
 
-	filters := r.buildFilters(ctx)
-
-	attachmentService := services.NewAttachmentService(ctx)
+	filters := services.BuildAttachmentFiltersFromHTTP(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	attachments, total, err := attachmentService.GetList(filters, page, pageSize)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "attachment", err)
-	}
-
-	type AttachmentWithURL struct {
-		models.Attachment
-		FileURL string `json:"file_url"`
-	}
-
-	var resultWithURL []AttachmentWithURL
-	for _, a := range attachments {
-		fileURL := attachmentService.GetFileURL(&a)
-		resultWithURL = append(resultWithURL, AttachmentWithURL{
-			Attachment: a,
-			FileURL:    fileURL,
-		})
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, nil)
 	}
 
 	return response.Success(ctx, http.Json{
-		"list":      resultWithURL,
+		"list":      attachmentService.AttachmentListToJSON(attachments),
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,
 	})
-}
-
-// buildFilters 构建查询过滤器
-func (r *AttachmentController) buildFilters(ctx http.Context) services.AttachmentFilters {
-	adminID := ctx.Request().Query("admin_id", "")
-	filename := ctx.Request().Query("filename", "")
-	displayName := ctx.Request().Query("display_name", "")
-	keyword := ctx.Request().Query("keyword", "")
-	categoryID := ctx.Request().Query("category_id", "")
-	isPublic := ctx.Request().Query("is_public", "")
-	fileType := ctx.Request().Query("file_type", "")
-	extension := ctx.Request().Query("extension", "")
-	startTime := getTimeQueryUTC(ctx, "start_time")
-	endTime := getTimeQueryUTC(ctx, "end_time")
-	orderBy := ctx.Request().Query("order_by", "")
-
-	return services.AttachmentFilters{
-		AdminID:     adminID,
-		Filename:    filename,
-		DisplayName: displayName,
-		Keyword:     keyword,
-		CategoryID:  categoryID,
-		IsPublic:    isPublic,
-		FileType:    fileType,
-		Extension:   extension,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		OrderBy:     orderBy,
-	}
 }
 
 // Upload 普通文件上传（小文件）
@@ -109,7 +69,7 @@ func (r *AttachmentController) Upload(ctx http.Context) http.Response {
 	// 保存文件到临时位置，PutFile 返回保存后的路径
 	savedPath, err := storage.PutFile("", file)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"filename": filename,
 		})
 	}
@@ -119,7 +79,7 @@ func (r *AttachmentController) Upload(ctx http.Context) http.Response {
 	if err != nil {
 		// 清理临时文件
 		_ = storage.Delete(savedPath)
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"filename": filename,
 		})
 	}
@@ -130,14 +90,11 @@ func (r *AttachmentController) Upload(ctx http.Context) http.Response {
 	// 转换为字节数组
 	fileData := []byte(fileDataStr)
 
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	isPublicRaw := ctx.Request().Input("is_public", "")
 	attachment, err := attachmentService.UploadFile(fileData, filename, "", isPublicRaw)
 	if err != nil {
-		if businessErr, ok := apperrors.GetBusinessError(err); ok {
-			return response.Error(ctx, http.StatusBadRequest, businessErr)
-		}
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"filename": filename,
 		})
 	}
@@ -154,7 +111,7 @@ func (r *AttachmentController) ChunkUpload(ctx http.Context) http.Response {
 		action = ctx.Request().Query("action", "progress")
 	}
 
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 
 	switch action {
 	case "init":
@@ -204,13 +161,7 @@ func (r *AttachmentController) ChunkUpload(ctx http.Context) http.Response {
 
 		chunkID, err := attachmentService.InitChunkUpload(filename, totalSize, chunkSize, totalChunks)
 		if err != nil {
-			// 使用业务错误类型，直接提取错误码
-			if businessErr, ok := apperrors.GetBusinessError(err); ok {
-				return response.Error(ctx, http.StatusBadRequest, businessErr.Code)
-			}
-
-			// 返回详细的错误信息
-			return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+			return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 				"filename":     filename,
 				"total_size":   totalSize,
 				"chunk_size":   chunkSize,
@@ -251,7 +202,7 @@ func (r *AttachmentController) ChunkUpload(ctx http.Context) http.Response {
 		// 保存文件到临时位置
 		savedPath, err := storage.PutFile("", file)
 		if err != nil {
-			return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+			return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 				"chunk_id":    chunkID,
 				"chunk_index": chunkIndex,
 			})
@@ -262,7 +213,7 @@ func (r *AttachmentController) ChunkUpload(ctx http.Context) http.Response {
 		if err != nil {
 			// 清理临时文件
 			_ = storage.Delete(savedPath)
-			return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+			return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 				"chunk_id":    chunkID,
 				"chunk_index": chunkIndex,
 			})
@@ -275,7 +226,7 @@ func (r *AttachmentController) ChunkUpload(ctx http.Context) http.Response {
 		chunkData := []byte(chunkDataStr)
 
 		if err := attachmentService.UploadChunk(chunkID, chunkIndex, chunkData); err != nil {
-			return r.attachmentServiceError(ctx, err, map[string]any{
+			return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 				"chunk_id":    chunkID,
 				"chunk_index": chunkIndex,
 			})
@@ -311,7 +262,7 @@ func (r *AttachmentController) ChunkUpload(ctx http.Context) http.Response {
 
 		attachment, err := attachmentService.MergeChunks(chunkID, filename, "", totalChunks, ctx.Request().Input("is_public", ""))
 		if err != nil {
-			return r.attachmentServiceError(ctx, err, map[string]any{
+			return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 				"chunk_id":     chunkID,
 				"filename":     filename,
 				"total_chunks": totalChunks,
@@ -343,7 +294,7 @@ func (r *AttachmentController) ChunkUpload(ctx http.Context) http.Response {
 
 		progress, err := attachmentService.GetChunkProgress(chunkID, totalChunks)
 		if err != nil {
-			return r.attachmentServiceError(ctx, err, map[string]any{
+			return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 				"chunk_id": chunkID,
 			})
 		}
@@ -362,10 +313,10 @@ func (r *AttachmentController) Download(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	attachment, err := attachmentService.GetByID(id)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrRecordNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
 	if attachment.Path == "" || attachment.Disk == "" {
@@ -389,7 +340,7 @@ func (r *AttachmentController) Download(ctx http.Context) http.Response {
 	// 读取文件内容
 	content, err := storage.Get(attachment.Path)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"disk": attachment.Disk,
 			"path": attachment.Path,
 		})
@@ -427,10 +378,10 @@ func (r *AttachmentController) PublicPreview(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	attachment, err := attachmentService.GetByID(id)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrRecordNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
 	if attachment.IsPublic != 1 {
@@ -447,10 +398,10 @@ func (r *AttachmentController) Preview(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	attachment, err := attachmentService.GetByID(id)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrRecordNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
 	return r.serveAttachmentContent(ctx, attachment, "inline")
@@ -463,14 +414,14 @@ func (r *AttachmentController) Destroy(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	attachment, err := attachmentService.GetByID(id)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrRecordNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
 	if err := attachmentService.DeleteFile(attachment); err != nil {
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"attachId": attachment.ID,
 		})
 	}
@@ -497,10 +448,10 @@ func (r *AttachmentController) BatchDestroy(ctx http.Context) http.Response {
 	ids := req.IDs
 
 	// 查询要删除的附件
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	attachments, err := attachmentService.GetByIDs(ids)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"ids": ids,
 		})
 	}
@@ -526,11 +477,11 @@ func (r *AttachmentController) UpdateDisplayName(ctx http.Context) http.Response
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	displayName := ctx.Request().Input("display_name", "")
 
 	if err := attachmentService.UpdateDisplayName(id, displayName); err != nil {
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"attachId": id,
 		})
 	}
@@ -538,7 +489,7 @@ func (r *AttachmentController) UpdateDisplayName(ctx http.Context) http.Response
 	// 重新获取更新后的附件
 	attachment, err := attachmentService.GetByID(id)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrRecordNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
 	return response.Success(ctx, http.Json{
@@ -559,12 +510,9 @@ func (r *AttachmentController) UpdateCategory(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrParamsError.Code)
 	}
 
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	if err := attachmentService.UpdateCategory(id, uint(categoryID)); err != nil {
-		if businessErr, ok := err.(*apperrors.BusinessError); ok {
-			return response.Error(ctx, http.StatusBadRequest, businessErr)
-		}
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"attachId":    id,
 			"category_id": categoryID,
 		})
@@ -572,7 +520,7 @@ func (r *AttachmentController) UpdateCategory(ctx http.Context) http.Response {
 
 	attachment, err := attachmentService.GetByID(id)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrRecordNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
 	return response.Success(ctx, http.Json{
@@ -593,12 +541,9 @@ func (r *AttachmentController) UpdateVisibility(ctx http.Context) http.Response 
 	}
 
 	isPublic := isPublicStr == "1" || strings.EqualFold(isPublicStr, "true")
-	attachmentService := services.NewAttachmentService(ctx)
+	attachmentService := r.AttachmentService(ctx)
 	if err := attachmentService.UpdateVisibility(id, isPublic); err != nil {
-		if businessErr, ok := err.(*apperrors.BusinessError); ok {
-			return response.Error(ctx, http.StatusBadRequest, businessErr)
-		}
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"attachId":  id,
 			"is_public": isPublicStr,
 		})
@@ -606,7 +551,7 @@ func (r *AttachmentController) UpdateVisibility(ctx http.Context) http.Response 
 
 	attachment, err := attachmentService.GetByID(id)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrRecordNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
 	return response.Success(ctx, http.Json{
@@ -648,7 +593,7 @@ func (r *AttachmentController) serveAttachmentContent(ctx http.Context, attachme
 
 	content, err := storage.Get(attachment.Path)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "attachment", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
 			"disk": attachment.Disk,
 			"path": attachment.Path,
 		})
@@ -691,11 +636,4 @@ func (r *AttachmentController) serveAttachmentContent(ctx http.Context, attachme
 	}
 
 	return httpResp.String(http.StatusOK, content)
-}
-
-func (r *AttachmentController) attachmentServiceError(ctx http.Context, err error, attrs map[string]any) http.Response {
-	if businessErr, ok := apperrors.GetBusinessError(err); ok {
-		return response.Error(ctx, http.StatusBadRequest, businessErr)
-	}
-	return response.ErrorWithLog(ctx, "attachment", err, attrs)
 }

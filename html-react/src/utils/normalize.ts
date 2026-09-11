@@ -53,11 +53,8 @@ export function normalizeListResponse<T = unknown>(
   const list = data.list ?? data.data
   if (Array.isArray(list)) {
     const normalized = normalizeTreeList(list) as T[]
-    if (data.list) {
-      data.list = normalized
-    } else if (data.data) {
-      data.data = normalized
-    }
+    // Always expose `list` so callers don't need legacy `data` fallbacks.
+    data.list = normalized
   }
 
   return res as ApiResponse<PaginatedData<T>>

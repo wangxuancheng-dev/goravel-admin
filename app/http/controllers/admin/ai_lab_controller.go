@@ -37,7 +37,7 @@ func (c *AiLabController) handleAIError(ctx http.Context, action string, err err
 	if err == nil {
 		return nil
 	}
-	return response.ErrorWithLog(ctx, "ai_lab", err, map[string]any{"action": action})
+	return HandleGeneratedServiceError(ctx, "ai_lab", http.StatusInternalServerError, err, map[string]any{"action": action})
 }
 
 func validateAiLabUpload(file contractsfilesystem.File) error {

@@ -6,11 +6,19 @@ import {
   <<if .HasDelete>>delete<<.ModelName>>,<<end>>
   get<<.ModelName>>List,
   <<if and .HasEdit .HasListStatusSwitch>>update<<.ModelName>>,<<end>>
+  <<if .HasExport>>export<<.ModelName>>,<<end>>
 } from '@/api/<<.ModuleNameK>>'
 import { useListPage } from '@/hooks/useListPage'
 import { handlePaginatedTableChange } from '@/utils/tableChange'
 import { useCrudActions } from '@/hooks/useCrudActions'
 import { usePermission } from '@/hooks/usePermission'
+<<if and .HasExport .ExportAsync>>
+import { useQueuedExport } from '@/hooks/useQueuedExport'
+<<end>>
+<<if and .HasExport (not .ExportAsync)>>
+import { App } from 'antd'
+import { useNavigate } from 'react-router-dom'
+<<end>>
 import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
 import PermissionButton from '@/components/PermissionButton'
@@ -65,6 +73,42 @@ export default function <<.ModelName>>List() {
     },
     <<if .HasDelete>>deleteApi: delete<<.ModelName>>,<<end>>
   })
+<<if and .HasExport .ExportAsync>>
+  const { exporting, handleExport } = useQueuedExport({
+    exportApi: export<<.ModelName>>,
+    getParams: () => searchForm,
+    redirectPath: '/exports',
+  })
+<<end>>
+<<if and .HasExport (not .ExportAsync)>>
+  const { message } = App.useApp()
+  const navigate = useNavigate()
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const response = await export<<.ModelName>>(searchForm)
+      const data = (response.data || {}) as { file_url?: string; export_id?: number | string }
+      if (data.file_url) {
+        window.open(data.file_url, '_blank')
+        message.success(t('export.success'))
+      } else {
+        message.success(t('export.success'))
+        navigate('/exports')
+      }
+    } catch (error) {
+      const err = error as { response?: { status?: number }; __handled?: boolean }
+      if (err.response?.status === 429) {
+        message.warning(t('common.already_queued'))
+      } else if (!err.__handled) {
+        message.error(t('export.failed'))
+      }
+    } finally {
+      setExporting(false)
+    }
+  }
+<<end>>
 
   const columns: ColumnsType<< "<" >><<.ModelName>>Row> = [
     { title: t('table.id'), dataIndex: 'id', width: 80, sorter: true },
@@ -158,7 +202,23 @@ export default function <<.ModelName>>List() {
   <<end>>
 
   return (
-    <PageContainer title={t('menu.<<.ModuleName>>')} extra={toolbar}>
+    <PageContainer
+      title={t('menu.<<.ModuleName>>')}
+      extra={
+        <Space>
+          {toolbar}
+          <<if .HasExport>>
+          <PermissionButton
+            permission="<<.ModuleName>>.export"
+            loading={exporting}
+            onClick={() => void handleExport()}
+          >
+            {t('common.export')}
+          </PermissionButton>
+          <<end>>
+        </Space>
+      }
+    >
       <SearchForm
         fields={create<<.ModelName>>SearchFields(t)}
         values={searchForm}

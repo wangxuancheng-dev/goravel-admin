@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	appfacades "goravel/app/facades"
 	"strings"
 	"time"
 
@@ -13,9 +12,12 @@ import (
 	"github.com/go-pay/gopay/alipay"
 	"github.com/go-pay/gopay/wechat/v3"
 	"github.com/goravel/framework/contracts/database/orm"
+	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
+	appfacades "goravel/app/facades"
+	admin "goravel/app/http/requests/admin"
 	"goravel/app/models"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
@@ -31,12 +33,22 @@ type PaymentService interface {
 	GetPaymentMethods(filters PaymentMethodFilters, page, pageSize int) ([]models.PaymentMethod, int64, error)
 	// CreatePaymentMethod 创建支付方式
 	CreatePaymentMethod(name, code, paymentType string, config map[string]any, isActive bool, sort int, description string) (*models.PaymentMethod, error)
+	// CreatePaymentMethodFromRequest 按请求创建支付方式
+	CreatePaymentMethodFromRequest(req *admin.PaymentMethodCreate) (*models.PaymentMethod, error)
 	// UpdatePaymentMethod 更新支付方式（保留兼容）
 	UpdatePaymentMethod(id uint, name string, config map[string]any, isActive bool, sort int, description string) error
-	// Update 更新支付方式（新模式）
+	// UpdatePaymentMethodModel 更新支付方式（Save）
 	UpdatePaymentMethodModel(paymentMethod *models.PaymentMethod) error
+	// UpdatePaymentMethodByRequest 按请求部分更新支付方式
+	UpdatePaymentMethodByRequest(httpCtx http.Context, id uint, req *admin.PaymentMethodUpdate) (*models.PaymentMethod, error)
 	// DeletePaymentMethod 删除支付方式
 	DeletePaymentMethod(id uint) error
+	// PaymentMethodListItem 列表行（不含敏感配置）
+	PaymentMethodListItem(pm models.PaymentMethod) map[string]any
+	// PaymentMethodDetail 详情（含解析后的 config）
+	PaymentMethodDetail(pm *models.PaymentMethod) map[string]any
+	// PaymentToJSON 支付记录列表/详情展示字段
+	PaymentToJSON(payment *models.Payment) map[string]any
 
 	// GetPaymentByID 根据ID获取支付记录
 	GetPaymentByID(id uint) (*models.Payment, error)
@@ -65,6 +77,17 @@ type PaymentMethodFilters struct {
 	IsActive    string
 	Description string
 	OrderBy     string
+}
+
+func BuildPaymentMethodFiltersFromHTTP(ctx http.Context) PaymentMethodFilters {
+	return PaymentMethodFilters{
+		Name:        ctx.Request().Query("name", ""),
+		Code:        ctx.Request().Query("code", ""),
+		Type:        ctx.Request().Query("type", ""),
+		IsActive:    ctx.Request().Query("is_active", ""),
+		Description: ctx.Request().Query("description", ""),
+		OrderBy:     ctx.Request().Query("order_by", ""),
+	}
 }
 
 // PaymentFilters 支付记录查询过滤器
@@ -264,6 +287,11 @@ func (s *PaymentServiceImpl) CreatePaymentMethod(name, code, paymentType string,
 	return paymentMethod, nil
 }
 
+// CreatePaymentMethodFromRequest 按请求创建支付方式
+func (s *PaymentServiceImpl) CreatePaymentMethodFromRequest(req *admin.PaymentMethodCreate) (*models.PaymentMethod, error) {
+	return s.CreatePaymentMethod(req.Name, req.Code, req.Type, req.Config, req.IsActive, req.Sort, req.Description)
+}
+
 // UpdatePaymentMethod 更新支付方式
 func (s *PaymentServiceImpl) UpdatePaymentMethod(id uint, name string, config map[string]any, isActive bool, sort int, description string) error {
 	paymentMethod, err := s.GetPaymentMethodByID(id)
@@ -306,6 +334,44 @@ func (s *PaymentServiceImpl) UpdatePaymentMethodModel(paymentMethod *models.Paym
 	return nil
 }
 
+// UpdatePaymentMethodByRequest 按请求部分更新支付方式
+func (s *PaymentServiceImpl) UpdatePaymentMethodByRequest(httpCtx http.Context, id uint, req *admin.PaymentMethodUpdate) (*models.PaymentMethod, error) {
+	paymentMethod, err := s.GetPaymentMethodByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	allInputs := httpCtx.Request().All()
+
+	if req.Name != nil {
+		paymentMethod.Name = *req.Name
+	}
+	if _, exists := allInputs["config"]; exists {
+		if req.Config == nil {
+			return nil, apperrors.ErrPaymentConfigRequired
+		}
+		configBytes, err := json.Marshal(req.Config)
+		if err != nil {
+			return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
+		}
+		paymentMethod.Config = string(configBytes)
+	}
+	if req.IsActive != nil {
+		paymentMethod.IsActive = *req.IsActive
+	}
+	if req.Sort != nil {
+		paymentMethod.Sort = *req.Sort
+	}
+	if req.Description != nil {
+		paymentMethod.Description = *req.Description
+	}
+
+	if err := s.UpdatePaymentMethodModel(paymentMethod); err != nil {
+		return nil, err
+	}
+	return paymentMethod, nil
+}
+
 // DeletePaymentMethod 删除支付方式
 func (s *PaymentServiceImpl) DeletePaymentMethod(id uint) error {
 	_, err := s.GetPaymentMethodByID(id)
@@ -318,6 +384,69 @@ func (s *PaymentServiceImpl) DeletePaymentMethod(id uint) error {
 	}
 
 	return nil
+}
+
+func (s *PaymentServiceImpl) PaymentMethodListItem(pm models.PaymentMethod) map[string]any {
+	return map[string]any{
+		"id":          pm.ID,
+		"name":        pm.Name,
+		"code":        pm.Code,
+		"type":        pm.Type,
+		"is_active":   pm.IsActive,
+		"sort":        pm.Sort,
+		"description": pm.Description,
+		"created_at":  pm.CreatedAt,
+		"updated_at":  pm.UpdatedAt,
+	}
+}
+
+func (s *PaymentServiceImpl) PaymentMethodDetail(pm *models.PaymentMethod) map[string]any {
+	config := make(map[string]any)
+	if pm.Config != "" {
+		if err := json.Unmarshal([]byte(pm.Config), &config); err != nil {
+			config = make(map[string]any)
+		}
+	}
+
+	return map[string]any{
+		"id":          pm.ID,
+		"name":        pm.Name,
+		"code":        pm.Code,
+		"type":        pm.Type,
+		"config":      config,
+		"is_active":   pm.IsActive,
+		"sort":        pm.Sort,
+		"description": pm.Description,
+		"created_at":  pm.CreatedAt,
+		"updated_at":  pm.UpdatedAt,
+	}
+}
+
+func (s *PaymentServiceImpl) PaymentToJSON(payment *models.Payment) map[string]any {
+	payload := map[string]any{
+		"id":                payment.ID,
+		"payment_no":        payment.PaymentNo,
+		"order_no":          payment.OrderNo,
+		"payment_method_id": payment.PaymentMethodID,
+		"user_id":           payment.UserID,
+		"amount":            payment.Amount,
+		"status":            payment.Status,
+		"third_party_no":    payment.ThirdPartyNo,
+		"pay_time":          utils.FormatDateTimePtr(payment.PayTime),
+		"fail_reason":       payment.FailReason,
+		"remark":            payment.Remark,
+		"created_at":        payment.CreatedAt,
+		"updated_at":        payment.UpdatedAt,
+	}
+	if payment.PaymentMethod.ID > 0 {
+		payload["payment_method"] = map[string]any{
+			"id":   payment.PaymentMethod.ID,
+			"name": payment.PaymentMethod.Name,
+			"code": payment.PaymentMethod.Code,
+			"type": payment.PaymentMethod.Type,
+		}
+	}
+	return payload
 }
 
 // GetPaymentByID 根据ID获取支付记录（支持分表）

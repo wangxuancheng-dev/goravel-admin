@@ -2,8 +2,6 @@ package admin
 
 import (
 	"bytes"
-	"encoding/json"
-	appfacades "goravel/app/facades"
 	"net/http"
 	rpprof "runtime/pprof"
 	"sort"
@@ -14,7 +12,6 @@ import (
 	pprofprofile "github.com/google/pprof/profile"
 	ghttp "github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
-	"github.com/goravel/framework/support/carbon"
 
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
@@ -24,25 +21,6 @@ import (
 )
 
 type ObservabilityController struct {}
-
-
-type auditEvent struct {
-	Time       string `json:"time"`
-	SortAt     int64  `json:"-"`
-	Type       string `json:"type"`
-	TraceID    string `json:"trace_id"`
-	Level      string `json:"level,omitempty"`
-	Module     string `json:"module,omitempty"`
-	Title      string `json:"title,omitempty"`
-	Method     string `json:"method,omitempty"`
-	Path       string `json:"path,omitempty"`
-	AdminID    uint   `json:"admin_id,omitempty"`
-	AdminName  string `json:"admin_name,omitempty"`
-	Status     uint8  `json:"status,omitempty"`
-	Message    string `json:"message,omitempty"`
-	Context    any    `json:"context,omitempty"`
-	DurationMS int    `json:"duration_ms,omitempty"`
-}
 
 type pprofHotspot struct {
 	Function    string  `json:"function"`
@@ -54,6 +32,10 @@ type pprofHotspot struct {
 
 func NewObservabilityController() *ObservabilityController {
 	return &ObservabilityController{}
+}
+
+func (r *ObservabilityController) observabilityService(ctx ghttp.Context) services.ObservabilityService {
+	return services.NewObservabilityService(ctx)
 }
 
 func (r *ObservabilityController) slowQueryService(ctx ghttp.Context) services.SlowQueryService {
@@ -77,38 +59,14 @@ func (r *ObservabilityController) TraceAggregate(ctx ghttp.Context) ghttp.Respon
 	}
 
 	_ = r.slowQueryService(ctx).CollectFromLatestLog(200)
-
-	var operations []models.OperationLog
-	if err := appfacades.OrmQuery(ctx).
-		Model(&models.OperationLog{}).
-		Where("trace_id", traceID).
-		With("Admin").
-		Order("id asc").
-		Limit(50).
-		Get(&operations); err != nil {
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{"trace_id": traceID})
-	}
-
-	var systemLogs []models.SystemLog
-	if err := appfacades.OrmQuery(ctx).
-		Model(&models.SystemLog{}).
-		Where("trace_id", traceID).
-		Order("id asc").
-		Limit(200).
-		Get(&systemLogs); err != nil {
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{"trace_id": traceID})
-	}
-
 	slowSQL, _ := r.slowQueryService(ctx).GetByTraceID(traceID, 100)
 
-	return response.Success(ctx, ghttp.Json{
-		"trace_id":    traceID,
-		"request":     firstOperationRequest(operations),
-		"operations":  operations,
-		"exceptions":  filterExceptionLogs(systemLogs),
-		"system_logs": systemLogs,
-		"slow_sql":    slowSQL,
-	})
+	payload, err := r.observabilityService(ctx).TraceAggregate(traceID, slowSQL)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, map[string]any{"trace_id": traceID})
+	}
+
+	return response.Success(ctx, payload)
 }
 
 // SlowSQLTopN 慢 SQL TopN 聚合
@@ -120,7 +78,7 @@ func (r *ObservabilityController) SlowSQLTopN(ctx ghttp.Context) ghttp.Response 
 	_ = r.slowQueryService(ctx).CollectFromLatestLog(minDurationMS)
 	top, err := r.slowQueryService(ctx).GetTopN(hours, limit, minDurationMS)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, map[string]any{
 			"hours":           hours,
 			"limit":           limit,
 			"min_duration_ms": minDurationMS,
@@ -141,7 +99,7 @@ func (r *ObservabilityController) APIPerformanceOverview(ctx ghttp.Context) ghtt
 	limit := helpers.GetIntQuery(ctx, "limit", 20)
 	overview, err := r.apiMetricService(ctx).GetOverview(hours, limit)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, map[string]any{
 			"hours": hours,
 			"limit": limit,
 		})
@@ -157,7 +115,7 @@ func (r *ObservabilityController) APIPerformanceTraces(ctx ghttp.Context) ghttp.
 	limit := helpers.GetIntQuery(ctx, "limit", 20)
 	list, err := r.apiMetricService(ctx).GetRecentTraces(method, routeTemplate, hours, limit)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, map[string]any{
 			"method":         method,
 			"route_template": routeTemplate,
 			"hours":          hours,
@@ -193,9 +151,9 @@ func (r *ObservabilityController) AuditTimeline(ctx ghttp.Context) ghttp.Respons
 	startTime := getTimeQueryUTC(ctx, "start_time")
 	endTime := getTimeQueryUTC(ctx, "end_time")
 
-	events, err := r.collectAuditEvents(ctx, traceID, keyword, adminID, startTime, endTime)
+	events, err := r.observabilityService(ctx).CollectAuditEvents(traceID, keyword, adminID, startTime, endTime)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "observability", err)
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, nil)
 	}
 
 	total := len(events)
@@ -364,7 +322,7 @@ func (r *ObservabilityController) PprofCPUHotspots(ctx ghttp.Context) ghttp.Resp
 			"top_n":    topN,
 			"error":    err.Error(),
 		})
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, map[string]any{
 			"seconds": seconds,
 			"top_n":   topN,
 		})
@@ -380,7 +338,7 @@ func (r *ObservabilityController) PprofCPUHotspots(ctx ghttp.Context) ghttp.Resp
 			"top_n":    topN,
 			"error":    err.Error(),
 		})
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, map[string]any{
 			"seconds": seconds,
 			"top_n":   topN,
 		})
@@ -440,7 +398,7 @@ func (r *ObservabilityController) PprofMemoryHotspots(ctx ghttp.Context) ghttp.R
 			"top_n":    topN,
 			"error":    err.Error(),
 		})
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, map[string]any{
 			"top_n": topN,
 		})
 	}
@@ -452,7 +410,7 @@ func (r *ObservabilityController) PprofMemoryHotspots(ctx ghttp.Context) ghttp.R
 			"top_n":    topN,
 			"error":    err.Error(),
 		})
-		return response.ErrorWithLog(ctx, "observability", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusInternalServerError, err, map[string]any{
 			"top_n": topN,
 		})
 	}
@@ -628,138 +586,3 @@ func (r *ObservabilityController) recordPprofSamplingLog(ctx ghttp.Context, mess
 	_ = r.systemLogService(ctx).RecordHTTP(ctx, "info", "pprof", message, attrs)
 }
 
-func (r *ObservabilityController) collectAuditEvents(ctx ghttp.Context, traceID, keyword string, adminID int, startTime, endTime string) ([]auditEvent, error) {
-	opQuery := appfacades.OrmQuery(ctx).Model(&models.OperationLog{}).With("Admin").Order("id desc").Limit(500)
-	if traceID != "" {
-		opQuery = opQuery.Where("trace_id = ?", traceID)
-	}
-	if adminID > 0 {
-		opQuery = opQuery.Where("admin_id = ?", adminID)
-	}
-	if keyword != "" {
-		opQuery = opQuery.Where("path LIKE ? OR title LIKE ? OR request LIKE ? OR error_msg LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
-	}
-	if startTime != "" {
-		opQuery = opQuery.Where("created_at >= ?", startTime)
-	}
-	if endTime != "" {
-		opQuery = opQuery.Where("created_at <= ?", endTime)
-	}
-	var opLogs []models.OperationLog
-	if err := opQuery.Get(&opLogs); err != nil {
-		return nil, err
-	}
-
-	sysQuery := appfacades.OrmQuery(ctx).Model(&models.SystemLog{}).Order("id desc").Limit(500)
-	if traceID != "" {
-		sysQuery = sysQuery.Where("trace_id = ?", traceID)
-	}
-	if keyword != "" {
-		sysQuery = sysQuery.Where("message LIKE ? OR module LIKE ? OR context LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
-	}
-	if startTime != "" {
-		sysQuery = sysQuery.Where("created_at >= ?", startTime)
-	}
-	if endTime != "" {
-		sysQuery = sysQuery.Where("created_at <= ?", endTime)
-	}
-	var sysLogs []models.SystemLog
-	if err := sysQuery.Get(&sysLogs); err != nil {
-		return nil, err
-	}
-
-	events := make([]auditEvent, 0, len(opLogs)+len(sysLogs))
-	for _, item := range opLogs {
-		events = append(events, auditEvent{
-			Time:       formatCarbon(item.CreatedAt),
-			SortAt:     toUnix(item.CreatedAt),
-			Type:       "operation",
-			TraceID:    item.TraceID,
-			Title:      item.Title,
-			Method:     item.Method,
-			Path:       item.Path,
-			AdminID:    item.AdminID,
-			AdminName:  item.Admin.Username,
-			Status:     item.Status,
-			Message:    item.ErrorMsg,
-			DurationMS: item.Duration,
-			Context: map[string]any{
-				"request": item.Request,
-				"changes": safeJSON(item.Changes),
-			},
-		})
-	}
-	for _, item := range sysLogs {
-		events = append(events, auditEvent{
-			Time:    formatCarbon(item.CreatedAt),
-			SortAt:  toUnix(item.CreatedAt),
-			Type:    "system",
-			TraceID: item.TraceID,
-			Level:   item.Level,
-			Module:  item.Module,
-			Message: item.Message,
-			Context: safeJSON(item.Context),
-		})
-	}
-
-	sort.Slice(events, func(i, j int) bool {
-		return events[i].SortAt > events[j].SortAt
-	})
-	return events, nil
-}
-
-func firstOperationRequest(operations []models.OperationLog) map[string]any {
-	if len(operations) == 0 {
-		return map[string]any{}
-	}
-	first := operations[0]
-	return map[string]any{
-		"trace_id":    first.TraceID,
-		"path":        first.Path,
-		"method":      first.Method,
-		"status":      first.Status,
-		"request":     safeJSON(first.Request),
-		"duration_ms": first.Duration,
-		"created_at":  first.CreatedAt,
-	}
-}
-
-func formatCarbon(dt *carbon.DateTime) string {
-	if dt == nil {
-		return ""
-	}
-	return dt.ToDateTimeString()
-}
-
-func toUnix(dt *carbon.DateTime) int64 {
-	if dt == nil {
-		return 0
-	}
-	parsed, err := time.Parse("2006-01-02 15:04:05", dt.ToDateTimeString())
-	if err != nil {
-		return 0
-	}
-	return parsed.Unix()
-}
-
-func filterExceptionLogs(logs []models.SystemLog) []models.SystemLog {
-	items := make([]models.SystemLog, 0)
-	for _, item := range logs {
-		level := strings.ToLower(item.Level)
-		if level == "error" || strings.Contains(strings.ToLower(item.Message), "panic") || strings.Contains(strings.ToLower(item.Message), "exception") {
-			items = append(items, item)
-		}
-	}
-	return items
-}
-
-func safeJSON(raw string) any {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	var decoded any
-	if err := json.Unmarshal([]byte(raw), &decoded); err == nil {
-		return decoded
-	}
-	return raw
-}

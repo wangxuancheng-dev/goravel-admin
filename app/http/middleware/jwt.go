@@ -10,7 +10,7 @@ import (
 	"github.com/goravel/framework/support/str"
 
 	apperrors "goravel/app/errors"
-	"goravel/app/http/trans"
+	"goravel/app/http/response"
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/utils/logger"
@@ -34,10 +34,7 @@ func Jwt() http.Middleware {
 		}
 
 		if str.Of(token).IsEmpty() {
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    http.StatusUnauthorized,
-				"message": trans.Get(ctx, "not_logged_in"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "not_logged_in")
 			return
 		}
 
@@ -45,10 +42,7 @@ func Jwt() http.Middleware {
 		token = str.Of(token).ChopStart("Bearer ").Trim().String()
 
 		if token == "" {
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    http.StatusUnauthorized,
-				"message": trans.Get(ctx, "not_logged_in"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "not_logged_in")
 			return
 		}
 
@@ -62,37 +56,25 @@ func Jwt() http.Middleware {
 			} else {
 				logger.ErrorfHTTP(ctx, "JWT middleware: FindToken error: %v, token prefix: %s", err, tokenPrefix)
 			}
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    http.StatusUnauthorized,
-				"message": trans.Get(ctx, "invalid_token"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "invalid_token")
 			return
 		}
 		if accessToken == nil {
 			logger.WarnfHTTP(ctx, "JWT middleware: accessToken is nil, token prefix: %s", token[:min(20, len(token))])
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    http.StatusUnauthorized,
-				"message": trans.Get(ctx, "invalid_token"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "invalid_token")
 			return
 		}
 
 		// 检查token类型
 		if accessToken.TokenableType != "admin" {
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    http.StatusUnauthorized,
-				"message": trans.Get(ctx, "invalid_token"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "invalid_token")
 			return
 		}
 
 		// 查询用户信息
 		var admin models.Admin
 		if err := appfacades.OrmQuery(ctx).Where("id", accessToken.TokenableID).First(&admin); err != nil {
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    http.StatusUnauthorized,
-				"message": trans.Get(ctx, "user_not_found"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "user_not_found")
 			return
 		}
 
@@ -115,8 +97,6 @@ func Jwt() http.Middleware {
 		// 将用户信息存储到context中，供后续中间件使用
 		ctx.WithValue("admin", admin)
 		ctx.WithValue("token", accessToken)
-
-		// facades.Log().Debugf("JWT middleware: admin set in context, ID: %d, Username: %s", admin.ID, admin.Username)
 
 		ctx.Request().Next()
 	})

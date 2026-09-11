@@ -1,72 +1,37 @@
 package admin
 
 import (
-	appfacades "goravel/app/facades"
-	"time"
-
 	"github.com/goravel/framework/contracts/http"
 
 	"goravel/app/constants"
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
-	"goravel/app/models"
 	"goravel/app/services"
 )
 
-type LoginLogController struct {}
+type LoginLogController struct{}
 
+type LoginLogBatchDestroyRequest struct {
+	IDs []uint `json:"ids"`
+}
 
 func NewLoginLogController() *LoginLogController {
 	return &LoginLogController{}
 }
 
-func (r *LoginLogController) loginLogService(ctx http.Context) services.LoginLogService {
+func (c *LoginLogController) LoginLogService(ctx http.Context) services.LoginLogService {
 	return services.NewLoginLogService(ctx)
 }
 
-
-// findLoginLogByID 根据ID查找登录日志，如果不存在则返回错误响应
-// withAdmin 为 true 时会预加载 Admin 关联
-func (r *LoginLogController) findLoginLogByID(ctx http.Context, id uint, withAdmin bool) (*models.LoginLog, http.Response) {
-	log, err := r.loginLogService(ctx).GetByID(id, withAdmin)
-	if err != nil {
-		return nil, response.Error(ctx, http.StatusNotFound, apperrors.ErrLogNotFound.Code)
-	}
-	return log, nil
-}
-
-// buildFilters 构建查询过滤器
-func (r *LoginLogController) buildFilters(ctx http.Context) services.LoginLogFilters {
-	adminID := ctx.Request().Query("admin_id", "")
-	username := ctx.Request().Query("username", "")
-	ip := ctx.Request().Query("ip", "")
-	status := ctx.Request().Query("status", "")
-	startTime := getTimeQueryUTC(ctx, "start_time")
-	endTime := getTimeQueryUTC(ctx, "end_time")
-	orderBy := ctx.Request().Query("order_by", "")
-
-	return services.LoginLogFilters{
-		AdminID:   adminID,
-		Username:  username,
-		IP:        ip,
-		Status:    status,
-		StartTime: startTime,
-		EndTime:   endTime,
-		OrderBy:   orderBy,
-	}
-}
-
-// Index 获取登录日志列表
-func (r *LoginLogController) Index(ctx http.Context) http.Response {
-	filters := r.buildFilters(ctx)
-
+func (c *LoginLogController) Index(ctx http.Context) http.Response {
+	filters := services.BuildLoginLogFiltersFromHTTP(ctx)
 	page := helpers.GetIntQuery(ctx, "page", 1)
 	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
 
-	logs, total, err := r.loginLogService(ctx).GetList(filters, page, pageSize)
+	logs, total, err := c.LoginLogService(ctx).GetList(filters, page, pageSize)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "login-log", err)
+		return HandleGeneratedServiceError(ctx, "login-log", http.StatusInternalServerError, err, nil)
 	}
 
 	return response.Success(ctx, http.Json{
@@ -77,81 +42,44 @@ func (r *LoginLogController) Index(ctx http.Context) http.Response {
 	})
 }
 
-// Show 获取登录日志详情
-func (r *LoginLogController) Show(ctx http.Context) http.Response {
+func (c *LoginLogController) Show(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	log, resp := r.findLoginLogByID(ctx, id, true) // 预加载 Admin 关联
-	if resp != nil {
-		return resp
+	log, err := c.LoginLogService(ctx).GetByID(id, true)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "login-log", http.StatusNotFound, err, map[string]any{"id": id})
 	}
-
 	return response.Success(ctx, http.Json{
 		"log": *log,
 	})
 }
 
-// Destroy 删除登录日志
-func (r *LoginLogController) Destroy(ctx http.Context) http.Response {
+func (c *LoginLogController) Destroy(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	log, resp := r.findLoginLogByID(ctx, id, false)
-	if resp != nil {
-		return resp
+	if err := c.LoginLogService(ctx).Delete(id); err != nil {
+		return HandleGeneratedServiceError(ctx, "login-log", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
-
-	if _, err := appfacades.OrmQuery(ctx).Delete(log); err != nil {
-		return response.ErrorWithLog(ctx, "login-log", err, map[string]any{
-			"log_id": log.ID,
-		})
-	}
-
-	return response.Success(ctx)
+	return response.Success(ctx, "delete_success", http.Json{})
 }
 
-type LoginLogBatchDestroyRequest struct {
-	IDs []uint `json:"ids"`
-}
-
-// BatchDestroy 批量删除登录日志
-func (r *LoginLogController) BatchDestroy(ctx http.Context) http.Response {
+func (c *LoginLogController) BatchDestroy(ctx http.Context) http.Response {
 	var req LoginLogBatchDestroyRequest
-
-	// 使用结构体绑定
 	if err := ctx.Request().Bind(&req); err != nil {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrParamsError.Code)
 	}
-
-	if len(req.IDs) == 0 {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDsRequired.Code)
-	}
-
-	ids := req.IDs
-
-	// 使用工具函数转换为 []any
-	idsAny := helpers.ConvertUintSliceToAny(ids)
-
-	if _, err := appfacades.OrmQuery(ctx).WhereIn("id", idsAny).Delete(&models.LoginLog{}); err != nil {
-		return response.ErrorWithLog(ctx, "login-log", err, map[string]any{
-			"ids": ids,
+	if err := c.LoginLogService(ctx).BatchDelete(req.IDs); err != nil {
+		return HandleGeneratedServiceError(ctx, "login-log", http.StatusInternalServerError, err, map[string]any{
+			"ids": req.IDs,
 		})
 	}
-
-	return response.Success(ctx)
+	return response.Success(ctx, "delete_success", http.Json{})
 }
 
-// Clean 清理登录日志
-// 删除指定天数之前的日志，默认删除30天前的日志
-func (r *LoginLogController) Clean(ctx http.Context) http.Response {
+func (c *LoginLogController) Clean(ctx http.Context) http.Response {
 	days := helpers.GetIntQuery(ctx, "days", constants.DefaultCleanLogDays)
-	if days <= 0 {
-		days = constants.DefaultCleanLogDays
-	}
-
-	cutoffTime := time.Now().AddDate(0, 0, -days)
-	if _, err := appfacades.OrmQuery(ctx).Model(&models.LoginLog{}).Where("created_at < ?", cutoffTime).Delete(&models.LoginLog{}); err != nil {
-		return response.ErrorWithLog(ctx, "login-log", err, map[string]any{
+	if err := c.LoginLogService(ctx).Clean(days); err != nil {
+		return HandleGeneratedServiceError(ctx, "login-log", http.StatusInternalServerError, err, map[string]any{
 			"days": days,
 		})
 	}
-
-	return response.Success(ctx)
+	return response.Success(ctx, "clean_success", http.Json{})
 }

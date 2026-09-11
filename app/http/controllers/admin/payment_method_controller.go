@@ -1,11 +1,8 @@
 package admin
 
 import (
-	"encoding/json"
-
 	"github.com/goravel/framework/contracts/http"
 
-	apperrors "goravel/app/errors"
 	"goravel/app/http/apidoc"
 	"goravel/app/http/helpers"
 	adminrequests "goravel/app/http/requests/admin"
@@ -13,8 +10,7 @@ import (
 	"goravel/app/services"
 )
 
-type PaymentMethodController struct {}
-
+type PaymentMethodController struct{}
 
 type PaymentMethodResponse struct {
 	ID          uint           `json:"id" example:"1"`                           // 支付方式ID
@@ -30,7 +26,7 @@ type PaymentMethodResponse struct {
 }
 
 type PaymentMethodListData struct {
-	Data []PaymentMethodResponse `json:"data"` // 列表数据
+	List []PaymentMethodResponse `json:"list"`
 	apidoc.Pagination
 }
 
@@ -48,10 +44,13 @@ func NewPaymentMethodController() *PaymentMethodController {
 	return &PaymentMethodController{}
 }
 
-func (r *PaymentMethodController) paymentService(ctx http.Context) services.PaymentService {
+func (c *PaymentMethodController) PaymentService(ctx http.Context) services.PaymentService {
 	return services.NewPaymentService(ctx)
 }
 
+func (c *PaymentMethodController) buildPaymentMethodFilters(ctx http.Context) services.PaymentMethodFilters {
+	return services.BuildPaymentMethodFiltersFromHTTP(ctx)
+}
 
 // Index 支付方式列表
 // @Summary      获取支付方式列表
@@ -71,44 +70,26 @@ func (r *PaymentMethodController) paymentService(ctx http.Context) services.Paym
 // @Failure      500        {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/payment-methods [get]
 // @Security     BearerAuth
-func (r *PaymentMethodController) Index(ctx http.Context) http.Response {
+func (c *PaymentMethodController) Index(ctx http.Context) http.Response {
 	page := helpers.GetIntQuery(ctx, "page", 1)
 	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
+	filters := c.buildPaymentMethodFilters(ctx)
 
-	filters := services.PaymentMethodFilters{
-		Name:        ctx.Request().Query("name", ""),
-		Code:        ctx.Request().Query("code", ""),
-		Type:        ctx.Request().Query("type", ""),
-		IsActive:    ctx.Request().Query("is_active", ""),
-		Description: ctx.Request().Query("description", ""),
-		OrderBy:     ctx.Request().Query("order_by", ""),
-	}
-
-	paymentMethods, total, err := r.paymentService(ctx).GetPaymentMethods(filters, page, pageSize)
+	paymentMethods, total, err := c.PaymentService(ctx).GetPaymentMethods(filters, page, pageSize)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "payment_method", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusInternalServerError, err, map[string]any{
 			"filters": filters,
 		})
 	}
 
-	// 转换响应数据（不返回敏感配置信息）
+	svc := c.PaymentService(ctx)
 	paymentMethodList := make([]http.Json, len(paymentMethods))
 	for i, pm := range paymentMethods {
-		paymentMethodList[i] = http.Json{
-			"id":          pm.ID,
-			"name":        pm.Name,
-			"code":        pm.Code,
-			"type":        pm.Type,
-			"is_active":   pm.IsActive,
-			"sort":        pm.Sort,
-			"description": pm.Description,
-			"created_at":  pm.CreatedAt,
-			"updated_at":  pm.UpdatedAt,
-		}
+		paymentMethodList[i] = svc.PaymentMethodListItem(pm)
 	}
 
 	return response.Success(ctx, http.Json{
-		"data":      paymentMethodList,
+		"list":      paymentMethodList,
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,
@@ -128,35 +109,15 @@ func (r *PaymentMethodController) Index(ctx http.Context) http.Response {
 // @Failure      500        {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/payment-methods/{id} [get]
 // @Security     BearerAuth
-func (r *PaymentMethodController) Show(ctx http.Context) http.Response {
+func (c *PaymentMethodController) Show(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	paymentMethod, err := r.paymentService(ctx).GetPaymentMethodByID(id)
+	paymentMethod, err := c.PaymentService(ctx).GetPaymentMethodByID(id)
 	if err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrPaymentMethodNotFound.Code)
+		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
-	// 解析配置 JSON
-	var config map[string]any
-	if paymentMethod.Config != "" {
-		if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
-			config = make(map[string]any)
-		}
-	} else {
-		config = make(map[string]any)
-	}
-
-	return response.Success(ctx, http.Json{
-		"id":          paymentMethod.ID,
-		"name":        paymentMethod.Name,
-		"code":        paymentMethod.Code,
-		"type":        paymentMethod.Type,
-		"config":      config,
-		"is_active":   paymentMethod.IsActive,
-		"sort":        paymentMethod.Sort,
-		"description": paymentMethod.Description,
-		"created_at":  paymentMethod.CreatedAt,
-		"updated_at":  paymentMethod.UpdatedAt,
-	})
+	// Keep flat detail payload for existing Vue/React form loaders.
+	return response.Success(ctx, c.PaymentService(ctx).PaymentMethodDetail(paymentMethod))
 }
 
 // Store 创建支付方式
@@ -177,46 +138,21 @@ func (r *PaymentMethodController) Show(ctx http.Context) http.Response {
 // @Failure      500      {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/payment-methods [post]
 // @Security     BearerAuth
-func (r *PaymentMethodController) Store(ctx http.Context) http.Response {
+func (c *PaymentMethodController) Store(ctx http.Context) http.Response {
 	var req adminrequests.PaymentMethodCreate
-	errors, err := ctx.Request().ValidateRequest(&req)
-	if err != nil {
-		return response.Error(ctx, http.StatusBadRequest, err.Error())
-	}
-	if errors != nil {
-		return response.ValidationError(ctx, http.StatusBadRequest, "validation_failed", errors.All())
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
+		return resp
 	}
 
-	paymentMethod, err := r.paymentService(ctx).CreatePaymentMethod(
-		req.Name,
-		req.Code,
-		req.Type,
-		req.Config,
-		req.IsActive,
-		req.Sort,
-		req.Description,
-	)
+	paymentMethod, err := c.PaymentService(ctx).CreatePaymentMethodFromRequest(&req)
 	if err != nil {
-		if businessErr, ok := apperrors.GetBusinessError(err); ok {
-			return response.Error(ctx, http.StatusBadRequest, businessErr.Code)
-		}
-		return response.ErrorWithLog(ctx, "payment_method", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusInternalServerError, err, map[string]any{
 			"name": req.Name,
 			"code": req.Code,
 		})
 	}
 
-	return response.Success(ctx, http.Json{
-		"id":          paymentMethod.ID,
-		"name":        paymentMethod.Name,
-		"code":        paymentMethod.Code,
-		"type":        paymentMethod.Type,
-		"is_active":   paymentMethod.IsActive,
-		"sort":        paymentMethod.Sort,
-		"description": paymentMethod.Description,
-		"created_at":  paymentMethod.CreatedAt,
-		"updated_at":  paymentMethod.UpdatedAt,
-	})
+	return response.Success(ctx, c.PaymentService(ctx).PaymentMethodListItem(*paymentMethod))
 }
 
 // Update 更新支付方式
@@ -236,54 +172,17 @@ func (r *PaymentMethodController) Store(ctx http.Context) http.Response {
 // @Failure      500        {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/payment-methods/{id} [put]
 // @Security     BearerAuth
-func (r *PaymentMethodController) Update(ctx http.Context) http.Response {
+func (c *PaymentMethodController) Update(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
 
-	// 获取支付方式
-	paymentMethod, err := r.paymentService(ctx).GetPaymentMethodByID(id)
-	if err != nil {
-		if businessErr, ok := apperrors.GetBusinessError(err); ok {
-			return response.Error(ctx, http.StatusNotFound, businessErr.Code)
-		}
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrPaymentMethodNotFound.Code)
-	}
-
 	var req adminrequests.PaymentMethodUpdate
-	errors, err := ctx.Request().ValidateRequest(&req)
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
+		return resp
+	}
+
+	paymentMethod, err := c.PaymentService(ctx).UpdatePaymentMethodByRequest(ctx, id, &req)
 	if err != nil {
-		return response.Error(ctx, http.StatusBadRequest, err.Error())
-	}
-	if errors != nil {
-		return response.ValidationError(ctx, http.StatusBadRequest, "validation_failed", errors.All())
-	}
-
-	// 使用 All() 方法检查字段是否存在
-	allInputs := ctx.Request().All()
-
-	if _, exists := allInputs["name"]; exists {
-		paymentMethod.Name = req.Name
-	}
-	if _, exists := allInputs["config"]; exists && req.Config != nil {
-		configBytes, err := json.Marshal(req.Config)
-		if err != nil {
-			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrPaymentConfigRequired.Code)
-		}
-		paymentMethod.Config = string(configBytes)
-	}
-	if _, exists := allInputs["is_active"]; exists {
-		paymentMethod.IsActive = req.IsActive
-	}
-	if _, exists := allInputs["sort"]; exists {
-		paymentMethod.Sort = req.Sort
-	}
-	if _, exists := allInputs["description"]; exists {
-		paymentMethod.Description = req.Description
-	}
-
-	if err := r.paymentService(ctx).UpdatePaymentMethodModel(paymentMethod); err != nil {
-		return response.ErrorWithLog(ctx, "payment_method", err, map[string]any{
-			"id": id,
-		})
+		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 
 	return response.Success(ctx, http.Json{
@@ -303,18 +202,10 @@ func (r *PaymentMethodController) Update(ctx http.Context) http.Response {
 // @Failure      500        {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/payment-methods/{id} [delete]
 // @Security     BearerAuth
-func (r *PaymentMethodController) Destroy(ctx http.Context) http.Response {
+func (c *PaymentMethodController) Destroy(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-
-	err := r.paymentService(ctx).DeletePaymentMethod(id)
-	if err != nil {
-		if businessErr, ok := apperrors.GetBusinessError(err); ok {
-			return response.Error(ctx, http.StatusBadRequest, businessErr.Code)
-		}
-		return response.ErrorWithLog(ctx, "payment_method", err, map[string]any{
-			"id": id,
-		})
+	if err := c.PaymentService(ctx).DeletePaymentMethod(id); err != nil {
+		return HandleGeneratedServiceError(ctx, "payment_method", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
-
-	return response.Success(ctx)
+	return response.Success(ctx, "delete_success", http.Json{})
 }

@@ -56,14 +56,9 @@ Avoid attrs:
 ### Paginated lists
 Always include: `total`, `page`, `page_size`.
 
-Rows array key — **match the module**:
+Rows array key: **`list`** for all admin list endpoints (including payment / order / payment_method).
 
-| Rows key | Modules |
-|----------|---------|
-| `list` (default — **all new generated CRUD**) | article, position, admin, user, role, … |
-| `data` (legacy only) | payment, payment_method, order |
-
-Frontends accept both (`list` for new generated modules; `data` only in legacy payment/order).
+Frontends still accept legacy `data` via `normalizeListResponse` for compatibility, but new/changed controllers must return `list`.
 
 ### Detail endpoints
 Singular resource key: `user`, `role`, `position`, `payment_method`, `order`, etc.
@@ -89,14 +84,14 @@ May use plural nouns, e.g. `dictionaries`, `types`
 ### Legacy (hand-written older modules — edit in place only)
 | Pattern | Where |
 |---------|-------|
-| `response.FindByID` in controller | menu, … |
-| Partial update `Request().All()` | menu |
-| `findXByID` + per-action `ErrorWithLog` | position |
-| `"data"` pagination key | payment, payment_method, order |
+| Fat orchestration in controller | attachment upload/stream, pprof, SSE; async export uses shared `EnqueueAsyncExport` |
 | `response.Paginate` | export list, online admins |
-| apidoc/swag annotations | payment_method (optional for hand-written APIs) |
+| apidoc/swag annotations | admin, payment_method (optional) |
 
 Do **not** apply legacy patterns to new modules — use code generator output instead.
+
+Menu / department / admin / payment_method / payment Index-Show / order CRUD helpers / attachment Index / online_admin / config / export CRUD / notification / dashboard / observability (trace+audit) / schedule are migrated toward thin controllers + service ownership.
+Keep hand-written: monitor, WS, codegen, form demo, pprof sampling, and export/import queue orchestration.
 
 ## Copy/paste examples
 

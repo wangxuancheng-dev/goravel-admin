@@ -1,14 +1,11 @@
 package admin
 
 import (
-	"encoding/json"
 	"fmt"
-	appfacades "goravel/app/facades"
 	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
-	"github.com/goravel/framework/contracts/queue"
 	"github.com/goravel/framework/facades"
 	"github.com/goravel/framework/support/carbon"
 	"github.com/spf13/cast"
@@ -259,20 +256,6 @@ func (r *OrderController) formatTime(t any) string {
 	}
 }
 
-// convertOrderToJson converts model.Order to JSON payload.
-func (r *OrderController) convertOrderToJson(order models.Order) http.Json {
-	return http.Json{
-		"id":         order.ID,
-		"order_no":   order.OrderNo,
-		"user_id":    order.UserID,
-		"amount":     order.Amount,
-		"status":     order.Status,
-		"remark":     order.Remark,
-		"created_at": order.CreatedAt,
-		"updated_at": order.UpdatedAt,
-	}
-}
-
 // Index returns paginated order list.
 // @Summary      Get order list
 // @Description  Returns paginated orders with filters; time range is limited.
@@ -307,36 +290,19 @@ func (r *OrderController) Index(ctx http.Context) http.Response {
 	// Query order list with details.
 	ordersWithDetails, total, err := r.orderService(ctx).GetOrdersWithDetails(filters, page, pageSize)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "order", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "order", http.StatusInternalServerError, err, map[string]any{
 			"filters": filters,
 		})
 	}
 
-	// Build response data.
+	svc := r.orderService(ctx)
 	orderList := make([]http.Json, len(ordersWithDetails))
-	for i, orderWithDetails := range ordersWithDetails {
-		orderJson := r.convertOrderToJson(orderWithDetails.Order)
-		// Append order details.
-		detailsList := make([]http.Json, len(orderWithDetails.Details))
-		for j, detail := range orderWithDetails.Details {
-			detailsList[j] = http.Json{
-				"id":           detail.ID,
-				"order_id":     detail.OrderID,
-				"product_id":   detail.ProductID,
-				"product_name": detail.ProductName,
-				"price":        detail.Price,
-				"quantity":     detail.Quantity,
-				"subtotal":     detail.Subtotal,
-				"created_at":   detail.CreatedAt,
-				"updated_at":   detail.UpdatedAt,
-			}
-		}
-		orderJson["details"] = detailsList
-		orderList[i] = orderJson
+	for i := range ordersWithDetails {
+		orderList[i] = svc.OrderWithDetailsToJSON(&ordersWithDetails[i])
 	}
 
 	return response.Success(ctx, http.Json{
-		"data":      orderList,
+		"list":      orderList,
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,
@@ -359,28 +325,21 @@ func (r *OrderController) Show(ctx http.Context) http.Response {
 				}
 			}
 		}
-		return response.Error(ctx, http.StatusNotFound, "order_not_found")
+		return HandleGeneratedServiceError(ctx, "order", http.StatusNotFound, apperrors.ErrOrderNotFound, map[string]any{
+			"order_no": orderNo,
+		})
 	}
 
 	return response.Error(ctx, http.StatusBadRequest, "order_no_or_id_required")
 }
 
 func (r *OrderController) buildOrderDetailResponse(ctx http.Context, order *models.Order, details []models.OrderDetail) http.Response {
-	orderJson := r.convertOrderToJson(*order)
+	svc := r.orderService(ctx)
+	orderJson := svc.OrderToJSON(*order)
 
 	detailList := make([]http.Json, len(details))
 	for i, detail := range details {
-		detailList[i] = http.Json{
-			"id":           detail.ID,
-			"order_id":     detail.OrderID,
-			"product_id":   detail.ProductID,
-			"product_name": detail.ProductName,
-			"price":        detail.Price,
-			"quantity":     detail.Quantity,
-			"subtotal":     detail.Subtotal,
-			"created_at":   detail.CreatedAt,
-			"updated_at":   detail.UpdatedAt,
-		}
+		detailList[i] = svc.OrderDetailToJSON(detail)
 	}
 
 	return response.Success(ctx, http.Json{
@@ -408,26 +367,23 @@ func (r *OrderController) Store(ctx http.Context) http.Response {
 
 	order, details, err := r.orderService(ctx).CreateOrder(req.UserID, req.Amount, req.Products, req.RequestID, req.Remark)
 	if err != nil {
-		return response.Error(ctx, http.StatusBadRequest, "create_failed")
+		return HandleGeneratedServiceError(ctx, "order", http.StatusBadRequest, err, map[string]any{
+			"user_id": req.UserID,
+		})
 	}
+
+	svc := r.orderService(ctx)
+	orderJson := svc.OrderToJSON(*order)
+	delete(orderJson, "created_at")
+	delete(orderJson, "updated_at")
 
 	detailList := make([]http.Json, len(details))
 	for i, detail := range details {
-		detailList[i] = http.Json{
-			"id":           detail.ID,
-			"order_id":     detail.OrderID,
-			"product_id":   detail.ProductID,
-			"product_name": detail.ProductName,
-			"price":        detail.Price,
-			"quantity":     detail.Quantity,
-			"subtotal":     detail.Subtotal,
-		}
+		item := svc.OrderDetailToJSON(detail)
+		delete(item, "created_at")
+		delete(item, "updated_at")
+		detailList[i] = item
 	}
-
-	orderJson := r.convertOrderToJson(*order)
-
-	delete(orderJson, "created_at")
-	delete(orderJson, "updated_at")
 
 	return response.Success(ctx, http.Json{
 		"order":   orderJson,
@@ -452,7 +408,7 @@ func (r *OrderController) Update(ctx http.Context) http.Response {
 	}
 
 	if err := r.orderService(ctx).UpdateOrderByOrderNo(orderNo, req.Status, req.Remark); err != nil {
-		return response.ErrorWithLog(ctx, "order", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "order", http.StatusInternalServerError, err, map[string]any{
 			"order_no": orderNo,
 			"status":   req.Status,
 			"remark":   req.Remark,
@@ -479,12 +435,12 @@ func (r *OrderController) Destroy(ctx http.Context) http.Response {
 	orderNo := ctx.Request().Query("order_no", "")
 
 	if err := r.orderService(ctx).DeleteOrderByOrderNo(orderNo); err != nil {
-		return response.ErrorWithLog(ctx, "order", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "order", http.StatusInternalServerError, err, map[string]any{
 			"order_no": orderNo,
 		})
 	}
 
-	return response.Success(ctx)
+	return response.Success(ctx, "delete_success", http.Json{})
 }
 
 // Export creates async export task for order list.
@@ -509,37 +465,11 @@ func (r *OrderController) Destroy(ctx http.Context) http.Response {
 // @Router       /api/admin/orders/export [post]
 // @Security     BearerAuth
 func (r *OrderController) Export(ctx http.Context) http.Response {
-	lock := helpers.AcquireExportLock(ctx, "orders")
-	if lock.Unauthorized {
-		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
-	}
-	if lock.Blocked {
-		return response.Error(ctx, http.StatusTooManyRequests, apperrors.ErrGetLockFailed.Code)
-	}
-	adminID := lock.AdminID
-
-	// Build filters.
 	filters, resp := r.buildFilters(ctx)
 	if resp != nil {
 		return resp
 	}
 
-	// Create export record in processing status.
-	// Resolve storage disk config.
-	disk := helpers.ResolveExportDisk(ctx)
-
-	exportRecord := models.Export{
-		AdminID: adminID,
-		Type:    models.ExportTypeOrders,
-		Status:  models.ExportStatusProcessing,
-		Disk:    disk,
-		Path:    "", // Updated when job is finished.
-	}
-	if err := appfacades.OrmQuery(ctx).Create(&exportRecord); err != nil {
-		return response.ErrorWithLog(ctx, "export", err)
-	}
-
-	// Build filter map for job payload.
 	filtersMap := map[string]any{
 		"user_id":    filters.UserID,
 		"order_no":   filters.OrderNo,
@@ -555,57 +485,24 @@ func (r *OrderController) Export(ctx http.Context) http.Response {
 		filtersMap["end_time"] = utils.FormatDateTime(filters.EndTime)
 	}
 
-	// Resolve language and timezone.
-	lang := r.getCurrentLanguage(ctx)
-	timezone := helpers.GetCurrentTimezone(ctx)
-
-	// Build async export job args.
-	exportArgsStruct := jobs.ExportOrdersArgs{
-		ExportID: exportRecord.ID,
-		AdminID:  adminID,
-		Filters:  filtersMap,
-		Type:     "orders",
-		Language: lang,
-		Timezone: timezone,
+	result := EnqueueAsyncExport(ctx, EnqueueAsyncExportInput{
+		LockResource: "orders",
+		ExportType:   models.ExportTypeOrders,
+		Filters:      filtersMap,
+		Job:          &jobs.ExportOrders{},
+	})
+	if result.Unauthorized {
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
 	}
-
-	// Marshal args as JSON string.
-	exportArgsJSON, err := json.Marshal(exportArgsStruct)
-	if err != nil {
-		facades.Log().Errorf("Failed to marshal export args: export_id=%d, error=%v", exportRecord.ID, err)
-		exportRecord.Status = models.ExportStatusFailed
-		exportRecord.ErrorMsg = err.Error()
-		appfacades.OrmQuery(ctx).Save(&exportRecord)
-		return response.ErrorWithLog(ctx, "export", err)
+	if result.Blocked {
+		return response.Error(ctx, http.StatusTooManyRequests, apperrors.ErrGetLockFailed.Code)
 	}
-
-	// Log dispatch info.
-	facades.Log().Infof("Dispatch export task: export_id=%d, queue_driver=%s, args_json=%s",
-		exportRecord.ID, facades.Config().GetString("queue.default"), string(exportArgsJSON))
-
-	// Wrap payload as queue args.
-	exportArgs := []queue.Arg{
-		{
-			Type:  "string",
-			Value: string(exportArgsJSON),
-		},
+	if result.Err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, result.Err, nil)
 	}
-
-	// Use long-running queue for export tasks.
-	if err := facades.Queue().Job(&jobs.ExportOrders{}, exportArgs).OnQueue("long-running").Dispatch(); err != nil {
-		// Release lock immediately when dispatch fails.
-		lock.Release()
-		facades.Log().Errorf("Failed to dispatch export task: export_id=%d, error=%v", exportRecord.ID, err)
-		exportRecord.Status = models.ExportStatusFailed
-		exportRecord.ErrorMsg = err.Error()
-		appfacades.OrmQuery(ctx).Save(&exportRecord)
-		return response.ErrorWithLog(ctx, "export", err)
-	}
-
-	facades.Log().Infof("Export task dispatched successfully: export_id=%d", exportRecord.ID)
 
 	return response.Success(ctx, http.Json{
-		"export_id": exportRecord.ID,
+		"export_id": result.ExportID,
 		"message":   trans.Get(ctx, "queued"),
 	})
 }
@@ -633,7 +530,9 @@ func (r *OrderController) GetExportStatus(ctx http.Context) http.Response {
 	exportRecordService := services.NewExportRecordService(ctx)
 	exportRecord, err := exportRecordService.GetByID(exportID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "export", err)
+		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, err, map[string]any{
+			"export_id": exportID,
+		})
 	}
 
 	// Permission check: only owner can access.
@@ -664,8 +563,8 @@ func (r *OrderController) GetExportStatus(ctx http.Context) http.Response {
 		"filename":    exportRecord.Filename,
 		"size":        exportRecord.Size,
 		"error_msg":   exportRecord.ErrorMsg,
-		"created_at":  exportRecord.CreatedAt.ToDateTimeString(),
-		"updated_at":  exportRecord.UpdatedAt.ToDateTimeString(),
+		"created_at":  r.formatTime(exportRecord.CreatedAt),
+		"updated_at":  r.formatTime(exportRecord.UpdatedAt),
 	})
 }
 
@@ -680,10 +579,6 @@ func (r *OrderController) getExportStatusText(ctx http.Context, status uint8) st
 	default:
 		return trans.Get(ctx, "unknown")
 	}
-}
-
-func (r *OrderController) getCurrentLanguage(ctx http.Context) string {
-	return utils.GetCurrentLanguage(ctx)
 }
 
 func (r *OrderController) Import(ctx http.Context) http.Response {
@@ -705,7 +600,7 @@ func (r *OrderController) Import(ctx http.Context) http.Response {
 	storage := facades.Storage().Disk("local")
 	savedPath, err := storage.PutFile("", file)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "import", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, err, map[string]any{
 			"filename": filename,
 		})
 	}
@@ -713,7 +608,7 @@ func (r *OrderController) Import(ctx http.Context) http.Response {
 	csvContent, err := storage.Get(savedPath)
 	if err != nil {
 		_ = storage.Delete(savedPath)
-		return response.ErrorWithLog(ctx, "import", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, err, map[string]any{
 			"filename": filename,
 		})
 	}
@@ -725,7 +620,7 @@ func (r *OrderController) Import(ctx http.Context) http.Response {
 	importService := services.NewImportOrderService(ctx)
 	result, err := importService.ImportOrders(csvContent)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "import", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, err, map[string]any{
 			"filename": filename,
 			"admin_id": adminID,
 		})

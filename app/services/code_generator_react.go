@@ -100,10 +100,11 @@ func (s *CodeGeneratorServiceImpl) generateReactListPage(moduleName, tableName s
 	}
 
 	hasCreate, hasEdit, hasDelete, hasExport := frontendCrudOptions(options)
+	exportAsync := options != nil && options["export_async"]
 	enableBatchActions, showToolbar := frontendListOptions(options)
 	templateFields := s.convertFieldsToTemplateFields(fields)
 	isTreeList := options != nil && options["is_tree_list"]
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, enableBatchActions, showToolbar, isTreeList)
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, isTreeList)
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {
@@ -128,10 +129,11 @@ func (s *CodeGeneratorServiceImpl) generateReactListPageConfig(moduleName, table
 	}
 
 	hasCreate, hasEdit, hasDelete, hasExport := frontendCrudOptions(options)
+	exportAsync := options != nil && options["export_async"]
 	enableBatchActions, showToolbar := frontendListOptions(options)
 	templateFields := s.convertFieldsToTemplateFields(fields)
 	isTreeList := options != nil && options["is_tree_list"]
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, enableBatchActions, showToolbar, isTreeList)
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, isTreeList)
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {
@@ -159,7 +161,7 @@ func (s *CodeGeneratorServiceImpl) generateReactFormModal(moduleName, tableName 
 	enableBatchActions, showToolbar := frontendListOptions(options)
 	templateFields := s.convertFieldsToTemplateFields(fields)
 	isTreeList := options != nil && options["is_tree_list"]
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, false, false, enableBatchActions, showToolbar, isTreeList)
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, false, false, false, enableBatchActions, showToolbar, isTreeList)
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {

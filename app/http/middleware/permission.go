@@ -5,7 +5,7 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/trans"
+	"goravel/app/http/response"
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/utils/errorlog"
@@ -18,19 +18,13 @@ func Permission() http.Middleware {
 		// 从context中获取admin信息（由JWT中间件设置）
 		adminValue := ctx.Value("admin")
 		if adminValue == nil {
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    401,
-				"message": trans.Get(ctx, "not_logged_in"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "not_logged_in")
 			return
 		}
 
 		admin, ok := adminValue.(models.Admin)
 		if !ok {
-			_ = ctx.Response().Json(http.StatusUnauthorized, http.Json{
-				"code":    401,
-				"message": trans.Get(ctx, "not_logged_in"),
-			}).Abort()
+			response.Abort(ctx, http.StatusUnauthorized, "not_logged_in")
 			return
 		}
 
@@ -43,10 +37,7 @@ func Permission() http.Middleware {
 				"admin_id": admin.ID,
 				"path":     ctx.Request().Path(),
 			}, "Load admin relations failed: %v", err)
-			_ = ctx.Response().Json(http.StatusInternalServerError, http.Json{
-				"code":    500,
-				"message": trans.Get(ctx, "load_permissions_failed"),
-			}).Abort()
+			response.Abort(ctx, http.StatusInternalServerError, "load_permissions_failed")
 			return
 		}
 
@@ -113,15 +104,9 @@ func Permission() http.Middleware {
 		if !hasPermission && !isSuperAdmin {
 			// 如果是因为菜单状态为关闭而禁止访问，返回更具体的错误信息
 			if menuDisabled {
-				_ = ctx.Response().Json(http.StatusForbidden, http.Json{
-					"code":    403,
-					"message": trans.Get(ctx, "menu_disabled"),
-				}).Abort()
+				response.Abort(ctx, http.StatusForbidden, "menu_disabled")
 			} else {
-				_ = ctx.Response().Json(http.StatusForbidden, http.Json{
-					"code":    403,
-					"message": trans.Get(ctx, "no_permission"),
-				}).Abort()
+				response.Abort(ctx, http.StatusForbidden, "no_permission")
 			}
 			return
 		}

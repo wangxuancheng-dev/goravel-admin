@@ -1,12 +1,9 @@
 package admin
 
 import (
-	stderrors "errors"
-	appfacades "goravel/app/facades"
 	"strings"
 
 	"github.com/goravel/framework/contracts/http"
-	"github.com/goravel/framework/facades"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
@@ -19,8 +16,7 @@ import (
 	"goravel/app/services"
 )
 
-type AdminController struct {}
-
+type AdminController struct{}
 
 // AdminResponse 管理员 JSON 字段（列表项含 2FA/超管；详情/写接口可能不含 is_2fa_bound）
 type AdminResponse struct {
@@ -86,75 +82,16 @@ func NewAdminController() *AdminController {
 	return &AdminController{}
 }
 
-func (r *AdminController) adminService(ctx http.Context) services.AdminService {
+func (c *AdminController) AdminService(ctx http.Context) services.AdminService {
 	return services.NewAdminServiceImpl(ctx)
 }
 
-func (r *AdminController) googleAuthenticatorService(ctx http.Context) services.GoogleAuthenticatorService {
+func (c *AdminController) googleAuthenticatorService(ctx http.Context) services.GoogleAuthenticatorService {
 	return services.NewGoogleAuthenticatorServiceImpl(ctx)
 }
 
-
-// findAdminByID 根据ID查找管理员，如果不存在则返回错误响应
-// withDepartment 为 true 时会预加载 Department 关联
-// withRoles 为 true 时会预加载 Roles 关联
-func (r *AdminController) findAdminByID(ctx http.Context, id uint, withDepartment bool, withRoles bool) (*models.Admin, http.Response) {
-	admin, err := r.adminService(ctx).GetByID(id, withDepartment, withRoles)
-	if err != nil {
-		return nil, response.Error(ctx, http.StatusNotFound, apperrors.ErrAdminNotFound.Code)
-	}
-	return admin, nil
-}
-
-// buildFilters 构建查询过滤器（列表和导出共用）
-// 同时支持查询参数（GET）和请求体参数（POST）
-func (r *AdminController) buildFilters(ctx http.Context) services.AdminFilters {
-	// 优先从请求体读取，如果没有则从查询参数读取（兼容 GET 和 POST）
-	username := ctx.Request().Input("username", ctx.Request().Query("username", ""))
-	status := ctx.Request().Input("status", ctx.Request().Query("status", ""))
-	roleID := ctx.Request().Input("role_id", ctx.Request().Query("role_id", ""))
-	departmentID := ctx.Request().Input("department_id", ctx.Request().Query("department_id", ""))
-	positionID := ctx.Request().Input("position_id", ctx.Request().Query("position_id", ""))
-	is2FABound := ctx.Request().Input("is_2fa_bound", ctx.Request().Query("is_2fa_bound", ""))
-	orderBy := ctx.Request().Input("order_by", ctx.Request().Query("order_by", ""))
-	// 时间参数同时支持从查询参数和请求体读取，并统一转换为 UTC
-	startTime := getTimeInputOrQueryUTC(ctx, "start_time")
-	endTime := getTimeInputOrQueryUTC(ctx, "end_time")
-
-	return services.AdminFilters{
-		Username:     username,
-		Status:       status,
-		RoleID:       roleID,
-		DepartmentID: departmentID,
-		PositionID:   positionID,
-		Is2FABound:   is2FABound,
-		StartTime:    startTime,
-		EndTime:      endTime,
-		OrderBy:      orderBy,
-	}
-}
-
-func hasInput(allInputs map[string]any, key string) bool {
-	_, exists := allInputs[key]
-	return exists
-}
-
-func (r *AdminController) applyAdminUpdatableFields(admin *models.Admin, adminUpdate adminrequests.AdminUpdate, allInputs map[string]any) {
-	if hasInput(allInputs, "nickname") {
-		admin.Nickname = adminUpdate.Nickname
-	}
-	if hasInput(allInputs, "email") {
-		admin.Email = adminUpdate.Email
-	}
-	if hasInput(allInputs, "phone") {
-		admin.Phone = adminUpdate.Phone
-	}
-	if hasInput(allInputs, "department_id") {
-		admin.DepartmentID = adminUpdate.DepartmentID
-	}
-	if hasInput(allInputs, "position_id") {
-		admin.PositionID = adminUpdate.PositionID
-	}
+func (c *AdminController) buildAdminFilters(ctx http.Context) services.AdminFilters {
+	return services.BuildAdminFiltersFromHTTP(ctx)
 }
 
 // Index 管理员列表
@@ -178,44 +115,22 @@ func (r *AdminController) applyAdminUpdatableFields(admin *models.Admin, adminUp
 // @Failure      500           {object}  apidoc.Error "服务器错误"
 // @Router       /api/admin/admins [get]
 // @Security     BearerAuth
-func (r *AdminController) Index(ctx http.Context) http.Response {
+func (c *AdminController) Index(ctx http.Context) http.Response {
 	page := helpers.GetIntQuery(ctx, "page", 1)
 	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
+	filters := c.buildAdminFilters(ctx)
 
-	filters := r.buildFilters(ctx)
-
-	admins, total, err := r.adminService(ctx).GetList(filters, page, pageSize)
+	admins, total, err := c.AdminService(ctx).GetList(filters, page, pageSize)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"action": "list_admins",
 		})
 	}
 
-	// 获取超级管理员ID
-	superAdminID := cast.ToUint(facades.Config().GetInt("admin.super_admin_id", 1))
-
-	// 转换数据格式
+	svc := c.AdminService(ctx)
 	adminList := make([]http.Json, len(admins))
 	for i, admin := range admins {
-		isBound := admin.GoogleSecret != ""
-		adminList[i] = http.Json{
-			"id":             admin.ID,
-			"username":       admin.Username,
-			"nickname":       admin.Nickname,
-			"avatar":         admin.Avatar,
-			"email":          admin.Email,
-			"phone":          admin.Phone,
-			"status":         admin.Status,
-			"is_2fa_bound":   isBound,
-			"is_super_admin": admin.ID == superAdminID,
-			"department_id":  admin.DepartmentID,
-			"department":     admin.Department,
-			"position_id":    admin.PositionID,
-			"position":       admin.Position,
-			"roles":          admin.Roles,
-			"created_at":     admin.CreatedAt,
-			"updated_at":     admin.UpdatedAt,
-		}
+		adminList[i] = svc.ToListItem(admin)
 	}
 
 	return response.Success(ctx, http.Json{
@@ -237,34 +152,15 @@ func (r *AdminController) Index(ctx http.Context) http.Response {
 // @Failure      404  {object} apidoc.Error "管理员不存在"
 // @Router       /api/admin/admins/{id} [get]
 // @Security     BearerAuth
-func (r *AdminController) Show(ctx http.Context) http.Response {
+func (c *AdminController) Show(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	admin, resp := r.findAdminByID(ctx, id, true, true) // 预加载 Department 和 Roles 关联
-	if resp != nil {
-		return resp
+	admin, err := c.AdminService(ctx).GetByID(id, true, true)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 
-	// 获取超级管理员ID
-	superAdminID := cast.ToUint(facades.Config().GetInt("admin.super_admin_id", 1))
-
 	return response.Success(ctx, http.Json{
-		"admin": http.Json{
-			"id":             admin.ID,
-			"username":       admin.Username,
-			"nickname":       admin.Nickname,
-			"avatar":         admin.Avatar,
-			"email":          admin.Email,
-			"phone":          admin.Phone,
-			"status":         admin.Status,
-			"is_super_admin": admin.ID == superAdminID, // 标识是否是超级管理员
-			"department_id":  admin.DepartmentID,
-			"department":     admin.Department,
-			"position_id":    admin.PositionID,
-			"position":       admin.Position,
-			"roles":          admin.Roles,
-			"created_at":     admin.CreatedAt,
-			"updated_at":     admin.UpdatedAt,
-		},
+		"admin": c.AdminService(ctx).ToDetail(admin),
 	})
 }
 
@@ -280,36 +176,27 @@ func (r *AdminController) Show(ctx http.Context) http.Response {
 // @Failure      500           {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/admins [post]
 // @Security     BearerAuth
-func (r *AdminController) Store(ctx http.Context) http.Response {
-	// 使用请求验证
-	var adminCreate adminrequests.AdminCreate
-	validationErrors, err := ctx.Request().ValidateRequest(&adminCreate)
-	if err != nil {
-		return response.Error(ctx, http.StatusBadRequest, err.Error())
-	}
-	if validationErrors != nil {
-		return response.ValidationError(ctx, http.StatusBadRequest, "validation_failed", validationErrors.All())
+func (c *AdminController) Store(ctx http.Context) http.Response {
+	var req adminrequests.AdminCreate
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
+		return resp
 	}
 
-	admin, err := r.adminService(ctx).CreateAdmin(services.CreateAdminInput{
-		Username:     adminCreate.Username,
-		Password:     adminCreate.Password,
-		Nickname:     adminCreate.Nickname,
-		Email:        adminCreate.Email,
-		Phone:        adminCreate.Phone,
-		DepartmentID: adminCreate.DepartmentID,
-		PositionID:   adminCreate.PositionID,
-		Status:       adminCreate.Status,
-		RoleIDs:      adminCreate.RoleIDs,
+	admin, err := c.AdminService(ctx).CreateAdmin(services.CreateAdminInput{
+		Username:     req.Username,
+		Password:     req.Password,
+		Nickname:     req.Nickname,
+		Email:        req.Email,
+		Phone:        req.Phone,
+		DepartmentID: req.DepartmentID,
+		PositionID:   req.PositionID,
+		Status:       req.Status,
+		RoleIDs:      req.RoleIDs,
 	})
 	if err != nil {
-		var businessErr *apperrors.BusinessError
-		if stderrors.As(err, &businessErr) && businessErr.Code == apperrors.ErrUsernameExists.Code {
-			return response.Error(ctx, http.StatusBadRequest, businessErr)
-		}
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"action":   "create_admin",
-			"username": adminCreate.Username,
+			"username": req.Username,
 		})
 	}
 
@@ -332,67 +219,17 @@ func (r *AdminController) Store(ctx http.Context) http.Response {
 // @Failure      404           {object} apidoc.Error "管理员不存在"
 // @Router       /api/admin/admins/{id} [put]
 // @Security     BearerAuth
-func (r *AdminController) Update(ctx http.Context) http.Response {
+func (c *AdminController) Update(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
-	admin, resp := r.findAdminByID(ctx, id, false, true)
-	if resp != nil {
+
+	var req adminrequests.AdminUpdate
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
 		return resp
 	}
 
-	// 使用请求验证
-	var adminUpdate adminrequests.AdminUpdate
-	errors, err := ctx.Request().ValidateRequest(&adminUpdate)
+	admin, err := c.AdminService(ctx).UpdateByRequest(ctx, id, &req)
 	if err != nil {
-		return response.Error(ctx, http.StatusBadRequest, err.Error())
-	}
-	if errors != nil {
-		return response.ValidationError(ctx, http.StatusBadRequest, "validation_failed", errors.All())
-	}
-
-	// 使用 All() 方法检查字段是否存在
-	allInputs := ctx.Request().All()
-
-	r.applyAdminUpdatableFields(admin, adminUpdate, allInputs)
-
-	if hasInput(allInputs, "status") {
-		if err := r.adminService(ctx).ValidateStatusChange(admin.ID, adminUpdate.Status); err != nil {
-			return response.Error(ctx, http.StatusForbidden, err)
-		}
-		admin.Status = adminUpdate.Status
-	}
-
-	if adminUpdate.Password != "" {
-		hashedPassword, err := facades.Hash().Make(adminUpdate.Password)
-		if err != nil {
-			return response.ErrorWithLog(ctx, "admin", err, map[string]any{
-				"action":   "encrypt_password",
-				"admin_id": admin.ID,
-			})
-		}
-		admin.Password = hashedPassword
-	}
-
-	if err := r.adminService(ctx).Update(admin); err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
-			"admin_id": admin.ID,
-		})
-	}
-
-	// 检查是否尝试修改 admin 用户的角色
-	if hasInput(allInputs, "role_ids") {
-		deduplicatedRoleIDs := r.adminService(ctx).NormalizeRoleIDs(adminUpdate.RoleIDs)
-		if err := r.adminService(ctx).ValidateRoleChange(admin.ID, admin.Roles, deduplicatedRoleIDs); err != nil {
-			return response.Error(ctx, http.StatusForbidden, err)
-		}
-
-		// 即使角色ID没有改变，也调用 SyncRoles 来清理重复数据
-		// 使用去重后的角色ID列表
-		if err := r.adminService(ctx).SyncRoles(admin, deduplicatedRoleIDs); err != nil {
-			return response.ErrorWithLog(ctx, "admin", err, map[string]any{
-				"admin_id": admin.ID,
-				"role_ids": deduplicatedRoleIDs,
-			})
-		}
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 
 	return response.Success(ctx, http.Json{
@@ -412,32 +249,23 @@ func (r *AdminController) Update(ctx http.Context) http.Response {
 // @Failure      404  {object} apidoc.Error "管理员不存在"
 // @Router       /api/admin/admins/{id} [delete]
 // @Security     BearerAuth
-func (r *AdminController) Destroy(ctx http.Context) http.Response {
+func (c *AdminController) Destroy(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
 
-	if r.adminService(ctx).IsProtectedAdmin(id) {
-		return response.Error(ctx, http.StatusForbidden, apperrors.ErrAdminProtectedCannotDelete.Code)
-	}
-
-	currentAdmin, resp := r.currentAdminFromContext(ctx)
+	actorID := uint(0)
+	currentAdmin, resp := c.currentAdminFromContext(ctx)
 	if resp != nil {
 		return resp
 	}
-	if currentAdmin != nil && currentAdmin.ID == id {
-		return response.Error(ctx, http.StatusForbidden, apperrors.ErrAdminCannotDeleteSelf.Code)
+	if currentAdmin != nil {
+		actorID = currentAdmin.ID
 	}
 
-	admin, resp := r.findAdminByID(ctx, id, false, false)
-	if resp != nil {
-		return resp
-	}
-	if _, err := appfacades.OrmQuery(ctx).Delete(admin); err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
-			"admin_id": admin.ID,
-		})
+	if err := c.AdminService(ctx).Delete(id, actorID); err != nil {
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 
-	return response.Success(ctx)
+	return response.Success(ctx, "delete_success", http.Json{})
 }
 
 // UnbindGoogleAuthenticator 管理员解绑其他管理员的谷歌验证码
@@ -456,20 +284,17 @@ func (r *AdminController) Destroy(ctx http.Context) http.Response {
 // @Failure      500      {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/admins/{id}/unbind-google-auth [post]
 // @Security     BearerAuth
-func (r *AdminController) UnbindGoogleAuthenticator(ctx http.Context) http.Response {
-	// 获取要解绑的管理员ID
+func (c *AdminController) UnbindGoogleAuthenticator(ctx http.Context) http.Response {
 	targetAdminID := helpers.GetUintRoute(ctx, "id")
 	if targetAdminID == 0 {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
-	// 检查目标管理员是否存在
-	if _, resp := r.findAdminByID(ctx, targetAdminID, false, false); resp != nil {
-		return resp
+	if _, err := c.AdminService(ctx).GetByID(targetAdminID, false, false); err != nil {
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusNotFound, err, map[string]any{"id": targetAdminID})
 	}
 
-	// 从 context 中获取当前管理员信息（由 JWT 中间件设置）
-	currentAdmin, resp := r.currentAdminFromContext(ctx)
+	currentAdmin, resp := c.currentAdminFromContext(ctx)
 	if resp != nil {
 		return resp
 	}
@@ -477,56 +302,46 @@ func (r *AdminController) UnbindGoogleAuthenticator(ctx http.Context) http.Respo
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrNotLoggedIn.Code)
 	}
 
-	// 检查当前管理员是否已绑定谷歌验证码
-	isBound, err := r.googleAuthenticatorService(ctx).IsBound(currentAdmin.ID)
+	isBound, err := c.googleAuthenticatorService(ctx).IsBound(currentAdmin.ID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": currentAdmin.ID,
 		})
 	}
-
 	if !isBound {
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrGoogleAuthenticatorNotBound.Code)
 	}
 
-	// 需要验证码确认
 	code := ctx.Request().Input("code")
 	if code == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrCodeRequired.Code)
 	}
 
-	// 获取当前管理员的密钥
-	secret, err := r.googleAuthenticatorService(ctx).GetSecret(currentAdmin.ID)
+	secret, err := c.googleAuthenticatorService(ctx).GetSecret(currentAdmin.ID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": currentAdmin.ID,
 		})
 	}
-
 	if secret == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleAuthenticatorNotBound.Code)
 	}
-
-	// 验证当前管理员的验证码
-	if !r.googleAuthenticatorService(ctx).Verify(secret, code) {
+	if !c.googleAuthenticatorService(ctx).Verify(secret, code) {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeInvalid.Code)
 	}
 
-	// 检查目标管理员是否已绑定
-	targetIsBound, err := r.googleAuthenticatorService(ctx).IsBound(targetAdminID)
+	targetIsBound, err := c.googleAuthenticatorService(ctx).IsBound(targetAdminID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"target_admin_id": targetAdminID,
 		})
 	}
-
 	if !targetIsBound {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleAuthenticatorNotBound.Code)
 	}
 
-	// 解绑目标管理员的谷歌验证码
-	if err := r.googleAuthenticatorService(ctx).Unbind(targetAdminID); err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+	if err := c.googleAuthenticatorService(ctx).Unbind(targetAdminID); err != nil {
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"target_admin_id":  targetAdminID,
 			"current_admin_id": currentAdmin.ID,
 		})
@@ -550,23 +365,23 @@ func (r *AdminController) UnbindGoogleAuthenticator(ctx http.Context) http.Respo
 // @Failure      500  {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/admins/{id}/reset-google-auth [post]
 // @Security     BearerAuth
-func (r *AdminController) ResetGoogleAuthenticator(ctx http.Context) http.Response {
+func (c *AdminController) ResetGoogleAuthenticator(ctx http.Context) http.Response {
 	targetAdminID := helpers.GetUintRoute(ctx, "id")
 	if targetAdminID == 0 {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
-	if _, resp := r.findAdminByID(ctx, targetAdminID, false, false); resp != nil {
-		return resp
+	if _, err := c.AdminService(ctx).GetByID(targetAdminID, false, false); err != nil {
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusNotFound, err, map[string]any{"id": targetAdminID})
 	}
 
-	if r.adminService(ctx).IsProtectedAdmin(targetAdminID) {
+	if c.AdminService(ctx).IsProtectedAdmin(targetAdminID) {
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrProtectedAdmin.Code)
 	}
 
-	targetIsBound, err := r.googleAuthenticatorService(ctx).IsBound(targetAdminID)
+	targetIsBound, err := c.googleAuthenticatorService(ctx).IsBound(targetAdminID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"target_admin_id": targetAdminID,
 		})
 	}
@@ -574,8 +389,8 @@ func (r *AdminController) ResetGoogleAuthenticator(ctx http.Context) http.Respon
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleAuthenticatorNotBound.Code)
 	}
 
-	if err := r.googleAuthenticatorService(ctx).Unbind(targetAdminID); err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+	if err := c.googleAuthenticatorService(ctx).Unbind(targetAdminID); err != nil {
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"target_admin_id": targetAdminID,
 		})
 	}
@@ -583,9 +398,7 @@ func (r *AdminController) ResetGoogleAuthenticator(ctx http.Context) http.Respon
 	return response.Success(ctx, "reset_success")
 }
 
-// currentAdminFromContext 从 context 读取当前管理员
-// 若 context 中 admin 字段类型非法，按未登录处理
-func (r *AdminController) currentAdminFromContext(ctx http.Context) (*models.Admin, http.Response) {
+func (c *AdminController) currentAdminFromContext(ctx http.Context) (*models.Admin, http.Response) {
 	adminValue := ctx.Value("admin")
 	if adminValue == nil {
 		return nil, nil
@@ -612,7 +425,7 @@ func (r *AdminController) currentAdminFromContext(ctx http.Context) (*models.Adm
 // @Failure      500     {object} apidoc.Error "服务器错误"
 // @Router       /api/admin/admins/export [post]
 // @Security     BearerAuth
-func (r *AdminController) Export(ctx http.Context) http.Response {
+func (c *AdminController) Export(ctx http.Context) http.Response {
 	lock := helpers.AcquireExportLock(ctx, "admins")
 	if lock.Unauthorized {
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
@@ -622,12 +435,11 @@ func (r *AdminController) Export(ctx http.Context) http.Response {
 	}
 	adminID := lock.AdminID
 
-	filters := r.buildFilters(ctx)
+	filters := c.buildAdminFilters(ctx)
 
-	// 导出时获取所有数据，不分页
-	admins, err := r.adminService(ctx).GetAllAdminsForExport(filters)
+	admins, err := c.AdminService(ctx).GetAllAdminsForExport(filters)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "admin", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{
 			"action":   "export_admins",
 			"admin_id": adminID,
 		})
@@ -655,7 +467,6 @@ func (r *AdminController) Export(ctx http.Context) http.Response {
 			statusText = trans.Get(ctx, "enabled")
 		}
 
-		// 部门名称
 		departmentName := ""
 		if admin.Department.ID > 0 {
 			departmentName = admin.Department.Name
@@ -666,14 +477,12 @@ func (r *AdminController) Export(ctx http.Context) http.Response {
 			positionName = admin.Position.Name
 		}
 
-		// 角色名称（多个角色用逗号分隔）
 		roleNameParts := make([]string, 0, len(admin.Roles))
 		for _, role := range admin.Roles {
 			roleNameParts = append(roleNameParts, role.Name)
 		}
 		roleNames := strings.Join(roleNameParts, ", ")
 
-		// 时间格式化
 		createdAt := helpers.FormatCarbonWithTimezone(admin.CreatedAt, timezone)
 		updatedAt := helpers.FormatCarbonWithTimezone(admin.UpdatedAt, timezone)
 
@@ -693,7 +502,6 @@ func (r *AdminController) Export(ctx http.Context) http.Response {
 		data = append(data, row)
 	}
 
-	// 在 context 中设置导出类型，供 ExportService 使用
 	ctx.WithValue("export_type", models.ExportTypeAdmins)
 
 	return response.Export(ctx, "exported", headers, data, "admins")

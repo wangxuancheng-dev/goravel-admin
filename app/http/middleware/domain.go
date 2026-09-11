@@ -6,6 +6,8 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
+
+	"goravel/app/http/response"
 )
 
 // Domain 域名验证中间件
@@ -149,11 +151,7 @@ func Domain(configValueOrDomains ...any) http.Middleware {
 
 		if !allowed {
 			// 域名不在允许列表中，拒绝访问
-			// facades.Log().Warningf("Domain middleware: Access denied. Request host: %s (normalized: %s), Allowed domains: %v", host, normalizedHost, domains)
-			_ = ctx.Response().Json(http.StatusForbidden, http.Json{
-				"code":    http.StatusForbidden,
-				"message": "Access denied: domain not allowed",
-			}).Abort()
+			response.Abort(ctx, http.StatusForbidden, "domain_not_allowed")
 			return
 		}
 

@@ -92,6 +92,12 @@ type OrderService interface {
 	GetOrders(filters OrderFilters, page, pageSize int) ([]models.Order, int64, error)
 	// GetOrdersWithDetails 查询订单列表（包含详情，限制不超过3个月）
 	GetOrdersWithDetails(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error)
+	// OrderToJSON 订单基础展示字段
+	OrderToJSON(order models.Order) map[string]any
+	// OrderDetailToJSON 订单明细展示字段
+	OrderDetailToJSON(detail models.OrderDetail) map[string]any
+	// OrderWithDetailsToJSON 订单列表项（含详情）
+	OrderWithDetailsToJSON(item *OrderWithDetails) map[string]any
 	// GetAllOrdersForExport 获取所有订单用于导出（限制不超过3个月，不分页）
 	GetAllOrdersForExport(filters OrderFilters) ([]models.Order, error)
 	// GetAllOrdersWithDetailsForExport 获取所有订单及详情用于导出（限制不超过3个月，不分页）
@@ -148,6 +154,43 @@ type OrderExportData struct {
 type OrderWithDetails struct {
 	models.Order
 	Details []models.OrderDetail `json:"details"`
+}
+
+func (s *OrderServiceImpl) OrderToJSON(order models.Order) map[string]any {
+	return map[string]any{
+		"id":         order.ID,
+		"order_no":   order.OrderNo,
+		"user_id":    order.UserID,
+		"amount":     order.Amount,
+		"status":     order.Status,
+		"remark":     order.Remark,
+		"created_at": order.CreatedAt,
+		"updated_at": order.UpdatedAt,
+	}
+}
+
+func (s *OrderServiceImpl) OrderDetailToJSON(detail models.OrderDetail) map[string]any {
+	return map[string]any{
+		"id":           detail.ID,
+		"order_id":     detail.OrderID,
+		"product_id":   detail.ProductID,
+		"product_name": detail.ProductName,
+		"price":        detail.Price,
+		"quantity":     detail.Quantity,
+		"subtotal":     detail.Subtotal,
+		"created_at":   detail.CreatedAt,
+		"updated_at":   detail.UpdatedAt,
+	}
+}
+
+func (s *OrderServiceImpl) OrderWithDetailsToJSON(item *OrderWithDetails) map[string]any {
+	payload := s.OrderToJSON(item.Order)
+	detailsList := make([]map[string]any, len(item.Details))
+	for i, detail := range item.Details {
+		detailsList[i] = s.OrderDetailToJSON(detail)
+	}
+	payload["details"] = detailsList
+	return payload
 }
 
 func NewOrderService(ctx context.Context) *OrderServiceImpl {

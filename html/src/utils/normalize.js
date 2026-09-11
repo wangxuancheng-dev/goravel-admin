@@ -66,12 +66,8 @@ export function normalizeListResponse(res) {
 
   const list = res.data.list ?? res.data.data
   if (Array.isArray(list)) {
-    const normalized = normalizeTreeList(list)
-    if (res.data.list) {
-      res.data.list = normalized
-    } else if (res.data.data) {
-      res.data.data = normalized
-    }
+    // Always expose `list` so callers don't need legacy `data` fallbacks.
+    res.data.list = normalizeTreeList(list)
   }
 
   return res

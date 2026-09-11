@@ -13,6 +13,7 @@ import (
 	"goravel/app/facades"
 	"goravel/app/http"
 	"goravel/app/http/helpers"
+	"goravel/app/http/response"
 	"goravel/app/http/trans"
 	"goravel/app/models"
 	"goravel/app/services"
@@ -32,21 +33,14 @@ func (receiver *RouteServiceProvider) Boot(app foundation.Application) {
 		// Malformed client bodies / scanners (goravel/gin getHttpBody): do not flood system_logs.
 		if isBadRequestBodyPanic(err) {
 			facades.Log().Warning(msg)
-			_ = ctx.Response().Json(contractshttp.StatusBadRequest, contractshttp.Json{
-				"code":       contractshttp.StatusBadRequest,
-				"message":    trans.Get(ctx, "params_error"),
-				"error_code": "params_error",
-			}).Abort()
+			response.Abort(ctx, contractshttp.StatusBadRequest, "params_error")
 			return
 		}
 
 		systemLogService := services.NewSystemLogService(ctx)
 		_ = systemLogService.RecordHTTP(ctx, "error", "recover", msg, nil)
 		facades.Log().Error(err)
-		_ = ctx.Response().Json(contractshttp.StatusInternalServerError, contractshttp.Json{
-			"code":    contractshttp.StatusInternalServerError,
-			"message": "recover",
-		}).Abort()
+		response.Abort(ctx, contractshttp.StatusInternalServerError, "operation_failed")
 	})
 
 	receiver.configureRateLimiting()
@@ -96,20 +90,14 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 		username := resolveLoginIdentifier(ctx, ip)
 
 		return limit.PerMinute(6).Response(func(ctx contractshttp.Context) {
-			_ = ctx.Response().Json(contractshttp.StatusTooManyRequests, contractshttp.Json{
-				"code":    contractshttp.StatusTooManyRequests,
-				"message": trans.Get(ctx, "too_many_requests"),
-			}).Abort()
+			response.Abort(ctx, contractshttp.StatusTooManyRequests, "too_many_requests")
 		}).By(ip + ":login:" + username)
 	})
 
 	// 测试响应速率限制器（仅开发环境使用）
 	facades.RateLimiter().For("testResponse", func(ctx contractshttp.Context) contractshttp.Limit {
 		return limit.PerMinute(6).Response(func(ctx contractshttp.Context) {
-			_ = ctx.Response().Json(contractshttp.StatusTooManyRequests, contractshttp.Json{
-				"code":    contractshttp.StatusTooManyRequests,
-				"message": trans.Get(ctx, "too_many_requests"),
-			}).Abort()
+			response.Abort(ctx, contractshttp.StatusTooManyRequests, "too_many_requests")
 		})
 	})
 
@@ -165,11 +153,7 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 		}
 
 		rateLimited := func(ctx contractshttp.Context) {
-			_ = ctx.Response().Json(contractshttp.StatusTooManyRequests, contractshttp.Json{
-				"code":       contractshttp.StatusTooManyRequests,
-				"message":    trans.Get(ctx, "ai_lab_rate_limited"),
-				"error_code": "ai_lab_rate_limited",
-			}).Abort()
+			response.Abort(ctx, contractshttp.StatusTooManyRequests, "ai_lab_rate_limited")
 		}
 
 		key := "ai_lab:admin:" + adminID

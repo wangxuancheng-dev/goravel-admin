@@ -1,212 +1,66 @@
 package admin
 
 import (
-	appfacades "goravel/app/facades"
-	"strings"
-	"time"
-
-	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
-	"github.com/goravel/framework/facades"
-	"github.com/goravel/framework/support/str"
-	"github.com/spf13/cast"
 
-	"goravel/app/constants"
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
-	"goravel/app/models"
+	"goravel/app/services"
 )
 
-type OnlineAdminController struct {
-}
+type OnlineAdminController struct{}
 
 func NewOnlineAdminController() *OnlineAdminController {
 	return &OnlineAdminController{}
 }
 
-// Index 获取在线管理员列表
-// buildQuery 构建在线管理员查询（基于 token）
-func (r *OnlineAdminController) buildQuery(ctx http.Context) orm.Query {
-	ip := ctx.Request().Query("ip", "")
-	browser := ctx.Request().Query("browser", "")
-	os := ctx.Request().Query("os", "")
-
-	// 只查询最近15分钟内有活动的token（在线管理员）
-	// 默认只显示admin类型的token
-	onlineThreshold := time.Now().Add(-constants.OnlineAdminThreshold)
-	query := appfacades.OrmQuery(ctx).Model(&models.PersonalAccessToken{}).
-		Where("tokenable_type", "admin").
-		Where("last_used_at IS NOT NULL").
-		Where("last_used_at >= ?", onlineThreshold)
-
-	// 搜索条件
-	if ip != "" {
-		query = query.Where("ip LIKE ?", "%"+ip+"%")
-	}
-	if browser != "" {
-		query = query.Where("browser LIKE ?", "%"+browser+"%")
-	}
-	if os != "" {
-		query = query.Where("os LIKE ?", "%"+os+"%")
-	}
-
-	orderBy := ctx.Request().Query("order_by", "")
-	// 应用排序，默认排序为 last_used_at desc
-	query = helpers.ApplySort(query, orderBy, "last_used_at:desc")
-
-	return query
+func (c *OnlineAdminController) OnlineAdminService(ctx http.Context) services.OnlineAdminService {
+	return services.NewOnlineAdminService(ctx)
 }
 
-// 只显示最近15分钟内有活动的管理员（根据 OnlineAdminThreshold 常量判断）
-func (r *OnlineAdminController) Index(ctx http.Context) http.Response {
+// Index 获取在线管理员列表（最近 OnlineAdminThreshold 内有活动）
+func (c *OnlineAdminController) Index(ctx http.Context) http.Response {
+	filters := services.BuildOnlineAdminFiltersFromHTTP(ctx)
 	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
 
-	username := ctx.Request().Query("username", "")
-
-	query := r.buildQuery(ctx)
-
-	var tokens []models.PersonalAccessToken
-	if err := query.Get(&tokens); err != nil {
-		return response.ErrorWithLog(ctx, "online_admin", err)
-	}
-
-	// 批量查询所有 admin 信息，避免 N+1 查询
-	var adminIDs []uint
-	adminIDMap := make(map[uint]bool) // 用于去重
-	for _, token := range tokens {
-		if !adminIDMap[token.TokenableID] {
-			adminIDs = append(adminIDs, token.TokenableID)
-			adminIDMap[token.TokenableID] = true
-		}
-	}
-
-	// 批量查询 admin（排除开发者ID）
-	adminMap := make(map[uint]models.Admin)
-	if len(adminIDs) > 0 {
-		// 获取开发者ID列表并过滤
-		developerIDsStr := facades.Config().GetString("admin.developer_ids", "2")
-		developerIDs := r.parseProtectedIDs(developerIDsStr)
-
-		query := appfacades.OrmQuery(ctx).Where("id IN ?", adminIDs)
-		if len(developerIDs) > 0 {
-			query = query.Where("id NOT IN ?", developerIDs)
-		}
-
-		var admins []models.Admin
-		if err := query.Find(&admins); err != nil {
-			return response.ErrorWithLog(ctx, "online_admin", err, map[string]any{
-				"admin_ids": adminIDs,
-			})
-		}
-
-		// 构建 admin map
-		for _, admin := range admins {
-			adminMap[admin.ID] = admin
-		}
-	}
-
-	// 组装数据，同时过滤 username
-	var onlineAdmins []http.Json
-	for _, token := range tokens {
-		admin, ok := adminMap[token.TokenableID]
-		if !ok {
-			continue
-		}
-
-		// 如果指定了username搜索条件，进行过滤
-		if username != "" && !strings.Contains(strings.ToLower(admin.Username), strings.ToLower(username)) {
-			continue
-		}
-
-		onlineAdmin := http.Json{
-			"id":          token.ID,
-			"admin_id":    admin.ID,
-			"username":    admin.Username,
-			"nickname":    admin.Nickname,
-			"avatar":      admin.Avatar,
-			"browser":     token.Browser,
-			"ip":          token.IP,
-			"os":          token.OS,
-			"session_id":  token.SessionID,
-			"last_active": token.LastUsedAt,
-			"created_at":  token.CreatedAt,
-		}
-		onlineAdmins = append(onlineAdmins, onlineAdmin)
-	}
-
-	// 使用工具函数进行分页
-	paginatedAdmins, total := helpers.PaginateSlice(onlineAdmins, page, pageSize)
-
-	return response.Paginate(ctx, paginatedAdmins, total, page, pageSize)
-}
-
-// KickOut 踢下线（删除token）
-func (r *OnlineAdminController) KickOut(ctx http.Context) http.Response {
-	tokenID := helpers.GetUintRoute(ctx, "id")
-	if tokenID == 0 {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrTokenIDRequired.Code)
-	}
-
-	// 查询token是否存在
-	var token models.PersonalAccessToken
-	if err := appfacades.OrmQuery(ctx).Where("id", tokenID).FirstOrFail(&token); err != nil {
-		return response.Error(ctx, http.StatusNotFound, apperrors.ErrTokenNotFound.Code)
-	}
-
-	// 删除token
-	if _, err := appfacades.OrmQuery(ctx).Delete(&token); err != nil {
-		return response.ErrorWithLog(ctx, "online_admin", err, map[string]any{
-			"token_id": tokenID,
+	list, total, err := c.OnlineAdminService(ctx).List(filters, page, pageSize)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "online_admin", http.StatusInternalServerError, err, map[string]any{
+			"filters": filters,
 		})
 	}
 
+	return response.Paginate(ctx, list, total, page, pageSize)
+}
+
+// KickOut 踢下线（删除 token）
+func (c *OnlineAdminController) KickOut(ctx http.Context) http.Response {
+	tokenID := helpers.GetUintRoute(ctx, "id")
+	if err := c.OnlineAdminService(ctx).KickOut(tokenID); err != nil {
+		return HandleGeneratedServiceError(ctx, "online_admin", http.StatusInternalServerError, err, map[string]any{
+			"token_id": tokenID,
+		})
+	}
 	return response.Success(ctx, "kick_out_success")
 }
 
 // BatchKickOut 批量踢下线
-func (r *OnlineAdminController) BatchKickOut(ctx http.Context) http.Response {
+func (c *OnlineAdminController) BatchKickOut(ctx http.Context) http.Response {
 	tokenIDs := ctx.Request().Input("token_ids")
 	if tokenIDs == "" {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrTokenIDsRequired.Code)
+		return HandleGeneratedServiceError(ctx, "online_admin", http.StatusBadRequest, apperrors.ErrTokenIDsRequired, nil)
 	}
 
-	// 使用工具函数解析 token IDs
 	ids := helpers.ParseIDsFromString(tokenIDs)
-	if len(ids) == 0 {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidTokenIDs.Code)
-	}
-
-	// 批量删除token
-	idsAny := helpers.ConvertUintSliceToAny(ids)
-	if _, err := appfacades.OrmQuery(ctx).WhereIn("id", idsAny).Delete(&models.PersonalAccessToken{}); err != nil {
-		return response.ErrorWithLog(ctx, "online_admin", err, map[string]any{
+	count, err := c.OnlineAdminService(ctx).BatchKickOut(ids)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "online_admin", http.StatusInternalServerError, err, map[string]any{
 			"token_ids": ids,
 		})
 	}
 
 	return response.Success(ctx, "batch_kick_out_success", http.Json{
-		"count": len(ids),
+		"count": count,
 	})
-}
-
-// parseProtectedIDs 解析受保护的管理员ID字符串（支持逗号分隔）
-func (r *OnlineAdminController) parseProtectedIDs(idsStr string) []uint {
-	var ids []uint
-	if idsStr == "" {
-		return ids
-	}
-
-	// 使用字符串分割
-	parts := str.Of(idsStr).Split(",")
-	for _, part := range parts {
-		part = str.Of(part).Trim().String()
-		if !str.Of(part).IsEmpty() {
-			if id := cast.ToUint(part); id > 0 {
-				ids = append(ids, id)
-			}
-		}
-	}
-
-	return ids
 }

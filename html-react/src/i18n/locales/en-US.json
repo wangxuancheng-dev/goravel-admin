@@ -25,6 +25,7 @@
     "description": "Description",
     "password": "Password",
     "query_failed": "Query failed",
+    "operation_success": "Operation successful",
     "operation_failed": "Operation failed",
     "schedule_command_required": "Please select a scheduled task to run",
     "schedule_command_not_allowed": "This command is not allowed",
@@ -855,7 +856,10 @@
     "extension": "Extension",
     "size": "Size",
     "download_success": "Downloaded successfully",
-    "download_failed": "Unable to build download URL"
+    "download_failed": "Unable to build download URL",
+    "task_submitted": "Export task submitted, please wait",
+    "success": "Export succeeded",
+    "failed": "Export failed"
   },
   "attachment": {
     "upload": "Upload File",

@@ -198,7 +198,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	// 验证用户名是否存在
 	exists, err := appfacades.OrmQuery(ctx).Model(&models.Admin{}).Where("username", loginRequest.Username).Exists()
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"username": loginRequest.Username,
 		})
 	}
@@ -211,7 +211,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	// 获取管理员信息
 	var admin models.Admin
 	if err := appfacades.OrmQuery(ctx).Where("username", loginRequest.Username).FirstOrFail(&admin); err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"username": loginRequest.Username,
 		})
 	}
@@ -231,7 +231,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	// 检查是否绑定了谷歌验证码
 	isBound, err := r.googleAuthenticatorService(ctx).IsBound(admin.ID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -246,7 +246,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 
 		secret, err := r.googleAuthenticatorService(ctx).GetSecret(admin.ID)
 		if err != nil {
-			return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+			return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 				"admin_id": admin.ID,
 			})
 		}
@@ -286,7 +286,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 
 	plainToken, _, err := r.tokenService(ctx).CreateToken("admin", admin.ID, "admin-token", expiresAt, browser, ip, os, "")
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -321,7 +321,7 @@ func (r *AuthController) Captcha(ctx http.Context) http.Response {
 	if enabled && !checkOnly {
 		captchaID, image, err := r.captchaService(ctx).Generate()
 		if err != nil {
-			return response.ErrorWithLog(ctx, "captcha", err)
+			return HandleGeneratedServiceError(ctx, "captcha", http.StatusInternalServerError, err, nil)
 		}
 		captchaData["captcha_id"] = captchaID
 		captchaData["captcha_image"] = image
@@ -469,7 +469,7 @@ func (r *AuthController) UpdateProfile(ctx http.Context) http.Response {
 	}
 
 	if err := appfacades.OrmQuery(ctx).Save(&admin); err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -477,7 +477,7 @@ func (r *AuthController) UpdateProfile(ctx http.Context) http.Response {
 	// 重新加载关联数据（确保部门和角色被正确加载）
 	var adminWithRelations models.Admin
 	if err := appfacades.OrmQuery(ctx).With("Department").With("Position").With("Roles").Where("id", admin.ID).FirstOrFail(&adminWithRelations); err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -571,7 +571,7 @@ func (r *AuthController) Tokens(ctx http.Context) http.Response {
 	// 获取用户的所有token
 	tokens, err := r.tokenService(ctx).GetTokensByUser("admin", admin.ID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -621,7 +621,7 @@ func (r *AuthController) RevokeToken(ctx http.Context) http.Response {
 
 	// 删除token（直接通过ID删除，因为数据库中存储的是hash值，无法获取原始token）
 	if _, err := appfacades.OrmQuery(ctx).Delete(&token); err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"token_id": token.ID,
 			"admin_id": admin.ID,
 		})
@@ -639,7 +639,7 @@ func (r *AuthController) RevokeAllTokens(ctx http.Context) http.Response {
 
 	// 删除用户的所有token
 	if err := r.tokenService(ctx).DeleteTokensByUser("admin", admin.ID); err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -667,7 +667,7 @@ func (r *AuthController) KickOutUser(ctx http.Context) http.Response {
 
 	// 删除用户的所有token
 	if err := r.tokenService(ctx).DeleteTokensByUser("admin", targetAdmin.ID); err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"target_user_id": targetAdmin.ID,
 			"operator_id":    admin.ID,
 		})
@@ -686,7 +686,7 @@ func (r *AuthController) GetGoogleAuthenticatorQRCode(ctx http.Context) http.Res
 	// 检查是否已经绑定
 	isBound, err := r.googleAuthenticatorService(ctx).IsBound(admin.ID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -702,7 +702,7 @@ func (r *AuthController) GetGoogleAuthenticatorQRCode(ctx http.Context) http.Res
 	}
 	secret, qrCodeURL, err := r.googleAuthenticatorService(ctx).GenerateSecret(accountName)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -710,7 +710,7 @@ func (r *AuthController) GetGoogleAuthenticatorQRCode(ctx http.Context) http.Res
 	// 生成二维码图片
 	qrCodeImage, err := r.googleAuthenticatorService(ctx).GenerateQRCodeImage(accountName, secret)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -743,7 +743,7 @@ func (r *AuthController) BindGoogleAuthenticator(ctx http.Context) http.Response
 		if err.Error() == "invalid_code" {
 			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeInvalid.Code)
 		}
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -767,7 +767,7 @@ func (r *AuthController) UnbindGoogleAuthenticator(ctx http.Context) http.Respon
 	// 获取管理员的密钥
 	secret, err := r.googleAuthenticatorService(ctx).GetSecret(admin.ID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -783,7 +783,7 @@ func (r *AuthController) UnbindGoogleAuthenticator(ctx http.Context) http.Respon
 
 	// 解绑谷歌验证码
 	if err := r.googleAuthenticatorService(ctx).Unbind(admin.ID); err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
@@ -801,7 +801,7 @@ func (r *AuthController) GetGoogleAuthenticatorStatus(ctx http.Context) http.Res
 	// 检查是否绑定
 	isBound, err := r.googleAuthenticatorService(ctx).IsBound(admin.ID)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}

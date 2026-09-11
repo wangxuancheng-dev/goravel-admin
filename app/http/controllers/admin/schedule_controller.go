@@ -28,7 +28,7 @@ type scheduleRunRequest struct {
 func (c *ScheduleController) Index(ctx http.Context) http.Response {
 	tasks, err := c.scheduleService(ctx).List()
 	if err != nil {
-		return response.ErrorWithLog(ctx, "schedule", err)
+		return HandleGeneratedServiceError(ctx, "schedule", http.StatusInternalServerError, err, nil)
 	}
 	return response.Success(ctx, http.Json{
 		"list":  tasks,
@@ -47,22 +47,17 @@ func (c *ScheduleController) Run(ctx http.Context) http.Response {
 	result, err := c.scheduleService(ctx).Run(req.Command)
 	if err != nil {
 		if be, ok := apperrors.GetBusinessError(err); ok {
-			switch be.Code {
-			case apperrors.ErrScheduleBusy.Code:
-				return response.Error(ctx, http.StatusConflict, be)
-			case apperrors.ErrScheduleCommandRequired.Code,
-				apperrors.ErrScheduleCommandNotAllowed.Code:
-				return response.Error(ctx, http.StatusBadRequest, be)
-			case apperrors.ErrScheduleRunFailed.Code:
-				if result != nil {
-					return response.Success(ctx, "schedule_run_finished", http.Json{
-						"result": result,
-					})
-				}
+			// Failed run still returns the result payload when available.
+			if be.Code == apperrors.ErrScheduleRunFailed.Code && result != nil {
+				return response.Success(ctx, "schedule_run_finished", http.Json{
+					"result": result,
+				})
 			}
-			return response.Error(ctx, http.StatusBadRequest, be)
+			return HandleGeneratedServiceError(ctx, "schedule", http.StatusBadRequest, be, map[string]any{
+				"command": req.Command,
+			})
 		}
-		return response.ErrorWithLog(ctx, "schedule", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "schedule", http.StatusInternalServerError, err, map[string]any{
 			"command": req.Command,
 			"result":  result,
 		})

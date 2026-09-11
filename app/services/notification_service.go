@@ -2,18 +2,24 @@ package services
 
 import (
 	"context"
-	appfacades "goravel/app/facades"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/database/orm"
+	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
+	appfacades "goravel/app/facades"
 	"goravel/app/models"
+	"goravel/app/utils"
 	wsnotifications "goravel/app/websocket/notifications"
 )
 
 type NotificationService interface {
 	Create(title, content, notifType string, senderID *uint, receiverID *uint) (*models.Notification, error)
+	CreateAnnouncement(ctx http.Context, title, content, notifType string, senderID uint, receiverID *uint) (*models.Notification, error)
 	List(adminID uint, page int, pageSize int, notifType string, isRead string) ([]models.Notification, int64, error)
 	ListRecent(adminID uint, limit int) ([]models.Notification, error)
 	MarkRead(adminID uint, notificationID uint) error
@@ -29,12 +35,55 @@ func NewNotificationServiceImpl(ctx context.Context) NotificationService {
 	return &NotificationServiceImpl{ctx: ctx}
 }
 
+// PrepareAnnouncementContent normalizes rich-text image URLs to relative paths and sanitizes content.
+func PrepareAnnouncementContent(ctx http.Context, raw string) string {
+	content := raw
+
+	re := regexp.MustCompile(`https?://[^/]+(/api/admin/public/images/)`)
+	content = re.ReplaceAllString(content, "$1")
+
+	appURL := facades.Config().GetString("app.url")
+	if appURL != "" {
+		appURL = strings.TrimSuffix(appURL, "/")
+		content = strings.ReplaceAll(content, appURL, "")
+	}
+
+	if ctx != nil {
+		host := ctx.Request().Header("Host", "")
+		if host != "" {
+			scheme := "http"
+			if ctx.Request().Header("X-Forwarded-Proto", "") == "https" {
+				scheme = "https"
+			}
+			currentBaseURL := scheme + "://" + host + "/"
+			content = strings.ReplaceAll(content, currentBaseURL, "/")
+			currentBaseURLNoSlash := scheme + "://" + host
+			content = strings.ReplaceAll(content, currentBaseURLNoSlash, "")
+		}
+	}
+
+	return utils.SanitizeRichTextContent(content)
+}
+
+func (s *NotificationServiceImpl) CreateAnnouncement(ctx http.Context, title, content, notifType string, senderID uint, receiverID *uint) (*models.Notification, error) {
+	if title == "" {
+		return nil, apperrors.ErrParamsRequired
+	}
+	content = PrepareAnnouncementContent(ctx, content)
+	if content == "" {
+		return nil, apperrors.ErrParamsRequired
+	}
+	if notifType == "" {
+		notifType = "announcement"
+	}
+	return s.Create(title, content, notifType, &senderID, receiverID)
+}
+
 func (s *NotificationServiceImpl) Create(title, content, notifType string, senderID *uint, receiverID *uint) (*models.Notification, error) {
 	if receiverID == nil {
-		// 批量创建通知给所有管理员，使用事务确保原子性
 		var admins []models.Admin
 		if err := appfacades.OrmQuery(s.ctx).Find(&admins); err != nil {
-			return nil, err
+			return nil, apperrors.ErrQueryFailed.WithError(err)
 		}
 
 		if len(admins) == 0 {
@@ -45,8 +94,6 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 		var notifications []*models.Notification
 		var createdIDs []uint
 
-		// 使用循环创建通知，如果失败则手动回滚已创建的通知
-		// 注意：这不是真正的事务，但在框架可能不支持事务的情况下提供基本的回滚机制
 		for _, admin := range admins {
 			rid := admin.ID
 			notification := &models.Notification{
@@ -57,11 +104,10 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 				ReceiverID: &rid,
 			}
 			if err := appfacades.OrmQuery(s.ctx).Create(notification); err != nil {
-				// 如果创建失败，尝试删除已创建的通知（手动回滚）
 				for _, id := range createdIDs {
 					_, _ = appfacades.OrmQuery(s.ctx).Where("id", id).Delete(&models.Notification{})
 				}
-				return nil, err
+				return nil, apperrors.ErrCreateFailed.WithError(err)
 			}
 			if first == nil {
 				first = notification
@@ -70,7 +116,6 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 			createdIDs = append(createdIDs, notification.ID)
 		}
 
-		// 事务成功后，在事务外进行 WebSocket 广播（避免阻塞事务）
 		for _, notification := range notifications {
 			wsnotifications.Hub().Broadcast(notification)
 		}
@@ -78,7 +123,6 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 		return first, nil
 	}
 
-	// 单个通知创建
 	notification := &models.Notification{
 		Title:      title,
 		Content:    content,
@@ -87,7 +131,7 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 		ReceiverID: receiverID,
 	}
 	if err := appfacades.OrmQuery(s.ctx).Create(notification); err != nil {
-		return nil, err
+		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
 
 	wsnotifications.Hub().Broadcast(notification)
@@ -96,23 +140,17 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 }
 
 // buildNotificationQuery 构建通知查询条件（消除代码重复）
-// 对于私信类型，需要同时查询发送和接收的消息
-// 对于其他类型，只查询接收的消息
 func (s *NotificationServiceImpl) buildNotificationQuery(adminID uint, notifType, isRead string) orm.Query {
 	query := appfacades.OrmQuery(s.ctx).Model(&models.Notification{})
 
 	if notifType == "message" {
-		// 私信：查询发送或接收的消息
 		query = query.Where("(receiver_id = ? OR sender_id = ?) AND type = ?", adminID, adminID, "message")
 	} else if notifType != "" {
-		// 指定了其他类型：只查询接收的消息
 		query = query.Where("receiver_id = ? AND type = ?", adminID, notifType)
 	} else {
-		// 没有指定类型：查询接收的所有消息 + 发送的私信
 		query = query.Where("receiver_id = ? OR (sender_id = ? AND type = ?)", adminID, adminID, "message")
 	}
 
-	// 如果指定了已读/未读状态，添加状态筛选
 	if isRead == "true" {
 		query = query.Where("is_read = ?", true)
 	} else if isRead == "false" {
@@ -131,11 +169,10 @@ func (s *NotificationServiceImpl) List(adminID uint, page int, pageSize int, not
 		pageSize = 20
 	}
 
-	// 分页查询
 	var total int64
 	query := s.buildNotificationQuery(adminID, notifType, isRead).With("Sender").With("Receiver").Order("created_at desc")
 	if err := query.Paginate(page, pageSize, &notifications, &total); err != nil {
-		return nil, 0, err
+		return nil, 0, apperrors.ErrQueryFailed.WithError(err)
 	}
 
 	return notifications, total, nil
@@ -147,13 +184,12 @@ func (s *NotificationServiceImpl) ListRecent(adminID uint, limit int) ([]models.
 		limit = 5
 	}
 
-	// 查询最近的通知，包括接收的消息和发送的私信
 	if err := appfacades.OrmQuery(s.ctx).Model(&models.Notification{}).With("Sender").With("Receiver").
 		Where("(receiver_id = ? OR (sender_id = ? AND type = ?))", adminID, adminID, "message").
 		Order("created_at desc").
 		Limit(limit).
 		Find(&notifications); err != nil {
-		return nil, err
+		return nil, apperrors.ErrQueryFailed.WithError(err)
 	}
 	return notifications, nil
 }
@@ -180,7 +216,7 @@ func (s *NotificationServiceImpl) MarkRead(adminID uint, notificationID uint) er
 			"read_at": now,
 		})
 	if err != nil {
-		return err
+		return apperrors.ErrUpdateFailed.WithError(err)
 	}
 
 	notification.IsRead = true
@@ -201,7 +237,7 @@ func (s *NotificationServiceImpl) MarkAllRead(adminID uint) error {
 			"read_at": now,
 		})
 	if err != nil {
-		return err
+		return apperrors.ErrUpdateFailed.WithError(err)
 	}
 
 	wsnotifications.Hub().SendToAdmin(adminID, map[string]any{
@@ -218,5 +254,9 @@ func (s *NotificationServiceImpl) UnreadCount(adminID uint) (int64, error) {
 		Where("receiver_id = ?", adminID).
 		Where("is_read = ?", false)
 
-	return query.Count()
+	count, err := query.Count()
+	if err != nil {
+		return 0, apperrors.ErrQueryFailed.WithError(err)
+	}
+	return count, nil
 }

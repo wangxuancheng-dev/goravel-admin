@@ -213,30 +213,52 @@ func (e *BusinessError) Unwrap() error {
 	return e.Err
 }
 
-// WithError 包装底层错误
+// clone returns a shallow copy so package-level sentinel errors stay immutable.
+func (e *BusinessError) clone() *BusinessError {
+	if e == nil {
+		return nil
+	}
+	cp := &BusinessError{
+		Code:    e.Code,
+		Message: e.Message,
+		Err:     e.Err,
+	}
+	if len(e.Params) > 0 {
+		cp.Params = make(map[string]any, len(e.Params))
+		for k, v := range e.Params {
+			cp.Params[k] = v
+		}
+	}
+	return cp
+}
+
+// WithError 包装底层错误（返回副本，不修改原错误实例）
 func (e *BusinessError) WithError(err error) *BusinessError {
-	e.Err = err
-	return e
+	cp := e.clone()
+	cp.Err = err
+	return cp
 }
 
-// WithMessage 设置自定义消息
+// WithMessage 设置自定义消息（返回副本，不修改原错误实例）
 func (e *BusinessError) WithMessage(message string) *BusinessError {
-	e.Message = message
-	return e
+	cp := e.clone()
+	cp.Message = message
+	return cp
 }
 
-// WithParams 设置动态参数
+// WithParams 设置动态参数（返回副本，不修改原错误实例）
 // 参数会在控制器中用于替换翻译后消息中的占位符
 // 例如：翻译文件中有 "insufficient_balance": "余额不足，当前余额: {balance}"
 // 使用 WithParams(map[string]any{"balance": 100}) 后，控制器会替换为 "余额不足，当前余额: 100.00"
 func (e *BusinessError) WithParams(params map[string]any) *BusinessError {
-	if e.Params == nil {
-		e.Params = make(map[string]any)
+	cp := e.clone()
+	if cp.Params == nil {
+		cp.Params = make(map[string]any, len(params))
 	}
 	for k, v := range params {
-		e.Params[k] = v
+		cp.Params[k] = v
 	}
-	return e
+	return cp
 }
 
 // Is 检查错误是否匹配
@@ -256,16 +278,19 @@ func WrapError(err error, code, message string) *BusinessError {
 	}
 }
 
-// IsBusinessError 检查是否是业务错误
+// IsBusinessError 检查是否是业务错误（支持 unwrap）
 func IsBusinessError(err error) bool {
-	_, ok := err.(*BusinessError)
-	return ok
+	var be *BusinessError
+	return stderrors.As(err, &be)
 }
 
-// GetBusinessError 获取业务错误
+// GetBusinessError 获取业务错误（支持 unwrap）
 func GetBusinessError(err error) (*BusinessError, bool) {
-	be, ok := err.(*BusinessError)
-	return be, ok
+	var be *BusinessError
+	if stderrors.As(err, &be) {
+		return be, true
+	}
+	return nil, false
 }
 
 // GetFormattedMessage 获取格式化后的消息（支持多语言和占位符替换）

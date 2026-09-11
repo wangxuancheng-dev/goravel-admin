@@ -7,7 +7,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/http/helpers"
-	"goravel/app/http/trans"
+	"goravel/app/http/response"
 	"goravel/app/models"
 	"goravel/app/utils"
 )
@@ -38,10 +38,7 @@ func Blacklist() http.Middleware {
 			if utils.IsIPInBlacklist(realIP, blacklist.IP) {
 				// IP在黑名单中，拒绝访问
 				facades.Log().Warningf("Blacklist middleware: IP %s blocked by blacklist ID %d", realIP, blacklist.ID)
-				_ = ctx.Response().Json(http.StatusForbidden, http.Json{
-					"code":    http.StatusForbidden,
-					"message": trans.Get(ctx, "ip_blocked"),
-				}).Abort()
+				response.Abort(ctx, http.StatusForbidden, "ip_blocked")
 				return
 			}
 		}

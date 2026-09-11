@@ -161,7 +161,8 @@ const {
   deleteApi: deleteMenu
 })
 
-const { isExpanded, handleToggleExpand } = useTreeExpand(treeListPageRef, tableData)
+// Default expanded so disabled / nested menus stay easy to find after refresh.
+const { isExpanded, handleToggleExpand } = useTreeExpand(treeListPageRef, tableData, true)
 
 const searchFields = computed(() => createMenuSearchFields())
 const allTableColumns = computed(() => createMenuTableColumns(t))

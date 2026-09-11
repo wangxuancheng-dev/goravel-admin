@@ -161,6 +161,17 @@ func Error(ctx http.Context, code int, messageOrErr any) http.Response {
 	return ctx.Response().Json(code, response)
 }
 
+// Abort writes a canonical error JSON (with error_code / trace_id) and stops the middleware chain.
+// Prefer this over hand-rolled ctx.Response().Json(...).Abort() in middleware.
+func Abort(ctx http.Context, code int, messageOrErr any) {
+	resp := Error(ctx, code, messageOrErr)
+	if abortable, ok := resp.(interface{ Abort() error }); ok {
+		_ = abortable.Abort()
+		return
+	}
+	ctx.Request().Abort(code)
+}
+
 // SetErrorLog 设置错误日志信息到 context（用于系统级错误）
 // 在调用 response.Error 之前调用此函数，Error 函数会自动记录日志
 func SetErrorLog(ctx http.Context, module, logMessage string, attributes map[string]any) {

@@ -44,6 +44,7 @@ import FormField from "../../components/Form/FormField.vue";
 
 import WangEditor from "../../components/WangEditor.vue";
 
+// Relation field: admin_id -> admins
 import {
   createArticle,
   updateArticle,
@@ -93,7 +94,7 @@ const formRules = computed(() => {
   const rules = {};
 
   rules["admin_id"] = [
-    { required: true, message: t("common.required"), trigger: "blur" },
+    { required: true, message: t("common.select_required"), trigger: "change" },
   ];
   rules["title"] = [
     { required: true, message: t("common.required"), trigger: "blur" },
@@ -111,7 +112,7 @@ const formFields = computed(() => {
   fields.push({
     prop: "admin_id",
     label: t("admin_id"),
-    type: "input",
+    type: "select",
     disabled: loading.value,
   });
   fields.push({
@@ -123,7 +124,7 @@ const formFields = computed(() => {
   fields.push({
     prop: "status",
     label: t("status"),
-    type: "radio",
+    type: "select",
     disabled: loading.value,
     apiUrl: "/options?type=dictionary&dictionary_type=status",
     clearable: true,

@@ -2,9 +2,12 @@ import { ref } from 'vue'
 
 /**
  * Toggle expand/collapse for el-table tree rows.
+ * @param {import('vue').Ref} treeListPageRef
+ * @param {import('vue').Ref} tableData
+ * @param {boolean} [defaultExpanded=false]
  */
-export function useTreeExpand(treeListPageRef, tableData) {
-  const isExpanded = ref(false)
+export function useTreeExpand(treeListPageRef, tableData, defaultExpanded = false) {
+  const isExpanded = ref(defaultExpanded)
 
   const handleToggleExpand = () => {
     isExpanded.value = !isExpanded.value

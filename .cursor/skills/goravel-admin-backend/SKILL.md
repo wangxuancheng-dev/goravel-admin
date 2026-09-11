@@ -31,8 +31,8 @@ Use:
 
 Use:
 - `response.Error(ctx, httpStatus, messageKeyOrErr)`
-- `response.ErrorWithLog(ctx, ...)` for unexpected infra failures in **hand-written** modules (auth, export, config, …)
-- Generated CRUD controllers use `handleGeneratedServiceError` instead (see below)
+- `response.ErrorWithLog(ctx, ...)` for unexpected infra failures in **hand-written** modules that are not yet on the shared helper (e.g. `notification_ws`)
+- Generated / migrated controllers use `HandleGeneratedServiceError` (CRUD **and** Export in `controller.tpl`)
 
 ### Validation error JSON
 - same as Error JSON plus `errors` field map and first-field message when available
@@ -53,7 +53,7 @@ Rules:
 
 **Source of truth:** `app/services/templates/controller.tpl` → e.g. `app/http/controllers/admin/article_controller.go`.
 
-When adding a new admin CRUD module, **match the generator output** (or use Dev → Code Generator). Do **not** copy legacy patterns from menu/role/position unless you are fixing those files in place.
+When adding a new admin CRUD module, **match the generator output** (or use Dev → Code Generator). Do **not** copy legacy patterns from admin/payment unless you are fixing those files in place.
 
 ### Generated controller helpers (shared in admin package)
 All generated / migrated CRUD controllers use helpers in `app/http/controllers/admin/generated_helpers.go`:
@@ -76,10 +76,26 @@ These admin modules follow the code generator pattern end-to-end:
 |--------|-------|
 | `article` | Reference implementation |
 | `position`, `attachment_category`, `blacklist`, `dictionary`, `permission`, `role` | Full CRUD |
-| `user` | CRUD migrated; `UpdateBalance`, `ResetPassword`, `Export` remain hand-written |
+| `menu`, `department` | Tree/index special cases kept; CRUD uses shared helpers |
+| `admin` | CRUD migrated; Export / 2FA actions remain hand-written |
+| `payment_method` | CRUD migrated (flat Show/Store detail payload kept) |
+| `password` | UpdateOwnPassword / ResetPassword in AdminService + shared helpers |
+| `login-log`, `operation-log`, `system-log` | List/Show/Delete/Batch/Clean migrated; title/module options in service |
+| `user` | CRUD + UpdateBalance/ResetPassword/Export use shared helper |
 | `user_balance_log` | List/statistics use shared error helper; `Store` remains hand-written (sharding) |
+| `payment` | Index/Show thin + `PaymentToJSON`; export/queue remain hand-written |
+| `order` | Index/Show/Store/Update/Destroy thin + JSON helpers; import/export orchestration uses shared error helper |
+| `attachment` | Index filters/`AttachmentToJSON` + shared error helper; upload/chunk/stream stay HTTP-layer |
+| `online_admin` | Full list/kick via `online_admin_service` |
+| `config` | GetByGroup/Save/TestEmail via `config_service` |
+| `export` | Index/Destroy/BatchDestroy via filters/`ExportRecordToJSON`/`DeleteWithFile`; Download/SSE stay HTTP-layer |
+| `notification` | List/mark/Store use shared helper; `PrepareAnnouncementContent` / `CreateAnnouncement` in service |
+| `dashboard` | Stats via `dashboard_service`; SSE loop stays in controller |
+| `observability` | TraceAggregate/AuditTimeline via `observability_service`; SlowSQL/API use shared helper; pprof stays HTTP-layer |
+| `schedule` | Index/Run use shared helper (`schedule_busy` → 409) |
+| `ai_lab` | Unexpected errors use shared helper; multipart stays in controller |
 
-**Do not migrate** (edit in place only): `menu`, `department`, `admin`, `auth`, `payment`, `order`, `attachment`, logs, `config`, `export`, `notification`, …
+**Do not migrate** (edit in place only): `auth` (login flow), `monitor` (ops sysinfo), `notification_ws`, `code_generator`, `form_demo`, payment/order/user export queue orchestration internals, attachment Download/Preview streaming, …
 
 ### Generated controller structure
 ```go
@@ -103,17 +119,16 @@ func (c *XController) XService(ctx http.Context) services.XService {
 Service interface (generated): `GetByID`, `GetList`, `Create`, `Update`, `Delete` — business logic and ORM queries stay in service.
 
 ### Pagination
-New generated modules always use `"list"` for the rows array. Legacy payment/order modules use `"data"` — only match that when editing those files.
+New generated modules always use `"list"` for the rows array. Payment / order / payment_method also use `"list"` (legacy `"data"` is no longer emitted).
 
-## Hand-written modules (auth, menu, export, config, …)
+## Hand-written modules (auth, export, config, …)
 
 Older/system modules may still use:
 - `response.FindByID` directly in controller
-- `response.ErrorWithLog` per action
-- Partial update via `ctx.Request().All()` in controller (menu)
+- Partial update via `ctx.Request().All()` in controller
 - `response.Paginate` shortcut (export list, online admins)
 
-**When editing an existing file:** follow that file's style. **When creating new CRUD:** use code generator pattern only.
+Async export orchestration uses `EnqueueAsyncExport` in `app/http/controllers/admin/async_export.go` (hand-written modules + `controller.tpl`). Controllers only build filters and pass the job instance.
 
 ## HTTP status mapping (default)
 - **400** — validation, params_error, business conflicts

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { App, Form, Input, Modal, Radio } from 'antd'
+import { App, Form, Input, Modal, Select } from 'antd'
 import { useTranslation } from 'react-i18next'
 import {
   createArticle,
@@ -99,7 +99,7 @@ export default function ArticleFormModal({ open, editId, onClose, onSuccess }: A
       <Form form={form} layout="vertical" disabled={loading}>
 
         <Form.Item name="admin_id" label={t('admin_id', { defaultValue: '管理员ID' })} rules={[{ required: true }]}>
-          <Input />
+          <Select allowClear />
         </Form.Item>
         
         <Form.Item name="title" label={t('title', { defaultValue: '标题' })} rules={[{ required: true }]}>
@@ -111,7 +111,7 @@ export default function ArticleFormModal({ open, editId, onClose, onSuccess }: A
         </Form.Item>
         
         <Form.Item name="status" label={t('status', { defaultValue: '0:未发布 1:发布' })} rules={[{ required: true }]}>
-          <Radio.Group />
+          <Select allowClear />
         </Form.Item>
         
       </Form>

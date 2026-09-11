@@ -1,8 +1,6 @@
 package admin
 
 import (
-	"github.com/goravel/framework/contracts/http"
-
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
@@ -10,6 +8,8 @@ import (
 	adminrequests "goravel/app/http/requests/admin"
 	"goravel/app/http/response"
 	"goravel/app/services"
+
+	"github.com/goravel/framework/contracts/http"
 )
 
 type ArticleController struct{}
@@ -109,6 +109,7 @@ func (c *ArticleController) Destroy(ctx http.Context) http.Response {
 
 // Export exports Article records.
 func (c *ArticleController) Export(ctx http.Context) http.Response {
+	filters := c.buildArticleFilters(ctx)
 	lock := helpers.AcquireExportLock(ctx, "articles")
 	if lock.Unauthorized {
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
@@ -118,11 +119,9 @@ func (c *ArticleController) Export(ctx http.Context) http.Response {
 	}
 	adminID := lock.AdminID
 
-	filters := c.buildArticleFilters(ctx)
-
 	list, err := c.ArticleService(ctx).GetAllArticleForExport(filters)
 	if err != nil {
-		return response.ErrorWithLog(ctx, "article", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "article", http.StatusInternalServerError, err, map[string]any{
 			"action":   "export_articles",
 			"admin_id": adminID,
 		})

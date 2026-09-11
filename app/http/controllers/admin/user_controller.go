@@ -1,12 +1,7 @@
 package admin
 
 import (
-	"encoding/json"
-	appfacades "goravel/app/facades"
-
 	"github.com/goravel/framework/contracts/http"
-	"github.com/goravel/framework/contracts/queue"
-	"github.com/goravel/framework/facades"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
@@ -17,7 +12,6 @@ import (
 	"goravel/app/jobs"
 	"goravel/app/models"
 	"goravel/app/services"
-	"goravel/app/utils"
 )
 
 type UserController struct{}
@@ -141,7 +135,9 @@ func (c *UserController) UpdateBalance(ctx http.Context) http.Response {
 	}
 
 	if err := c.UserService(ctx).UpdateBalance(userID, amount, logType, source, sourceID, description, operatorID, remark); err != nil {
-		return response.Error(ctx, http.StatusBadRequest, err)
+		return HandleGeneratedServiceError(ctx, "user", http.StatusBadRequest, err, map[string]any{
+			"user_id": userID,
+		})
 	}
 
 	return response.Success(ctx, "balance_update_success", http.Json{})
@@ -161,10 +157,7 @@ func (c *UserController) ResetPassword(ctx http.Context) http.Response {
 	}
 
 	if err := c.UserService(ctx).ResetPassword(id, resetPasswordRequest.Password); err != nil {
-		if businessErr, ok := apperrors.GetBusinessError(err); ok {
-			return response.Error(ctx, http.StatusBadRequest, businessErr.Code)
-		}
-		return response.ErrorWithLog(ctx, "password", err, map[string]any{
+		return HandleGeneratedServiceError(ctx, "password", http.StatusInternalServerError, err, map[string]any{
 			"user_id": id,
 		})
 	}
@@ -174,28 +167,6 @@ func (c *UserController) ResetPassword(ctx http.Context) http.Response {
 
 // Export 导出用户列表
 func (c *UserController) Export(ctx http.Context) http.Response {
-	lock := helpers.AcquireExportLock(ctx, "users")
-	if lock.Unauthorized {
-		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
-	}
-	if lock.Blocked {
-		return response.Error(ctx, http.StatusTooManyRequests, apperrors.ErrGetLockFailed.Code)
-	}
-	adminID := lock.AdminID
-
-	disk := helpers.ResolveExportDisk(ctx)
-
-	exportRecord := models.Export{
-		AdminID: adminID,
-		Type:    models.ExportTypeUsers,
-		Status:  models.ExportStatusProcessing,
-		Disk:    disk,
-		Path:    "",
-	}
-	if err := appfacades.OrmQuery(ctx).Create(&exportRecord); err != nil {
-		return response.ErrorWithLog(ctx, "export", err)
-	}
-
 	filtersMap := map[string]any{
 		"username": ctx.Request().Input("username", ""),
 		"nickname": ctx.Request().Input("nickname", ""),
@@ -207,47 +178,24 @@ func (c *UserController) Export(ctx http.Context) http.Response {
 		filtersMap["status"] = cast.ToUint(statusStr)
 	}
 
-	lang := utils.GetCurrentLanguage(ctx)
-	timezone := helpers.GetCurrentTimezone(ctx)
-
-	exportArgsStruct := jobs.ExportUsersArgs{
-		ExportID: exportRecord.ID,
-		AdminID:  adminID,
-		Filters:  filtersMap,
-		Type:     "users",
-		Language: lang,
-		Timezone: timezone,
+	result := EnqueueAsyncExport(ctx, EnqueueAsyncExportInput{
+		LockResource: "users",
+		ExportType:   models.ExportTypeUsers,
+		Filters:      filtersMap,
+		Job:          &jobs.ExportUsers{},
+	})
+	if result.Unauthorized {
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
 	}
-
-	exportArgsJSON, err := json.Marshal(exportArgsStruct)
-	if err != nil {
-		facades.Log().Errorf("序列化导出参数失败: export_id=%d, error=%v", exportRecord.ID, err)
-		exportRecord.Status = models.ExportStatusFailed
-		exportRecord.ErrorMsg = err.Error()
-		appfacades.OrmQuery(ctx).Save(&exportRecord)
-		return response.ErrorWithLog(ctx, "export", err)
+	if result.Blocked {
+		return response.Error(ctx, http.StatusTooManyRequests, apperrors.ErrGetLockFailed.Code)
 	}
-
-	facades.Log().Infof("提交用户导出任务到队列: export_id=%d", exportRecord.ID)
-
-	exportArgs := []queue.Arg{
-		{
-			Type:  "string",
-			Value: string(exportArgsJSON),
-		},
-	}
-
-	if err := facades.Queue().Job(&jobs.ExportUsers{}, exportArgs).OnQueue("long-running").Dispatch(); err != nil {
-		lock.Release()
-		facades.Log().Errorf("提交导出任务失败: export_id=%d, error=%v", exportRecord.ID, err)
-		exportRecord.Status = models.ExportStatusFailed
-		exportRecord.ErrorMsg = err.Error()
-		appfacades.OrmQuery(ctx).Save(&exportRecord)
-		return response.ErrorWithLog(ctx, "export", err)
+	if result.Err != nil {
+		return HandleGeneratedServiceError(ctx, "export", http.StatusInternalServerError, result.Err, nil)
 	}
 
 	return response.Success(ctx, http.Json{
-		"export_id": exportRecord.ID,
+		"export_id": result.ExportID,
 		"message":   trans.Get(ctx, "queued"),
 	})
 }
