@@ -65,13 +65,13 @@ func init() {
 	}
 
 	// 从环境变量读取允许的请求头，支持逗号分隔
-	corsHeadersEnv := config.Env("CORS_ALLOWED_HEADERS", "Content-Type,Authorization,X-Requested-With,X-Timezone,Accept,Origin,Accept-Language")
+	corsHeadersEnv := config.Env("CORS_ALLOWED_HEADERS", "Content-Type,Authorization,X-Requested-With,X-Timezone,Accept,Origin,Accept-Language,X-Tenant-ID")
 	var allowedHeaders []string
 	corsHeadersStr := ""
 	if str, ok := corsHeadersEnv.(string); ok {
 		corsHeadersStr = str
 	} else {
-		corsHeadersStr = "Content-Type,Authorization,X-Requested-With,X-Timezone,Accept,Origin"
+		corsHeadersStr = "Content-Type,Authorization,X-Requested-With,X-Timezone,Accept,Origin,X-Tenant-ID"
 	}
 
 	if corsHeadersStr == "*" {

@@ -39,8 +39,10 @@ TENANCY_SCHEMA_PREFIX=tenant_
 PLATFORM_ADMIN_USERNAME=admin
 PLATFORM_ADMIN_PASSWORD=secret
 PLATFORM_ADMIN_NAME=平台管理员
-```
 
+# header 解析租户时，浏览器跨域需放行（默认已含）：
+# CORS_ALLOWED_HEADERS=...,X-Tenant-ID
+```
 前端：`VITE_TENANCY_ENABLED=true`（或 `VITE_TENANCY_DRIVER=database`）。
 
 ## 首启（推荐）

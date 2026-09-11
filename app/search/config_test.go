@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"goravel/app/tenancy"
 	"goravel/app/tenancyctx"
 )
 
@@ -17,6 +18,17 @@ func TestOrdersIndexShortNameFor_tenantCode(t *testing.T) {
 	if got != base && got != "acme_co_"+base {
 		// Either tenancy off (base) or on with sanitized code
 		assert.True(t, got == base || got == "acme_co_"+base || got == "t9_"+base, "got=%s", got)
+	}
+}
+
+func TestOrdersIndexShortNameFor_unboundEmptyWhenTenancyOn(t *testing.T) {
+	// When tenancy is off, unbound returns base; when on, must not fall back to shared name.
+	got := OrdersIndexShortNameFor(context.Background())
+	base := OrdersIndexShortName()
+	if tenancy.Enabled() {
+		assert.Equal(t, "", got)
+	} else {
+		assert.Equal(t, base, got)
 	}
 }
 

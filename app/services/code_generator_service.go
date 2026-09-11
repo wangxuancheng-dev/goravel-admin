@@ -16,8 +16,9 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/goravel/framework/facades"
 	"gorm.io/gorm"
+
+	appfacades "goravel/app/facades"
 )
 
 type FieldConfig struct {
@@ -540,13 +541,8 @@ func (s *CodeGeneratorServiceImpl) InstallModule(moduleName, tableName string, o
 }
 
 func (s *CodeGeneratorServiceImpl) getGormDB() (*gorm.DB, error) {
-	orm := facades.Orm()
-	if orm == nil {
-		return nil, fmt.Errorf("ORM facade is nil")
-	}
-
-	// Try to get Query()
-	query := orm.Query()
+	// Prefer tenant connection from request/job ctx (OrmQuery), not platform default.
+	query := appfacades.OrmQuery(s.ctx)
 	if query == nil {
 		return nil, fmt.Errorf("Query() returned nil")
 	}

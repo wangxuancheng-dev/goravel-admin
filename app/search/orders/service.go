@@ -57,6 +57,9 @@ func Push(ctx context.Context, orderID uint, orderNoHint string, op string) erro
 		return err
 	}
 	index := IndexName(ctx)
+	if strings.TrimSpace(index) == "" {
+		return fmt.Errorf("search index requires tenant binding when tenancy is enabled")
+	}
 
 	if op == "delete" {
 		orderNo := orderNoHint
@@ -163,7 +166,12 @@ func searchOrders(ctx context.Context, req search.SearchRequest) (total int64, i
 		return 0, nil, fmt.Errorf("%w: orders query not ready on driver %s", search.ErrUnsupported, engine.Name())
 	}
 
-	res, err := engine.Search(ctx, IndexName(ctx), req)
+	index := IndexName(ctx)
+	if strings.TrimSpace(index) == "" {
+		return 0, nil, fmt.Errorf("search index requires tenant binding when tenancy is enabled")
+	}
+
+	res, err := engine.Search(ctx, index, req)
 	if err != nil {
 		return 0, nil, err
 	}

@@ -32,7 +32,7 @@ func EnsureOrdersIndexNamed(ctx context.Context, e *Engine, shortName string) er
 	}
 	shortName = strings.TrimSpace(shortName)
 	if shortName == "" {
-		shortName = search.OrdersIndexShortName()
+		return fmt.Errorf("orders index short name empty (tenant unbound under tenancy?)")
 	}
 	full := e.fullIndex(shortName)
 	if _, ok := ensureIndexDone.Load(full); ok {
@@ -58,6 +58,10 @@ func InitOrdersIndex(ctx context.Context, e *Engine) error {
 func initOrdersIndexNamed(ctx context.Context, e *Engine, shortName string) error {
 	if e == nil || e.client == nil {
 		return fmt.Errorf("elasticsearch client not available")
+	}
+	shortName = strings.TrimSpace(shortName)
+	if shortName == "" {
+		return fmt.Errorf("orders index short name empty (tenant unbound under tenancy?)")
 	}
 	index := e.fullIndex(shortName)
 	res, err := e.client.Indices.Exists([]string{index}, e.client.Indices.Exists.WithContext(ctx))

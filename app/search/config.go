@@ -65,7 +65,8 @@ func OrdersIndexShortName() string {
 }
 
 // OrdersIndexShortNameFor 返回带租户隔离段的索引短名（tenancy 开启且 ctx 已绑定时）。
-// 例：acme_orders / t3_orders；未绑定时回退配置短名（单库或平台 CLI）。
+// 例：acme_orders / t3_orders。
+// tenancy 开启但未绑定租户时返回空字符串（fail-closed，避免写入共享 orders 索引）。
 func OrdersIndexShortNameFor(ctx context.Context) string {
 	base := OrdersIndexShortName()
 	if !tenancy.Enabled() {
@@ -80,7 +81,7 @@ func OrdersIndexShortNameFor(ctx context.Context) string {
 	if id, ok := tenancyctx.IDFrom(ctx); ok {
 		return fmt.Sprintf("t%d_%s", id, base)
 	}
-	return base
+	return ""
 }
 
 // IsOrdersIndexShortName 判断短名是否为订单索引（含租户前缀形态）。

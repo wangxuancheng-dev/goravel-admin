@@ -30,6 +30,7 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
@@ -113,6 +114,27 @@ func NewExportService(ctx http.Context) ExportService {
 	}
 }
 
+// exportRelPath builds a storage-relative path under exports/, with tenant prefix when bound.
+func (s *ExportServiceImpl) exportRelPath(filename string) string {
+	filePath := path.Join(s.path, filename)
+	if s.ctx == nil {
+		return filePath
+	}
+	if p := helpers.TenantStoragePrefix(s.ctx); p != "" {
+		return path.Join(strings.TrimSuffix(p, "/"), filePath)
+	}
+	return filePath
+}
+
+// persistCtx keeps tenant ORM routing after the HTTP request ends.
+func (s *ExportServiceImpl) persistCtx(timeout time.Duration) (context.Context, context.CancelFunc) {
+	base := context.Background()
+	if s.ctx != nil {
+		base = tenancyctx.Detach(s.ctx)
+	}
+	return context.WithTimeout(base, timeout)
+}
+
 func (s *ExportServiceImpl) recordExportLogAsync(filePath string, absOrTmpPathForSize string) {
 	go func() {
 		defer func() {
@@ -120,7 +142,7 @@ func (s *ExportServiceImpl) recordExportLogAsync(filePath string, absOrTmpPathFo
 				facades.Log().Errorf("ExportService: panic while recording export log: %v", r)
 			}
 		}()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := s.persistCtx(5 * time.Second)
 		defer cancel()
 		s.recordExportLogWithContext(ctx, filePath, absOrTmpPathForSize)
 	}()
@@ -131,7 +153,7 @@ func (s *ExportServiceImpl) ExportToCSVStream(headers []string, filename string,
 	timestamp := time.Now().Format("20060102_150405")
 	filename = fmt.Sprintf("%s_%s.csv", filename, timestamp)
 	// 注意：存储路径统一使用 "/"，避免 Windows 下 filepath.Join 生成 "\" 导致云存储对象 key 异常
-	filePath := path.Join(s.path, filename)
+	filePath := s.exportRelPath(filename)
 
 	return s.ExportToCSVStreamAt(headers, filePath, write, skipAutoCreate...)
 }
@@ -327,7 +349,7 @@ func (s *ExportServiceImpl) ExportToCSVStreamAtWithProgress(headers []string, fi
 func (s *ExportServiceImpl) ExportToCSV(headers []string, data [][]string, filename string, skipAutoCreate ...bool) (string, error) {
 	timestamp := time.Now().Format("20060102_150405")
 	filename = fmt.Sprintf("%s_%s.csv", filename, timestamp)
-	filePath := path.Join(s.path, filename)
+	filePath := s.exportRelPath(filename)
 
 	// 创建CSV内容缓冲区
 	var buf bytes.Buffer
@@ -405,7 +427,7 @@ func (s *ExportServiceImpl) ExportToCSV(headers []string, data [][]string, filen
 				}
 			}()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := s.persistCtx(5 * time.Second)
 			defer cancel()
 
 			adminID := uint(0)
@@ -455,7 +477,7 @@ func (s *ExportServiceImpl) ExportToCSV(headers []string, data [][]string, filen
 func (s *ExportServiceImpl) ExportToXLSX(headers []string, data [][]string, filename string, skipAutoCreate ...bool) (string, error) {
 	timestamp := time.Now().Format("20060102_150405")
 	filename = fmt.Sprintf("%s_%s.xlsx", filename, timestamp)
-	filePath := path.Join(s.path, filename)
+	filePath := s.exportRelPath(filename)
 	return s.ExportToXLSXAt(headers, data, filePath, skipAutoCreate...)
 }
 
@@ -517,7 +539,7 @@ func (s *ExportServiceImpl) ExportToXLSXAt(headers []string, data [][]string, fi
 }
 
 func (s *ExportServiceImpl) recordExportLog(filePath string, absOrTmpPathForSize string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := s.persistCtx(5 * time.Second)
 	defer cancel()
 	s.recordExportLogWithContext(ctx, filePath, absOrTmpPathForSize)
 }
