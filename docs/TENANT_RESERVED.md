@@ -84,6 +84,13 @@ go run . artisan tenant:list
 go run . artisan tenant:enable|disable {id|code}
 go run . artisan tenant:backup {id|code}
 go run . artisan tenant:restore {id|code} {sql路径}
+
+# tenancy 开启时，以下命令默认遍历启用租户；可用 --tenant={code|id} 限定
+go run . artisan order:create-sharding-tables [--tenant=]
+go run . artisan payment:create-sharding-tables [--tenant=]
+go run . artisan search:init-orders-index [--tenant=]
+go run . artisan search:sync-orders [--tenant=]
+go run . artisan search:retry-outbox [--tenant=]
 ```
 
 ### 建库与密码
@@ -114,4 +121,4 @@ go run . artisan tenant:restore {id|code} {sql路径}
 | `PlatformOrmQuery(ctx)` | 平台元数据 / 平台 token |
 | `NewPlatformTokenService` | 平台 token |
 
-硬性规则：业务用 `OrmQuery`；平台路由不挂 `Tenant` 中间件；缓存/上传走 `tenancy.CacheKey` / `StoragePrefix`。
+硬性规则：业务用 `OrmQuery`；平台路由不挂 `Tenant` 中间件；缓存/上传走 `tenancy.CacheKey` / `StoragePrefix`；搜索索引短名在绑定租户后为 `{code}_orders`；定时分表/搜索 CLI 走 `RunTenantScope`。

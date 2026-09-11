@@ -31,7 +31,7 @@ type OutboxRecord struct {
 
 // CreateSyncOutbox 写入同步 outbox（ctx 应带租户连接，若 tenancy 开启）。
 func CreateSyncOutbox(ctx context.Context, orderID uint, orderNo, op string, payload map[string]any) {
-	if !OutboxEnabled() || !facades.Schema().HasTable(OutboxTable) {
+	if !OutboxEnabled() || !appfacades.SchemaHasTable(ctx, OutboxTable) {
 		return
 	}
 	if ctx == nil {
@@ -60,7 +60,7 @@ func CreateSyncOutbox(ctx context.Context, orderID uint, orderNo, op string, pay
 }
 
 func findLatestPendingOutboxID(ctx context.Context, orderID uint, op string) uint {
-	if orderID == 0 || !facades.Schema().HasTable(OutboxTable) {
+	if orderID == 0 || !appfacades.SchemaHasTable(ctx, OutboxTable) {
 		return 0
 	}
 	if ctx == nil {
@@ -95,17 +95,24 @@ func updateOutboxByID(ctx context.Context, id uint, data map[string]any) {
 
 // ListOutboxRetryable 列出可重试 outbox（CLI 在 WithTenantConnection 下调用时走当前 default）。
 func ListOutboxRetryable(limit, maxAttempts int) ([]OutboxRecord, error) {
+	return ListOutboxRetryableCtx(context.Background(), limit, maxAttempts)
+}
+
+// ListOutboxRetryableCtx 列出可重试 outbox（可带租户 ctx）。
+func ListOutboxRetryableCtx(ctx context.Context, limit, maxAttempts int) ([]OutboxRecord, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 	if maxAttempts <= 0 {
 		maxAttempts = 5
 	}
-	if !OutboxEnabled() || !facades.Schema().HasTable(OutboxTable) {
+	if !OutboxEnabled() || !appfacades.SchemaHasTable(ctx, OutboxTable) {
 		return nil, nil
 	}
 
-	ctx := context.Background()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var rows []struct {
 		ID        uint   `gorm:"column:id"`
 		EntityID  uint   `gorm:"column:entity_id"`
@@ -179,10 +186,17 @@ func MarkOutboxFailedByIDCtx(ctx context.Context, id uint, errMsg string) {
 
 // CountOutboxBacklog 统计积压。
 func CountOutboxBacklog() (pending int64, failed int64) {
-	if !facades.Schema().HasTable(OutboxTable) {
+	return CountOutboxBacklogCtx(context.Background())
+}
+
+// CountOutboxBacklogCtx 统计积压（可带租户 ctx）。
+func CountOutboxBacklogCtx(ctx context.Context) (pending int64, failed int64) {
+	if !appfacades.SchemaHasTable(ctx, OutboxTable) {
 		return 0, 0
 	}
-	ctx := context.Background()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	pending, _ = appfacades.OrmQuery(ctx).Table(OutboxTable).
 		Where("status", outboxStatusPending).Count()
 	failed, _ = appfacades.OrmQuery(ctx).Table(OutboxTable).

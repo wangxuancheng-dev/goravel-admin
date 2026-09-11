@@ -45,9 +45,9 @@ func QueryEnabled() bool {
 	return search.EngineQueryReady(engine)
 }
 
-// IndexName 订单索引短名。
-func IndexName() string {
-	return search.OrdersIndexShortName()
+// IndexName 订单索引短名（按 ctx 租户隔离）。
+func IndexName(ctx context.Context) string {
+	return search.OrdersIndexShortNameFor(ctx)
 }
 
 // Push 将单条订单 index 或 delete 到当前引擎。
@@ -56,7 +56,7 @@ func Push(ctx context.Context, orderID uint, orderNoHint string, op string) erro
 	if err != nil {
 		return err
 	}
-	index := IndexName()
+	index := IndexName(ctx)
 
 	if op == "delete" {
 		orderNo := orderNoHint
@@ -163,7 +163,7 @@ func searchOrders(ctx context.Context, req search.SearchRequest) (total int64, i
 		return 0, nil, fmt.Errorf("%w: orders query not ready on driver %s", search.ErrUnsupported, engine.Name())
 	}
 
-	res, err := engine.Search(ctx, IndexName(), req)
+	res, err := engine.Search(ctx, IndexName(ctx), req)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -194,5 +194,5 @@ func InitIndex(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return engine.EnsureIndex(ctx, IndexName())
+	return engine.EnsureIndex(ctx, IndexName(ctx))
 }

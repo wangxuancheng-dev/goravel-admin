@@ -1,10 +1,18 @@
 package search
 
 import (
+	"context"
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/goravel/framework/facades"
+
+	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 )
+
+var tenantIndexSegment = regexp.MustCompile(`[^a-z0-9_]+`)
 
 // Driver 返回当前搜索驱动名（elasticsearch / meilisearch / null）。
 func Driver() string {
@@ -47,13 +55,55 @@ func OrdersSyncEnabled() bool {
 	return facades.Config().GetBool("search.indexes.orders.sync_enabled", false)
 }
 
-// OrdersIndexShortName 订单索引短名（不含前缀）。
+// OrdersIndexShortName 订单索引配置短名（不含租户段、不含 ES 前缀）。
 func OrdersIndexShortName() string {
 	n := strings.TrimSpace(facades.Config().GetString("search.indexes.orders.name", "orders"))
 	if n == "" {
 		return "orders"
 	}
 	return n
+}
+
+// OrdersIndexShortNameFor 返回带租户隔离段的索引短名（tenancy 开启且 ctx 已绑定时）。
+// 例：acme_orders / t3_orders；未绑定时回退配置短名（单库或平台 CLI）。
+func OrdersIndexShortNameFor(ctx context.Context) string {
+	base := OrdersIndexShortName()
+	if !tenancy.Enabled() {
+		return base
+	}
+	if code, ok := tenancyctx.CodeFrom(ctx); ok {
+		seg := sanitizeIndexSegment(code)
+		if seg != "" {
+			return seg + "_" + base
+		}
+	}
+	if id, ok := tenancyctx.IDFrom(ctx); ok {
+		return fmt.Sprintf("t%d_%s", id, base)
+	}
+	return base
+}
+
+// IsOrdersIndexShortName 判断短名是否为订单索引（含租户前缀形态）。
+func IsOrdersIndexShortName(index string) bool {
+	index = strings.TrimSpace(index)
+	if index == "" {
+		return false
+	}
+	base := OrdersIndexShortName()
+	if index == base || index == "orders" {
+		return true
+	}
+	return strings.HasSuffix(index, "_"+base) || strings.HasSuffix(index, "_orders")
+}
+
+func sanitizeIndexSegment(code string) string {
+	s := strings.ToLower(strings.TrimSpace(code))
+	s = tenantIndexSegment.ReplaceAllString(s, "_")
+	s = strings.Trim(s, "_")
+	if len(s) > 48 {
+		s = s[:48]
+	}
+	return s
 }
 
 // ShouldRunQueueWorker 是否启动搜索同步专用队列 Worker。

@@ -70,8 +70,8 @@ func (e *Engine) Delete(ctx context.Context, index, documentID string) error {
 }
 
 func (e *Engine) EnsureIndex(ctx context.Context, index string) error {
-	if index == search.OrdersIndexShortName() || index == "orders" {
-		return EnsureOrdersIndex(ctx, e)
+	if search.IsOrdersIndexShortName(index) {
+		return EnsureOrdersIndexNamed(ctx, e, index)
 	}
 	// 未知索引：仅检查存在性，不自动建 mapping
 	full := e.fullIndex(index)

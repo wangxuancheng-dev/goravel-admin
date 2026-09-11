@@ -15,27 +15,51 @@ import (
 	"goravel/app/search"
 )
 
-var ensureIndexOnce sync.Once
-var ensureIndexErr error
+var (
+	ensureIndexMu   sync.Mutex
+	ensureIndexDone sync.Map // full index name -> struct{}
+)
 
-// EnsureOrdersIndex 创建订单索引（若不存在）；进程内只执行一次。
+// EnsureOrdersIndex 创建配置短名订单索引（单库 / 未绑租户 ctx）。
 func EnsureOrdersIndex(ctx context.Context, e *Engine) error {
-	ensureIndexOnce.Do(func() {
-		ensureIndexErr = initOrdersIndex(ctx, e)
-	})
-	return ensureIndexErr
+	return EnsureOrdersIndexNamed(ctx, e, search.OrdersIndexShortNameFor(ctx))
+}
+
+// EnsureOrdersIndexNamed 按短名创建订单索引；每个完整索引名进程内成功一次即可。
+func EnsureOrdersIndexNamed(ctx context.Context, e *Engine, shortName string) error {
+	if e == nil || e.client == nil {
+		return fmt.Errorf("elasticsearch client not available")
+	}
+	shortName = strings.TrimSpace(shortName)
+	if shortName == "" {
+		shortName = search.OrdersIndexShortName()
+	}
+	full := e.fullIndex(shortName)
+	if _, ok := ensureIndexDone.Load(full); ok {
+		return nil
+	}
+	ensureIndexMu.Lock()
+	defer ensureIndexMu.Unlock()
+	if _, ok := ensureIndexDone.Load(full); ok {
+		return nil
+	}
+	if err := initOrdersIndexNamed(ctx, e, shortName); err != nil {
+		return err
+	}
+	ensureIndexDone.Store(full, struct{}{})
+	return nil
 }
 
 // InitOrdersIndex 供 artisan 显式初始化（可重复调用）。
 func InitOrdersIndex(ctx context.Context, e *Engine) error {
-	return initOrdersIndex(ctx, e)
+	return initOrdersIndexNamed(ctx, e, search.OrdersIndexShortNameFor(ctx))
 }
 
-func initOrdersIndex(ctx context.Context, e *Engine) error {
+func initOrdersIndexNamed(ctx context.Context, e *Engine, shortName string) error {
 	if e == nil || e.client == nil {
 		return fmt.Errorf("elasticsearch client not available")
 	}
-	index := e.fullIndex(search.OrdersIndexShortName())
+	index := e.fullIndex(shortName)
 	res, err := e.client.Indices.Exists([]string{index}, e.client.Indices.Exists.WithContext(ctx))
 	if err != nil {
 		return err

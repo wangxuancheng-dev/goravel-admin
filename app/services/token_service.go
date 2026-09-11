@@ -14,6 +14,7 @@ import (
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils/errorlog"
 	"goravel/app/utils/traceid"
 )
@@ -33,12 +34,43 @@ type TokenServiceImpl struct {
 }
 
 var (
-	personalAccessTokensColumnsOnce sync.Once
-	hasPATBrowserColumn             bool
-	hasPATIPColumn                  bool
-	hasPATOSColumn                  bool
-	hasPATSessionIDColumn           bool
+	patColumnsCache sync.Map // connectionKey -> patColumnFlags
 )
+
+type patColumnFlags struct {
+	browser   bool
+	ip        bool
+	os        bool
+	sessionID bool
+	loaded    bool
+}
+
+func (s *TokenServiceImpl) patColumns() patColumnFlags {
+	key := "platform"
+	if !s.platform {
+		key = appfacades.SchemaConnectionKey()
+		if conn, ok := tenancyctx.ConnectionFrom(s.ctx); ok && conn != "" {
+			key = conn
+		}
+	}
+	if v, ok := patColumnsCache.Load(key); ok {
+		return v.(patColumnFlags)
+	}
+	flags := patColumnFlags{loaded: true}
+	if appfacades.SchemaHasTable(s.ctx, "personal_access_tokens") {
+		flags.browser = appfacades.SchemaHasColumn(s.ctx, "personal_access_tokens", "browser")
+		flags.ip = appfacades.SchemaHasColumn(s.ctx, "personal_access_tokens", "ip")
+		flags.os = appfacades.SchemaHasColumn(s.ctx, "personal_access_tokens", "os")
+		flags.sessionID = appfacades.SchemaHasColumn(s.ctx, "personal_access_tokens", "session_id")
+	} else if s.platform && facades.Schema().HasTable("personal_access_tokens") {
+		flags.browser = facades.Schema().HasColumn("personal_access_tokens", "browser")
+		flags.ip = facades.Schema().HasColumn("personal_access_tokens", "ip")
+		flags.os = facades.Schema().HasColumn("personal_access_tokens", "os")
+		flags.sessionID = facades.Schema().HasColumn("personal_access_tokens", "session_id")
+	}
+	actual, _ := patColumnsCache.LoadOrStore(key, flags)
+	return actual.(patColumnFlags)
+}
 
 func NewTokenServiceImpl(ctx context.Context) *TokenServiceImpl {
 	return &TokenServiceImpl{ctx: ctx}
@@ -59,18 +91,6 @@ func (s *TokenServiceImpl) query() orm.Query {
 	return appfacades.OrmQuery(s.ctx)
 }
 
-func loadPersonalAccessTokenColumns() {
-	personalAccessTokensColumnsOnce.Do(func() {
-		if !facades.Schema().HasTable("personal_access_tokens") {
-			return
-		}
-		hasPATBrowserColumn = facades.Schema().HasColumn("personal_access_tokens", "browser")
-		hasPATIPColumn = facades.Schema().HasColumn("personal_access_tokens", "ip")
-		hasPATOSColumn = facades.Schema().HasColumn("personal_access_tokens", "os")
-		hasPATSessionIDColumn = facades.Schema().HasColumn("personal_access_tokens", "session_id")
-	})
-}
-
 func (s *TokenServiceImpl) CreateToken(tokenableType string, tokenableID uint, name string, expiresAt *time.Time, browser, ip, os, sessionID string) (string, *models.PersonalAccessToken, error) {
 	plainToken := s.generateRandomToken()
 	tokenHash := s.hashToken(plainToken)
@@ -84,7 +104,7 @@ func (s *TokenServiceImpl) CreateToken(tokenableType string, tokenableID uint, n
 	}
 
 	now := time.Now()
-	loadPersonalAccessTokenColumns()
+	cols := s.patColumns()
 	payload := map[string]any{
 		"tokenable_type": tokenableType,
 		"tokenable_id":   tokenableID,
@@ -93,16 +113,16 @@ func (s *TokenServiceImpl) CreateToken(tokenableType string, tokenableID uint, n
 		"expires_at":     expiresAt,
 		"last_used_at":   &now,
 	}
-	if hasPATBrowserColumn {
+	if cols.browser {
 		payload["browser"] = browser
 	}
-	if hasPATIPColumn {
+	if cols.ip {
 		payload["ip"] = ip
 	}
-	if hasPATOSColumn {
+	if cols.os {
 		payload["os"] = os
 	}
-	if hasPATSessionIDColumn {
+	if cols.sessionID {
 		payload["session_id"] = sessionID
 	}
 

@@ -210,6 +210,7 @@ func (s *TokenServiceTestSuite) TestHashToken() {
 | `admin_module_test.go` | `info.config` 模块开关字段 |
 | `api_auth_test.go` | health、用户注册/登录校验 |
 | `platform_tenancy_test.go` | 平台登录/info/租户列表/health/改密；tenancy 开启时 admin 缺租户头与未知租户拒绝 |
+| `app/search/config_test.go` | 订单索引短名租户隔离段 / `IsOrdersIndexShortName` |
 
 ```bash
 go test -v -timeout=5m ./tests/feature/...
