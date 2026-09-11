@@ -41,6 +41,7 @@ type TenantCreateInput struct {
 	Username  string
 	Password  string
 	Migrate   bool
+	SkipCreate bool // 远程库已存在时跳过 CREATE DATABASE/SCHEMA
 }
 
 // TenantUpdateInput updates connection metadata for an existing tenant.
@@ -145,6 +146,11 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		schemaName = DefaultTenantSchemaName(code)
 	}
 
+	sealedPassword, err := SealTenantPassword(input.Password)
+	if err != nil {
+		return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
+	}
+
 	tenant := models.Tenant{
 		Code:           code,
 		Name:           name,
@@ -156,7 +162,7 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		Database:       database,
 		Schema:         schemaName,
 		Username:       strings.TrimSpace(input.Username),
-		Password:       input.Password,
+		Password:       sealedPassword,
 		ConnectionName: fmt.Sprintf("tenant_pending_%s", code),
 	}
 	if err := appfacades.PlatformOrmQuery(nil).Create(&tenant); err != nil {
@@ -168,7 +174,7 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	}); err != nil {
 		return nil, err
 	}
-	if err := s.conn.CreateStorage(&tenant); err != nil {
+	if err := s.conn.CreateStorageWithOptions(&tenant, input.SkipCreate); err != nil {
 		return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
 	if input.Migrate {
@@ -235,8 +241,12 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 		tenant.Username = strings.TrimSpace(*input.Username)
 	}
 	if input.Password != nil {
-		updates["password"] = *input.Password
-		tenant.Password = *input.Password
+		sealed, err := SealTenantPassword(*input.Password)
+		if err != nil {
+			return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
+		}
+		updates["password"] = sealed
+		tenant.Password = sealed
 	}
 	if input.Database != nil {
 		dbName := strings.TrimSpace(*input.Database)
@@ -288,7 +298,7 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 		"database":        t.Database,
 		"schema":          t.Schema,
 		"username":        t.Username,
-		"has_password":    t.Password != "",
+		"has_password":    TenantHasPassword(t.Password),
 		"connection_name": t.ConnectionName,
 		"created_at":      t.CreatedAt,
 		"updated_at":      t.UpdatedAt,

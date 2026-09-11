@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/goravel/framework/contracts/database/driver"
+	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 	mysqlfacades "github.com/goravel/mysql/facades"
@@ -140,6 +141,13 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 		username = facades.Config().GetString("database.connections."+driverName+".username", "")
 	}
 	password := tenant.Password
+	if password != "" {
+		plain, err := RevealTenantPassword(password)
+		if err != nil {
+			return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
+		}
+		password = plain
+	}
 	if password == "" {
 		password = facades.Config().GetString("database.connections."+driverName+".password", "")
 	}
@@ -194,15 +202,114 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 	}
 }
 
-// CreateStorage 在服务器上 CREATE DATABASE 或 CREATE SCHEMA
+// TenantUsesCustomHost reports whether the tenant points at an explicit DB host
+// (empty host means fall back to platform DB_*).
+func TenantUsesCustomHost(tenant *models.Tenant) bool {
+	return tenant != nil && strings.TrimSpace(tenant.Host) != ""
+}
+
+func (s *TenantConnectionService) resolveEndpoint(tenant *models.Tenant) (driverName, host string, port int, username, password string, err error) {
+	driverName = tenant.Driver
+	if driverName == "" {
+		driverName = facades.Config().GetString("database.default", "mysql")
+	}
+	host = strings.TrimSpace(tenant.Host)
+	if host == "" {
+		host = facades.Config().GetString("database.connections."+driverName+".host", "127.0.0.1")
+	}
+	port = tenant.Port
+	if port <= 0 {
+		port = facades.Config().GetInt("database.connections."+driverName+".port", 0)
+	}
+	username = strings.TrimSpace(tenant.Username)
+	if username == "" {
+		username = facades.Config().GetString("database.connections."+driverName+".username", "")
+	}
+	password = tenant.Password
+	if password != "" {
+		password, err = RevealTenantPassword(password)
+		if err != nil {
+			return "", "", 0, "", "", err
+		}
+	}
+	if password == "" {
+		password = facades.Config().GetString("database.connections."+driverName+".password", "")
+	}
+	return driverName, host, port, username, password, nil
+}
+
+// withMaintenanceOrmQuery opens a short-lived connection to the tenant endpoint's
+// system database (mysql / postgres) so CREATE DATABASE can run on the correct host.
+func (s *TenantConnectionService) withMaintenanceOrmQuery(tenant *models.Tenant, fn func(q orm.Query) error) error {
+	driverName, host, port, username, password, err := s.resolveEndpoint(tenant)
+	if err != nil {
+		return err
+	}
+	maintName := strings.TrimSpace(tenant.ConnectionName) + "_maint"
+	if maintName == "_maint" || tenant.ConnectionName == "" {
+		maintName = fmt.Sprintf("tenant_maint_%s", tenant.Code)
+	}
+
+	var cfg map[string]any
+	switch driverName {
+	case models.TenantDriverMySQL:
+		cfg = map[string]any{
+			"host":      host,
+			"port":      port,
+			"database":  "mysql",
+			"username":  username,
+			"password":  password,
+			"charset":   "utf8mb4",
+			"collation": "utf8mb4_unicode_ci",
+			"prefix":    "",
+			"singular":  false,
+			"via": func() (driver.Driver, error) {
+				return mysqlfacades.Mysql(maintName)
+			},
+		}
+	case models.TenantDriverPostgres:
+		cfg = map[string]any{
+			"host":     host,
+			"port":     port,
+			"database": "postgres",
+			"username": username,
+			"password": password,
+			"sslmode":  "disable",
+			"singular": false,
+			"prefix":   "",
+			"schema":   "public",
+			"via": func() (driver.Driver, error) {
+				return postgresfacades.Postgres(maintName)
+			},
+		}
+	default:
+		return apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")
+	}
+
+	facades.Config().Add("database.connections."+maintName, cfg)
+	return fn(appfacades.Orm().Connection(maintName).Query())
+}
+
+// CreateStorage 在目标库所在主机上 CREATE DATABASE / SCHEMA。
+// host 为空：在平台库所在实例执行；host 有值：用租户凭据连该主机的系统库执行。
 func (s *TenantConnectionService) CreateStorage(tenant *models.Tenant) error {
+	return s.CreateStorageWithOptions(tenant, false)
+}
+
+// CreateStorageWithOptions skipCreate=true 时假定库已由 DBA 建好，仅登记元数据。
+func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant, skipCreate bool) error {
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	if skipCreate {
+		return nil
 	}
 	isolation, err := ResolveTenantIsolation(tenant.Driver, tenant.Isolation)
 	if err != nil {
 		return err
 	}
+
+	usePlatform := !TenantUsesCustomHost(tenant)
 
 	switch tenant.Driver {
 	case models.TenantDriverMySQL:
@@ -213,45 +320,53 @@ func (s *TenantConnectionService) CreateStorage(tenant *models.Tenant) error {
 			"CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
 			tenant.Database,
 		)
-		_, err := appfacades.PlatformOrmQuery(nil).Exec(sql)
-		return err
+		if usePlatform {
+			_, err := appfacades.PlatformOrmQuery(nil).Exec(sql)
+			return err
+		}
+		return s.withMaintenanceOrmQuery(tenant, func(q orm.Query) error {
+			_, err := q.Exec(sql)
+			return err
+		})
 	case models.TenantDriverPostgres:
 		if isolation == models.TenantIsolationDatabase {
 			if err := validateSQLIdent(tenant.Database); err != nil {
 				return err
 			}
-			var rows []struct {
-				Exists int `gorm:"column:exists"`
-			}
-			if err := appfacades.PlatformOrmQuery(nil).
-				Raw("SELECT 1 AS exists FROM pg_database WHERE datname = ?", tenant.Database).
-				Scan(&rows); err != nil {
+			createSQL := fmt.Sprintf("CREATE DATABASE %s", quotePGIdent(tenant.Database))
+			existsSQL := "SELECT 1 AS exists FROM pg_database WHERE datname = ?"
+			checkAndCreate := func(q orm.Query) error {
+				var rows []struct {
+					Exists int `gorm:"column:exists"`
+				}
+				if err := q.Raw(existsSQL, tenant.Database).Scan(&rows); err != nil {
+					return err
+				}
+				if len(rows) > 0 {
+					return nil
+				}
+				_, err := q.Exec(createSQL)
 				return err
 			}
-			if len(rows) > 0 {
-				return nil
+			if usePlatform {
+				return checkAndCreate(appfacades.PlatformOrmQuery(nil))
 			}
-			_, err := appfacades.PlatformOrmQuery(nil).Exec(
-				fmt.Sprintf("CREATE DATABASE %s", quotePGIdent(tenant.Database)),
-			)
-			return err
+			return s.withMaintenanceOrmQuery(tenant, checkAndCreate)
 		}
 		if err := validateSQLIdent(tenant.Schema); err != nil {
 			return err
 		}
+		schemaSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", quotePGIdent(tenant.Schema))
 		platformDB := facades.Config().GetString("database.connections."+tenant.Driver+".database", "")
-		if tenant.Database == "" || tenant.Database == platformDB {
-			_, err := appfacades.PlatformOrmQuery(nil).Exec(
-				fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", quotePGIdent(tenant.Schema)),
-			)
+		if usePlatform && (tenant.Database == "" || tenant.Database == platformDB) {
+			_, err := appfacades.PlatformOrmQuery(nil).Exec(schemaSQL)
 			return err
 		}
+		// Schema on a dedicated / remote database: connect to that database then create schema.
 		if err := s.EnsureRegistered(tenant); err != nil {
 			return err
 		}
-		_, err := appfacades.Orm().Connection(tenant.ConnectionName).Query().Exec(
-			fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", quotePGIdent(tenant.Schema)),
-		)
+		_, err := appfacades.Orm().Connection(tenant.ConnectionName).Query().Exec(schemaSQL)
 		return err
 	default:
 		return apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")

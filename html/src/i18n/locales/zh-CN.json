@@ -1049,7 +1049,9 @@
     "username_placeholder": "空则使用平台用户",
     "password": "密码",
     "password_placeholder": "空则使用平台密码",
-    "password_keep": "留空表示不修改已保存密码"
+    "password_keep": "留空表示不修改已保存密码",
+    "skip_create": "跳过建库",
+    "skip_create_tip": "远程库已由 DBA 创建时开启；否则会在目标 Host 上执行 CREATE"
   },
   "platform": {
     "title": "平台控制台",

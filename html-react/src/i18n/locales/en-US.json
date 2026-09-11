@@ -884,7 +884,9 @@
     "username_placeholder": "Empty = platform username",
     "password": "Password",
     "password_placeholder": "Empty = platform password",
-    "password_keep": "Leave blank to keep current password"
+    "password_keep": "Leave blank to keep current password",
+    "skip_create": "Skip CREATE",
+    "skip_create_tip": "Enable when the remote DB already exists; otherwise CREATE runs on the target Host"
   },
   "platform": {
     "title": "Platform Console",

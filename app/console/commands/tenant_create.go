@@ -32,7 +32,8 @@ func (r *TenantCreate) Extend() command.Extend {
 			&command.StringFlag{Name: "host", Usage: "远程库 Host（空则用平台 DB_HOST）"},
 			&command.StringFlag{Name: "port", Usage: "远程库 Port（0/空则用平台 DB_PORT）"},
 			&command.StringFlag{Name: "username", Usage: "远程库用户（空则用平台用户）"},
-			&command.StringFlag{Name: "password", Usage: "远程库密码（空则用平台密码）"},
+			&command.StringFlag{Name: "password", Usage: "远程库密码（空则用平台密码；落库前 APP_KEY 加密）"},
+			&command.BoolFlag{Name: "skip-create", Usage: "跳过 CREATE DATABASE/SCHEMA（远程库已存在）"},
 			&command.BoolFlag{Name: "migrate", Aliases: []string{"m"}, Usage: "创建后立即对该连接执行 migrate"},
 		},
 	}
@@ -69,8 +70,9 @@ func (r *TenantCreate) Handle(ctx console.Context) error {
 		Host:      strings.TrimSpace(ctx.Option("host")),
 		Port:      port,
 		Username:  strings.TrimSpace(ctx.Option("username")),
-		Password:  ctx.Option("password"),
-		Migrate:   ctx.OptionBool("migrate"),
+		Password:   ctx.Option("password"),
+		Migrate:    ctx.OptionBool("migrate"),
+		SkipCreate: ctx.OptionBool("skip-create"),
 	})
 	if err != nil {
 		ctx.Error(err.Error())

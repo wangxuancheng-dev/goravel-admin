@@ -61,6 +61,7 @@ type tenantStoreBody struct {
 	Username  string `json:"username" form:"username"`
 	Password  string `json:"password" form:"password"`
 	Migrate   bool   `json:"migrate" form:"migrate"`
+	SkipCreate bool  `json:"skip_create" form:"skip_create"`
 }
 
 func (c *TenantController) Store(ctx http.Context) http.Response {
@@ -79,8 +80,9 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 		Host:      body.Host,
 		Port:      body.Port,
 		Username:  body.Username,
-		Password:  body.Password,
-		Migrate:   body.Migrate,
+		Password:   body.Password,
+		Migrate:    body.Migrate,
+		SkipCreate: body.SkipCreate,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)

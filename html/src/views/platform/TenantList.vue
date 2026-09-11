@@ -92,6 +92,10 @@
           <el-form-item v-if="!editingId" :label="$t('tenant.migrate')">
             <el-switch v-model="form.migrate" />
           </el-form-item>
+          <el-form-item v-if="!editingId" :label="$t('tenant.skip_create')">
+            <el-switch v-model="form.skip_create" />
+            <div class="form-tip">{{ $t('tenant.skip_create_tip') }}</div>
+          </el-form-item>
         </el-form>
         <template #footer>
           <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -180,7 +184,8 @@ const form = reactive({
   username: '',
   password: '',
   has_password: false,
-  migrate: true
+  migrate: true,
+  skip_create: false
 })
 
 const formRules = computed(() => {
@@ -225,6 +230,7 @@ const resetForm = () => {
   form.password = ''
   form.has_password = false
   form.migrate = true
+  form.skip_create = false
 }
 
 const submitForm = async () => {
@@ -257,7 +263,8 @@ const submitForm = async () => {
           port: form.port || undefined,
           username: form.username || undefined,
           password: form.password || undefined,
-          migrate: form.migrate
+          migrate: form.migrate,
+          skip_create: form.skip_create
         })
         ElMessage.success(t('common.create_success'))
       }
@@ -287,3 +294,12 @@ const onToggleStatus = async (row, enabled) => {
   }
 }
 </script>
+
+<style scoped>
+.form-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+</style>

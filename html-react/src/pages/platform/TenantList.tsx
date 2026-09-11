@@ -217,6 +217,7 @@ export default function PlatformTenantList() {
                 driver: 'mysql',
                 isolation: 'database',
                 migrate: true,
+                skip_create: false,
                 port: 0,
               })
               setCreateOpen(true)
@@ -336,6 +337,14 @@ export default function PlatformTenantList() {
             <Input.Password placeholder={t('tenant.password_placeholder')} />
           </Form.Item>
           <Form.Item name="migrate" label={t('tenant.migrate')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="skip_create"
+            label={t('tenant.skip_create')}
+            valuePropName="checked"
+            extra={t('tenant.skip_create_tip')}
+          >
             <Switch />
           </Form.Item>
         </Form>

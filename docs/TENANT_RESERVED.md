@@ -74,6 +74,11 @@ go run . artisan tenant:create remote "Remote" \
   --host=10.0.0.8 --port=3306 --username=tenant_u --password=secret \
   --database=tenant_remote --migrate
 
+# 远程库已由 DBA 建好时：
+go run . artisan tenant:create remote2 "Remote2" \
+  --host=10.0.0.8 --username=tenant_u --password=secret \
+  --database=tenant_remote2 --skip-create --migrate
+
 # 4) 前端打开 /platform/login 用平台账号管理租户；
 #    商户打开 /login 填租户码登录该租户库 admins
 ```
@@ -95,7 +100,7 @@ go run . artisan platform:admin {username} {password} [--name=...]
 go run . artisan tenant:create {code} {name} \
   [--driver=mysql|postgres] [--isolation=database|schema] \
   [--host=] [--port=] [--username=] [--password=] \
-  [--database=] [--schema=] [--migrate]
+  [--database=] [--schema=] [--skip-create] [--migrate]
 
 go run . artisan tenant:migrate {id|code}
 go run . artisan tenant:migrate-all
@@ -112,7 +117,13 @@ go run . artisan tenant:restore {id|code} {path/to.sql}
 
 `--migrate` 会在 migrate 后自动完整 `tenant:seed`。只补某一类数据用 `--class` / `--seeder`。
 
-远程库：`host/port/username/password` 写在 `tenants` 表；空字段回落平台 `DB_*`。平台 API 返回 `has_password`，不回传明文密码。
+远程库：`host/port/username/password` 写在 `tenants` 表；空字段回落平台 `DB_*`。
+
+- **建库位置**：`host` 为空 → 在平台库实例上 `CREATE`；`host` 有值 → 用租户凭据连接**该主机**系统库（`mysql` / `postgres`）再 `CREATE`。
+- **库已存在**：API/`tenant:create` 传 `skip_create` / `--skip-create`，跳过 CREATE，只登记并 migrate。
+- **密码落库**：`tenants.password` 使用 `APP_KEY`（`Crypt.EncryptString`）加密，前缀 `enc:v1:`；旧明文仍可读。API 只返回 `has_password`。
+
+平台 API 返回 `has_password`，不回传明文密码。
 
 ## 平台 API
 

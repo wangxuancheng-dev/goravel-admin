@@ -50,26 +50,43 @@ func (r *TenantRestore) Handle(ctx console.Context) error {
 		ctx.Error("租户不存在: " + idOrCode)
 		return nil
 	}
-	host, port, user, pass, database := resolveTenantDSN(tenant)
+	host, port, user, pass, database, err := resolveTenantDSN(tenant)
+	if err != nil {
+		ctx.Error(err.Error())
+		return err
+	}
 	var cmd *exec.Cmd
+	var cleanup func()
 	switch strings.ToLower(tenant.Driver) {
 	case models.TenantDriverPostgres, "pgsql", "postgresql":
 		args := []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-f", file}
 		cmd = exec.Command("psql", args...)
 		cmd.Env = append(os.Environ(), "PGPASSWORD="+pass)
 	default:
-		args := []string{"-h", host, "-P", strconv.Itoa(port), "-u", user, database}
-		if pass != "" {
-			args = append([]string{"-p" + pass}, args...)
+		defaultsFile, err := writeMySQLDefaultsFile(user, pass)
+		if err != nil {
+			ctx.Error(err.Error())
+			return err
+		}
+		cleanup = func() { _ = os.Remove(defaultsFile) }
+		args := []string{
+			"--defaults-extra-file=" + defaultsFile,
+			"-h", host,
+			"-P", strconv.Itoa(port),
+			database,
 		}
 		cmd = exec.Command("mysql", args...)
 		f, err := os.Open(file)
 		if err != nil {
+			cleanup()
 			ctx.Error(err.Error())
 			return err
 		}
 		defer f.Close()
 		cmd.Stdin = f
+	}
+	if cleanup != nil {
+		defer cleanup()
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
