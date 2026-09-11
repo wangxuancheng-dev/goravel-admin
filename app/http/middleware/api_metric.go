@@ -10,6 +10,7 @@ import (
 	"github.com/goravel/framework/contracts/http"
 
 	"goravel/app/models"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils/logger"
 	"goravel/app/utils/traceid"
 )
@@ -50,12 +51,13 @@ func ApiMetric() http.Middleware {
 			OccurredAt:    occurredAt,
 		}
 
-		go func(data models.ApiEndpointMetric) {
-			// 请求返回后 ctx 会被取消，异步落库使用独立 context。
-			if err := appfacades.OrmQuery(context.Background()).Create(&data); err != nil {
-				logger.ErrorfContext(context.Background(), "persist api endpoint metric failed: %v", err)
+		persistCtx := tenancyctx.Detach(ctx)
+		go func(data models.ApiEndpointMetric, dbCtx context.Context) {
+			// 请求返回后 HTTP ctx 会被取消；保留租户连接键并落库。
+			if err := appfacades.OrmQuery(dbCtx).Create(&data); err != nil {
+				logger.ErrorfContext(dbCtx, "persist api endpoint metric failed: %v", err)
 			}
-		}(metric)
+		}(metric, persistCtx)
 	})
 }
 

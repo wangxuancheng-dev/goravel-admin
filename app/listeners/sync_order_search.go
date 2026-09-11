@@ -1,12 +1,18 @@
 package listeners
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/goravel/framework/contracts/event"
+	"github.com/goravel/framework/contracts/queue"
+	"github.com/goravel/framework/facades"
 
 	"goravel/app/errors"
 	"goravel/app/events"
+	"goravel/app/queuejobs"
 	"goravel/app/search"
-	"goravel/app/support"
+	"goravel/app/services"
 )
 
 // SyncOrderSearch 订单搜索同步监听器（异步入队）。
@@ -35,9 +41,10 @@ func (receiver *SyncOrderSearch) Handle(args ...any) error {
 		syncArgs = v
 	case map[string]any:
 		syncArgs = events.OrderSearchSyncArgs{
-			OrderID: uintFromAny(v["order_id"]),
-			OrderNo: stringFromAny(v["order_no"]),
-			Op:      stringFromAny(v["op"]),
+			OrderID:  uintFromAny(v["order_id"]),
+			OrderNo:  stringFromAny(v["order_no"]),
+			Op:       stringFromAny(v["op"]),
+			TenantID: uintFromAny(v["tenant_id"]),
 		}
 	default:
 		return errors.ErrInvalidArgument.WithMessage("invalid order search sync args")
@@ -49,8 +56,41 @@ func (receiver *SyncOrderSearch) Handle(args ...any) error {
 	if syncArgs.Op != "index" && syncArgs.Op != "delete" {
 		return errors.ErrInvalidArgument.WithMessage("invalid op")
 	}
+	if !search.OrdersSyncEnabled() {
+		return nil
+	}
 
-	support.DispatchOrderSearchSync(syncArgs.OrderID, syncArgs.OrderNo, syncArgs.Op)
+	ctx := context.Background()
+	if syncArgs.TenantID > 0 {
+		bound, err := services.NewTenantConnectionService().BindBackground(ctx, syncArgs.TenantID)
+		if err != nil {
+			facades.Log().Errorf("order search sync bind tenant failed: tenant_id=%d err=%v", syncArgs.TenantID, err)
+			return err
+		}
+		ctx = bound
+	}
+
+	payload := map[string]any{
+		"order_id": syncArgs.OrderID,
+		"op":       syncArgs.Op,
+	}
+	if syncArgs.OrderNo != "" {
+		payload["order_no"] = syncArgs.OrderNo
+	}
+	if syncArgs.TenantID > 0 {
+		payload["tenant_id"] = syncArgs.TenantID
+	}
+	search.CreateSyncOutbox(ctx, syncArgs.OrderID, syncArgs.OrderNo, syncArgs.Op, payload)
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		facades.Log().Errorf("order search sync marshal failed: %v", err)
+		return nil
+	}
+	qargs := []queue.Arg{{Type: "string", Value: string(jsonBytes)}}
+	if err := facades.Queue().Job(&queuejobs.SyncOrderSearch{}, qargs).OnQueue(search.SyncQueue()).Dispatch(); err != nil {
+		facades.Log().Errorf("order search sync dispatch failed: order_id=%d op=%s err=%v", syncArgs.OrderID, syncArgs.Op, err)
+	}
 	return nil
 }
 

@@ -56,3 +56,29 @@ func UpsertPlatformAdmin(username, password, name string) (*models.PlatformAdmin
 	}
 	return &admin, nil
 }
+
+// ChangePlatformAdminPassword verifies the old password then sets a new hash.
+func ChangePlatformAdminPassword(adminID uint, oldPassword, newPassword string) error {
+	if !tenancy.Enabled() {
+		return apperrors.ErrTenancyDisabled
+	}
+	if adminID == 0 || oldPassword == "" || newPassword == "" {
+		return apperrors.ErrInvalidArgument
+	}
+	q := appfacades.PlatformOrmQuery(nil)
+	var admin models.PlatformAdmin
+	if err := q.Where("id", adminID).First(&admin); err != nil || admin.ID == 0 {
+		return apperrors.ErrUserNotFound
+	}
+	if !facades.Hash().Check(oldPassword, admin.Password) {
+		return apperrors.ErrOldPasswordError
+	}
+	hashed, err := facades.Hash().Make(newPassword)
+	if err != nil {
+		return apperrors.ErrPasswordEncryptFailed.WithError(err)
+	}
+	if _, err := q.Model(&admin).Update(map[string]any{"password": hashed}); err != nil {
+		return err
+	}
+	return nil
+}

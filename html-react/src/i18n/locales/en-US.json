@@ -894,7 +894,19 @@
     "back_tenant_login": "Back to tenant admin login",
     "moved_title": "Tenant management moved",
     "moved_hint": "Use a platform admin account to manage tenants",
-    "go_platform": "Open platform console"
+    "go_platform": "Open platform console",
+    "change_password": "Change password",
+    "old_password": "Current password",
+    "new_password": "New password",
+    "confirm_password": "Confirm password",
+    "password_updated": "Password updated",
+    "health_title": "Platform status",
+    "health_driver": "Driver",
+    "health_db_ok": "Database OK",
+    "health_db_bad": "Database unreachable",
+    "health_tenants": "Tenants {active}/{total} active",
+    "cli_ops_title": "Ops CLI",
+    "cli_ops_hint": "After register, migrate/seed via CLI; HTTP only registers (optional CREATE). Example: go run . artisan tenant:migrate {code}"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

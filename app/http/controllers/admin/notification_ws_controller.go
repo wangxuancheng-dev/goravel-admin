@@ -15,9 +15,11 @@ import (
 	"github.com/goravel/framework/support/str"
 	"github.com/oklog/ulid/v2"
 
+	"goravel/app/http/helpers"
 	"goravel/app/http/response"
 	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 	"goravel/app/utils/logger"
 	wsnotifications "goravel/app/websocket/notifications"
 )
@@ -51,8 +53,11 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 	}
 
 	ticket := strings.ToLower(ulid.Make().String())
+	// Ticket keys stay unprefixed: WS upgrade has no Tenant middleware, but ULID is unique.
+	// Embed tenant id so Server can BindHTTP before token/admin lookup.
+	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
 	cacheKey := wsTicketCachePrefix + ticket
-	cacheValue := fmt.Sprintf("%d|%s", admin.ID, token)
+	cacheValue := fmt.Sprintf("%d|%d|%s", tenantID, admin.ID, token)
 	if err := facades.Cache().Put(cacheKey, cacheValue, wsTicketTTL); err != nil {
 		return response.ErrorWithLog(ctx, "notification", err, map[string]any{
 			"admin_id": admin.ID,
@@ -122,7 +127,7 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 func (r *NotificationWsController) extractToken(ctx apphttp.Context) string {
 	ticket := str.Of(ctx.Request().Query("ticket")).Trim().String()
 	if ticket != "" {
-		token, ok := r.consumeTicket(ticket)
+		token, ok := r.consumeTicket(ctx, ticket)
 		if ok {
 			return token
 		}
@@ -138,7 +143,7 @@ func (r *NotificationWsController) extractToken(ctx apphttp.Context) string {
 	return ""
 }
 
-func (r *NotificationWsController) consumeTicket(ticket string) (string, bool) {
+func (r *NotificationWsController) consumeTicket(ctx apphttp.Context, ticket string) (string, bool) {
 	cacheKey := wsTicketCachePrefix + ticket
 	value := facades.Cache().GetString(cacheKey, "")
 	if value == "" {
@@ -146,14 +151,28 @@ func (r *NotificationWsController) consumeTicket(ticket string) (string, bool) {
 	}
 	_ = facades.Cache().Forget(cacheKey)
 
-	parts := strings.SplitN(value, "|", 2)
-	if len(parts) != 2 {
+	parts := strings.SplitN(value, "|", 3)
+	if len(parts) != 3 {
 		return "", false
 	}
-	if _, err := strconv.ParseUint(parts[0], 10, 32); err != nil {
+	tenantID, err := strconv.ParseUint(parts[0], 10, 32)
+	if err != nil {
 		return "", false
 	}
-	return parts[1], parts[1] != ""
+	if _, err := strconv.ParseUint(parts[1], 10, 32); err != nil {
+		return "", false
+	}
+	token := parts[2]
+	if token == "" {
+		return "", false
+	}
+	if tenancy.Enabled() && tenantID > 0 {
+		if err := services.NewTenantConnectionService().BindHTTP(ctx, fmt.Sprintf("%d", tenantID)); err != nil {
+			logger.WarnfHTTP(ctx, "WebSocket ticket tenant bind failed: tenant_id=%d err=%v", tenantID, err)
+			return "", false
+		}
+	}
+	return token, true
 }
 
 func (r *NotificationWsController) currentAdmin(ctx apphttp.Context) *models.Admin {

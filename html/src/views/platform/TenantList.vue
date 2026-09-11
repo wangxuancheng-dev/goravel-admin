@@ -1,5 +1,14 @@
 <template>
-  <ListPage
+  <div class="platform-tenant-page">
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      class="ops-banner"
+      :title="$t('platform.cli_ops_title')"
+      :description="healthDesc"
+    />
+    <ListPage
     ref="listPageRef"
     page-class="platform-tenant"
     :title="$t('menu.tenant')"
@@ -109,10 +118,11 @@
       </el-dialog>
     </template>
   </ListPage>
+  </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import ListPage from '@/components/ListPage.vue'
@@ -120,6 +130,7 @@ import { useStandardListPage } from '@/composables/useStandardListPage'
 import {
   createPlatformTenant,
   getPlatformTenantList,
+  platformHealth,
   updatePlatformTenant,
   updatePlatformTenantStatus
 } from '@/api/platform'
@@ -129,6 +140,28 @@ const listPageRef = ref(null)
 const formRef = ref(null)
 const saving = ref(false)
 const editingId = ref(null)
+const health = ref(null)
+
+const healthDesc = computed(() => {
+  const h = health.value
+  const cli = t('platform.cli_ops_hint')
+  if (!h) return cli
+  const db = h.database_ok ? t('platform.health_db_ok') : t('platform.health_db_bad')
+  const tenants = t('platform.health_tenants', {
+    active: h.tenants?.active ?? 0,
+    total: h.tenants?.total ?? 0
+  })
+  return `${t('platform.health_driver')}: ${h.driver} · ${db} · ${tenants} · ${cli}`
+})
+
+onMounted(async () => {
+  try {
+    const res = await platformHealth()
+    health.value = res?.data || null
+  } catch {
+    // ignore — list still usable
+  }
+})
 
 const initialSearchForm = { code: '', name: '', status: '' }
 
@@ -298,6 +331,9 @@ const onToggleStatus = async (row, enabled) => {
 </script>
 
 <style scoped>
+.ops-banner {
+  margin-bottom: 12px;
+}
 .form-tip {
   margin-top: 4px;
   font-size: 12px;

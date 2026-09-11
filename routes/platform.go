@@ -14,6 +14,8 @@ import (
 func Platform() {
 	authController := platform.NewAuthController()
 	tenantController := platform.NewTenantController()
+	healthController := platform.NewHealthController()
+	passwordController := platform.NewPasswordController()
 
 	facades.Route().Prefix("api/platform").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy()).Group(func(router route.Router) {
@@ -23,6 +25,8 @@ func Platform() {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy(), middleware.PlatformJwt()).Group(func(router route.Router) {
 			router.Get("info", authController.Info)
 			router.Post("logout", authController.Logout)
+			router.Get("health", healthController.Index)
+			router.Put("password", passwordController.Update)
 
 			router.Get("tenants", tenantController.Index)
 			router.Get("tenants/{id}", tenantController.Show)

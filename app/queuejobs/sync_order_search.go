@@ -11,6 +11,7 @@ import (
 	"goravel/app/errors"
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
+	"goravel/app/services"
 	"goravel/app/utils"
 )
 
@@ -51,12 +52,21 @@ func (r *SyncOrderSearch) Handle(args ...any) error {
 		return fmt.Errorf("invalid op: %s", op)
 	}
 	orderNo, _ := utils.GetString(m, "order_no")
+	tenantID := cast.ToUint(m["tenant_id"])
 	ctx := context.Background()
+	if tenantID > 0 {
+		bound, err := services.NewTenantConnectionService().BindBackground(ctx, tenantID)
+		if err != nil {
+			facades.Log().Errorf("SyncOrderSearch bind tenant failed: tenant_id=%d err=%v", tenantID, err)
+			return err
+		}
+		ctx = bound
+	}
 	if err := searchorders.Push(ctx, orderID, orderNo, op); err != nil {
 		facades.Log().Errorf("SyncOrderSearch failed: order_id=%d op=%s err=%v", orderID, op, err)
-		search.MarkSyncOutboxFailed(orderID, op, err.Error())
+		search.MarkSyncOutboxFailedCtx(ctx, orderID, op, err.Error())
 		return err
 	}
-	search.MarkSyncOutboxProcessed(orderID, op)
+	search.MarkSyncOutboxProcessedCtx(ctx, orderID, op)
 	return nil
 }

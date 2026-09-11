@@ -17,6 +17,18 @@ export function platformInfo() {
   return platformRequest.get('/info')
 }
 
+export function platformHealth() {
+  return platformRequest.get('/health')
+}
+
+export function updatePlatformPassword(data: {
+  old_password: string
+  new_password: string
+  confirm_password?: string
+}) {
+  return platformRequest.put('/password', data)
+}
+
 export async function getPlatformTenantList(params?: Record<string, unknown>) {
   return normalizeListResponse(await platformRequest.get('/tenants', { params }))
 }

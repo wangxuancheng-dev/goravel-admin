@@ -1059,7 +1059,19 @@
     "back_tenant_login": "返回租户后台登录",
     "moved_title": "租户管理已迁移",
     "moved_hint": "请使用平台控制台账号登录后管理租户",
-    "go_platform": "进入平台控制台"
+    "go_platform": "进入平台控制台",
+    "change_password": "修改密码",
+    "old_password": "原密码",
+    "new_password": "新密码",
+    "confirm_password": "确认密码",
+    "password_updated": "密码已更新",
+    "health_title": "平台状态",
+    "health_driver": "驱动",
+    "health_db_ok": "数据库正常",
+    "health_db_bad": "数据库异常",
+    "health_tenants": "租户 {active}/{total} 启用",
+    "cli_ops_title": "运维 CLI",
+    "cli_ops_hint": "开户后请用 CLI 迁移/种子；HTTP 仅登记连接（可选建库）。示例：go run . artisan tenant:migrate {code}"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",

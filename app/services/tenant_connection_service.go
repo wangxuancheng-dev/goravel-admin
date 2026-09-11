@@ -405,10 +405,16 @@ func (s *TenantConnectionService) FindTenantByIDOrCode(idOrCode string) (*models
 		if err := q.Where("id", id).First(&tenant); err != nil {
 			return nil, apperrors.ErrRecordNotFound.WithError(err)
 		}
+		if tenant.ID == 0 {
+			return nil, apperrors.ErrRecordNotFound
+		}
 		return &tenant, nil
 	}
 	if err := q.Where("code", strings.ToLower(strings.TrimSpace(idOrCode))).First(&tenant); err != nil {
 		return nil, apperrors.ErrRecordNotFound.WithError(err)
+	}
+	if tenant.ID == 0 {
+		return nil, apperrors.ErrRecordNotFound
 	}
 	return &tenant, nil
 }

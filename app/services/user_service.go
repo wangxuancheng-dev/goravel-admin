@@ -14,6 +14,7 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/http/requests/admin"
 	"goravel/app/models"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
@@ -286,7 +287,7 @@ func (s *UserServiceImpl) Delete(id uint) error {
 
 // UpdateBalance 更新用户余额（同时创建余额变动记录）
 func (s *UserServiceImpl) UpdateBalance(userID uint, amount float64, logType string, source string, sourceID *uint, description string, operatorID *uint, remark string) error {
-	lockKey := fmt.Sprintf("user:balance:lock:%d", userID)
+	lockKey := tenancy.CacheKey(s.ctx, fmt.Sprintf("user:balance:lock:%d", userID))
 	lock := facades.Cache().Lock(lockKey, 10*time.Second)
 	if !lock.Get() {
 		return apperrors.NewBusinessError("too_many_requests", "请求过于频繁，请稍后再试")

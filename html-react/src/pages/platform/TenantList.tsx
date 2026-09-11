@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   App,
@@ -19,6 +19,7 @@ import { SettingOutlined } from '@ant-design/icons'
 import {
   createPlatformTenant,
   getPlatformTenantList,
+  platformHealth,
   updatePlatformTenant,
   updatePlatformTenantStatus,
 } from '@/api/platform'
@@ -55,6 +56,26 @@ export default function PlatformTenantList() {
   const [editing, setEditing] = useState<TenantRow | null>(null)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
+  const [healthDesc, setHealthDesc] = useState(t('platform.cli_ops_hint'))
+
+  useEffect(() => {
+    void platformHealth()
+      .then((res) => {
+        const h = (res as { data?: Record<string, unknown> })?.data
+        if (!h) return
+        const tenants = (h.tenants || {}) as { active?: number; total?: number }
+        const db = h.database_ok ? t('platform.health_db_ok') : t('platform.health_db_bad')
+        setHealthDesc(
+          `${t('platform.health_driver')}: ${String(h.driver)} · ${db} · ${t('platform.health_tenants', {
+            active: tenants.active ?? 0,
+            total: tenants.total ?? 0,
+          })} · ${t('platform.cli_ops_hint')}`,
+        )
+      })
+      .catch(() => {
+        /* list still usable */
+      })
+  }, [t])
 
   const {
     tableData,
@@ -231,6 +252,13 @@ export default function PlatformTenantList() {
         </Space>
       }
     >
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 12 }}
+        message={t('platform.cli_ops_title')}
+        description={healthDesc}
+      />
       <SearchForm
         fields={[
           { name: 'code', label: t('tenant.code') },

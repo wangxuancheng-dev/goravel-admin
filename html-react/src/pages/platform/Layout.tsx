@@ -1,8 +1,10 @@
-import { Button, Layout, Menu, Typography } from 'antd'
+import { Button, Form, Input, Layout, Menu, Modal, Typography, message } from 'antd'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
 import { getPlatformAdmin } from '@/utils/platformRequest'
-import { logoutPlatform } from '@/api/platform'
+import { logoutPlatform, updatePlatformPassword } from '@/api/platform'
+import { useUnhandledError } from '@/hooks/useUnhandledError'
 
 const { Header, Sider, Content } = Layout
 
@@ -11,10 +13,30 @@ export default function PlatformLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const admin = getPlatformAdmin()
+  const showError = useUnhandledError()
+  const [pwdOpen, setPwdOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form] = Form.useForm()
 
   const onLogout = async () => {
     await logoutPlatform()
     navigate('/platform/login', { replace: true })
+  }
+
+  const onSubmitPwd = async () => {
+    try {
+      const values = await form.validateFields()
+      setSaving(true)
+      await updatePlatformPassword(values)
+      message.success(t('platform.password_updated'))
+      setPwdOpen(false)
+      form.resetFields()
+    } catch (e) {
+      if (e?.errorFields) return
+      showError(e)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -35,6 +57,9 @@ export default function PlatformLayout() {
           <Typography.Text style={{ color: 'rgba(255,255,255,0.85)' }}>
             {admin?.name || admin?.username || ''}
           </Typography.Text>
+          <Button type="link" onClick={() => setPwdOpen(true)} style={{ color: '#93c5fd' }}>
+            {t('platform.change_password')}
+          </Button>
           <Button type="link" onClick={() => void onLogout()} style={{ color: '#93c5fd' }}>
             {t('header.logout')}
           </Button>
@@ -58,6 +83,51 @@ export default function PlatformLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      <Modal
+        title={t('platform.change_password')}
+        open={pwdOpen}
+        onCancel={() => {
+          setPwdOpen(false)
+          form.resetFields()
+        }}
+        onOk={() => void onSubmitPwd()}
+        confirmLoading={saving}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="old_password"
+            label={t('platform.old_password')}
+            rules={[{ required: true }]}
+          >
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            name="new_password"
+            label={t('platform.new_password')}
+            rules={[{ required: true, min: 6 }]}
+          >
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            name="confirm_password"
+            label={t('platform.confirm_password')}
+            dependencies={['new_password']}
+            rules={[
+              { required: true },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('new_password') === value) return Promise.resolve()
+                  return Promise.reject(new Error(t('platform.confirm_password')))
+                },
+              }),
+            ]}
+          >
+            <Input.Password />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   )
 }

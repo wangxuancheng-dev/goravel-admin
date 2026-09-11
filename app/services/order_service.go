@@ -23,11 +23,18 @@ import (
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
 	"goravel/app/support"
+	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
 
 const OrderCountThreshold int64 = 100000
+
+func orderTenantID(ctx context.Context) uint {
+	id, _ := tenancyctx.IDFrom(ctx)
+	return id
+}
 
 // ApplyOrderFiltersToQuery 只负责通用筛选（不包含时间范围），供列表查询/导出复用，避免重复/不一致。
 func ApplyOrderFiltersToQuery(query orm.Query, filters OrderFilters) orm.Query {
@@ -287,7 +294,7 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 		requestID = ulid.Make().String()
 	}
 
-	lockKey := fmt.Sprintf("order:lock:%s", requestID)
+	lockKey := tenancy.CacheKey(s.ctx, fmt.Sprintf("order:lock:%s", requestID))
 	lockValue := fmt.Sprintf("%d_%d", userID, time.Now().Unix())
 
 	// 尝试获取锁，过期时间5秒
@@ -414,7 +421,7 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 		details = append(details, detail)
 	}
 
-	support.RequestOrderSearchSync(order.ID, order.OrderNo, "index")
+	support.RequestOrderSearchSync(order.ID, order.OrderNo, "index", orderTenantID(s.ctx))
 
 	return order, details, nil
 }
@@ -992,7 +999,7 @@ func (s *OrderServiceImpl) UpdateOrder(orderID uint, orderTime time.Time, status
 	if err != nil {
 		return err
 	}
-	support.RequestOrderSearchSync(orderID, order.OrderNo, "index")
+	support.RequestOrderSearchSync(orderID, order.OrderNo, "index", orderTenantID(s.ctx))
 	return nil
 }
 
@@ -1031,7 +1038,7 @@ func (s *OrderServiceImpl) DeleteOrder(orderID uint, orderTime time.Time, orderN
 	if err != nil {
 		return err
 	}
-	support.RequestOrderSearchSync(orderID, order.OrderNo, "delete")
+	support.RequestOrderSearchSync(orderID, order.OrderNo, "delete", orderTenantID(s.ctx))
 	return nil
 }
 
@@ -1059,7 +1066,7 @@ func (s *OrderServiceImpl) UpdateOrderByOrderNo(orderNo string, status string, r
 	if err != nil {
 		return err
 	}
-	support.RequestOrderSearchSync(order.ID, orderNo, "index")
+	support.RequestOrderSearchSync(order.ID, orderNo, "index", orderTenantID(s.ctx))
 	return nil
 }
 
@@ -1092,7 +1099,7 @@ func (s *OrderServiceImpl) DeleteOrderByOrderNo(orderNo string) error {
 	if err != nil {
 		return err
 	}
-	support.RequestOrderSearchSync(order.ID, orderNo, "delete")
+	support.RequestOrderSearchSync(order.ID, orderNo, "delete", orderTenantID(s.ctx))
 	return nil
 }
 

@@ -14,6 +14,7 @@ import (
 	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils"
 	"goravel/app/utils/logger"
 	"goravel/app/utils/traceid"
@@ -164,24 +165,22 @@ func OperationLog() http.Middleware {
 				Duration:  savedDuration,
 			}
 
-			// 异步记录日志，避免影响响应速度
-			// 使用新的 context，避免使用可能已过期的 traceCtx
-			go func() {
+			// 异步落库：请求结束后 HTTP ctx 会取消，需 Detach 保留租户连接键
+			persistCtx := tenancyctx.Detach(ctx)
+			go func(dbCtx context.Context) {
 				defer func() {
 					if r := recover(); r != nil {
 						logger.ErrorfContext(context.Background(), "Panic in operation log goroutine: %v", r)
 					}
 				}()
-				// 使用新的 context，避免请求 context 已过期导致操作失败
-				ctx := context.Background()
-				if err := appfacades.OrmQuery(ctx).Create(&operationLog); err != nil {
-					_ = systemLogService.Record(ctx, "error", "operation-log", "failed to persist operation log", map[string]any{
+				if err := appfacades.OrmQuery(dbCtx).Create(&operationLog); err != nil {
+					_ = systemLogService.Record(dbCtx, "error", "operation-log", "failed to persist operation log", map[string]any{
 						"error": err.Error(),
 						"path":  savedPath,
 					})
-					logger.ErrorfContext(ctx, "Failed to create operation log: %v", err)
+					logger.ErrorfContext(dbCtx, "Failed to create operation log: %v", err)
 				}
-			}()
+			}(persistCtx)
 		}
 	})
 }

@@ -209,6 +209,7 @@ func (s *TokenServiceTestSuite) TestHashToken() {
 | `admin_smoke_test.go` | 登录成功、info、menus/tree |
 | `admin_module_test.go` | `info.config` 模块开关字段 |
 | `api_auth_test.go` | health、用户注册/登录校验 |
+| `platform_tenancy_test.go` | 平台登录/info/租户列表/health/改密；tenancy 开启时 admin 缺租户头与未知租户拒绝 |
 
 ```bash
 go test -v -timeout=5m ./tests/feature/...

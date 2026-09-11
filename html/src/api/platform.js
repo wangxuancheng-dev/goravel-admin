@@ -18,6 +18,14 @@ export function platformInfo() {
   return platformRequest.get('/info')
 }
 
+export function platformHealth() {
+  return platformRequest.get('/health')
+}
+
+export function updatePlatformPassword(data) {
+  return platformRequest.put('/password', data)
+}
+
 export async function getPlatformTenantList(params) {
   const res = await platformRequest.get('/tenants', { params })
   return normalizeListResponse(res)
