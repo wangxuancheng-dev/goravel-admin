@@ -12,6 +12,7 @@ import (
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
 
@@ -54,7 +55,10 @@ func (r *SyncOrderSearch) Handle(args ...any) error {
 	orderNo, _ := utils.GetString(m, "order_no")
 	tenantID := cast.ToUint(m["tenant_id"])
 	ctx := context.Background()
-	if tenantID > 0 {
+	if tenancy.Enabled() {
+		if tenantID == 0 {
+			return errors.ErrTenantRequired
+		}
 		bound, err := services.NewTenantConnectionService().BindBackground(ctx, tenantID)
 		if err != nil {
 			facades.Log().Errorf("SyncOrderSearch bind tenant failed: tenant_id=%d err=%v", tenantID, err)

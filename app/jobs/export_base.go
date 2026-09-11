@@ -44,19 +44,23 @@ type ExportArgs struct {
 	Timezone         string         `json:"timezone"` // 用户时区，用于时间格式化
 }
 
-// JobContext 为导出任务构建带租户连接的 context
-func JobContext(args ExportArgs) context.Context {
+// JobContext 为导出任务构建带租户连接的 context。
+// tenancy 开启时必须带 tenant_id 且绑定成功，否则返回错误（fail-closed，避免写到平台库）。
+func JobContext(args ExportArgs) (context.Context, error) {
 	ctx := context.Background()
-	if args.TenantID == 0 && args.TenantConnection == "" {
-		return ctx
+	if !tenancy.Enabled() {
+		return ctx, nil
+	}
+	if args.TenantID == 0 {
+		return ctx, apperrors.ErrTenantRequired
 	}
 	svc := services.NewTenantConnectionService()
 	bound, err := svc.BindBackground(ctx, args.TenantID)
 	if err != nil {
 		facades.Log().Errorf("export job bind tenant failed: tenant_id=%d err=%v", args.TenantID, err)
-		return ctx
+		return ctx, err
 	}
-	return bound
+	return bound, nil
 }
 
 // FormatTimeWithTimezone 使用指定时区格式化时间
@@ -260,7 +264,10 @@ func CheckAndUpdateExportStatus(ctx context.Context, exportID uint) (*models.Exp
 
 // Execute 执行导出（通用流程）
 func (e *BaseExporter) Execute(args ExportArgs) error {
-	ctx := JobContext(args)
+	ctx, err := JobContext(args)
+	if err != nil {
+		return err
+	}
 
 	// 获取语言
 	lang := args.Language
@@ -312,7 +319,6 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 	}
 
 	var filePathResult string
-	var err error
 	if exportFormat == "xlsx" {
 		var csvBuf bytes.Buffer
 		cw := csv.NewWriter(&csvBuf)

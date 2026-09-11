@@ -8,13 +8,23 @@ import (
 	"goravel/app/models"
 )
 
+type adminKey struct {
+	tenantID uint
+	adminID  uint
+}
+
 type NotificationHub struct {
-	clients    map[uint]map[*notificationClient]bool
+	clients    map[adminKey]map[*notificationClient]bool
 	register   chan *notificationClient
 	unregister chan *notificationClient
-	broadcast  chan *models.Notification
+	broadcast  chan broadcastMsg
 	stop       chan struct{} // 停止信号
 	mu         sync.RWMutex
+}
+
+type broadcastMsg struct {
+	tenantID     uint
+	notification *models.Notification
 }
 
 var hubInstance = newNotificationHub()
@@ -29,10 +39,10 @@ func Hub() *NotificationHub {
 
 func newNotificationHub() *NotificationHub {
 	return &NotificationHub{
-		clients:    make(map[uint]map[*notificationClient]bool),
+		clients:    make(map[adminKey]map[*notificationClient]bool),
 		register:   make(chan *notificationClient),
 		unregister: make(chan *notificationClient),
-		broadcast:  make(chan *models.Notification, 100),
+		broadcast:  make(chan broadcastMsg, 100),
 		stop:       make(chan struct{}),
 	}
 }
@@ -48,15 +58,15 @@ func (h *NotificationHub) run() {
 					close(client.send)
 				}
 			}
-			h.clients = make(map[uint]map[*notificationClient]bool)
+			h.clients = make(map[adminKey]map[*notificationClient]bool)
 			h.mu.Unlock()
 			return
 		case client := <-h.register:
 			h.addClient(client)
 		case client := <-h.unregister:
 			h.removeClient(client)
-		case notification := <-h.broadcast:
-			h.dispatch(notification)
+		case msg := <-h.broadcast:
+			h.dispatch(msg.tenantID, msg.notification)
 		}
 	}
 }
@@ -65,28 +75,30 @@ func (h *NotificationHub) addClient(client *notificationClient) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if _, ok := h.clients[client.adminID]; !ok {
-		h.clients[client.adminID] = make(map[*notificationClient]bool)
+	key := adminKey{tenantID: client.tenantID, adminID: client.adminID}
+	if _, ok := h.clients[key]; !ok {
+		h.clients[key] = make(map[*notificationClient]bool)
 	}
-	h.clients[client.adminID][client] = true
+	h.clients[key][client] = true
 }
 
 func (h *NotificationHub) removeClient(client *notificationClient) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if adminClients, ok := h.clients[client.adminID]; ok {
+	key := adminKey{tenantID: client.tenantID, adminID: client.adminID}
+	if adminClients, ok := h.clients[key]; ok {
 		if _, exists := adminClients[client]; exists {
 			delete(adminClients, client)
 			close(client.send)
 		}
 		if len(adminClients) == 0 {
-			delete(h.clients, client.adminID)
+			delete(h.clients, key)
 		}
 	}
 }
 
-func (h *NotificationHub) dispatch(notification *models.Notification) {
+func (h *NotificationHub) dispatch(tenantID uint, notification *models.Notification) {
 	payload := h.payload(notification)
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -97,8 +109,11 @@ func (h *NotificationHub) dispatch(notification *models.Notification) {
 	defer h.mu.RUnlock()
 
 	sendAll := notification.ReceiverID == nil
-	for adminID, adminClients := range h.clients {
-		if !sendAll && *notification.ReceiverID != adminID {
+	for key, adminClients := range h.clients {
+		if key.tenantID != tenantID {
+			continue
+		}
+		if !sendAll && *notification.ReceiverID != key.adminID {
 			continue
 		}
 		for client := range adminClients {
@@ -141,9 +156,9 @@ func (h *NotificationHub) payload(notification *models.Notification) map[string]
 	}
 }
 
-func (h *NotificationHub) Broadcast(notification *models.Notification) {
+func (h *NotificationHub) Broadcast(tenantID uint, notification *models.Notification) {
 	select {
-	case h.broadcast <- notification:
+	case h.broadcast <- broadcastMsg{tenantID: tenantID, notification: notification}:
 		// 成功发送
 	case <-h.stop:
 		// Hub 已停止，忽略广播
@@ -151,7 +166,7 @@ func (h *NotificationHub) Broadcast(notification *models.Notification) {
 }
 
 // SendToAdmin pushes an arbitrary JSON payload to one admin's connections (all tabs/windows).
-func (h *NotificationHub) SendToAdmin(adminID uint, payload map[string]any) {
+func (h *NotificationHub) SendToAdmin(tenantID, adminID uint, payload map[string]any) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return
@@ -160,7 +175,7 @@ func (h *NotificationHub) SendToAdmin(adminID uint, payload map[string]any) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	adminClients, ok := h.clients[adminID]
+	adminClients, ok := h.clients[adminKey{tenantID: tenantID, adminID: adminID}]
 	if !ok {
 		return
 	}

@@ -564,10 +564,13 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 	}
 	tenant, err := s.FindTenantByIDOrCode(fmt.Sprintf("%d", tenantID))
 	if err != nil {
-		return ctx, err
+		return ctx, apperrors.ErrTenantNotFound.WithError(err)
+	}
+	if tenant.Status != models.TenantStatusActive {
+		return ctx, apperrors.ErrTenantDisabled
 	}
 	if err := s.EnsureRegistered(tenant); err != nil {
-		return ctx, err
+		return ctx, apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
 	return tenancyctx.WithTenant(ctx, tenant.ID, tenant.ConnectionName, tenant.Code), nil
 }
@@ -582,6 +585,9 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 	}
 	migrateMu.Lock()
 	defer migrateMu.Unlock()
+	schemaMu := appfacades.SchemaConnLock()
+	schemaMu.Lock()
+	defer schemaMu.Unlock()
 
 	prevDefault := facades.Config().GetString("database.default")
 	facades.Config().Add("database.default", tenant.ConnectionName)

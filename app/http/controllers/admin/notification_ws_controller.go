@@ -15,6 +15,7 @@ import (
 	"github.com/goravel/framework/support/str"
 	"github.com/oklog/ulid/v2"
 
+	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
 	"goravel/app/models"
@@ -86,6 +87,22 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 		return nil
 	}
 
+	// Non-ticket Authorization path: bind tenant from header/query if still unbound.
+	if tenancy.Enabled() {
+		if _, ok := helpers.GetTenantIDFromContext(ctx); !ok {
+			if err := services.NewTenantConnectionService().BindHTTP(ctx, ""); err != nil {
+				logger.WarnfHTTP(ctx, "WebSocket tenant bind failed: %v", err)
+				if businessErr, ok := apperrors.GetBusinessError(err); ok {
+					response.Error(ctx, http.StatusBadRequest, businessErr.Code)
+				} else {
+					response.Error(ctx, http.StatusBadRequest, "tenant_required")
+				}
+				ctx.Request().Abort()
+				return nil
+			}
+		}
+	}
+
 	token = str.Of(token).ChopStart("Bearer ").Trim().String()
 	accessToken, err := r.tokenService(ctx).FindToken(token)
 	if err != nil || accessToken == nil || accessToken.TokenableType != "admin" {
@@ -119,7 +136,8 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 		return ctx.Response().String(http.StatusInternalServerError, "upgrade_failed")
 	}
 
-	wsnotifications.Hub().RegisterConnection(conn, admin.ID)
+	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
+	wsnotifications.Hub().RegisterConnection(conn, tenantID, admin.ID)
 
 	return nil
 }

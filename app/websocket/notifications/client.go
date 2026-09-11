@@ -8,18 +8,20 @@ import (
 )
 
 type notificationClient struct {
-	hub     *NotificationHub
-	conn    *websocket.Conn
-	send    chan []byte
-	adminID uint
+	hub      *NotificationHub
+	conn     *websocket.Conn
+	send     chan []byte
+	tenantID uint
+	adminID  uint
 }
 
-func newNotificationClient(hub *NotificationHub, conn *websocket.Conn, adminID uint) *notificationClient {
+func newNotificationClient(hub *NotificationHub, conn *websocket.Conn, tenantID, adminID uint) *notificationClient {
 	return &notificationClient{
-		hub:     hub,
-		conn:    conn,
-		send:    make(chan []byte, 256),
-		adminID: adminID,
+		hub:      hub,
+		conn:     conn,
+		send:     make(chan []byte, 256),
+		tenantID: tenantID,
+		adminID:  adminID,
 	}
 }
 
@@ -52,8 +54,8 @@ func (c *notificationClient) serve() {
 	}
 }
 
-func (h *NotificationHub) RegisterConnection(conn *websocket.Conn, adminID uint) {
-	client := newNotificationClient(h, conn, adminID)
+func (h *NotificationHub) RegisterConnection(conn *websocket.Conn, tenantID, adminID uint) {
+	client := newNotificationClient(h, conn, tenantID, adminID)
 	h.register <- client
 	go client.serve()
 }

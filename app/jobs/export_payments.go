@@ -45,7 +45,10 @@ func (r *ExportPayments) Handle(args ...any) (retErr error) {
 		return err
 	}
 	exportID = exportArgs.ExportID
-	jobCtx = JobContext(exportArgs)
+	jobCtx, err = JobContext(exportArgs)
+	if err != nil {
+		return err
+	}
 
 	lock, err := AcquireExportExecutionLock(jobCtx, exportID)
 	if err != nil {

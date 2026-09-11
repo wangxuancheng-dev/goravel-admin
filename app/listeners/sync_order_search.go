@@ -13,6 +13,7 @@ import (
 	"goravel/app/queuejobs"
 	"goravel/app/search"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 )
 
 // SyncOrderSearch 订单搜索同步监听器（异步入队）。
@@ -61,7 +62,10 @@ func (receiver *SyncOrderSearch) Handle(args ...any) error {
 	}
 
 	ctx := context.Background()
-	if syncArgs.TenantID > 0 {
+	if tenancy.Enabled() {
+		if syncArgs.TenantID == 0 {
+			return errors.ErrTenantRequired
+		}
 		bound, err := services.NewTenantConnectionService().BindBackground(ctx, syncArgs.TenantID)
 		if err != nil {
 			facades.Log().Errorf("order search sync bind tenant failed: tenant_id=%d err=%v", syncArgs.TenantID, err)

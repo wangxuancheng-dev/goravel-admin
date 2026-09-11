@@ -2,12 +2,22 @@ package facades
 
 import (
 	"context"
+	"sync"
 
 	"github.com/goravel/framework/contracts/database/schema"
 
 	"goravel/app/tenancy"
 	"goravel/app/tenancyctx"
 )
+
+// schemaConnMu serializes Schema.SetConnection for request-path DDL/HasTable and
+// TenantConnectionService.WithTenantConnection (via SchemaConnLock).
+var schemaConnMu sync.Mutex
+
+// SchemaConnLock exposes the schema connection mutex for tenant migrate/seed paths.
+func SchemaConnLock() *sync.Mutex {
+	return &schemaConnMu
+}
 
 func Schema() schema.Schema {
 	return App().MakeSchema()
@@ -53,8 +63,8 @@ func SchemaConnectionKeyFrom(ctx context.Context) string {
 }
 
 // WithSchemaContext runs fn with Schema (and DDL) bound to the tenant connection from ctx.
-// When tenancy is off or ctx has no tenant connection, fn runs against the current Schema connection
-// (e.g. already switched by WithTenantConnection).
+// Concurrent callers are serialized. If Schema is already on the target connection
+// (e.g. inside WithTenantConnection), fn runs without re-locking to avoid deadlock.
 func WithSchemaContext(ctx context.Context, fn func() error) error {
 	if fn == nil {
 		return nil
@@ -67,6 +77,16 @@ func WithSchemaContext(ctx context.Context, fn func() error) error {
 		return fn()
 	}
 	schema := Schema()
+	if schema.GetConnection() == conn {
+		return fn()
+	}
+
+	schemaConnMu.Lock()
+	defer schemaConnMu.Unlock()
+
+	if schema.GetConnection() == conn {
+		return fn()
+	}
 	prev := schema.GetConnection()
 	schema.SetConnection(conn)
 	defer schema.SetConnection(prev)

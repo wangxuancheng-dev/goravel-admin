@@ -13,6 +13,7 @@ import (
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils"
 	wsnotifications "goravel/app/websocket/notifications"
 )
@@ -117,7 +118,7 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 		}
 
 		for _, notification := range notifications {
-			wsnotifications.Hub().Broadcast(notification)
+			wsnotifications.Hub().Broadcast(s.wsTenantID(), notification)
 		}
 
 		return first, nil
@@ -134,7 +135,7 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
 
-	wsnotifications.Hub().Broadcast(notification)
+	wsnotifications.Hub().Broadcast(s.wsTenantID(), notification)
 
 	return notification, nil
 }
@@ -221,7 +222,7 @@ func (s *NotificationServiceImpl) MarkRead(adminID uint, notificationID uint) er
 
 	notification.IsRead = true
 	notification.ReadAt = &now
-	wsnotifications.Hub().Broadcast(&notification)
+	wsnotifications.Hub().Broadcast(s.wsTenantID(), &notification)
 
 	return nil
 }
@@ -240,7 +241,7 @@ func (s *NotificationServiceImpl) MarkAllRead(adminID uint) error {
 		return apperrors.ErrUpdateFailed.WithError(err)
 	}
 
-	wsnotifications.Hub().SendToAdmin(adminID, map[string]any{
+	wsnotifications.Hub().SendToAdmin(s.wsTenantID(), adminID, map[string]any{
 		"type":        "read_all",
 		"receiver_id": adminID,
 		"read_at":     now.Format(time.RFC3339),
@@ -259,4 +260,11 @@ func (s *NotificationServiceImpl) UnreadCount(adminID uint) (int64, error) {
 		return 0, apperrors.ErrQueryFailed.WithError(err)
 	}
 	return count, nil
+}
+
+func (s *NotificationServiceImpl) wsTenantID() uint {
+	if tid, ok := tenancyctx.IDFrom(s.ctx); ok {
+		return tid
+	}
+	return 0
 }

@@ -18,13 +18,13 @@ func Api() {
 	publicConfigController := api.NewPublicConfigController()
 
 	// 公开附件（C 端文章/站点可直接引用，无需 admin 前缀）
-	facades.Route().Prefix("api").Middleware(middleware.Lang()).Group(func(router route.Router) {
+	facades.Route().Prefix("api").Middleware(middleware.Lang(), middleware.Tenant()).Group(func(router route.Router) {
 		router.Get("public/files/{id}", attachmentController.PublicPreview)
 		router.Get("public/customer-service", publicConfigController.CustomerService)
 	})
 
 	// C端用户路由组：统一前缀
-	facades.Route().Prefix("api/user").Group(func(router route.Router) {
+	facades.Route().Prefix("api/user").Middleware(middleware.Tenant()).Group(func(router route.Router) {
 
 		// 登录注册相关（不需要认证，但需要限流）
 		router.Middleware(middleware.Lang(), httpmiddleware.Throttle("login")).Group(func(router route.Router) {
