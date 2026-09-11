@@ -2,13 +2,10 @@ package admin
 
 import (
 	"strings"
-	"time"
 
 	"github.com/goravel/framework/contracts/http"
-	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
-	"goravel/app/http/apidoc"
 	"goravel/app/http/helpers"
 	adminrequests "goravel/app/http/requests/admin"
 	"goravel/app/http/response"
@@ -21,124 +18,25 @@ import (
 
 type OrderController struct{}
 
-// OrderResponse swagger response for order summary.
-type OrderResponse struct {
-	ID        uint    `json:"id" example:"1"`                           // Order ID
-	OrderNo   string  `json:"order_no" example:"ORD202604090001"`       // Order number
-	UserID    uint    `json:"user_id" example:"1001"`                   // User ID
-	Amount    float64 `json:"amount" example:"199.98"`                  // Total amount
-	Status    string  `json:"status" example:"pending"`                 // Order status
-	Remark    string  `json:"remark" example:"note"`                    // Remark
-	CreatedAt string  `json:"created_at" example:"2024-01-01 00:00:00"` // Created at
-	UpdatedAt string  `json:"updated_at" example:"2024-01-01 00:00:00"` // Updated at
-}
-
-// OrderDetailResponse swagger response for order item details.
-type OrderDetailResponse struct {
-	ID          uint    `json:"id" example:"1"`                           // Detail ID
-	OrderID     uint    `json:"order_id" example:"1"`                     // Order ID
-	ProductID   uint    `json:"product_id" example:"101"`                 // Product ID
-	ProductName string  `json:"product_name" example:"sample product"`    // Product name
-	Price       float64 `json:"price" example:"99.99"`                    // Unit price
-	Quantity    int     `json:"quantity" example:"2"`                     // Quantity
-	Subtotal    float64 `json:"subtotal" example:"199.98"`                // Subtotal
-	CreatedAt   string  `json:"created_at" example:"2024-01-01 00:00:00"` // Created at
-	UpdatedAt   string  `json:"updated_at" example:"2024-01-01 00:00:00"` // Updated at
-}
-
-// OrderWithDetailsResponse combines order and details.
-type OrderWithDetailsResponse struct {
-	Order   OrderResponse         `json:"order"`   // Order summary
-	Details []OrderDetailResponse `json:"details"` // Detail list
-}
-
-// OrderListData list response payload.
-type OrderListData struct {
-	Data []OrderWithDetailsResponse `json:"data"` // Order list
-	apidoc.Pagination
-}
-
-type OrderListResponse struct {
-	apidoc.Success
-	Data OrderListData `json:"data"`
-}
-
-type OrderDetailData struct {
-	Order   OrderResponse         `json:"order"`   // Order summary
-	Details []OrderDetailResponse `json:"details"` // Order details
-}
-
-type OrderDetailResponseWrapper struct {
-	apidoc.Success
-	Data OrderDetailData `json:"data"`
-}
-
-type OrderCreateRequest struct {
-	UserID    uint               `json:"user_id" example:"1001"`
-	Amount    float64            `json:"amount" example:"199.98"`
-	Products  []OrderProductItem `json:"products"`
-	RequestID string             `json:"request_id" example:"req_20260409_001"`
-	Remark    string             `json:"remark" example:"remark"`
-}
-
-type OrderUpdateRequest struct {
-	Status string `json:"status" example:"paid"`
-	Remark string `json:"remark" example:"remark"`
-}
-
-type ExportTaskData struct {
-	ExportID uint   `json:"export_id" example:"1"`
-	Message  string `json:"message" example:"message"`
-}
-
-type ExportTaskResponse struct {
-	apidoc.Success
-	Data ExportTaskData `json:"data"`
-}
-
-type ExportStatusData struct {
-	ID         uint   `json:"id" example:"1"`
-	Status     uint8  `json:"status" example:"1"`
-	StatusText string `json:"status_text" example:"status_text"`
-	FileURL    string `json:"file_url" example:"/api/admin/exports/1/download"`
-	Filename   string `json:"filename" example:"orders_20260409.csv"`
-	Size       int64  `json:"size" example:"1024"`
-	ErrorMsg   string `json:"error_msg" example:""`
-	CreatedAt  string `json:"created_at" example:"2024-01-01 00:00:00"`
-	UpdatedAt  string `json:"updated_at" example:"2024-01-01 00:00:00"`
-}
-
-type ExportStatusResponse struct {
-	apidoc.Success
-	Data ExportStatusData `json:"data"`
-}
-
-type ImportResultData struct {
-	TotalRows    int      `json:"total_rows" example:"10"`
-	SuccessCount int      `json:"success_count" example:"8"`
-	FailedCount  int      `json:"failed_count" example:"2"`
-	Errors       []string `json:"errors"`
-	Message      string   `json:"message" example:"message"`
-}
-
-type ImportResultResponse struct {
-	apidoc.Success
-	Data ImportResultData `json:"data"`
-}
-
-type OrderProductItem struct {
-	ProductID   uint    `json:"product_id" example:"1" binding:"required"`
-	ProductName string  `json:"product_name" example:"product_name" binding:"required"`
-	Price       float64 `json:"price" example:"99.99" binding:"required"`
-	Quantity    int     `json:"quantity" example:"2" binding:"required"`
-}
-
 func NewOrderController() *OrderController {
 	return &OrderController{}
 }
 
 func (r *OrderController) orderService(ctx http.Context) services.OrderService {
 	return services.NewOrderService(ctx)
+}
+
+// resolveOrderNo 分表场景以 order_no 为业务主键：优先 query/body，其次 Resource 路由 {id}。
+func (r *OrderController) resolveOrderNo(ctx http.Context) string {
+	orderNo := strings.TrimSpace(ctx.Request().Input("order_no", ctx.Request().Query("order_no", "")))
+	if orderNo != "" {
+		return orderNo
+	}
+	routeID := strings.TrimSpace(ctx.Request().Route("id"))
+	if routeID == "" || routeID == "0" {
+		return ""
+	}
+	return routeID
 }
 
 // buildFilters builds filters shared by list/export endpoints.
@@ -155,21 +53,21 @@ func (r *OrderController) buildFilters(ctx http.Context) (services.OrderFilters,
 
 // Index returns paginated order list.
 // @Summary      Get order list
-// @Description  Returns paginated orders with filters; time range is limited.
+// @Description  Returns paginated orders with filters; time range is limited. Lookup key for show/update/delete is order_no.
 // @Tags         Orders
 // @Accept       json
 // @Produce      json
 // @Param        page       query    int     false "Page number" default(1)
 // @Param        page_size  query    int     false "Page size" default(10)
 // @Param        user_id    query    int     false "User ID"
-// @Param        order_no   query    string  false "Order number (fuzzy)"
+// @Param        order_no   query    string  false "Order number (exact)"
 // @Param        status     query    string  false "Order status"
 // @Param        min_amount query    float64 false "Minimum amount"
 // @Param        max_amount query    float64 false "Maximum amount"
 // @Param        start_time query    string  false "Start time (2006-01-02 15:04:05)"
 // @Param        end_time   query    string  false "End time (2006-01-02 15:04:05)"
 // @Param        order_by   query    string  false "Sort field:direction"
-// @Success      200        {object} OrderListResponse
+// @Success      200        {object} apidoc.Success
 // @Failure      400        {object} apidoc.Error "Bad request"
 // @Failure      500        {object} apidoc.Error "Server error"
 // @Router       /api/admin/orders [get]
@@ -177,13 +75,11 @@ func (r *OrderController) buildFilters(ctx http.Context) (services.OrderFilters,
 func (r *OrderController) Index(ctx http.Context) http.Response {
 	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
 
-	// Build filters shared with export.
 	filters, resp := r.buildFilters(ctx)
 	if resp != nil {
 		return resp
 	}
 
-	// Query order list with details.
 	ordersWithDetails, total, err := r.orderService(ctx).GetOrdersWithDetails(filters, page, pageSize)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "order", http.StatusBadRequest, err, map[string]any{
@@ -205,28 +101,32 @@ func (r *OrderController) Index(ctx http.Context) http.Response {
 	})
 }
 
+// Show returns one order by order_no (query preferred; Resource {id} also treated as order_no).
+// @Summary      Get order detail
+// @Description  Sharded lookup by order_no (not table-local numeric id).
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Param        id        path   string true  "order_no (Resource path)"
+// @Param        order_no  query  string false "order_no (preferred)"
+// @Success      200       {object} apidoc.Success
+// @Failure      400       {object} apidoc.Error
+// @Failure      404       {object} apidoc.Error
+// @Router       /api/admin/orders/{id} [get]
+// @Security     BearerAuth
 func (r *OrderController) Show(ctx http.Context) http.Response {
-	orderNo := ctx.Request().Query("order_no", "")
+	orderNo := r.resolveOrderNo(ctx)
+	if orderNo == "" {
+		return response.Error(ctx, http.StatusBadRequest, "order_no_required")
+	}
 
-	if orderNo != "" {
-		order, details, err := r.orderService(ctx).GetOrderByOrderNo(orderNo)
-		if err == nil {
-			return r.buildOrderDetailResponse(ctx, order, details)
-		}
-		if routeID := ctx.Request().Route("id"); routeID != "" && orderNo == routeID {
-			if orderID := cast.ToUint(routeID); orderID > 0 {
-				order, details, err := r.orderService(ctx).GetOrderByID(orderID, time.Time{})
-				if err == nil {
-					return r.buildOrderDetailResponse(ctx, order, details)
-				}
-			}
-		}
-		return HandleGeneratedServiceError(ctx, "order", http.StatusNotFound, apperrors.ErrOrderNotFound, map[string]any{
+	order, details, err := r.orderService(ctx).GetOrderByOrderNo(orderNo)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "order", http.StatusNotFound, err, map[string]any{
 			"order_no": orderNo,
 		})
 	}
-
-	return response.Error(ctx, http.StatusBadRequest, "order_no_or_id_required")
+	return r.buildOrderDetailResponse(ctx, order, details)
 }
 
 func (r *OrderController) buildOrderDetailResponse(ctx http.Context, order *models.Order, details []models.OrderDetail) http.Response {
@@ -297,7 +197,7 @@ func (r *OrderController) Update(ctx http.Context) http.Response {
 
 	orderNo := strings.TrimSpace(req.OrderNo)
 	if orderNo == "" {
-		orderNo = strings.TrimSpace(ctx.Request().Query("order_no", ""))
+		orderNo = r.resolveOrderNo(ctx)
 	}
 	if orderNo == "" {
 		return response.Error(ctx, http.StatusBadRequest, "order_no_required")
@@ -314,20 +214,21 @@ func (r *OrderController) Update(ctx http.Context) http.Response {
 	return response.Success(ctx)
 }
 
-// Destroy 鍒犻櫎璁㈠崟
-// @Summary      鍒犻櫎璁㈠崟
-// @Description  鍒犻櫎璁㈠崟鍙婂叾璇︽儏銆備娇鐢ㄨ鍗曞彿鏌ヨ锛堝彲鐩存帴瀹氫綅鍒嗚〃锛?
-// @Tags         璁㈠崟绠＄悊
+// Destroy deletes an order by order_no.
+// @Summary      Delete order
+// @Description  Soft-delete order and details by order_no (query/body preferred; path {id} also treated as order_no).
+// @Tags         Orders
 // @Accept       json
 // @Produce      json
-// @Param        id         path     string  true "璁㈠崟鍙?
-// @Success      200        {object} apidoc.Success
-// @Failure      400        {object} apidoc.Error "鍙傛暟閿欒"
-// @Failure      500        {object} apidoc.Error "鏈嶅姟鍣ㄩ敊璇?
+// @Param        id        path   string true  "order_no (Resource path)"
+// @Param        order_no  query  string false "order_no (preferred)"
+// @Success      200       {object} apidoc.Success
+// @Failure      400       {object} apidoc.Error
+// @Failure      500       {object} apidoc.Error
 // @Router       /api/admin/orders/{id} [delete]
 // @Security     BearerAuth
 func (r *OrderController) Destroy(ctx http.Context) http.Response {
-	orderNo := strings.TrimSpace(ctx.Request().Input("order_no", ctx.Request().Query("order_no", "")))
+	orderNo := r.resolveOrderNo(ctx)
 	if orderNo == "" {
 		return response.Error(ctx, http.StatusBadRequest, "order_no_required")
 	}
@@ -355,7 +256,7 @@ func (r *OrderController) Destroy(ctx http.Context) http.Response {
 // @Param        start_time query    string  false "Start time"
 // @Param        end_time   query    string  false "End time"
 // @Param        order_by   query    string  false "Sort field:direction"
-// @Success      200        {object} ExportTaskResponse "Task queued with export_id"
+// @Success      200        {object} apidoc.Success "Task queued with export_id"
 // @Failure      400        {object} apidoc.Error "Bad request"
 // @Failure      401        {object} apidoc.Error "Unauthorized"
 // @Failure      403        {object} apidoc.Error "Forbidden"
@@ -412,7 +313,7 @@ func (r *OrderController) Export(ctx http.Context) http.Response {
 // @Accept       json
 // @Produce      json
 // @Param        id   path      int  true  "Export record ID"
-// @Success      200  {object}  ExportStatusResponse
+// @Success      200  {object}  apidoc.Success
 // @Failure      400  {object}  apidoc.Error  "Bad request"
 // @Failure      401  {object}  apidoc.Error  "Unauthorized"
 // @Failure      403  {object}  apidoc.Error  "Forbidden"

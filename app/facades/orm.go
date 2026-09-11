@@ -29,6 +29,19 @@ func OrmQuery(ctx context.Context) orm.Query {
 	return Orm().WithContext(ctx).Query()
 }
 
+// OrmTransaction runs fn inside a DB transaction on the same connection OrmQuery(ctx) would use.
+func OrmTransaction(ctx context.Context, fn func(tx orm.Query) error) error {
+	if ctx == nil {
+		return Orm().Transaction(fn)
+	}
+	if tenancy.Enabled() {
+		if conn, ok := tenancyctx.ConnectionFrom(ctx); ok {
+			return Orm().Connection(conn).WithContext(ctx).Transaction(fn)
+		}
+	}
+	return Orm().WithContext(ctx).Transaction(fn)
+}
+
 // PlatformOrmQuery always uses the default (platform) connection — tenants metadata / DDL only.
 func PlatformOrmQuery(ctx context.Context) orm.Query {
 	defaultConn := facades.Config().GetString("database.default", "mysql")

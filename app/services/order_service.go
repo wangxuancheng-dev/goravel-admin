@@ -286,9 +286,8 @@ func NewOrderService(ctx context.Context) *OrderServiceImpl {
 	return service
 }
 
-// CreateOrder 创建订单
+// CreateOrder 创建订单（主单 + 明细同事务；DDL 保表在事务外）。
 func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []OrderProduct, requestID string, remark string) (*models.Order, []models.OrderDetail, error) {
-	// 防重复提交：使用 Redis 锁
 	if requestID == "" {
 		requestID = ulid.Make().String()
 	}
@@ -296,15 +295,12 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 	lockKey := tenancy.CacheKey(s.ctx, fmt.Sprintf("order:lock:%s", requestID))
 	lockValue := fmt.Sprintf("%d_%d", userID, time.Now().Unix())
 
-	// 尝试获取锁，过期时间5秒
-	// 先检查是否已存在
 	var cachedValue string
 	cacheResult := facades.Cache().Get(lockKey, &cachedValue)
 	if cacheResult != nil && cachedValue != "" {
 		return nil, nil, errors.New("订单正在处理中，请勿重复提交")
 	}
 
-	// 设置锁，过期时间5秒
 	if err := facades.Cache().Put(lockKey, lockValue, 5*time.Second); err != nil {
 		errorlog.Record(s.ctx, "order", "获取锁失败", map[string]any{
 			"user_id":    userID,
@@ -314,114 +310,90 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 		}, "获取锁失败: %v", err)
 		return nil, nil, apperrors.ErrGetLockFailed.WithError(err)
 	}
-
-	// 确保释放锁
 	defer func() {
 		_ = facades.Cache().Forget(lockKey)
 	}()
 
-	// 生成订单号并创建订单（带重试机制，防止并发下订单号重复）
-	now := time.Now().UTC() // 使用 UTC 时间，确保分表按 UTC 时区分
+	now := time.Now().UTC()
 	tableName := utils.GetShardingTableName("orders", now)
-
-	// 确保分表存在
-	if err := s.shardingService.EnsureShardingTable(tableName, "orders"); err != nil {
-		_ = facades.Cache().Forget(lockKey)
-		return nil, nil, err
-	}
-
-	// 重试机制：如果订单号重复，重新生成（最多重试3次）
-	var order *models.Order
-	maxRetries := 3
-	for i := range maxRetries {
-		orderNo := s.generateOrderNo()
-
-		// 创建订单主表记录
-		order = &models.Order{
-			OrderNo: orderNo,
-			UserID:  userID,
-			Amount:  amount,
-			Status:  "pending",
-			Remark:  remark,
-			// CreatedAt 由 orm.Model 自动设置
-		}
-
-		// 尝试插入订单（数据库唯一索引会防止重复）
-		err := appfacades.OrmQuery(s.ctx).Table(tableName).Create(order)
-		if err == nil {
-			// 插入成功，跳出循环
-			break
-		}
-
-		// 检查是否是唯一索引冲突错误（订单号重复）
-		// MySQL 错误码 1062 表示重复键错误
-		errStr := err.Error()
-		if strings.Contains(errStr, "Duplicate entry") || strings.Contains(errStr, "1062") {
-			// 订单号重复，重试（ULID 碰撞概率极低，但理论上可能发生）
-			if i == maxRetries-1 {
-				// 最后一次重试也失败，返回错误
-				_ = facades.Cache().Forget(lockKey)
-				errorlog.Record(s.ctx, "order", "生成唯一订单号失败", map[string]any{
-					"user_id":    userID,
-					"request_id": requestID,
-					"retries":    maxRetries,
-				}, "生成唯一订单号失败，请重试")
-				return nil, nil, apperrors.ErrGenerateOrderNoFailed
-			}
-			// 继续下一次重试
-			continue
-		}
-
-		// 其他错误，直接返回
-		_ = facades.Cache().Forget(lockKey)
-		errorlog.Record(s.ctx, "order", "创建订单失败", map[string]any{
-			"user_id":    userID,
-			"request_id": requestID,
-			"amount":     amount,
-			"error":      err.Error(),
-		}, "创建订单失败: %v", err)
-		return nil, nil, apperrors.ErrCreateOrderFailed.WithError(err)
-	}
-
-	// 创建订单详情记录
-	var details []models.OrderDetail
 	detailTableName := utils.GetShardingTableName("order_details", now)
 
-	// 确保订单详情分表存在
+	// MySQL DDL 会隐式提交，必须放在事务外。
+	if err := s.shardingService.EnsureShardingTable(tableName, "orders"); err != nil {
+		return nil, nil, err
+	}
 	if err := s.shardingService.EnsureShardingTable(detailTableName, "order_details"); err != nil {
-		_ = facades.Cache().Forget(lockKey)
 		return nil, nil, err
 	}
 
-	for _, product := range products {
-		detail := models.OrderDetail{
-			OrderID:     order.ID,
-			ProductID:   product.ProductID,
-			ProductName: product.ProductName,
-			Price:       product.Price,
-			Quantity:    product.Quantity,
-			Subtotal:    product.Price * float64(product.Quantity),
-			// CreatedAt 由 orm.Model 自动设置
+	var order *models.Order
+	var details []models.OrderDetail
+	err := appfacades.OrmTransaction(s.ctx, func(tx orm.Query) error {
+		maxRetries := 3
+		for i := range maxRetries {
+			candidate := &models.Order{
+				OrderNo: s.generateOrderNo(),
+				UserID:  userID,
+				Amount:  amount,
+				Status:  "pending",
+				Remark:  remark,
+			}
+			if err := tx.Table(tableName).Create(candidate); err != nil {
+				errStr := err.Error()
+				if strings.Contains(errStr, "Duplicate entry") || strings.Contains(errStr, "1062") {
+					if i == maxRetries-1 {
+						errorlog.Record(s.ctx, "order", "生成唯一订单号失败", map[string]any{
+							"user_id":    userID,
+							"request_id": requestID,
+							"retries":    maxRetries,
+						}, "生成唯一订单号失败，请重试")
+						return apperrors.ErrGenerateOrderNoFailed
+					}
+					continue
+				}
+				errorlog.Record(s.ctx, "order", "创建订单失败", map[string]any{
+					"user_id":    userID,
+					"request_id": requestID,
+					"amount":     amount,
+					"error":      err.Error(),
+				}, "创建订单失败: %v", err)
+				return apperrors.ErrCreateOrderFailed.WithError(err)
+			}
+			order = candidate
+			break
+		}
+		if order == nil || order.ID == 0 {
+			return apperrors.ErrCreateOrderFailed
 		}
 
-		if err := appfacades.OrmQuery(s.ctx).Table(detailTableName).Create(&detail); err != nil {
-			// 如果详情创建失败，删除已创建的订单
-			_, _ = appfacades.OrmQuery(s.ctx).Table(tableName).Where("id", order.ID).Delete(&models.Order{})
-			_ = facades.Cache().Forget(lockKey)
-			errorlog.Record(s.ctx, "order", "创建订单详情失败", map[string]any{
-				"order_id":   order.ID,
-				"user_id":    userID,
-				"product_id": product.ProductID,
-				"error":      err.Error(),
-			}, "创建订单详情失败: %v", err)
-			return nil, nil, apperrors.ErrCreateOrderDetailFailed.WithError(err)
+		details = make([]models.OrderDetail, 0, len(products))
+		for _, product := range products {
+			detail := models.OrderDetail{
+				OrderID:     order.ID,
+				ProductID:   product.ProductID,
+				ProductName: product.ProductName,
+				Price:       product.Price,
+				Quantity:    product.Quantity,
+				Subtotal:    product.Price * float64(product.Quantity),
+			}
+			if err := tx.Table(detailTableName).Create(&detail); err != nil {
+				errorlog.Record(s.ctx, "order", "创建订单详情失败", map[string]any{
+					"order_id":   order.ID,
+					"user_id":    userID,
+					"product_id": product.ProductID,
+					"error":      err.Error(),
+				}, "创建订单详情失败: %v", err)
+				return apperrors.ErrCreateOrderDetailFailed.WithError(err)
+			}
+			details = append(details, detail)
 		}
-
-		details = append(details, detail)
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
 	}
 
 	support.RequestOrderSearchSync(order.ID, order.OrderNo, "index", orderTenantID(s.ctx))
-
 	return order, details, nil
 }
 
@@ -1189,7 +1161,8 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 		Keyword:   strings.TrimSpace(keyword),
 		OrderBy:   "created_at:desc",
 	}
-	rows, total, err := s.GetOrdersWithDetails(filters, page, pageSize)
+	// 已确定走 DB：直接分表查询，避免再进入 GetOrdersWithDetails 的引擎优先路径。
+	rows, total, err := s.getOrdersWithDetailsFromDB(filters, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
