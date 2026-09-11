@@ -9,7 +9,7 @@ description: Implements the Vue 3 + Vite admin frontend in html/ using the exist
 - Tech stack: Vue 3, Vite, TypeScript, Element Plus, Pinia, Vue Router, vue-i18n.
 - Source root: `html/src` with alias `@` configured in `html/vite.config.js`.
 - API modules live in `html/src/api/*.js` and call `request` from `html/src/utils/request.js`.
-- **Dual frontend rule:** React (`html-react/`) is primary for new admin UI. Vue here is maintenance/parity — when touching an existing shared module, keep Vue in sync with React; do not start new Vue-only admin features. For React work use `goravel-admin-frontend-react`.
+- **Dual frontend (required sync):** Vue and React are both supported admin UIs. New/changed admin features must be mirrored in `html-react/` in the same change set so neither side lags. Prefer matching React patterns when both exist; for React-only work under `html-react/`, use `goravel-admin-frontend-react`, then sync Vue here.
 
 ## Backend response contract (must match)
 The frontend request layer expects backend responses shaped like:
