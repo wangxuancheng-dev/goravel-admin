@@ -117,6 +117,7 @@ func (s *BlacklistServiceImpl) Create(req *admin.BlacklistCreate) (*models.Black
 	if err := appfacades.OrmQuery(s.ctx).Model(blacklist).Create(createData); err != nil {
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
+	InvalidateBlacklistCache(s.ctx)
 
 	return blacklist, nil
 }
@@ -141,6 +142,7 @@ func (s *BlacklistServiceImpl) Update(id uint, req *admin.BlacklistUpdate) (*mod
 	if err := appfacades.OrmQuery(s.ctx).Save(blacklist); err != nil {
 		return nil, apperrors.ErrUpdateFailed.WithError(err)
 	}
+	InvalidateBlacklistCache(s.ctx)
 	return blacklist, nil
 }
 
@@ -151,5 +153,6 @@ func (s *BlacklistServiceImpl) Delete(id uint) error {
 	if _, err := appfacades.OrmQuery(s.ctx).Where("id", id).Delete(&models.Blacklist{}); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
+	InvalidateBlacklistCache(s.ctx)
 	return nil
 }

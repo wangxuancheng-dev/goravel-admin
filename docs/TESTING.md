@@ -22,7 +22,14 @@ tests/
     ├── api_auth_test.go                 # health、用户注册/登录校验
     ├── platform_tenancy_test.go         # 平台登录 / 租户头
     ├── tenant_isolation_test.go         # 双租户库隔离
-    └── tenancy_failclosed_test.go       # 导出/搜索缺 tenant fail-closed
+    ├── tenancy_failclosed_test.go       # 导出/搜索缺 tenant fail-closed
+    └── blacklist_guard_test.go          # IP 黑名单拦截、平台未授权
+
+app/services/
+└── blacklist_guard_test.go              # 黑名单短缓存 / 过期回退 / fail-closed
+
+app/http/middleware/
+└── permission_match_test.go             # 权限路径通配匹配
 
 app/http/controllers/admin/
 └── resource_ownership_test.go           # 导出/附件归属纯逻辑

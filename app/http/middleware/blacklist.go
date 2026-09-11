@@ -1,14 +1,12 @@
 package middleware
 
 import (
-	appfacades "goravel/app/facades"
-
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
-	"goravel/app/models"
+	"goravel/app/services"
 	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
@@ -28,29 +26,24 @@ func Blacklist() http.Middleware {
 			return
 		}
 
-		// 获取真实IP地址
 		realIP := helpers.GetRealIP(ctx)
 
-		// 查询所有启用的黑名单记录
-		var blacklists []models.Blacklist
-		if err := appfacades.OrmQuery(ctx).Where("status", 1).Get(&blacklists); err != nil {
-			// fail-closed：查库失败时拒绝访问，避免封禁名单失效时被绕过
-			facades.Log().Errorf("Blacklist middleware: Failed to query blacklists: %v", err)
+		patterns, err := services.EnabledBlacklistPatterns(ctx)
+		if err != nil {
+			// 无可用缓存时 fail-closed，避免封禁名单失效被绕过
+			facades.Log().Errorf("Blacklist middleware: Failed to load blacklists: %v", err)
 			response.Abort(ctx, http.StatusServiceUnavailable, "service_unavailable")
 			return
 		}
 
-		// 检查IP是否在黑名单中
-		for _, blacklist := range blacklists {
-			if utils.IsIPInBlacklist(realIP, blacklist.IP) {
-				// IP在黑名单中，拒绝访问
-				facades.Log().Warningf("Blacklist middleware: IP %s blocked by blacklist ID %d", realIP, blacklist.ID)
+		for _, pattern := range patterns {
+			if utils.IsIPInBlacklist(realIP, pattern) {
+				facades.Log().Warningf("Blacklist middleware: IP %s blocked by pattern %q", realIP, pattern)
 				response.Abort(ctx, http.StatusForbidden, "ip_blocked")
 				return
 			}
 		}
 
-		// IP不在黑名单中，继续处理请求
 		ctx.Request().Next()
 	})
 }
