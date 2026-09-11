@@ -18,6 +18,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/models"
+	"goravel/app/tenancy"
 )
 
 var (
@@ -60,6 +61,11 @@ func NewSlowQueryService(ctx context.Context) SlowQueryService {
 }
 
 func (s *SlowQueryServiceImpl) CollectFromLatestLog(minDurationMS float64) error {
+	// Shared process log mixes all tenants; ingesting into the caller's tenant DB would leak SQL.
+	// Cron/platform tooling can collect later; tenant HTTP observability only reads its own table.
+	if tenancy.Enabled() {
+		return nil
+	}
 	if !appfacades.SchemaHasTable(s.ctx, "slow_query_logs") {
 		return nil
 	}

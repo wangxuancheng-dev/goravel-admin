@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -16,6 +17,8 @@ import (
 
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
+	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 )
 
 const (
@@ -159,7 +162,11 @@ func (s *ScheduleServiceImpl) Run(command string) (*ScheduleRunResult, error) {
 	if !isScheduledCommand(command) {
 		return nil, apperrors.ErrScheduleCommandNotAllowed
 	}
-	return ExecuteScheduledCommand(command, ScheduleTriggerManual)
+	runCmd, err := scopeManualScheduleCommand(s.ctx, command)
+	if err != nil {
+		return nil, err
+	}
+	return ExecuteScheduledCommand(runCmd, ScheduleTriggerManual)
 }
 
 // ExecuteScheduledCommand runs a whitelisted schedule command, captures console output, and stores last-run cache.
@@ -169,9 +176,10 @@ func ExecuteScheduledCommand(command string, triggeredBy string) (*ScheduleRunRe
 		return nil, apperrors.ErrScheduleCommandRequired
 	}
 	if triggeredBy == "" {
-		triggeredBy = ScheduleTriggerManual
+		triggeredBy = ScheduleTriggerSchedule
 	}
 
+	baseCommand := scheduleCommandBase(command)
 	lockKey := scheduleRunLockKey(command)
 	lock := facades.Cache().Lock(lockKey, scheduleRunLockTTL)
 	if !lock.Get() {
@@ -185,7 +193,7 @@ func ExecuteScheduledCommand(command string, triggeredBy string) (*ScheduleRunRe
 	durationMs := time.Since(started).Milliseconds()
 
 	result := &ScheduleRunResult{
-		Command:     command,
+		Command:     baseCommand,
 		DurationMs:  durationMs,
 		RunAt:       runAt,
 		Status:      "success",
@@ -197,7 +205,7 @@ func ExecuteScheduledCommand(command string, triggeredBy string) (*ScheduleRunRe
 		result.Error = callErr.Error()
 	}
 
-	putScheduleLastRun(command, &scheduleLastRunCache{
+	putScheduleLastRun(baseCommand, &scheduleLastRunCache{
 		Status:      result.Status,
 		Error:       result.Error,
 		Output:      result.Output,
@@ -210,6 +218,61 @@ func ExecuteScheduledCommand(command string, triggeredBy string) (*ScheduleRunRe
 		return result, apperrors.WrapError(callErr, apperrors.ErrScheduleRunFailed.Code, apperrors.ErrScheduleRunFailed.Message)
 	}
 	return result, nil
+}
+
+// scopeManualScheduleCommand forces --tenant for HTTP manual runs so a tenant admin
+// cannot fan out RunTenantScoped ops across all tenants.
+func scopeManualScheduleCommand(ctx context.Context, command string) (string, error) {
+	if !tenancy.Enabled() {
+		return command, nil
+	}
+	if hasTenantFlag(command) {
+		return "", apperrors.ErrScheduleCommandNotAllowed
+	}
+	if code, ok := tenancyctx.CodeFrom(ctx); ok && code != "" {
+		return command + " --tenant=" + code, nil
+	}
+	if id, ok := tenancyctx.IDFrom(ctx); ok && id > 0 {
+		return fmt.Sprintf("%s --tenant=%d", command, id), nil
+	}
+	return "", apperrors.ErrTenantRequired
+}
+
+func hasTenantFlag(command string) bool {
+	fields := strings.Fields(command)
+	for _, f := range fields {
+		if f == "--tenant" || f == "-T" || strings.HasPrefix(f, "--tenant=") || strings.HasPrefix(f, "-T=") {
+			return true
+		}
+	}
+	return false
+}
+
+func scheduleCommandBase(command string) string {
+	fields := strings.Fields(strings.TrimSpace(command))
+	if len(fields) == 0 {
+		return command
+	}
+	out := make([]string, 0, len(fields))
+	skipNext := false
+	for _, f := range fields {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if f == "--tenant" || f == "-T" {
+			skipNext = true
+			continue
+		}
+		if strings.HasPrefix(f, "--tenant=") || strings.HasPrefix(f, "-T=") {
+			continue
+		}
+		out = append(out, f)
+	}
+	if len(out) == 0 {
+		return command
+	}
+	return strings.Join(out, " ")
 }
 
 func callArtisanWithCapturedOutput(command string) (string, error) {
