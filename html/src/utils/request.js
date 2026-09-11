@@ -7,6 +7,7 @@ import { useAppStore } from '../store/app'
 import i18n from '../i18n'
 import logger from './logger'
 import Storage from './storage'
+import { applyTenantHeader } from './tenant'
 
 const { t } = i18n.global
 
@@ -77,7 +78,9 @@ request.interceptors.request.use(
     if (timezone) {
       config.headers['X-Timezone'] = timezone
     }
-    
+
+    applyTenantHeader(config.headers)
+
     // 支持请求取消（如果传递了 signal）
     // axios 会自动处理 config.signal
     return config

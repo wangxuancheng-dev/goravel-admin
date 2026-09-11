@@ -47,13 +47,13 @@ func Admin() {
 	// Admin 路由组：统一前缀和域名限制
 	facades.Route().Prefix("api/admin").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 
-		// 登录 / 验证码（tenancy 开启时 Login 内解析租户；验证码仍走默认/平台缓存）
+		// 登录：body 内解析租户；验证码 / 公开附件：Header 解析租户（off 时 Tenant 为 no-op）
 		router.Middleware(middleware.Lang()).Group(func(router route.Router) {
 			router.Middleware(httpmiddleware.Throttle("login")).Post("login", adminAuthController.Login)
-			router.Get("login/captcha", adminAuthController.Captcha)
-
-			// 公开附件：tenancy 开启时需带租户标识
-			router.Middleware(middleware.Tenant()).Get("public/images/{id}", attachmentController.PublicPreview)
+			router.Middleware(middleware.Tenant()).Group(func(router route.Router) {
+				router.Get("login/captcha", adminAuthController.Captcha)
+				router.Get("public/images/{id}", attachmentController.PublicPreview)
+			})
 		})
 
 		// 已登录：Tenant → Jwt（off 时 Tenant 为 no-op）

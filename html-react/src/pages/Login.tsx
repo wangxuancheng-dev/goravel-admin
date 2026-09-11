@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { App, Button, Form, Input, Space, Typography, theme } from 'antd'
-import { LockOutlined, UserOutlined, ReloadOutlined } from '@ant-design/icons'
+import { LockOutlined, UserOutlined, ReloadOutlined, BankOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { login, getLoginCaptcha } from '@/api/auth'
@@ -9,9 +9,16 @@ import { useAppStore, THEME_COLORS } from '@/stores/app'
 import { ERROR_CODES, type ApiError } from '@/types'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
+import {
+  getTenantCode,
+  isTenancyEnabled,
+  resolveTenantCodeFromLocation,
+  setTenantCode,
+} from '@/utils/tenant'
 import './Login.scss'
 
 interface LoginFormValues {
+  tenant_code?: string
   username: string
   password: string
   google_code?: string
@@ -25,6 +32,7 @@ export default function LoginPage() {
   const [form] = Form.useForm<LoginFormValues>()
   const [loading, setLoading] = useState(false)
   const [needGoogleCode, setNeedGoogleCode] = useState(false)
+  const tenancyEnabled = useMemo(() => isTenancyEnabled(), [])
   const [captcha, setCaptcha] = useState<{
     enabled: boolean
     id: string
@@ -45,6 +53,9 @@ export default function LoginPage() {
   /** Check whether captcha is enabled (do not show image yet). */
   const checkCaptchaEnabled = async () => {
     try {
+      if (tenancyEnabled) {
+        setTenantCode(form.getFieldValue('tenant_code'))
+      }
       const res = await getLoginCaptcha({ check: true })
       const info = res.data?.captcha
       setCaptcha((prev) => ({
@@ -62,6 +73,9 @@ export default function LoginPage() {
   /** Fetch captcha image and show the field. */
   const fetchCaptcha = async () => {
     try {
+      if (tenancyEnabled) {
+        setTenantCode(form.getFieldValue('tenant_code'))
+      }
       const res = await getLoginCaptcha()
       const info = res.data?.captcha
       setCaptcha({
@@ -77,15 +91,28 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
+    const fromQuery = resolveTenantCodeFromLocation()
+    const initialTenant = fromQuery || getTenantCode()
+    if (initialTenant) {
+      form.setFieldValue('tenant_code', initialTenant)
+      setTenantCode(initialTenant)
+    }
     void checkCaptchaEnabled()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
   }, [])
 
   const handleSubmit = async (values: LoginFormValues) => {
     setLoading(true)
     try {
+      if (tenancyEnabled) {
+        setTenantCode(values.tenant_code)
+      }
       const payload = {
         username: values.username,
         password: values.password,
+        ...(tenancyEnabled && values.tenant_code
+          ? { tenant_code: String(values.tenant_code).trim().toLowerCase() }
+          : {}),
         ...(needGoogleCode ? { google_code: values.google_code } : {}),
         ...(!needGoogleCode && captcha.shouldShow
           ? { captcha_id: captcha.id, captcha_answer: values.captcha_answer }
@@ -185,6 +212,28 @@ export default function LoginPage() {
             <Typography.Paragraph type="secondary">{t('login.page_description')}</Typography.Paragraph>
 
             <Form form={form} layout="vertical" size="large" onFinish={handleSubmit} requiredMark={false}>
+              {tenancyEnabled && (
+                <Form.Item
+                  name="tenant_code"
+                  rules={[{ required: true, message: t('login.tenant_code_required') }]}
+                >
+                  <Input
+                    prefix={<BankOutlined />}
+                    placeholder={t('login.tenant_code_placeholder')}
+                    autoComplete="organization"
+                    onChange={(e) => {
+                      setTenantCode(e.target.value)
+                    }}
+                    onBlur={(e) => {
+                      setTenantCode(e.target.value)
+                      if (tenancyEnabled && String(e.target.value || '').trim()) {
+                        void checkCaptchaEnabled()
+                      }
+                    }}
+                  />
+                </Form.Item>
+              )}
+
               <Form.Item
                 name="username"
                 rules={[{ required: true, message: t('login.username_required') }]}

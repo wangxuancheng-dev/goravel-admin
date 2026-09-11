@@ -73,13 +73,17 @@ go run . artisan tenant:migrate-all
 
 ## 前端 / 调用方
 
-开启 tenancy 后：
+开启 tenancy 后（后端 `TENANCY_DRIVER=database`，前端同步设 `VITE_TENANCY_ENABLED=true` 或 `VITE_TENANCY_DRIVER=database`）：
 
-1. 登录传 `tenant_code`（或 Header）
-2. 之后每个 API（含公开预览图）带同一租户 Header / Query
+1. 登录页显示 **租户码**，提交 body 带 `tenant_code`，并写入本地存储
+2. 双前端 `request` 拦截器对后续 API（含验证码）自动加 Header `X-Tenant-ID`（可用 `VITE_TENANCY_HEADER` 改名）
+3. 支持 URL 预填：`/login?tenant_code=acme` 或 `?tenant=acme`
+4. 登出保留租户码，方便同一商户再次登录
+
+未开启前端开关时不显示租户字段；若本地已有 `tenant_code` 仍会带 Header（后端 `off` 时忽略）。
 
 ## 已废弃
 
-- 共享表 + `WHERE tenant_id` / `ScopeTenant` / GlobalScope 行级方案（见已归档说明 [TENANT_GLOBALSCOPE_MIGRATION.md](./TENANT_GLOBALSCOPE_MIGRATION.md)）
+- 共享表 + `WHERE tenant_id` / `ScopeTenant` / GlobalScope 行级方案（已移除相关文档与空壳代码）
 - 「认证在平台库、业务在租户库」的折中中间态
 - 用「无 tenant_id」误判「超级管理员」的 helpers

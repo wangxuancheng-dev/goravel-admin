@@ -10,6 +10,7 @@ import { ERROR_CODES } from '@/types'
 import type { ApiError, ApiResponse } from '@/types'
 import { http } from './http'
 import type { RequestConfig } from './http'
+import { applyTenantHeader } from './tenant'
 
 let isRedirecting = false
 let last403ErrorTime = 0
@@ -123,6 +124,7 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (timezone) {
     config.headers['X-Timezone'] = timezone
   }
+  applyTenantHeader(config.headers as Record<string, unknown>)
   return config
 })
 

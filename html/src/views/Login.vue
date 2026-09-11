@@ -45,6 +45,15 @@
             :rules="loginRules"
             class="login-form"
           >
+            <el-form-item v-if="tenancyEnabled" prop="tenant_code">
+              <el-input
+                v-model="loginForm.tenant_code"
+                :placeholder="$t('login.tenant_code')"
+                size="large"
+                class="login-input"
+                @change="onTenantCodeChange"
+              />
+            </el-form-item>
             <el-form-item prop="username">
               <el-input
                 v-model="loginForm.username"
@@ -134,19 +143,27 @@ import { useAppStore, THEME_COLORS } from '../store/app'
 import LanguageSwitch from '../components/LanguageSwitch.vue'
 import DarkModeSwitch from '../components/DarkModeSwitch.vue'
 import { ERROR_CODES } from '../utils/request'
+import Storage from '../utils/storage'
+import {
+  getTenantCode,
+  isTenancyEnabled,
+  resolveTenantCodeFromLocation,
+  setTenantCode
+} from '../utils/tenant'
 
 const appStore = useAppStore()
 const themeColorOptions = THEME_COLORS
-import Storage from '../utils/storage'
 
 const router = useRouter()
 const userStore = useUserStore()
 const { t } = useI18n()
 
+const tenancyEnabled = isTenancyEnabled()
 const loginFormRef = ref(null)
 const loading = ref(false)
 
 const loginForm = reactive({
+  tenant_code: '',
   username: '',
   password: '',
   captcha_answer: '',
@@ -163,6 +180,9 @@ const captchaInfo = reactive({
 const needGoogleCode = ref(false)
 
 const loginRules = computed(() => ({
+  tenant_code: tenancyEnabled
+    ? [{ required: true, message: t('login.tenant_code_required'), trigger: 'blur' }]
+    : [],
   username: [
     { required: true, message: t('login.username_required'), trigger: 'blur' }
   ],
@@ -180,9 +200,19 @@ const loginRules = computed(() => ({
     : []
 }))
 
+const onTenantCodeChange = () => {
+  setTenantCode(loginForm.tenant_code)
+  if (tenancyEnabled && loginForm.tenant_code) {
+    checkCaptchaEnabled()
+  }
+}
+
 // 获取图形验证码配置（不自动获取图片）
 const checkCaptchaEnabled = async () => {
   try {
+    if (tenancyEnabled) {
+      setTenantCode(loginForm.tenant_code)
+    }
     const res = await getLoginCaptcha({ check: true })
     const captcha = res.data?.captcha || {}
     captchaInfo.enabled = !!captcha.enabled
@@ -198,6 +228,9 @@ const checkCaptchaEnabled = async () => {
 // 获取图形验证码图片（当需要显示时才获取）
 const fetchCaptcha = async () => {
   try {
+    if (tenancyEnabled) {
+      setTenantCode(loginForm.tenant_code)
+    }
     const res = await getLoginCaptcha()
     const captcha = res.data?.captcha || {}
     captchaInfo.enabled = !!captcha.enabled
@@ -219,6 +252,12 @@ const fetchCaptcha = async () => {
 }
 
 onMounted(() => {
+  const fromQuery = resolveTenantCodeFromLocation()
+  const initialTenant = fromQuery || getTenantCode()
+  if (initialTenant) {
+    loginForm.tenant_code = initialTenant
+    setTenantCode(initialTenant)
+  }
   // 只检查图形验证码是否启用，不自动获取图片
   checkCaptchaEnabled()
 })
@@ -233,9 +272,15 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
+        if (tenancyEnabled) {
+          setTenantCode(loginForm.tenant_code)
+        }
         const payload = {
           username: loginForm.username,
           password: loginForm.password
+        }
+        if (tenancyEnabled && loginForm.tenant_code) {
+          payload.tenant_code = String(loginForm.tenant_code).trim().toLowerCase()
         }
         
         // 如果已经需要谷歌验证码，添加谷歌验证码
