@@ -24,6 +24,10 @@ interface MenuRow {
   status?: number
   sort?: number
   parent_id?: number | string
+  link_type?: number
+  open_type?: number
+  no_cache?: number
+  is_hidden?: number
   children?: MenuRow[]
 }
 
@@ -44,6 +48,10 @@ function flattenOrTree(list: unknown[]): MenuRow[] {
       status: Number(entityField(row, 'status', 1) ?? 1),
       sort: Number(entityField(row, 'sort', 0) ?? 0),
       parent_id: entityField(row, 'parent_id', 0) as number | string,
+      link_type: Number(entityField(row, 'link_type', 1) ?? 1) || 1,
+      open_type: Number(entityField(row, 'open_type', 1) ?? 1) || 1,
+      no_cache: Number(entityField(row, 'no_cache', 0) ?? 0),
+      is_hidden: Number(entityField(row, 'is_hidden', 0) ?? 0),
       children: Array.isArray(row.children)
         ? flattenOrTree(row.children as unknown[])
         : undefined,
@@ -69,6 +77,7 @@ export default function MenuList() {
   const showError = useUnhandledError()
   const { getButtonState } = usePermission()
   const [form] = Form.useForm()
+  const linkType = Form.useWatch('link_type', form)
   const [data, setData] = useState<MenuRow[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
@@ -96,22 +105,28 @@ export default function MenuList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const defaultFormValues = {
+    title: '',
+    slug: '',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    status: 1,
+    sort: 0,
+    parent_id: 0,
+    link_type: 1,
+    open_type: 1,
+    no_cache: 0,
+    is_hidden: 0,
+  }
+
   const { toolbar, confirmDelete } = useCrudActions({
     createPermission: 'menu.store',
     onRefresh: load,
     onCreate: () => {
       setEditId(null)
-      form.setFieldsValue({
-        title: '',
-        slug: '',
-        path: '',
-        component: '',
-        icon: '',
-        type: 2,
-        status: 1,
-        sort: 0,
-        parent_id: 0,
-      })
+      form.setFieldsValue(defaultFormValues)
       setOpen(true)
     },
     deleteApi: deleteMenu,
@@ -131,11 +146,50 @@ export default function MenuList() {
   }
 
   const columns: ColumnsType<MenuRow> = [
-    { title: t('common.name'), dataIndex: 'title', width: 220 },
-    { title: t('common.slug'), dataIndex: 'slug', width: 140 },
-    { title: t('common.path'), dataIndex: 'path', width: 160 },
-    { title: t('common.component'), dataIndex: 'component', ellipsis: true },
-    { title: t('common.icon'), dataIndex: 'icon', width: 100 },
+    { title: t('common.name'), dataIndex: 'title', width: 200 },
+    { title: t('common.slug'), dataIndex: 'slug', width: 120 },
+    { title: t('common.path'), dataIndex: 'path', width: 140 },
+    { title: t('common.component'), dataIndex: 'component', ellipsis: true, width: 160 },
+    {
+      title: t('menu_management.link_type'),
+      dataIndex: 'link_type',
+      width: 110,
+      render: (v: number) => (
+        <Tag color={v === 1 ? 'blue' : 'green'}>
+          {v === 1 ? t('menu_management.link_type_internal') : t('menu_management.link_type_external')}
+        </Tag>
+      ),
+    },
+    {
+      title: t('menu_management.open_type'),
+      dataIndex: 'open_type',
+      width: 120,
+      render: (v: number, row) =>
+        row.link_type === 2 ? (
+          <Tag color={v === 1 ? 'default' : 'orange'}>
+            {v === 1 ? t('menu_management.open_type_iframe') : t('menu_management.open_type_new_window')}
+          </Tag>
+        ) : (
+          '-'
+        ),
+    },
+    {
+      title: t('menu_management.no_cache'),
+      dataIndex: 'no_cache',
+      width: 90,
+      render: (v: number) =>
+        v === 1 ? <Tag>{t('menu_management.no_cache_no')}</Tag> : <Tag color="success">{t('menu_management.no_cache_yes')}</Tag>,
+    },
+    {
+      title: t('menu_management.is_hidden'),
+      dataIndex: 'is_hidden',
+      width: 90,
+      render: (v: number) => (
+        <Tag color={v === 0 ? 'success' : 'default'}>
+          {v === 0 ? t('menu_management.is_hidden_show') : t('menu_management.is_hidden_hide')}
+        </Tag>
+      ),
+    },
     {
       title: t('common.type'),
       dataIndex: 'type',
@@ -148,7 +202,7 @@ export default function MenuList() {
       width: 90,
       render: (status: number) => <StatusTag status={status} />,
     },
-    { title: t('common.sort'), dataIndex: 'sort', width: 80 },
+    { title: t('common.sort'), dataIndex: 'sort', width: 70 },
     {
       title: t('common.operation'),
       key: 'operation',
@@ -165,6 +219,10 @@ export default function MenuList() {
                 form.setFieldsValue({
                   ...row,
                   parent_id: Number(row.parent_id || 0),
+                  link_type: row.link_type || 1,
+                  open_type: row.open_type || 1,
+                  no_cache: row.no_cache ?? 0,
+                  is_hidden: row.is_hidden ?? 0,
                 })
                 setOpen(true)
               }}
@@ -191,6 +249,7 @@ export default function MenuList() {
     try {
       const values = await form.validateFields()
       setSubmitting(true)
+      const link = Number(values.link_type || 1)
       const payload = {
         ...values,
         title: values.title,
@@ -198,6 +257,11 @@ export default function MenuList() {
         type: Number(values.type),
         status: Number(values.status),
         sort: Number(values.sort || 0),
+        link_type: link,
+        open_type: Number(values.open_type || 1),
+        no_cache: Number(values.no_cache || 0),
+        is_hidden: Number(values.is_hidden || 0),
+        component: link === 1 ? values.component : '',
       }
       if (editId) {
         await updateMenu(editId, payload)
@@ -234,7 +298,7 @@ export default function MenuList() {
         columns={columns}
         dataSource={data}
         pagination={false}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1600 }}
         expandable={{
           expandedRowKeys: expandedKeys,
           onExpandedRowsChange: (keys) => setExpandedKeys(keys as Array<string | number>),
@@ -247,14 +311,14 @@ export default function MenuList() {
         onOk={() => void handleSubmit()}
         confirmLoading={submitting}
         destroyOnHidden
-        width={640}
+        width={680}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" initialValues={defaultFormValues}>
           <Form.Item name="title" label={t('common.name')} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item name="slug" label={t('common.slug')} rules={[{ required: true }]}>
-            <Input />
+            <Input placeholder={t('menu_management.slug_placeholder')} />
           </Form.Item>
           <Form.Item name="parent_id" label={t('common.parent')}>
             <TreeSelect
@@ -264,12 +328,61 @@ export default function MenuList() {
               placeholder={t('common.parent')}
             />
           </Form.Item>
-          <Form.Item name="path" label={t('common.path')}>
-            <Input />
+          <Form.Item name="link_type" label={t('menu_management.link_type')}>
+            <Radio.Group
+              options={[
+                { label: t('menu_management.link_type_internal'), value: 1 },
+                { label: t('menu_management.link_type_external'), value: 2 },
+              ]}
+            />
           </Form.Item>
-          <Form.Item name="component" label={t('common.component')}>
-            <Input placeholder="admin/AdminList" />
+          <Form.Item
+            name="path"
+            label={t('common.path')}
+            rules={[
+              { required: true, message: t('menu_management.path_required') },
+              ...(linkType === 2
+                ? [
+                    {
+                      type: 'url' as const,
+                      message: t('menu_management.path_url_invalid'),
+                    },
+                  ]
+                : []),
+            ]}
+          >
+            <Input
+              placeholder={
+                linkType === 2
+                  ? t('menu_management.path_placeholder_external')
+                  : t('menu_management.path_placeholder_internal')
+              }
+            />
           </Form.Item>
+          {linkType === 2 ? (
+            <Form.Item name="open_type" label={t('menu_management.open_type')}>
+              <Radio.Group
+                options={[
+                  { label: t('menu_management.open_type_iframe'), value: 1 },
+                  { label: t('menu_management.open_type_new_window'), value: 2 },
+                ]}
+              />
+            </Form.Item>
+          ) : (
+            <>
+              <Form.Item name="component" label={t('common.component')}>
+                <Input placeholder={t('menu_management.component_placeholder')} />
+              </Form.Item>
+              <Form.Item name="no_cache" label={t('menu_management.no_cache')}>
+                <Radio.Group
+                  options={[
+                    { label: t('menu_management.no_cache_yes'), value: 0 },
+                    { label: t('menu_management.no_cache_no'), value: 1 },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
           <Form.Item name="icon" label={t('common.icon')}>
             <Input placeholder="Setting" />
           </Form.Item>
@@ -279,6 +392,18 @@ export default function MenuList() {
                 { label: t('menu_page.type_directory'), value: 1 },
                 { label: t('menu_page.type_menu'), value: 2 },
                 { label: t('menu_page.type_button'), value: 3 },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="is_hidden"
+            label={t('menu_management.is_hidden')}
+            extra={t('menu_management.is_hidden_tip')}
+          >
+            <Radio.Group
+              options={[
+                { label: t('menu_management.is_hidden_show'), value: 0 },
+                { label: t('menu_management.is_hidden_hide'), value: 1 },
               ]}
             />
           </Form.Item>
