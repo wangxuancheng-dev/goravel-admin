@@ -113,7 +113,7 @@ PLATFORM_ADMIN_NAME=平台管理员
 ```
 前端：`VITE_TENANCY_ENABLED=true`（或 `VITE_TENANCY_DRIVER=database`）。
 
-## 生产要点（P0）
+## 生产要点
 
 1. **平台连接钉死**：`PlatformOrmQuery` 使用 `tenancy.platform_connection`，不跟随 migrate 时临时翻转的 `database.default`。
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
@@ -129,7 +129,7 @@ PLATFORM_ADMIN_NAME=平台管理员
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20），避免几百商户打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
-## 运维增强（P1）
+## 运维增强
 
 1. **Landlord 迁移跳过**：平台表迁移（`tenants` / `platform_admins` / `jobs` / provision/migrate meta）在 `tenant_*` 连接上 `SkipOnTenantConnection` 空跑，避免污染租户库。
 2. **Migrate 可见性**：`last_migrate_error` / `migrated_at`；失败写 `provision_status=failed`。

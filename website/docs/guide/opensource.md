@@ -228,5 +228,5 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 | [多租户](/advanced/tenancy) | 一户一库 / PG Schema 多租户（`TENANCY_DRIVER=database`） |
 | [搜索](/advanced/search) | Elasticsearch / Meilisearch 切换、订单同步、文章扩展 |
 | [生产清单](/deploy/production) | 生产上线清单、`/health` `/ready`、告警 |
-| [SaaS 核对清单](/advanced/saas) | 中小 SaaS 分项目标与上线核对清单 |
+| [SaaS 核对清单](/advanced/saas) | 中小 SaaS 上线核对清单 |
 | [支付参考](/advanced/payments) | 订单/支付参考链路、mock 与微信支付宝扩展点 |

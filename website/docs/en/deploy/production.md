@@ -1,6 +1,6 @@
 # Production checklist
 
-Ops conventions for public deploy. Feature boundaries: [Open-source scope](/en/guide/opensource). Multi-tenancy: [Tenancy](/en/advanced/tenancy). SaaS scorecard: [SaaS checklist](/en/advanced/saas).
+Ops conventions for public deploy. Feature boundaries: [Open-source scope](/en/guide/opensource). Multi-tenancy: [Tenancy](/en/advanced/tenancy). Go-live checklist: [SaaS checklist](/en/advanced/saas).
 
 Full Chinese detail: [生产清单](/deploy/production).
 
