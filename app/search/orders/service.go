@@ -32,7 +32,6 @@ func SyncEnabled() bool {
 }
 
 // QueryEnabled 订单列表/检索是否应走搜索引擎（同步开启且当前驱动检索可用）。
-// Meilisearch 等骨架驱动会返回 false，业务层应直接走分表 DB，避免空跑回退。
 func QueryEnabled() bool {
 	if !SyncEnabled() {
 		return false

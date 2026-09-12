@@ -49,10 +49,7 @@ func OutboxEnabled() bool {
 
 // OrdersSyncEnabled 订单是否同步到当前搜索引擎。
 func OrdersSyncEnabled() bool {
-	if !Enabled() {
-		return false
-	}
-	return facades.Config().GetBool("search.indexes.orders.sync_enabled", false)
+	return ResourceSyncEnabled(ResourceOrders)
 }
 
 // OrdersIndexShortName 订单索引配置短名（不含租户段、不含 ES 前缀）。
@@ -68,7 +65,15 @@ func OrdersIndexShortName() string {
 // 例：acme_orders / t3_orders。
 // tenancy 开启但未绑定租户时返回空字符串（fail-closed，避免写入共享 orders 索引）。
 func OrdersIndexShortNameFor(ctx context.Context) string {
-	base := OrdersIndexShortName()
+	return PrefixedIndexShortName(ctx, OrdersIndexShortName())
+}
+
+// PrefixedIndexShortName 为任意资源短名加租户前缀（fail-closed）。
+func PrefixedIndexShortName(ctx context.Context, base string) string {
+	base = strings.TrimSpace(base)
+	if base == "" {
+		return ""
+	}
 	if !tenancy.Enabled() {
 		return base
 	}
@@ -118,6 +123,6 @@ func ShouldRunQueueWorker() bool {
 	case "true", "1", "yes", "on":
 		return true
 	default:
-		return OrdersSyncEnabled()
+		return AnyResourceSyncEnabled()
 	}
 }

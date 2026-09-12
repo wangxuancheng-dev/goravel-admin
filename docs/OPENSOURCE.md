@@ -156,17 +156,20 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 ### 4.3 搜索引擎（Elasticsearch / Meilisearch）
 
+详见 [SEARCH.md](./SEARCH.md)。
+
 ```ini
-SEARCH_DRIVER=elasticsearch
+SEARCH_DRIVER=elasticsearch   # 或 meilisearch
 SEARCH_ENABLED=true
 SEARCH_SYNC_ORDERS=true
 SEARCH_QUEUE=search
 SEARCH_SYNC_WORKER=auto
 # SEARCH_OUTBOX_ENABLED=true
 ELASTICSEARCH_URLS=http://127.0.0.1:9200
+# MEILISEARCH_HOST=http://127.0.0.1:7700
 ```
 
-需要搜索集群 + `queue-search` Worker。Outbox 积压可用 `go run . artisan search:retry-outbox` 补偿（已加入每小时定时任务）。初始化索引：`search:init-orders-index`，全量同步：`search:sync-orders`。
+需要搜索集群 + `queue-search` Worker。Outbox 积压可用 `go run . artisan search:retry-outbox` 补偿。初始化：`search:init-orders-index`，全量：`search:sync-orders`。其他业务索引用 `search.RegisterDefinition` 扩展（见 [SEARCH.md](./SEARCH.md)）。
 
 ### 4.4 OpenTelemetry
 
@@ -206,3 +209,5 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 | [ERROR_CODES.md](./ERROR_CODES.md) | 错误码 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 架构 |
 | [TENANT_RESERVED.md](./TENANT_RESERVED.md) | 一户一库 / PG Schema 多租户（`TENANCY_DRIVER=database`） |
+| [SEARCH.md](./SEARCH.md) | Elasticsearch / Meilisearch 切换、订单同步、文章扩展 |
+| [PRODUCTION.md](./PRODUCTION.md) | 生产上线清单、`/health` `/ready`、告警 |

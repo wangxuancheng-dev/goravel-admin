@@ -73,7 +73,8 @@ func (e *Engine) EnsureIndex(ctx context.Context, index string) error {
 	if search.IsOrdersIndexShortName(index) {
 		return EnsureOrdersIndexNamed(ctx, e, index)
 	}
-	// 未知索引：仅检查存在性，不自动建 mapping
+	// Other registered resources: module code should create mapping (or use Meili auto-settings).
+	// Unknown / unregistered: only verify the index already exists.
 	full := e.fullIndex(index)
 	res, err := e.client.Indices.Exists([]string{full}, e.client.Indices.Exists.WithContext(ctx))
 	if err != nil {

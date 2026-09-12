@@ -26,6 +26,7 @@
 
 - **database**：默认库 `Ping`（始终）
 - **redis**：当 `CACHE_STORE=redis` 或队列驱动为 redis/redisstream 时 Ping；否则 `skipped`
+- **search**：当 `SEARCH_ENABLED=true` 时对当前驱动 `Ping`；否则 `skipped`
 
 Kubernetes 示例：
 

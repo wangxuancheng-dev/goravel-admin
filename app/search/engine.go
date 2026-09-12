@@ -12,7 +12,7 @@ const (
 	DriverNull          = "null"
 )
 
-// ErrUnsupported 表示当前驱动尚未实现某能力（如 Meilisearch 骨架）。
+// ErrUnsupported 表示当前驱动尚未实现某能力（业务层可回退 DB）。
 var ErrUnsupported = errors.New("search: operation not supported by current driver")
 
 // Engine 可切换的搜索引擎抽象（类似 Laravel Scout Engine）。
@@ -53,10 +53,10 @@ type SearchResult struct {
 }
 
 // QueryReadyEngine 可选能力：驱动声明全文/筛选检索是否已真正可用。
-// 骨架驱动（如未完成的 Meilisearch）应返回 false，避免业务层每次空跑再回退。
 type QueryReadyEngine interface {
 	QueryReady() bool
 }
+
 
 // EngineQueryReady 判断引擎是否可用于订单等业务检索。
 func EngineQueryReady(e Engine) bool {

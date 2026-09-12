@@ -9,6 +9,7 @@ import (
 
 	"goravel/app/clients"
 	appfacades "goravel/app/facades"
+	"goravel/app/search"
 )
 
 // Check is one readiness probe result.
@@ -50,6 +51,7 @@ func Ready(ctx context.Context) Report {
 			Detail:  "cache/queue not using redis",
 		})
 	}
+	checks = append(checks, checkSearch(ctx))
 
 	ok := true
 	for _, c := range checks {
@@ -112,4 +114,24 @@ func checkRedis(parent context.Context) Check {
 		return Check{Name: "redis", OK: false, Detail: err.Error()}
 	}
 	return Check{Name: "redis", OK: true}
+}
+
+func checkSearch(parent context.Context) Check {
+	if !search.Enabled() {
+		return Check{Name: "search", OK: true, Skipped: true, Detail: "search disabled"}
+	}
+	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
+	defer cancel()
+	engine, err := search.Resolve()
+	if err != nil || engine == nil {
+		detail := "resolve failed"
+		if err != nil {
+			detail = err.Error()
+		}
+		return Check{Name: "search", OK: false, Detail: detail}
+	}
+	if err := engine.Ping(ctx); err != nil {
+		return Check{Name: "search", OK: false, Detail: engine.Name() + ": " + err.Error()}
+	}
+	return Check{Name: "search", OK: true, Detail: engine.Name()}
 }

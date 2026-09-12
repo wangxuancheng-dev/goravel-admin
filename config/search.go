@@ -19,6 +19,7 @@ func init() {
 				"sync_enabled": config.Env("SEARCH_SYNC_ORDERS", false),
 				"name":         config.Env("SEARCH_ORDERS_INDEX", "orders"),
 			},
+			// 其他资源：在业务模块 RegisterDefinition + 增加 search.indexes.<key> 配置
 		},
 	})
 }
