@@ -147,7 +147,11 @@ When implementing changes, include:
 - Test plan (targeted `go test` + manual requests)
 
 ## References
+- `website/docs/guide/getting-started.md` — local + Docker quick start
 - `website/docs/advanced/tenancy.md` — multi-tenant (off vs database-per-tenant); prefer `OrmQuery(ctx)` / `tenancy.CacheKey`
+- `website/docs/advanced/sharding.md` / `sharding-query.md` — sharding strategies and shared query service
+- `website/docs/reference/drivers.md` — optional DM / queue driver modules (remote; no vendored `driver/` tree)
+- `website/docs/advanced/ai-module.md` — AI codegen prompt notes
 - `app/services/templates/controller.tpl` — generator template (canonical)
 - `app/http/controllers/admin/generated_helpers.go` — shared Validate/HandleGeneratedServiceError
 - `app/http/controllers/admin/article_controller.go` — latest generated example

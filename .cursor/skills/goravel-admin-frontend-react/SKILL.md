@@ -113,3 +113,5 @@ When implementing React frontend changes, include:
 - Patterns: [examples.md](examples.md)
 - Errors / env: [reference.md](reference.md)
 - Project overview: `html-react/README.md`
+- Dual-frontend checklist: `website/docs/guide/frontend-parity.md`
+- Project docs site: `website/` (VitePress; not repo-root `docs/`)

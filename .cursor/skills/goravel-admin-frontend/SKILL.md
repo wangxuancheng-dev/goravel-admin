@@ -48,8 +48,8 @@ Therefore:
 - For login/logout pages, expect errors to be unhandled and display them locally.
 
 ### Paginated list responses
-Backend returns rows under `res.data.list` for code-generated CRUD (e.g. article).
-Legacy payment/order modules use `res.data.data`.
+Backend returns rows under `res.data.list` for admin list endpoints (code generator and migrated modules).
+`normalizeListResponse` / list helpers still accept legacy `data` for compatibility; **new work must use `list`**.
 `useStandardListPage` handles both keys.
 
 ## API layer conventions
@@ -74,3 +74,5 @@ When implementing frontend changes, always include:
 ## Additional resources
 - For module patterns, API templates, and page wiring examples, see [examples.md](examples.md).
 - For response/error-code mapping and i18n keys, see [reference.md](reference.md).
+- Dual-frontend checklist: `website/docs/guide/frontend-parity.md`
+- Project docs site: `website/` (VitePress; not repo-root `docs/`)

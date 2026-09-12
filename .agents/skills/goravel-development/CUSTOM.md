@@ -42,10 +42,26 @@ routes/
   web.go                    # Web/static routes
 html/                       # Vue 3 + Element Plus admin SPA
 html-react/                 # React 19 + Ant Design admin SPA
-website/                    # VitePress docs (zh/en)
+website/                    # VitePress docs (zh under docs/, en under docs/en/)
+                            # Local/Docker quick start: website/docs/guide/getting-started.md
+                            # Cloudflare Workers: website/wrangler.toml + website/README.md
 config/                     # Goravel config (one file per concern)
 lang/                       # Backend i18n (zh-CN, en-US, …)
 ```
+
+## Project docs (single source)
+
+Do **not** invent docs under repo-root `docs/` (Swagger only). Edit VitePress:
+
+| Topic | Path |
+|-------|------|
+| Quick start (local + Docker) | `website/docs/guide/getting-started.md` |
+| Opensource / modules | `website/docs/guide/opensource.md` |
+| Development CRUD | `website/docs/guide/development.md` |
+| Frontend parity | `website/docs/guide/frontend-parity.md` |
+| Drivers (DM / queues) | `website/docs/reference/drivers.md` |
+| Tenancy / sharding / AI prompt | `website/docs/advanced/*.md` |
+| Docs site Cloudflare deploy | `website/README.md` |
 
 ## Bootstrap & routing
 

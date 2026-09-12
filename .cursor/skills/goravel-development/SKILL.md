@@ -34,4 +34,5 @@ Do not modify `SKILL.md` in `.agents/` when updating project rules; edit `CUSTOM
 - Go module: `goravel`; full scaffold (not lite); framework `v1.18.x`
 - Routes: `routes/admin.go`, `routes/api.go`; controllers under `app/http/controllers/`
 - Admin JSON helpers: `app/http/response/response.go`
+- Docs: VitePress under `website/` (`website/docs/…`); root `docs/` is Swagger only
 - Upstream skill source: [goravel/goravel-lite](https://github.com/goravel/goravel-lite) — upgrade by copying `.agents/skills/goravel-development/SKILL.md` from upstream and merging `CUSTOM.md` as needed
