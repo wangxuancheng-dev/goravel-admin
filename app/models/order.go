@@ -16,6 +16,13 @@ type Order struct {
 	// CreatedAt 字段由 orm.Model 提供，用于分表
 }
 
+// Order status values (stored as string).
+const (
+	OrderStatusPending   = "pending"
+	OrderStatusPaid      = "paid"
+	OrderStatusCancelled = "cancelled"
+)
+
 // TableName 指定表名（分表时会自动添加后缀）
 func (Order) TableName() string {
 	return "orders"

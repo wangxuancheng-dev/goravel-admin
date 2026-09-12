@@ -422,6 +422,16 @@ func (s *CodeGeneratorServiceImpl) Save(moduleName, tableName string, fields []F
 		}
 	}
 
+	if s.containsGeneratedExportJob(files) {
+		updated, err := s.syncQueueJobs(moduleName)
+		if err != nil {
+			return nil, err
+		}
+		if updated {
+			savedFiles = append(savedFiles, "app/providers/queue_service_provider.go")
+		}
+	}
+
 	return savedFiles, nil
 }
 
@@ -455,12 +465,32 @@ func (s *CodeGeneratorServiceImpl) ForceSave(moduleName, tableName string, field
 		}
 	}
 
+	if s.containsGeneratedExportJob(files) {
+		updated, err := s.syncQueueJobs(moduleName)
+		if err != nil {
+			return nil, err
+		}
+		if updated {
+			savedFiles = append(savedFiles, "app/providers/queue_service_provider.go")
+		}
+	}
+
 	return savedFiles, nil
 }
 
 func (s *CodeGeneratorServiceImpl) containsGeneratedAdminController(files []GeneratedFile) bool {
 	for _, file := range files {
 		if strings.HasPrefix(filepath.ToSlash(file.Path), "app/http/controllers/admin/") {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *CodeGeneratorServiceImpl) containsGeneratedExportJob(files []GeneratedFile) bool {
+	for _, file := range files {
+		base := filepath.Base(filepath.ToSlash(file.Path))
+		if strings.HasPrefix(filepath.ToSlash(file.Path), "app/jobs/") && strings.HasPrefix(base, "export_") && strings.HasSuffix(base, ".go") {
 			return true
 		}
 	}
@@ -529,6 +559,49 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 	}
 
 	return true, nil
+}
+
+// syncQueueJobs injects &jobs.Export{Model}s{} into QueueServiceProvider.Jobs().
+func (s *CodeGeneratorServiceImpl) syncQueueJobs(moduleName string) (bool, error) {
+	const queueProviderPath = "app/providers/queue_service_provider.go"
+	content, err := os.ReadFile(queueProviderPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", queueProviderPath, err)
+	}
+
+	updatedContent, updated := injectExportJobRegistration(string(content), toPascalCase(moduleName))
+	if !updated {
+		return false, nil
+	}
+
+	if err := os.WriteFile(queueProviderPath, []byte(updatedContent), 0644); err != nil {
+		return false, fmt.Errorf("failed to write %s: %w", queueProviderPath, err)
+	}
+	return true, nil
+}
+
+// injectExportJobRegistration inserts an Export{Model}s job line before the search-sync marker.
+func injectExportJobRegistration(content, modelName string) (string, bool) {
+	jobLine := fmt.Sprintf("\t\t&jobs.Export%ss{},", modelName)
+	if strings.Contains(content, jobLine) {
+		return content, false
+	}
+
+	marker := "\t\t// 搜索引擎同步任务"
+	if strings.Contains(content, marker) {
+		return strings.Replace(content, marker, jobLine+"\n"+marker, 1), true
+	}
+
+	idx := strings.LastIndex(content, "return []queue.Job{")
+	if idx >= 0 {
+		rest := content[idx:]
+		closeIdx := strings.Index(rest, "\n\t}")
+		if closeIdx >= 0 {
+			insertAt := idx + closeIdx
+			return content[:insertAt] + "\n" + jobLine + content[insertAt:], true
+		}
+	}
+	return content + "\n" + jobLine + "\n", true
 }
 
 func (s *CodeGeneratorServiceImpl) InstallModule(moduleName, tableName string, options map[string]bool, install *ModuleInstallConfig) (*ModuleInstallResult, error) {

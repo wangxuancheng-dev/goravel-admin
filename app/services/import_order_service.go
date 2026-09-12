@@ -14,6 +14,7 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
+	"goravel/app/models"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
@@ -280,7 +281,7 @@ func (s *ImportOrderService) importOrderGroup(orderService OrderService, orderKe
 	// 解析订单状态（默认为pending）
 	status := strings.ToLower(strings.TrimSpace(firstRow.Status))
 	if status == "" {
-		status = "pending"
+		status = models.OrderStatusPending
 	}
 	// 支持中英文状态转换
 	status = s.normalizeStatus(status)
@@ -349,7 +350,7 @@ func (s *ImportOrderService) importOrderGroup(orderService OrderService, orderKe
 	}
 
 	// 如果导入的订单有状态且不是pending，更新状态
-	if status != "pending" && status != order.Status {
+	if status != models.OrderStatusPending && status != order.Status {
 		// 解析创建时间（如果提供）
 		orderTime := time.Time{}
 		if firstRow.CreatedAt != "" {
@@ -377,12 +378,12 @@ func (s *ImportOrderService) normalizeStatus(status string) string {
 
 	// 中文状态映射
 	statusMap := map[string]string{
-		"待支付":       "pending",
-		"已支付":       "paid",
-		"已取消":       "cancelled",
-		"pending":   "pending",
-		"paid":      "paid",
-		"cancelled": "cancelled",
+		"待支付":                     models.OrderStatusPending,
+		"已支付":                     models.OrderStatusPaid,
+		"已取消":                     models.OrderStatusCancelled,
+		models.OrderStatusPending:   models.OrderStatusPending,
+		models.OrderStatusPaid:      models.OrderStatusPaid,
+		models.OrderStatusCancelled: models.OrderStatusCancelled,
 	}
 
 	if normalized, exists := statusMap[status]; exists {
@@ -390,5 +391,5 @@ func (s *ImportOrderService) normalizeStatus(status string) string {
 	}
 
 	// 默认返回pending
-	return "pending"
+	return models.OrderStatusPending
 }

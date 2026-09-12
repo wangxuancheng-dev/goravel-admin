@@ -1,15 +1,7 @@
 import type { TFunction } from 'i18next'
 
-export type PaymentMethodType =
-  | 'mock'
-  | 'wechat'
-  | 'alipay'
-  | 'qq'
-  | 'allinpay'
-  | 'lakala'
-  | 'paypal'
-  | 'apple'
-  | 'saobei'
+/** Backend-registered drivers only. Source of truth: RegisterPaymentGateway. */
+export type PaymentMethodType = 'mock' | 'wechat' | 'alipay'
 
 export interface PaymentMethodSearchForm {
   name: string
@@ -33,17 +25,7 @@ export interface PaymentMethodConfigField {
   options?: { label: string; value: string }[]
 }
 
-export const PAYMENT_METHOD_TYPES: PaymentMethodType[] = [
-  'mock',
-  'wechat',
-  'alipay',
-  'qq',
-  'allinpay',
-  'lakala',
-  'paypal',
-  'apple',
-  'saobei',
-]
+export const PAYMENT_METHOD_TYPES: PaymentMethodType[] = ['mock', 'wechat', 'alipay']
 
 export const CONFIG_KEY_ALIASES: Partial<Record<PaymentMethodType, Record<string, string>>> = {
   wechat: {
@@ -60,6 +42,7 @@ export const paymentMethodInitialSearchForm: PaymentMethodSearchForm = {
   description: '',
 }
 
+/** Unknown enabled types get [] fields (custom drivers). */
 export const PAYMENT_TYPE_CONFIG_FIELDS: Record<PaymentMethodType, PaymentMethodConfigField[]> = {
   mock: [
     { key: 'shared_secret', type: 'input', inputType: 'password', group: 'basic', labelKey: 'cfg_shared_secret', placeholderKey: 'cfg_shared_secret_ph', tipKey: 'tip_mock_shared_secret' },
@@ -80,57 +63,12 @@ export const PAYMENT_TYPE_CONFIG_FIELDS: Record<PaymentMethodType, PaymentMethod
     { key: 'gateway', type: 'input', group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
     { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
   ],
-  qq: [
-    { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_qq_app_id_ph' },
-    { key: 'app_key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_app_key', placeholderKey: 'cfg_app_key_ph' },
-    { key: 'mch_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_mch_id', placeholderKey: 'cfg_mch_id_ph' },
-    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
-  ],
-  allinpay: [
-    { key: 'merchant_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_merchant_id', placeholderKey: 'cfg_allinpay_merchant_ph' },
-    { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_allinpay_app_id_ph' },
-    { key: 'app_key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_app_key', placeholderKey: 'cfg_app_key_ph' },
-    { key: 'gateway', type: 'input', group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
-    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
-  ],
-  lakala: [
-    { key: 'merchant_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_merchant_id', placeholderKey: 'cfg_lakala_merchant_ph' },
-    { key: 'terminal_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_terminal_id', placeholderKey: 'cfg_terminal_id_ph' },
-    { key: 'key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_secret_key', placeholderKey: 'cfg_secret_key_ph' },
-    { key: 'gateway', type: 'input', group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
-    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
-  ],
-  paypal: [
-    { key: 'client_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_client_id', placeholderKey: 'cfg_client_id_ph' },
-    { key: 'client_secret', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_client_secret', placeholderKey: 'cfg_client_secret_ph' },
-    {
-      key: 'mode',
-      type: 'select',
-      group: 'advanced',
-      labelKey: 'cfg_mode',
-      placeholderKey: 'cfg_mode_ph',
-      options: [
-        { label: 'Sandbox', value: 'sandbox' },
-        { label: 'Live', value: 'live' },
-      ],
-    },
-    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
-  ],
-  apple: [
-    { key: 'merchant_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_apple_merchant_id', placeholderKey: 'cfg_apple_merchant_id_ph' },
-    { key: 'key_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_key_id', placeholderKey: 'cfg_key_id_ph' },
-    { key: 'private_key', type: 'textarea', rows: 4, required: true, group: 'basic', labelKey: 'cfg_private_key', placeholderKey: 'cfg_private_key_ph' },
-    { key: 'certificate', type: 'textarea', rows: 4, group: 'advanced', labelKey: 'cfg_certificate', placeholderKey: 'cfg_certificate_ph' },
-  ],
-  saobei: [
-    { key: 'merchant_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_merchant_id', placeholderKey: 'cfg_saobei_merchant_ph' },
-    { key: 'terminal_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_terminal_id', placeholderKey: 'cfg_terminal_id_ph' },
-    { key: 'key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_secret_key', placeholderKey: 'cfg_secret_key_ph' },
-    { key: 'gateway', type: 'input', group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
-    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
-  ],
 }
 
+/**
+ * When enabledTypes is null/undefined (info not loaded), fall back to registered catalog.
+ * When array from server, filter + append unknown custom driver names.
+ */
 export function resolvePaymentMethodTypes(enabledTypes?: string[] | null): string[] {
   if (!Array.isArray(enabledTypes)) {
     return [...PAYMENT_METHOD_TYPES]

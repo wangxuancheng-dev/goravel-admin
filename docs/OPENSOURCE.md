@@ -82,7 +82,7 @@
 | `PAYMENT_GATEWAYS_ENABLED` | （空） | 启用渠道白名单，如 `wechat,alipay`；空则全部已注册驱动 |
 | `APP_ENABLE_DEV_TOOL` | `false` | 生产显式 `true` 才开放开发工具。表单演示：`local/development/test` 默认可见；代码生成器：仅 `local/development` 默认可见（`test` 默认隐藏） |
 
-登录 `Info` 与 `menus/tree` 会按开关过滤菜单；前端 `userStore.config` 同步 `orders_enabled` 等字段。
+登录 `Info` 与 `menus/tree` 会按开关过滤菜单；前端 `userStore.config` 同步 `orders_enabled` / `payments_enabled` / `payment_gateways`。菜单可见性以服务端为准；前端模块布尔字段目前为信息字段（非路由守卫），支付类型下拉以 `payment_gateways` 为准。
 
 ---
 

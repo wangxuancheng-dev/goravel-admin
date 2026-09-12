@@ -166,7 +166,7 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 				OrderNo: s.generateOrderNo(),
 				UserID:  userID,
 				Amount:  amount,
-				Status:  "pending",
+				Status:  models.OrderStatusPending,
 				Remark:  remark,
 			}
 			if err := tx.Table(tableName).Create(candidate); err != nil {

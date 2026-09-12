@@ -119,9 +119,9 @@ func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.Payment
 ```
 
 2. 后台支付方式 `type` 填同一字符串（如 `stripe`）  
-3. 前端（可选）：`PAYMENT_METHOD_TYPES` + 配置字段 + i18n，管理端才能选该类型  
+3. 前端（可选）：在 Vue/React 的 `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` 增加同名项与 i18n；未配置字段时仍可出现在下拉（来自 `config.payment_gateways`），但表单无专用字段。**勿**再加未注册驱动的幽灵类型（qq/paypal 等壳子已移除）。  
 
-已注册类型可用 `RegisteredPaymentGatewayTypes()` 查看。参考实现：`payment_gateway_mock.go`。
+已注册类型可用 `RegisteredPaymentGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考实现：`payment_gateway_mock.go`。
 
 ## 7. 环境与模块
 

@@ -24,6 +24,14 @@ type Payment struct {
 	Remark          string        `gorm:"type:text;comment:备注" json:"remark"`
 }
 
+// Payment status values (stored as string).
+const (
+	PaymentStatusPending   = "pending"
+	PaymentStatusPaid      = "paid"
+	PaymentStatusFailed    = "failed"
+	PaymentStatusCancelled = "cancelled"
+)
+
 // TableName 指定表名
 func (Payment) TableName() string {
 	return "payments"

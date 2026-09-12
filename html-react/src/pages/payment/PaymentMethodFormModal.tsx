@@ -26,10 +26,10 @@ import {
   createPaymentMethodTypeOptions,
   generatePaymentCode,
   getConfigFieldsByGroup,
+  getConfigFieldsForType,
   getPaymentMethodTypeLabel,
   normalizeConfigForForm,
   type PaymentMethodConfigField,
-  type PaymentMethodType,
 } from './paymentMethod.config'
 
 interface PaymentMethodFormModalProps {
@@ -42,7 +42,7 @@ interface PaymentMethodFormModalProps {
 interface FormValues {
   name: string
   code?: string
-  type?: PaymentMethodType
+  type?: string
   is_active: boolean
   sort: number
   description?: string
@@ -131,7 +131,7 @@ export default function PaymentMethodFormModal({
     getPaymentMethodDetail(editId)
       .then((res) => {
         const data = (res.data || {}) as Record<string, unknown>
-        const type = String(entityField(data, 'type', '') ?? '') as PaymentMethodType
+        const type = String(entityField(data, 'type', '') ?? '')
         const configData = (entityField(data, 'config', {}) || {}) as Record<string, unknown>
 
         form.setFieldsValue({
@@ -149,7 +149,7 @@ export default function PaymentMethodFormModal({
       .finally(() => setLoading(false))
   }, [open, editId, form, showError, t])
 
-  const selectType = (type: PaymentMethodType) => {
+  const selectType = (type: string) => {
     const currentName = form.getFieldValue('name')
     const prevType = form.getFieldValue('type')
     const prevLabel = prevType ? getPaymentMethodTypeLabel(t, prevType) : ''
@@ -176,7 +176,7 @@ export default function PaymentMethodFormModal({
       const values = await form.validateFields()
       const config = collectConfigPayload(values.type, values.config || {})
 
-      if (Object.keys(config).length === 0) {
+      if (getConfigFieldsForType(values.type).length > 0 && Object.keys(config).length === 0) {
         message.error(t('payment_method.config_required'))
         return
       }
@@ -266,7 +266,7 @@ export default function PaymentMethodFormModal({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => selectType(opt.value as PaymentMethodType)}
+                  onClick={() => selectType(opt.value)}
                   style={{
                     textAlign: 'left',
                     padding: '14px 16px',

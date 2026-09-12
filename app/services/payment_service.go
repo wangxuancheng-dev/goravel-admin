@@ -346,7 +346,7 @@ func (s *PaymentServiceImpl) CreatePayment(orderNo string, paymentMethodID uint,
 	if err != nil {
 		return nil, err
 	}
-	if order.Status != "pending" {
+	if order.Status != models.OrderStatusPending {
 		return nil, apperrors.ErrOrderNotPayable
 	}
 
@@ -390,7 +390,7 @@ func (s *PaymentServiceImpl) CreatePayment(orderNo string, paymentMethodID uint,
 		PaymentMethodID: paymentMethodID,
 		UserID:          userID,
 		Amount:          amount,
-		Status:          "pending",
+		Status:          models.PaymentStatusPending,
 		Remark:          remark,
 	}
 

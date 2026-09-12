@@ -47,11 +47,11 @@ func (d *mockPaymentDriver) Create(ctx context.Context, payment *models.Payment,
 func (d *mockPaymentDriver) Query(_ context.Context, payment *models.Payment, _ *models.PaymentMethod, _ map[string]any) (map[string]any, error) {
 	tradeState := "NOTPAY"
 	switch payment.Status {
-	case "paid":
+	case models.PaymentStatusPaid:
 		tradeState = "SUCCESS"
-	case "failed":
+	case models.PaymentStatusFailed:
 		tradeState = "CLOSED"
-	case "cancelled":
+	case models.PaymentStatusCancelled:
 		tradeState = "REVOKED"
 	}
 	out := map[string]any{

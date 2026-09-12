@@ -229,6 +229,7 @@ import {
   createPaymentMethodTypeOptions,
   getPaymentMethodTypeLabel,
   getConfigFieldsByGroup,
+  getConfigFieldsForType,
   createEmptyConfig,
   generatePaymentCode,
   normalizeConfigForForm,
@@ -368,7 +369,7 @@ const handleSubmit = async () => {
     if (!valid) return
 
     const config = collectConfigPayload(formData.type, formData.config)
-    if (Object.keys(config).length === 0) {
+    if (getConfigFieldsForType(formData.type).length > 0 && Object.keys(config).length === 0) {
       ElMessage.error(t('payment_method.config_required'))
       return
     }

@@ -37,10 +37,10 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 		return nil, err
 	}
 
-	if payment.Status == "paid" {
+	if payment.Status == models.PaymentStatusPaid {
 		return payment, nil
 	}
-	if payment.Status != "pending" {
+	if payment.Status != models.PaymentStatusPending {
 		return nil, apperrors.ErrPaymentStatusInvalid.WithMessage("only pending payments can be marked paid")
 	}
 
@@ -54,9 +54,9 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 		return nil, err
 	}
 	switch order.Status {
-	case "cancelled":
+	case models.OrderStatusCancelled:
 		return nil, apperrors.ErrOrderNotPayable.WithMessage("order is cancelled")
-	case "paid", "pending":
+	case models.OrderStatusPaid, models.OrderStatusPending:
 		// ok
 	default:
 		return nil, apperrors.ErrOrderNotPayable
@@ -71,12 +71,12 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 		payTime = &utc
 	}
 
-	if err := payments.UpdatePaymentStatus(payment.ID, "paid", result.ThirdPartyNo, payTime, "", result.NotifyData, payment.PaymentNo); err != nil {
+	if err := payments.UpdatePaymentStatus(payment.ID, models.PaymentStatusPaid, result.ThirdPartyNo, payTime, "", result.NotifyData, payment.PaymentNo); err != nil {
 		return nil, err
 	}
 
-	if order.Status == "pending" {
-		if err := orders.UpdateOrderByOrderNo(order.OrderNo, "paid", order.Remark); err != nil {
+	if order.Status == models.OrderStatusPending {
+		if err := orders.UpdateOrderByOrderNo(order.OrderNo, models.OrderStatusPaid, order.Remark); err != nil {
 			return nil, err
 		}
 	}

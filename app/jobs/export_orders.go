@@ -270,12 +270,12 @@ func (r *ExportOrders) writeOrderRows(w *csv.Writer, order models.Order, details
 // translateStatus ??????
 func (r *ExportOrders) translateStatus(status, lang string) string {
 	switch status {
-	case "pending":
-		return utils.TranslateKey("order_status_pending", lang, "pending")
-	case "paid":
-		return utils.TranslateKey("order_status_paid", lang, "paid")
-	case "cancelled":
-		return utils.TranslateKey("order_status_cancelled", lang, "cancelled")
+	case models.OrderStatusPending:
+		return utils.TranslateKey("order_status_pending", lang, models.OrderStatusPending)
+	case models.OrderStatusPaid:
+		return utils.TranslateKey("order_status_paid", lang, models.OrderStatusPaid)
+	case models.OrderStatusCancelled:
+		return utils.TranslateKey("order_status_cancelled", lang, models.OrderStatusCancelled)
 	default:
 		return status
 	}

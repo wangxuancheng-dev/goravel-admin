@@ -21,19 +21,23 @@ func (r *OptionController) dictionaryService(ctx http.Context) services.Dictiona
 }
 
 func (r *OptionController) provider(ctx http.Context, optionType string) (services.OptionProvider, bool) {
+	if p, ok := services.LookupOptionProvider(ctx, optionType); ok {
+		return p, true
+	}
+
 	tree := services.NewTreeServiceImpl(ctx)
 	providers := map[string]services.OptionProvider{
-		"role":           option_providers.NewRoleOptionProvider(ctx),
-		"department":     option_providers.NewDepartmentOptionProvider(ctx),
-		"position":              option_providers.NewPositionOptionProvider(ctx),
-		"attachment_category":   option_providers.NewAttachmentCategoryOptionProvider(ctx),
-		"menu":                  option_providers.NewMenuOptionProvider(ctx, tree),
-		"status":         option_providers.NewStatusOptionProvider(ctx),
-		"method":         option_providers.NewMethodOptionProvider(ctx),
-		"yes_no":         option_providers.NewYesNoOptionProvider(ctx),
-		"admin":          option_providers.NewAdminOptionProvider(ctx),
-		"payment_method": option_providers.NewPaymentMethodOptionProvider(ctx),
-		"form_demo":      option_providers.NewFormDemoOptionProvider(ctx),
+		"role":                option_providers.NewRoleOptionProvider(ctx),
+		"department":          option_providers.NewDepartmentOptionProvider(ctx),
+		"position":            option_providers.NewPositionOptionProvider(ctx),
+		"attachment_category": option_providers.NewAttachmentCategoryOptionProvider(ctx),
+		"menu":                option_providers.NewMenuOptionProvider(ctx, tree),
+		"status":              option_providers.NewStatusOptionProvider(ctx),
+		"method":              option_providers.NewMethodOptionProvider(ctx),
+		"yes_no":              option_providers.NewYesNoOptionProvider(ctx),
+		"admin":               option_providers.NewAdminOptionProvider(ctx),
+		"payment_method":      option_providers.NewPaymentMethodOptionProvider(ctx),
+		"form_demo":           option_providers.NewFormDemoOptionProvider(ctx),
 	}
 	provider, ok := providers[optionType]
 	return provider, ok
@@ -94,8 +98,8 @@ func (r *OptionController) Index(ctx http.Context) http.Response {
 	return response.Success(ctx, data)
 }
 
-// RegisterProvider 注册新的选项提供者（保留扩展点；当前按请求懒加载，动态注册需另行实现）
-func (r *OptionController) RegisterProvider(optionType string, provider services.OptionProvider) {
-	_ = optionType
-	_ = provider
+// RegisterProvider registers a custom option type via services.RegisterOptionProvider.
+// Prefer calling services.RegisterOptionProvider from init() in secondary-dev code.
+func RegisterProvider(optionType string, factory services.OptionProviderFactory) {
+	services.RegisterOptionProvider(optionType, factory)
 }
