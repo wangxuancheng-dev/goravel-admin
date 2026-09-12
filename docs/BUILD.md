@@ -579,7 +579,7 @@ git checkout <previous-commit>
 
 ### 健康检查
 
-应用已配置 `/health` 端点（在 `routes/web.go` 中），用于部署时的健康检查。
+# 应用已配置 `/health`（存活）与 `/ready`（就绪，含 DB/Redis 探测），见 docs/PRODUCTION.md。
 
 ### 故障处理
 

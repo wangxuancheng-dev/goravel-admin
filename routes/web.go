@@ -1,10 +1,6 @@
 package routes
 
 import (
-	"time"
-
-	"github.com/goravel/framework/contracts/http"
-
 	"goravel/app/facades"
 	"goravel/app/http/controllers"
 )
@@ -24,12 +20,10 @@ func Web() {
 		facades.Route().Get("/swagger/*any", swaggerController.Index)
 	}
 
-	// 健康检查
-	facades.Route().Get("/health", func(ctx http.Context) http.Response {
-		return ctx.Response().Json(200, http.Json{
-			"status":    "healthy",
-			"timestamp": time.Now().Unix(),
-		})
-	})
-
+	healthController := controllers.NewHealthController()
+	// Liveness: process up (LB / k8s livenessProbe)
+	facades.Route().Get("/health", healthController.Live)
+	// Readiness: DB (+ Redis when required). Prefer this for k8s readinessProbe.
+	facades.Route().Get("/ready", healthController.Ready)
+	facades.Route().Get("/health/ready", healthController.Ready)
 }

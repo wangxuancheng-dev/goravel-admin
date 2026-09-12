@@ -121,7 +121,7 @@ SWAGGER_ENABLED=false
 5. 日志磁盘与备份策略就绪  
 6. 使用 `.env.production.example` 起步，**勿**直接用 `docker-compose.yml` 默认口令上生产  
 
-部署细节见 [BUILD.md](./BUILD.md)、[DOCKER_DEPLOY.md](./DOCKER_DEPLOY.md)。
+部署细节见 [PRODUCTION.md](./PRODUCTION.md)（健康检查 `/health` `/ready`、告警与上线清单）、[BUILD.md](./BUILD.md)、[DOCKER_DEPLOY.md](./DOCKER_DEPLOY.md)。
 
 ### 资源归属（管理端）
 

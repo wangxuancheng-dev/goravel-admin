@@ -5,6 +5,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/models"
+	"goravel/app/production"
 	"goravel/app/utils"
 )
 
@@ -19,6 +20,7 @@ func (receiver *AppServiceProvider) Boot(app foundation.Application) {
 	// 从数据库同步文件存储驱动选择到框架配置
 	// 框架的其他配置（密钥、bucket等）直接从 .env 读取
 	receiver.syncStorageDiskFromDatabase()
+	production.WarnInsecureDefaults()
 }
 
 // syncStorageDiskFromDatabase 从数据库同步文件存储驱动选择

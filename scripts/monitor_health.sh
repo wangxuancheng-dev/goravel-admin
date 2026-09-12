@@ -69,16 +69,12 @@ check_health() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     local start_ms=$(date +%s%N)
     
-    # 发送请求（可以根据实际情况修改健康检查端点）
-    # 选项1: 使用根路径
-    # response=$(curl -s -w "\n%{http_code}\n%{time_total}" --max-time "$TIMEOUT" "$SERVICE_URL/" 2>&1)
+    # 存活探针（进程）
+    response=$(curl -s -w "\n%{http_code}\n%{time_total}" --max-time "$TIMEOUT" "$SERVICE_URL/health" 2>&1)
     
-    # 选项2: 使用健康检查端点（如果有）
-    response=$(curl -s -w "\n%{http_code}\n%{time_total}" --max-time "$TIMEOUT" "$SERVICE_URL/api/admin/health" 2>&1)
-    
-    # 如果健康检查端点不存在，使用根路径
+    # 若只要就绪探测，可改为: "$SERVICE_URL/ready"
     if [ $? -ne 0 ] || echo "$response" | grep -q "404\|Not Found"; then
-        response=$(curl -s -w "\n%{http_code}\n%{time_total}" --max-time "$TIMEOUT" "$SERVICE_URL/" 2>&1)
+        response=$(curl -s -w "\n%{http_code}\n%{time_total}" --max-time "$TIMEOUT" "$SERVICE_URL/ready" 2>&1)
     fi
     
     local end_ms=$(date +%s%N)
