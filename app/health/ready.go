@@ -24,6 +24,9 @@ type Check struct {
 type Report struct {
 	Status    string  `json:"status"` // healthy | ready | not_ready
 	Timestamp int64   `json:"timestamp"`
+	App       string  `json:"app,omitempty"`
+	Env       string  `json:"env,omitempty"`
+	Version   string  `json:"version,omitempty"`
 	Checks    []Check `json:"checks,omitempty"`
 }
 
@@ -32,6 +35,9 @@ func Live() Report {
 	return Report{
 		Status:    "healthy",
 		Timestamp: time.Now().Unix(),
+		App:       facades.Config().GetString("app.name", ""),
+		Env:       facades.Config().GetString("app.env", ""),
+		Version:   facades.Config().GetString("app.version", ""),
 	}
 }
 

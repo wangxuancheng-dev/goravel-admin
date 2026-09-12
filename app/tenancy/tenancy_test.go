@@ -96,3 +96,26 @@ func TestSubdomainHintReserved(t *testing.T) {
 		t.Fatalf("localhost: %q", got)
 	}
 }
+
+func TestMergeTenantHintsConflictAndFallback(t *testing.T) {
+	got, err := MergeTenantHints("subdomain", "acme", "other", false)
+	if err == nil || got != "" {
+		t.Fatalf("expected conflict, got %q err=%v", got, err)
+	}
+	got, err = MergeTenantHints("subdomain", "acme", "ACME", false)
+	if err != nil || got != "acme" {
+		t.Fatalf("case-insensitive match: got %q err=%v", got, err)
+	}
+	got, err = MergeTenantHints("subdomain", "", "acme", false)
+	if err != nil || got != "" {
+		t.Fatalf("no fallback: got %q err=%v", got, err)
+	}
+	got, err = MergeTenantHints("subdomain", "", "acme", true)
+	if err != nil || got != "acme" {
+		t.Fatalf("fallback: got %q err=%v", got, err)
+	}
+	got, err = MergeTenantHints("header", "", "acme", false)
+	if err != nil || got != "acme" {
+		t.Fatalf("header resolver: got %q err=%v", got, err)
+	}
+}

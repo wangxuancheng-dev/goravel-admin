@@ -16,6 +16,9 @@ func TestHealthEndpoint(t *testing.T) {
 	assert.NoError(t, err)
 	resp.AssertOk()
 	resp.AssertJson(map[string]any{"status": "healthy"})
+	resp.AssertHeader("X-Content-Type-Options", "nosniff")
+	resp.AssertHeader("X-Frame-Options", "SAMEORIGIN")
+	resp.AssertHeader("Referrer-Policy", "strict-origin-when-cross-origin")
 }
 
 func TestReadyEndpoint(t *testing.T) {

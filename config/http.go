@@ -34,6 +34,11 @@ func init() {
 		"host": config.Env("APP_HOST", "127.0.0.1"),
 		// HTTP Port
 		"port": config.Env("APP_PORT", "3000"),
+		// Browser security headers (see app/http/middleware/security_headers.go).
+		// Set SECURITY_HSTS_MAX_AGE (e.g. 31536000) only when serving behind HTTPS.
+		"security": map[string]any{
+			"hsts_max_age": config.Env("SECURITY_HSTS_MAX_AGE", 0),
+		},
 		// HTTP Timeout, default is 300 seconds (5 minutes)
 		"request_timeout": config.GetInt("HTTP_REQUEST_TIMEOUT", 300),
 		// HTTPS Configuration

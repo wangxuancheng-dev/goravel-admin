@@ -8,12 +8,27 @@ import (
 )
 
 func TestLiveStatus(t *testing.T) {
+	prevName := facades.Config().GetString("app.name")
+	prevEnv := facades.Config().GetString("app.env")
+	prevVer := facades.Config().GetString("app.version")
+	facades.Config().Add("app.name", "GoravelAdmin")
+	facades.Config().Add("app.env", "test")
+	facades.Config().Add("app.version", "1.2.3")
+	t.Cleanup(func() {
+		facades.Config().Add("app.name", prevName)
+		facades.Config().Add("app.env", prevEnv)
+		facades.Config().Add("app.version", prevVer)
+	})
+
 	r := Live()
 	if r.Status != "healthy" {
 		t.Fatalf("status=%q", r.Status)
 	}
 	if r.Timestamp == 0 {
 		t.Fatal("timestamp missing")
+	}
+	if r.App != "GoravelAdmin" || r.Env != "test" || r.Version != "1.2.3" {
+		t.Fatalf("meta app=%q env=%q version=%q", r.App, r.Env, r.Version)
 	}
 }
 

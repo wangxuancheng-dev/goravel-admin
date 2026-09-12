@@ -106,19 +106,30 @@ func ResolveHint(ctx http.Context, clientHint string) (string, error) {
 		clientHint = ClientHint(ctx)
 	}
 
+	sub := ""
 	if Resolver() == "subdomain" && ctx != nil {
-		if sub := SubdomainHint(ctx.Request().Host()); sub != "" {
+		sub = SubdomainHint(ctx.Request().Host())
+	}
+	return MergeTenantHints(Resolver(), sub, clientHint, AllowHeaderFallback())
+}
+
+// MergeTenantHints is the pure resolver used by ResolveHint (unit-testable).
+// resolver is "subdomain" or "header"; sub is Host-derived tenant when present.
+func MergeTenantHints(resolver, sub, clientHint string, allowHeaderFallback bool) (string, error) {
+	clientHint = strings.TrimSpace(clientHint)
+	sub = strings.TrimSpace(sub)
+	if resolver == "subdomain" {
+		if sub != "" {
 			if clientHint != "" && !strings.EqualFold(clientHint, sub) {
 				return "", apperrors.ErrTenantHintConflict
 			}
 			return sub, nil
 		}
-		if !AllowHeaderFallback() {
+		if !allowHeaderFallback {
 			// Public: apex/reserved host must not accept client-supplied tenant.
 			return "", nil
 		}
 	}
-
 	return clientHint, nil
 }
 

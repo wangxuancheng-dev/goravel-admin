@@ -15,10 +15,20 @@ func NewHealthController() *HealthController {
 // Live is a cheap liveness probe (process up). GET /health
 func (c *HealthController) Live(ctx http.Context) http.Response {
 	report := health.Live()
-	return ctx.Response().Json(http.StatusOK, http.Json{
+	payload := http.Json{
 		"status":    report.Status,
 		"timestamp": report.Timestamp,
-	})
+	}
+	if report.App != "" {
+		payload["app"] = report.App
+	}
+	if report.Env != "" {
+		payload["env"] = report.Env
+	}
+	if report.Version != "" {
+		payload["version"] = report.Version
+	}
+	return ctx.Response().Json(http.StatusOK, payload)
 }
 
 // Ready checks DB (+ Redis when cache/queue require it). GET /ready

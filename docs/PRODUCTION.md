@@ -1,6 +1,6 @@
 # 生产上线清单与健康检查
 
-面向公网部署的运维约定。功能边界见 [OPENSOURCE.md](./OPENSOURCE.md)；多租户见 [TENANT_RESERVED.md](./TENANT_RESERVED.md)。
+面向公网部署的运维约定。功能边界见 [OPENSOURCE.md](./OPENSOURCE.md)；多租户见 [TENANT_RESERVED.md](./TENANT_RESERVED.md)；中小 SaaS 评分清单见 [SAAS.md](./SAAS.md)。
 
 ## 1. 启动前
 
@@ -19,7 +19,7 @@
 
 | 路径 | 用途 | 成功 | 失败 |
 |------|------|------|------|
-| `GET /health` | **存活**（进程在） | 200 `{"status":"healthy"}` | 进程挂了才无响应 |
+| `GET /health` | **存活**（进程在） | 200 `status=healthy`，可选 `app`/`env`/`version` | 进程挂了才无响应 |
 | `GET /ready` 或 `GET /health/ready` | **就绪**（可接流量） | 200 `{"status":"ready","checks":[...]}` | **503** `not_ready` |
 
 就绪检查：

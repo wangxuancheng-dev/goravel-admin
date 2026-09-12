@@ -28,6 +28,9 @@ func WarnInsecureDefaults() {
 	if strings.TrimSpace(facades.Config().GetString("app.key", "")) == "" {
 		warn("APP_KEY is empty — run artisan key:generate")
 	}
+	if strings.TrimSpace(facades.Config().GetString("jwt.secret", "")) == "" {
+		warn("JWT_SECRET is empty — set a strong random secret before public traffic")
+	}
 	if strings.EqualFold(facades.Config().GetString("cache.default", ""), "memory") {
 		warn("CACHE_STORE=memory — use redis for multi-instance / rate-limit / locks")
 	}

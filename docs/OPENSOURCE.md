@@ -211,3 +211,4 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 | [TENANT_RESERVED.md](./TENANT_RESERVED.md) | 一户一库 / PG Schema 多租户（`TENANCY_DRIVER=database`） |
 | [SEARCH.md](./SEARCH.md) | Elasticsearch / Meilisearch 切换、订单同步、文章扩展 |
 | [PRODUCTION.md](./PRODUCTION.md) | 生产上线清单、`/health` `/ready`、告警 |
+| [SAAS.md](./SAAS.md) | 中小 SaaS 分项目标与上线核对清单 |

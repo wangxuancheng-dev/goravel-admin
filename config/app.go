@@ -51,6 +51,8 @@ func init() {
 		// framework needs to place the application's name in a notification or
 		// any other location as required by the application or its packages.
 		"name": config.Env("APP_NAME", "Goravel"),
+		// Optional build / release tag surfaced on GET /health.
+		"version": config.Env("APP_VERSION", ""),
 		// Application Environment
 		//
 		// This value determines the "environment" your application is currently
