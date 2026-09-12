@@ -115,6 +115,8 @@ func (s *ExportRecordServiceImpl) GetList(filters ExportRecordFilters, page, pag
 		query = query.Where("created_at <= ?", filters.EndTime)
 	}
 
+	query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "admin_id"})
+
 	orderBy := filters.OrderBy
 	if orderBy == "" {
 		orderBy = "id:desc"

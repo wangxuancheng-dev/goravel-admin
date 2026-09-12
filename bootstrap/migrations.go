@@ -73,5 +73,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20260911000002CreatePlatformAdminsTable{},
 		&migrations.M20260912000001AddProvisionStatusToTenants{},
 		&migrations.M20260912000002AddMigrateMetaToTenants{},
+		&migrations.M20260912000003AddDataScopeToRoles{},
 	}
 }

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { App, Form, Input, InputNumber, Modal, Radio, Spin, Tree } from 'antd'
+import { App, Form, Input, InputNumber, Modal, Radio, Select, Spin, Tree, TreeSelect } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import { useTranslation } from 'react-i18next'
 import { createRole, getRoleDetail, updateRole } from '@/api/role'
 import { getMenuTree } from '@/api/menu'
 import { getPermissionList } from '@/api/permission'
+import { getOptions, type OptionItem } from '@/api/option'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { entityField, normalizeEntity } from '@/utils/normalize'
 import { resolveMenuTitle, resolvePermissionTitle } from '@/utils/menuTitle'
@@ -26,6 +27,21 @@ interface RoleFormModalProps {
 
 const PROTECTED = 'super-admin'
 
+type DeptTreeNode = { title: string; value: number | string; children?: DeptTreeNode[] }
+
+function toDeptTreeData(items: OptionItem[]): DeptTreeNode[] {
+  return items.map((item) => {
+    const value = (item.value ?? item.id) as number | string
+    const title = String(item.label ?? item.name ?? value)
+    const children = item.children
+    return {
+      title,
+      value,
+      children: Array.isArray(children) ? toDeptTreeData(children) : undefined,
+    }
+  })
+}
+
 export default function RoleFormModal({ open, editId, onClose, onSuccess }: RoleFormModalProps) {
   const { t, i18n } = useTranslation()
   const { message } = App.useApp()
@@ -37,8 +53,22 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
   const [permissions, setPermissions] = useState<Record<string, unknown>[]>([])
   const [checkedKeys, setCheckedKeys] = useState<string[]>([])
   const [slug, setSlug] = useState('')
+  const [deptTree, setDeptTree] = useState<OptionItem[]>([])
+  const dataScope = Form.useWatch('data_scope', form)
 
   const isProtected = slug === PROTECTED
+  const deptTreeData = useMemo(() => toDeptTreeData(deptTree), [deptTree])
+
+  const dataScopeOptions = useMemo(
+    () => [
+      { value: 1, label: t('role.data_scope_all') },
+      { value: 2, label: t('role.data_scope_custom') },
+      { value: 3, label: t('role.data_scope_dept') },
+      { value: 4, label: t('role.data_scope_dept_and_child') },
+      { value: 5, label: t('role.data_scope_self') },
+    ],
+    [t],
+  )
 
   const treeTranslate = useMemo(
     () => ({
@@ -71,9 +101,10 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
     const boot = async () => {
       setLoading(true)
       try {
-        const [menuRes, permRes] = await Promise.all([
+        const [menuRes, permRes, deptRes] = await Promise.all([
           getMenuTree(),
           getPermissionList({ page_size: 1000 }),
+          getOptions('department'),
         ])
         if (cancelled) return
 
@@ -81,6 +112,13 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
         const flatPerms = flattenPermissionList(permRes.data)
         setMenus(flatMenus)
         setPermissions(flatPerms)
+        const deptData = deptRes.data
+        const deptList = Array.isArray(deptData)
+          ? deptData
+          : (deptData as { list?: OptionItem[]; options?: OptionItem[] })?.list ||
+            (deptData as { options?: OptionItem[] })?.options ||
+            []
+        setDeptTree(deptList)
 
         if (!editId) {
           form.setFieldsValue({
@@ -89,6 +127,8 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
             description: '',
             status: 1,
             sort: 0,
+            data_scope: 1,
+            department_ids: [],
           })
           setSlug('')
           setCheckedKeys([])
@@ -106,6 +146,7 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
         const permissionIds = ((entityField(data, 'permission_ids', []) as number[]) || []).map(Number)
         const menusArr = (entityField(data, 'menus', []) as Array<Record<string, unknown>>) || []
         const permsArr = (entityField(data, 'permissions', []) as Array<Record<string, unknown>>) || []
+        const deptsArr = (entityField(data, 'departments', []) as Array<Record<string, unknown>>) || []
         const resolvedMenuIds =
           menuIds.length > 0
             ? menuIds
@@ -114,6 +155,8 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
           permissionIds.length > 0
             ? permissionIds
             : permsArr.map((p) => Number(entityField(p, 'id', 0))).filter(Boolean)
+        const departmentIds = deptsArr.map((d) => Number(entityField(d, 'id', 0))).filter(Boolean)
+        const scope = Number(entityField(data, 'data_scope', 1) ?? 1)
 
         form.setFieldsValue({
           name: entityField(data, 'name', ''),
@@ -121,6 +164,8 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
           description: entityField(data, 'description', ''),
           status: Number(entityField(data, 'status', 1)),
           sort: Number(entityField(data, 'sort', 0)),
+          data_scope: nextSlug === PROTECTED ? 1 : scope || 1,
+          department_ids: nextSlug === PROTECTED ? [] : departmentIds,
         })
         setSlug(nextSlug)
         const builtTree = buildMenuPermissionTree(flatMenus, flatPerms, treeTranslate)
@@ -164,6 +209,13 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
         description: values.description || '',
         status: Number(values.status),
         sort: Number(values.sort) || 0,
+        data_scope: isProtected ? 1 : Number(values.data_scope) || 1,
+        department_ids:
+          isProtected || Number(values.data_scope) !== 2
+            ? []
+            : ((values.department_ids as Array<string | number>) || [])
+                .map((id) => Number(id))
+                .filter((id) => id > 0),
       }
 
       if (!isProtected) {
@@ -214,6 +266,22 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
           <Form.Item name="description" label={t('common.description')}>
             <Input.TextArea rows={2} />
           </Form.Item>
+
+          <Form.Item name="data_scope" label={t('role.data_scope')} initialValue={1}>
+            <Select options={dataScopeOptions} disabled={isProtected} />
+          </Form.Item>
+          {!isProtected && Number(dataScope) === 2 ? (
+            <Form.Item name="department_ids" label={t('role.data_scope_depts')}>
+              <TreeSelect
+                treeData={deptTreeData}
+                treeCheckable
+                showCheckedStrategy={TreeSelect.SHOW_PARENT}
+                allowClear
+                placeholder={t('role.data_scope_depts_placeholder')}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          ) : null}
 
           <Form.Item label={t('role.menus_and_permissions', { defaultValue: '菜单与权限' })}>
             {isProtected ? (

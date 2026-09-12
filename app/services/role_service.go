@@ -7,6 +7,7 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 	"github.com/goravel/framework/support/str"
+	"github.com/spf13/cast"
 
 	appfacades "goravel/app/facades"
 
@@ -63,7 +64,7 @@ func (s *RoleServiceImpl) GetByID(id uint) (*models.Role, error) {
 
 func (s *RoleServiceImpl) GetDetail(id uint) (*models.Role, error) {
 	var role models.Role
-	if err := appfacades.OrmQuery(s.ctx).Where("id", id).With("Permissions").With("Menus").FirstOrFail(&role); err != nil {
+	if err := appfacades.OrmQuery(s.ctx).Where("id", id).With("Permissions").With("Menus").With("Departments").FirstOrFail(&role); err != nil {
 		return nil, apperrors.ErrRoleNotFound.WithError(err)
 	}
 	return &role, nil
@@ -105,12 +106,18 @@ func (s *RoleServiceImpl) Create(httpCtx http.Context, req *admin.RoleCreate) (*
 		return nil, err
 	}
 
+	dataScope := req.DataScope
+	if dataScope == 0 {
+		dataScope = models.DataScopeAll
+	}
+
 	role := &models.Role{
 		Name:        req.Name,
 		Slug:        req.Slug,
 		Description: req.Description,
 		Status:      req.Status,
 		Sort:        req.Sort,
+		DataScope:   dataScope,
 	}
 
 	if err := appfacades.OrmQuery(s.ctx).Create(role); err != nil {
@@ -129,6 +136,15 @@ func (s *RoleServiceImpl) Create(httpCtx http.Context, req *admin.RoleCreate) (*
 		if err := s.syncMenus(role, menuIDs); err != nil {
 			return nil, apperrors.ErrUpdateFailed.WithError(err)
 		}
+	}
+
+	departmentIDs := s.parseIDsFromRequest(httpCtx, "department_ids")
+	if role.DataScope == models.DataScopeCustom {
+		if err := s.syncDepartments(role, departmentIDs); err != nil {
+			return nil, apperrors.ErrUpdateFailed.WithError(err)
+		}
+	} else {
+		_ = s.syncDepartments(role, nil)
 	}
 
 	return role, nil
@@ -166,6 +182,14 @@ func (s *RoleServiceImpl) Update(httpCtx http.Context, id uint, req *admin.RoleU
 	if req.Sort != nil {
 		role.Sort = *req.Sort
 	}
+	if isProtected {
+		role.DataScope = models.DataScopeAll
+	} else if req.DataScope != nil {
+		role.DataScope = *req.DataScope
+		if role.DataScope == 0 {
+			role.DataScope = models.DataScopeAll
+		}
+	}
 
 	if err := s.validateUnique(role.Name, role.Slug, role.ID); err != nil {
 		return nil, err
@@ -187,6 +211,18 @@ func (s *RoleServiceImpl) Update(httpCtx http.Context, id uint, req *admin.RoleU
 				return nil, apperrors.ErrUpdateFailed.WithError(err)
 			}
 		}
+		if _, exists := allInputs["department_ids"]; exists || req.DataScope != nil {
+			departmentIDs := s.parseIDsFromRequest(httpCtx, "department_ids")
+			if role.DataScope == models.DataScopeCustom {
+				if err := s.syncDepartments(role, departmentIDs); err != nil {
+					return nil, apperrors.ErrUpdateFailed.WithError(err)
+				}
+			} else {
+				_ = s.syncDepartments(role, nil)
+			}
+		}
+	} else {
+		_ = s.syncDepartments(role, nil)
 	}
 
 	return role, nil
@@ -248,7 +284,44 @@ func (s *RoleServiceImpl) syncMenus(role *models.Role, menuIDs []uint) error {
 	return appfacades.OrmQuery(s.ctx).Model(role).Association("Menus").Replace(menus)
 }
 
+func (s *RoleServiceImpl) syncDepartments(role *models.Role, departmentIDs []uint) error {
+	var departments []models.Department
+	if len(departmentIDs) > 0 {
+		if err := appfacades.OrmQuery(s.ctx).Where("id IN ?", departmentIDs).Find(&departments); err != nil {
+			return err
+		}
+	}
+	return appfacades.OrmQuery(s.ctx).Model(role).Association("Departments").Replace(departments)
+}
+
 func (s *RoleServiceImpl) parseIDsFromRequest(ctx http.Context, key string) []uint {
+	if ctx == nil {
+		return nil
+	}
+	all := ctx.Request().All()
+	if raw, ok := all[key]; ok && raw != nil {
+		switch v := raw.(type) {
+		case []any:
+			ids := make([]uint, 0, len(v))
+			for _, item := range v {
+				if id := cast.ToUint(item); id > 0 {
+					ids = append(ids, id)
+				}
+			}
+			return ids
+		case []uint:
+			return v
+		case []int:
+			ids := make([]uint, 0, len(v))
+			for _, item := range v {
+				if item > 0 {
+					ids = append(ids, uint(item))
+				}
+			}
+			return ids
+		}
+	}
+
 	var ids []uint
 	if idsStr := ctx.Request().Input(key); idsStr != "" {
 		for _, idStr := range ctx.Request().InputArray(key) {

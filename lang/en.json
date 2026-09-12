@@ -317,6 +317,7 @@
         "name": "Name",
         "title": "Title",
         "slug": "Slug",
+        "data_scope": "Data scope",
         "icon": "Icon",
         "path": "Path",
         "component": "Component",

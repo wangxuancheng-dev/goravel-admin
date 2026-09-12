@@ -84,6 +84,20 @@
 
 登录 `Info` 与 `menus/tree` 会按开关过滤菜单；前端 `userStore.config` 同步 `orders_enabled` / `payments_enabled` / `payment_gateways`。菜单可见性以服务端为准；前端模块布尔字段目前为信息字段（非路由守卫），支付类型下拉以 `payment_gateways` 为准。
 
+### 数据权限（租户内行级）
+
+挂在**角色**上（`roles.data_scope`），多角色取最宽；`super-admin` 始终全部数据。与一户一库租户隔离正交：先租户连接，再行级过滤。
+
+| 值 | 含义 |
+|----|------|
+| 1 | 全部数据 |
+| 2 | 自定义部门（`role_department`） |
+| 3 | 本部门 |
+| 4 | 本部门及以下 |
+| 5 | 仅本人 |
+
+已接入列表：管理员（`department_id`）、文章 / 附件 / 导出记录（`admin_id`）。服务入口：`ApplyDataScope` / `ResolveAdminDataScope`。
+
 ---
 
 ## 3. 最小生产配置

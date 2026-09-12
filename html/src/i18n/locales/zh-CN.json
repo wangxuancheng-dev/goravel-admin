@@ -436,7 +436,15 @@
     "protected_cannot_delete": "该角色受保护，无法删除",
     "protected_cannot_disable": "该角色受保护，无法禁用",
     "protected_role_slug_disabled": "受保护角色的标识不能修改",
-    "super_admin_has_all_permissions": "超级管理员拥有所有权限，无需设置菜单和权限"
+    "super_admin_has_all_permissions": "超级管理员拥有所有权限，无需设置菜单和权限",
+    "data_scope": "数据权限",
+    "data_scope_all": "全部数据",
+    "data_scope_custom": "自定义部门",
+    "data_scope_dept": "本部门",
+    "data_scope_dept_and_child": "本部门及以下",
+    "data_scope_self": "仅本人",
+    "data_scope_depts": "自定义部门",
+    "data_scope_depts_placeholder": "请选择可访问的部门"
   },
   "permission": {
     "add_permission": "添加权限",

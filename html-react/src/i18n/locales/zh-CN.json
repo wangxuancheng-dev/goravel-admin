@@ -247,7 +247,15 @@
     "menus_and_permissions": "菜单与权限",
     "other_permissions": "其他权限",
     "super_admin_has_all_permissions": "超级管理员拥有全部菜单与权限，无需单独配置",
-    "protected_cannot_disable": "超级管理员角色不能禁用"
+    "protected_cannot_disable": "超级管理员角色不能禁用",
+    "data_scope": "数据权限",
+    "data_scope_all": "全部数据",
+    "data_scope_custom": "自定义部门",
+    "data_scope_dept": "本部门",
+    "data_scope_dept_and_child": "本部门及以下",
+    "data_scope_self": "仅本人",
+    "data_scope_depts": "自定义部门",
+    "data_scope_depts_placeholder": "请选择可访问的部门"
   },
   "admin": {
     "add_admin": "添加管理员",

@@ -26,6 +26,39 @@
         <el-form-item :label="$t('common.description')">
           <el-input v-model="formData.description" type="textarea" :disabled="loading" />
         </el-form-item>
+        <el-form-item :label="$t('role.data_scope')" prop="data_scope">
+          <el-select
+            v-model="formData.data_scope"
+            :disabled="isProtectedRole(formData) || loading"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="opt in dataScopeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item
+          v-if="formData.data_scope === 2 && !isProtectedRole(formData)"
+          :label="$t('role.data_scope_depts')"
+          prop="department_ids"
+        >
+          <el-tree-select
+            v-model="formData.department_ids"
+            :data="departmentTree"
+            :props="{ label: 'label', value: 'value', children: 'children' }"
+            multiple
+            check-strictly
+            filterable
+            clearable
+            :render-after-expand="false"
+            :disabled="loading"
+            style="width: 100%"
+            :placeholder="$t('role.data_scope_depts_placeholder')"
+          />
+        </el-form-item>
         <el-form-item 
           v-if="!isProtectedRole(formData)" 
           :label="$t('role.menus_and_permissions')"
@@ -107,6 +140,7 @@ import { InfoFilled, FolderOpened, Key, Lock } from '@element-plus/icons-vue'
 import { getRoleDetail, createRole, updateRole } from '../../api/role'
 import { getPermissionList } from '../../api/permission'
 import { getMenuTree } from '../../api/menu'
+import { getOptions } from '../../api/option'
 import { getMenuTranslation } from '../../utils/menuTranslation'
 import { groupBy, map } from 'lodash-es'
 import { mapTree } from '../../utils/tree'
@@ -146,6 +180,8 @@ const getFormInitialValue = () => ({
   description: '',
   permission_ids: [],
   menu_ids: [],
+  department_ids: [],
+  data_scope: 1,
   status: 1,
   sort: 0
 })
@@ -161,6 +197,39 @@ const menuPermissionTree = ref([])
 const checkedKeys = ref([])
 const treeKey = ref(0)
 const protectedRoleSlugs = ref(['super-admin'])
+const departmentTree = ref([])
+
+const dataScopeOptions = computed(() => [
+  { value: 1, label: t('role.data_scope_all') },
+  { value: 2, label: t('role.data_scope_custom') },
+  { value: 3, label: t('role.data_scope_dept') },
+  { value: 4, label: t('role.data_scope_dept_and_child') },
+  { value: 5, label: t('role.data_scope_self') }
+])
+
+const normalizeDepartmentTree = (nodes) => {
+  if (!Array.isArray(nodes)) return []
+  return nodes.map((node) => {
+    const value = Number(node.value ?? node.id ?? node.ID ?? 0)
+    const children = node.children || node.Children || []
+    return {
+      label: node.label || node.name || node.Name || String(value),
+      value,
+      children: children.length ? normalizeDepartmentTree(children) : undefined
+    }
+  }).filter((n) => n.value > 0)
+}
+
+const loadDepartmentTree = async () => {
+  try {
+    const res = await getOptions('department')
+    const payload = res?.data ?? res
+    const options = payload?.options || payload?.list || payload || []
+    departmentTree.value = normalizeDepartmentTree(Array.isArray(options) ? options : [])
+  } catch (e) {
+    departmentTree.value = []
+  }
+}
 
 const formData = reactive(getFormInitialValue())
 
@@ -661,6 +730,7 @@ watch(() => props.editId, async (newId) => {
 // 监听 dialogVisible 变化
 watch(dialogVisible, async (visible) => {
   if (visible) {
+    await loadDepartmentTree()
     if (props.editId) {
       await loadDetail(props.editId)
     } else {
@@ -702,9 +772,18 @@ const loadDetail = async (id) => {
         return id ? Number(id) : null
       }).filter(id => id !== null)
       
+      const roleDepartments = role.Departments || role.departments || []
+      const departmentIds = roleDepartments.map(d => {
+        const id = d.id || d.ID
+        return id ? Number(id) : null
+      }).filter(id => id !== null)
+
       // 确保菜单权限树数据已加载
       if (menuPermissionTree.value.length === 0) {
         await loadMenuPermissionTree()
+      }
+      if (departmentTree.value.length === 0) {
+        await loadDepartmentTree()
       }
       
       // 使用工具函数映射字段，自动处理 snake_case 和 PascalCase
@@ -713,9 +792,14 @@ const loadDetail = async (id) => {
         ...mapped,
         permission_ids: permissionIds,
         menu_ids: menuIds,
+        department_ids: departmentIds,
+        data_scope: Number(mapped.data_scope || role.data_scope || role.DataScope || 1),
         status: Number(mapped.status)
       })
-      
+      if (isProtectedRole(formData)) {
+        formData.data_scope = 1
+        formData.department_ids = []
+      }
       // 注意：不要在这里设置 checkedKeys，因为如果包含菜单ID，会导致菜单下的所有权限被选中
       // 只设置权限ID，让 handleDialogOpened 来处理
       checkedKeys.value = []
@@ -794,7 +878,11 @@ const handleSubmit = async () => {
             ? Number(formData.status) 
             : 1, // 确保是数字
           sort: Number(formData.sort) || 0, // 确保是数字
-          description: formData.description || '' // 空字符串处理
+          description: formData.description || '', // 空字符串处理
+          data_scope: isProtectedRole(formData) ? 1 : (Number(formData.data_scope) || 1),
+          department_ids: isProtectedRole(formData) || Number(formData.data_scope) !== 2
+            ? []
+            : (formData.department_ids || []).map((id) => Number(id)).filter((id) => id > 0)
         }
         // 删除前端使用的 id 字段（如果存在）
         delete data.id

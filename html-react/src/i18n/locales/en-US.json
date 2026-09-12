@@ -268,7 +268,15 @@
     "menus_and_permissions": "Menus & Permissions",
     "other_permissions": "Other Permissions",
     "super_admin_has_all_permissions": "Super admin has all menus and permissions",
-    "protected_cannot_disable": "The super-admin role cannot be disabled"
+    "protected_cannot_disable": "The super-admin role cannot be disabled",
+    "data_scope": "Data scope",
+    "data_scope_all": "All data",
+    "data_scope_custom": "Custom departments",
+    "data_scope_dept": "Own department",
+    "data_scope_dept_and_child": "Own department and children",
+    "data_scope_self": "Self only",
+    "data_scope_depts": "Custom departments",
+    "data_scope_depts_placeholder": "Select accessible departments"
   },
   "permission": {
     "name": "Permission Name",

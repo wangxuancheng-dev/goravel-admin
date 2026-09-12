@@ -714,6 +714,8 @@ func (s *AttachmentServiceImpl) GetList(filters AttachmentFilters, page, pageSiz
 		query = query.Where("created_at <= ?", filters.EndTime)
 	}
 
+	query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "admin_id"})
+
 	// 应用排序
 	orderBy := filters.OrderBy
 	if orderBy == "" {

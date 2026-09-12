@@ -102,6 +102,7 @@ func BuildArticleQuery(ctx context.Context, filters ArticleFilters) orm.Query {
 		query = query.Where("updated_at = ?", filters.UpdatedAt)
 	}
 
+	query = ApplyDataScope(ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "admin_id"})
 	return query
 }
 

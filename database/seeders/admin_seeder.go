@@ -107,10 +107,15 @@ func (s *AdminSeeder) Run() error {
 			Description: "拥有所有权限",
 			Status:      1,
 			Sort:        0,
+			DataScope:   models.DataScopeAll,
 		}
 		facades.Orm().Query().Create(&superRole)
 	} else {
 		facades.Orm().Query().Where("slug", "super-admin").First(&superRole)
+		if superRole.DataScope == 0 || superRole.DataScope != models.DataScopeAll {
+			_, _ = facades.Orm().Query().Model(&superRole).Update("data_scope", models.DataScopeAll)
+			superRole.DataScope = models.DataScopeAll
+		}
 	}
 
 	var adminRole models.Role
@@ -122,6 +127,7 @@ func (s *AdminSeeder) Run() error {
 			Description: "普通管理员",
 			Status:      1,
 			Sort:        1,
+			DataScope:   models.DataScopeAll,
 		}
 		facades.Orm().Query().Create(&adminRole)
 	} else {

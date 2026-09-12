@@ -317,6 +317,7 @@
         "name": "姓名",
         "title": "标题",
         "slug": "标识",
+        "data_scope": "数据权限",
         "icon": "图标",
         "path": "路径",
         "component": "组件",

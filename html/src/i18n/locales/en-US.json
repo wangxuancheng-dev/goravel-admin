@@ -429,7 +429,15 @@
     "protected_cannot_delete": "This role is protected and cannot be deleted",
     "protected_cannot_disable": "This role is protected and cannot be disabled",
     "protected_role_slug_disabled": "Protected role slug cannot be modified",
-    "super_admin_has_all_permissions": "Super admin has all permissions, no need to set menus and permissions"
+    "super_admin_has_all_permissions": "Super admin has all permissions, no need to set menus and permissions",
+    "data_scope": "Data scope",
+    "data_scope_all": "All data",
+    "data_scope_custom": "Custom departments",
+    "data_scope_dept": "Own department",
+    "data_scope_dept_and_child": "Own department and children",
+    "data_scope_self": "Self only",
+    "data_scope_depts": "Custom departments",
+    "data_scope_depts_placeholder": "Select accessible departments"
   },
   "permission": {
     "add_permission": "Add Permission",

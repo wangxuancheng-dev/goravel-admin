@@ -210,6 +210,7 @@ func (s *AdminServiceImpl) buildQuery(filters AdminFilters) orm.Query {
 		query = query.Where("created_at <= ?", filters.EndTime)
 	}
 
+	query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeDept})
 	return query
 }
 
@@ -528,21 +529,7 @@ func (s *AdminServiceImpl) parseProtectedIDs(idsStr string) []uint {
 
 // GetDepartmentAndChildrenIDs 获取部门及其子部门ID
 func (s *AdminServiceImpl) GetDepartmentAndChildrenIDs(departmentID uint) []uint {
-	var departmentIDs []uint
-	departmentIDs = append(departmentIDs, departmentID)
-	s.getChildrenDepartmentIDs(departmentID, &departmentIDs)
-	return departmentIDs
-}
-
-// getChildrenDepartmentIDs 递归获取子部门ID
-func (s *AdminServiceImpl) getChildrenDepartmentIDs(parentID uint, departmentIDs *[]uint) {
-	var children []models.Department
-	if err := appfacades.OrmQuery(s.ctx).Where("parent_id", parentID).Get(&children); err == nil {
-		for _, child := range children {
-			*departmentIDs = append(*departmentIDs, child.ID)
-			s.getChildrenDepartmentIDs(child.ID, departmentIDs)
-		}
-	}
+	return GetDepartmentSubtreeIDs(s.ctx, departmentID)
 }
 
 // LoadRelations 加载管理员的关联数据（部门、角色）
