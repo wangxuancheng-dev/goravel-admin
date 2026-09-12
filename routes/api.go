@@ -24,14 +24,10 @@ func Api() {
 		router.Get("public/customer-service", publicConfigController.CustomerService)
 	})
 
-	// 支付回调：不挂 Tenant 中间件；租户从路径末段绑定（避免 gin :tenant/:type 冲突）
+	// 支付回调：通用 {type}；租户从路径末段绑定。新渠道 RegisterPaymentGateway 后无需加路由。
 	facades.Route().Prefix("api").Middleware(middleware.Lang(), middleware.Blacklist()).Group(func(router route.Router) {
-		router.Post("payment/notify/wechat/{tenant}", paymentNotifyController.NotifyWechat)
-		router.Post("payment/notify/alipay/{tenant}", paymentNotifyController.NotifyAlipay)
-		router.Post("payment/notify/mock/{tenant}", paymentNotifyController.NotifyMock)
-		router.Post("payment/notify/wechat", paymentNotifyController.NotifyLegacyWechat)
-		router.Post("payment/notify/alipay", paymentNotifyController.NotifyLegacyAlipay)
-		router.Post("payment/notify/mock", paymentNotifyController.NotifyLegacyMock)
+		router.Post("payment/notify/{type}/{tenant}", paymentNotifyController.Notify)
+		router.Post("payment/notify/{type}", paymentNotifyController.NotifyLegacy)
 	})
 
 	// C端用户路由组：统一前缀

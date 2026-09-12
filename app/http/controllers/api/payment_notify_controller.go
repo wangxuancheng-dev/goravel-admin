@@ -12,37 +12,25 @@ import (
 	"goravel/app/tenancy"
 )
 
-// PaymentNotifyController handles public payment callbacks.
-// mock: full reference flow (verify optional HMAC → ApplyPaidResult).
-// wechat/alipay: return 501 until gopay verify is wired (same ApplyPaidResult hook).
+// PaymentNotifyController handles public payment callbacks for any registered gateway type.
+// Route: POST /api/payment/notify/{type}[/{tenant}]
 type PaymentNotifyController struct{}
 
 func NewPaymentNotifyController() *PaymentNotifyController {
 	return &PaymentNotifyController{}
 }
 
-func (c *PaymentNotifyController) NotifyWechat(ctx http.Context) http.Response {
-	return c.handle(ctx, "wechat", strings.TrimSpace(ctx.Request().Route("tenant")))
+// Notify handles /api/payment/notify/{type}/{tenant}
+func (c *PaymentNotifyController) Notify(ctx http.Context) http.Response {
+	typ := strings.TrimSpace(ctx.Request().Route("type"))
+	tenant := strings.TrimSpace(ctx.Request().Route("tenant"))
+	return c.handle(ctx, typ, tenant)
 }
 
-func (c *PaymentNotifyController) NotifyAlipay(ctx http.Context) http.Response {
-	return c.handle(ctx, "alipay", strings.TrimSpace(ctx.Request().Route("tenant")))
-}
-
-func (c *PaymentNotifyController) NotifyMock(ctx http.Context) http.Response {
-	return c.handle(ctx, "mock", strings.TrimSpace(ctx.Request().Route("tenant")))
-}
-
-func (c *PaymentNotifyController) NotifyLegacyWechat(ctx http.Context) http.Response {
-	return c.handleLegacy(ctx, "wechat")
-}
-
-func (c *PaymentNotifyController) NotifyLegacyAlipay(ctx http.Context) http.Response {
-	return c.handleLegacy(ctx, "alipay")
-}
-
-func (c *PaymentNotifyController) NotifyLegacyMock(ctx http.Context) http.Response {
-	return c.handleLegacy(ctx, "mock")
+// NotifyLegacy handles /api/payment/notify/{type} (tenancy off only)
+func (c *PaymentNotifyController) NotifyLegacy(ctx http.Context) http.Response {
+	typ := strings.TrimSpace(ctx.Request().Route("type"))
+	return c.handleLegacy(ctx, typ)
 }
 
 func (c *PaymentNotifyController) handleLegacy(ctx http.Context, typ string) http.Response {
@@ -55,9 +43,11 @@ func (c *PaymentNotifyController) handleLegacy(ctx http.Context, typ string) htt
 }
 
 func (c *PaymentNotifyController) handle(ctx http.Context, typ, tenantCode string) http.Response {
-	switch typ {
-	case "wechat", "alipay", "mock":
-	default:
+	typ = strings.ToLower(strings.TrimSpace(typ))
+	if typ == "" {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidPaymentType)
+	}
+	if _, ok := services.LookupPaymentGateway(typ); !ok {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidPaymentType)
 	}
 

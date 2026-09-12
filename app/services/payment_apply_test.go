@@ -18,8 +18,9 @@ func TestMockNotifySignRoundTrip(t *testing.T) {
 }
 
 func TestMockNotifyRequiresOutTradeNo(t *testing.T) {
-	svc := NewPaymentGatewayService(context.Background()).(*PaymentGatewayServiceImpl)
-	_, err := svc.handleMockNotify(&models.PaymentMethod{Type: "mock", Config: "{}"}, map[string]any{"trade_status": "SUCCESS"})
+	d, ok := LookupPaymentGateway("mock")
+	require.True(t, ok)
+	_, err := d.Notify(context.Background(), &models.PaymentMethod{Type: "mock", Config: "{}"}, map[string]any{"trade_status": "SUCCESS"})
 	require.Error(t, err)
 	be, ok := apperrors.GetBusinessError(err)
 	require.True(t, ok)

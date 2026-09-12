@@ -8,20 +8,22 @@
 
 ```
 CreatePayment (订单 pending)
-    → CreatePaymentOrder (gateway: mock|wechat|alipay)
+    → CreatePaymentOrder (已注册 Driver)
     → 用户支付 / 本地模拟回调
     → POST /api/payment/notify/{type}[/{tenant}]
-    → HandlePaymentNotify（验签 / mock 校验）
+    → Driver.Notify（验签）
     → ApplyPaidResult（幂等：payment=paid + order=paid）
 ```
 
+内置：`mock`（可跑通）、`wechat` / `alipay`（下单示例，回调/查询 501）。新渠道见下文「接入全新渠道」。
 | 组件 | 路径 | 职责 |
 |------|------|------|
 | 订单 | `app/services/order_service.go` | 分表订单 CRUD；`UpdateOrderByOrderNo` |
 | 支付记录 | `app/services/payment_service.go` | 分表支付单；创建时校验订单金额 |
 | 落库编排 | `app/services/payment_apply.go` | **唯一**写成功态入口 `ApplyPaidResult` |
-| 网关 | `app/services/payment_gateway_*.go` | 验签 + 归一化；mock 完整，微信/支付宝挂 TODO |
-| 回调 | `app/http/controllers/api/payment_notify_controller.go` | 公开路由；按支付单解析 `PaymentMethod` |
+| 网关注册表 | `app/services/payment_gateway_driver.go` | `RegisterPaymentGateway` / `LookupPaymentGateway` |
+| 网关实现 | `payment_gateway_mock.go` 等 | 各渠道 Create/Query/Notify |
+| 回调 | `payment_notify_controller.go` | `POST /api/payment/notify/{type}[/{tenant}]` |
 
 ## 2. 分表如何定位（回调一定找得到）
 
@@ -74,16 +76,54 @@ curl -X POST http://127.0.0.1:3000/api/payment/notify/mock \
 
 5. 查询：`POST /api/admin/payments/{payment_no}/query`（mock 读本地库状态）
 
-## 3. 接入微信 / 支付宝
+## 5. 接入微信 / 支付宝
 
-1. 在 `handleWechatNotify` / `handleAlipayNotify` 用 gopay 验签
-2. 映射为 `PaidResult{PaymentNo, ThirdPartyNo, PayTime, Amount, NotifyData}`
-3. `return ApplyPaidResult(ctx, result)` — **不要**在网关里直接改订单
-4. `queryWechatPayment` / `queryAlipayPayment` 同样：查第三方成功后可调用 `ApplyPaidResult` 做对账
+在 `payment_gateway_wechat.go` / `payment_gateway_alipay.go` 的 `Notify` / `Query` 中：
 
-下单示例仍在 `createWechatPayment` / `createAlipayPayment`（需真实商户配置）；生产请关掉 demo、自备证书与密钥。
+1. gopay 验签 / 查询  
+2. 映射为 `PaidResult{PaymentNo, ThirdPartyNo, PayTime, Amount, NotifyData}`  
+3. `return ApplyPaidResult(ctx, result)` — **不要**在驱动里直接改订单  
 
-## 4. 环境与模块
+下单示例已在对应 Driver 的 `Create`（需真实商户配置）。
+
+## 6. 接入全新渠道（推荐）
+
+回调路由已通用：`POST /api/payment/notify/{type}[/{tenant}]`，**不必再改 routes**。
+
+1. 新建例如 `app/services/payment_gateway_stripe.go`：
+
+```go
+package services
+
+func init() {
+    RegisterPaymentGateway(&stripePaymentDriver{})
+}
+
+type stripePaymentDriver struct{}
+
+func (d *stripePaymentDriver) Type() string { return "stripe" }
+
+func (d *stripePaymentDriver) Create(ctx context.Context, payment *models.Payment, method *models.PaymentMethod, config map[string]any, clientIP string) (map[string]any, error) {
+    // 调第三方下单，notify_url 可用 defaultPaymentNotifyURL(ctx, "stripe")
+    return map[string]any{"payment_no": payment.PaymentNo}, nil
+}
+
+func (d *stripePaymentDriver) Query(ctx context.Context, payment *models.Payment, method *models.PaymentMethod, config map[string]any) (map[string]any, error) {
+    return nil, apperrors.ErrPaymentGatewayNotImplemented
+}
+
+func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
+    // 验签 → PaidResult → ApplyPaidResult(ctx, result)
+    return ApplyPaidResult(ctx, PaidResult{PaymentNo: "...", ThirdPartyNo: "..."})
+}
+```
+
+2. 后台支付方式 `type` 填同一字符串（如 `stripe`）  
+3. 前端（可选）：`PAYMENT_METHOD_TYPES` + 配置字段 + i18n，管理端才能选该类型  
+
+已注册类型可用 `RegisteredPaymentGatewayTypes()` 查看。参考实现：`payment_gateway_mock.go`。
+
+## 7. 环境与模块
 
 | 变量 / 开关 | 说明 |
 |-------------|------|
@@ -91,7 +131,7 @@ curl -X POST http://127.0.0.1:3000/api/payment/notify/mock \
 | `APP_URL` | 拼默认 `notify_url` |
 | 多租户 | 回调必须带 `{tenant}`；见 `tenancy.PaymentNotifyPath` |
 
-## 5. 明确不做
+## 8. 明确不做
 
 - 退款 / 部分退款 API
 - 微信/支付宝真实验签与生产密钥管理

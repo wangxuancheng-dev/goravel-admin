@@ -2,13 +2,8 @@ package services
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
 
-	"github.com/go-pay/gopay"
-	"github.com/go-pay/gopay/alipay"
-	"github.com/go-pay/gopay/wechat/v3"
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
@@ -18,8 +13,8 @@ import (
 )
 
 // PaymentGatewayService 第三方支付下单/查询/回调（与后台支付记录 CRUD 解耦）。
-// mock 类型提供可跑通的参考实现；wechat/alipay 下单为 gopay 示例，查询/回调验签仍返回 NotImplemented，
-// 二次开发时在 verify* 处接入后复用 ApplyPaidResult。见 docs/PAYMENTS_REFERENCE.md。
+// 渠道通过 RegisterPaymentGateway 注册（见 payment_gateway_*.go）；落库统一 ApplyPaidResult。
+// 文档：docs/PAYMENTS_REFERENCE.md
 type PaymentGatewayService interface {
 	CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error)
 	QueryPaymentOrder(payment *models.Payment) (map[string]any, error)
@@ -38,210 +33,38 @@ func NewPaymentGatewayService(ctx context.Context) PaymentGatewayService {
 	}
 }
 
-// CreatePaymentOrder 创建支付订单（调用第三方支付）
+// CreatePaymentOrder 创建支付订单（调用已注册网关）
 func (s *PaymentGatewayServiceImpl) CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error) {
-	// 获取支付方式
 	paymentMethod, err := s.paymentMethods.GetPaymentMethodByID(payment.PaymentMethodID)
 	if err != nil {
 		return nil, err
 	}
-
-	// 解析配置
-	var config map[string]any
-	if strings.TrimSpace(paymentMethod.Config) != "" {
-		if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
-			return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
-		}
-	}
-	if config == nil {
-		config = map[string]any{}
-	}
-
-	// 根据支付类型调用不同的支付接口
-	switch paymentMethod.Type {
-	case "mock":
-		return s.createMockPayment(payment, config, clientIP)
-	case "wechat":
-		return s.createWechatPayment(payment, config, clientIP)
-	case "alipay":
-		return s.createAlipayPayment(payment, config, clientIP)
-	default:
-		return nil, apperrors.ErrInvalidPaymentType.WithMessage(fmt.Sprintf("不支持的支付类型: %s", paymentMethod.Type))
-	}
-}
-
-// createWechatPayment 创建微信支付订单
-func (s *PaymentGatewayServiceImpl) createWechatPayment(payment *models.Payment, config map[string]any, clientIP string) (map[string]any, error) {
-	// 这里需要根据 gopay 的微信支付文档实现
-	// 示例代码，实际使用时需要根据 gopay 的最新 API 调整
-	// 参考: https://github.com/go-pay/gopay/tree/main/wechat/v3
-
-	// 获取配置参数
-	appID, _ := config["app_id"].(string)
-	mchID, _ := config["mch_id"].(string)
-	apiV3Key, _ := config["api_v3_key"].(string)
-	certSerialNo, _ := config["cert_serial_no"].(string)
-	privateKeyPath, _ := config["private_key_path"].(string)
-
-	if appID == "" || mchID == "" || apiV3Key == "" {
-		return nil, apperrors.ErrPaymentConfigRequired.WithMessage("微信支付配置不完整")
-	}
-
-	// 创建微信支付客户端
-	client, err := wechat.NewClientV3(appID, mchID, apiV3Key, certSerialNo)
+	config, err := parsePaymentMethodConfig(paymentMethod)
 	if err != nil {
-		return nil, apperrors.ErrCreatePaymentFailed.WithError(err)
+		return nil, err
 	}
-	// 设置私钥（如果需要）
-	if privateKeyPath != "" {
-		// 这里需要根据 gopay 的实际 API 设置私钥
-		// client.SetPrivateKey(...)
-	}
-
-	// 设置回调地址（需要从配置中读取）
-	notifyURL, _ := config["notify_url"].(string)
-	if notifyURL == "" {
-		notifyURL = defaultPaymentNotifyURL(s.ctx, "wechat")
-	}
-
-	// 创建支付订单
-	bm := make(gopay.BodyMap)
-	bm.Set("out_trade_no", payment.PaymentNo)
-	bm.Set("description", payment.Remark)
-	bm.Set("amount", map[string]any{
-		"total":    int(payment.Amount * 100), // 转换为分
-		"currency": "CNY",
-	})
-	bm.Set("notify_url", notifyURL)
-	bm.Set("payer", map[string]any{
-		"openid": config["openid"], // 需要从订单或用户信息中获取
-	})
-
-	// 注意：这里需要根据 gopay 的最新 API 调用
-	// 示例代码，实际使用时需要根据 gopay 的最新文档调整
-	ctx := context.Background()
-	wxRsp, err := client.V3TransactionJsapi(ctx, bm)
+	driver, err := requirePaymentGateway(paymentMethod.Type)
 	if err != nil {
-		return nil, apperrors.ErrCreatePaymentFailed.WithError(err)
+		return nil, err
 	}
-
-	if wxRsp.Code != wechat.Success {
-		return nil, apperrors.ErrCreatePaymentFailed.WithMessage(wxRsp.Error)
-	}
-
-	return map[string]any{
-		"payment_no": payment.PaymentNo,
-		"prepay_id":  wxRsp.Response.PrepayId,
-		// PaySign 可能需要从其他地方获取或计算
-	}, nil
-}
-
-// createAlipayPayment 创建支付宝支付订单
-func (s *PaymentGatewayServiceImpl) createAlipayPayment(payment *models.Payment, config map[string]any, clientIP string) (map[string]any, error) {
-	// 这里需要根据 gopay 的支付宝文档实现
-	// 示例代码，实际使用时需要根据 gopay 的最新 API 调整
-	// 参考: https://github.com/go-pay/gopay/tree/main/alipay
-
-	// 获取配置参数
-	appID, _ := config["app_id"].(string)
-	privateKey, _ := config["private_key"].(string)
-	// appCertPublicKey, _ := config["app_cert_public_key"].(string)
-	// alipayRootCert, _ := config["alipay_root_cert"].(string)
-	// alipayPublicCert, _ := config["alipay_public_cert"].(string)
-
-	if appID == "" || privateKey == "" {
-		return nil, apperrors.ErrPaymentConfigRequired.WithMessage("支付宝配置不完整")
-	}
-
-	// 创建支付宝客户端
-	client, err := alipay.NewClient(appID, privateKey, false)
-	if err != nil {
-		return nil, apperrors.ErrCreatePaymentFailed.WithError(err)
-	}
-
-	// 设置证书（如果需要）
-	// 注意：这里需要根据 gopay 的最新 API 设置证书
-	// 示例代码，实际使用时需要根据 gopay 的最新文档调整
-	// if appCertPublicKey != "" {
-	// 	client.SetAppCertPublicKey(appCertPublicKey)
-	// }
-	// if alipayRootCert != "" {
-	// 	client.SetAlipayRootCert(alipayRootCert)
-	// }
-	// if alipayPublicCert != "" {
-	// 	client.SetAlipayPublicCert(alipayPublicCert)
-	// }
-
-	// 设置回调地址
-	notifyURL, _ := config["notify_url"].(string)
-	if notifyURL == "" {
-		notifyURL = defaultPaymentNotifyURL(s.ctx, "alipay")
-	}
-	client.SetNotifyUrl(notifyURL)
-
-	// 创建支付订单
-	bm := make(gopay.BodyMap)
-	bm.Set("out_trade_no", payment.PaymentNo)
-	bm.Set("subject", payment.Remark)
-	bm.Set("total_amount", fmt.Sprintf("%.2f", payment.Amount))
-	bm.Set("product_code", "QUICK_MSECURITY_PAY")
-
-	ctx := context.Background()
-	payUrl, err := client.TradeAppPay(ctx, bm)
-	if err != nil {
-		return nil, apperrors.ErrCreatePaymentFailed.WithError(err)
-	}
-
-	return map[string]any{
-		"payment_no": payment.PaymentNo,
-		"pay_url":    payUrl,
-	}, nil
+	return driver.Create(s.ctx, payment, paymentMethod, config, clientIP)
 }
 
 // QueryPaymentOrder 查询支付订单状态
 func (s *PaymentGatewayServiceImpl) QueryPaymentOrder(payment *models.Payment) (map[string]any, error) {
-	// 获取支付方式
 	paymentMethod, err := s.paymentMethods.GetPaymentMethodByID(payment.PaymentMethodID)
 	if err != nil {
 		return nil, err
 	}
-
-	// 解析配置
-	var config map[string]any
-	if strings.TrimSpace(paymentMethod.Config) != "" {
-		if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
-			return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
-		}
+	config, err := parsePaymentMethodConfig(paymentMethod)
+	if err != nil {
+		return nil, err
 	}
-	if config == nil {
-		config = map[string]any{}
+	driver, err := requirePaymentGateway(paymentMethod.Type)
+	if err != nil {
+		return nil, err
 	}
-
-	// 根据支付类型查询
-	switch paymentMethod.Type {
-	case "mock":
-		return s.queryMockPayment(payment, config)
-	case "wechat":
-		return s.queryWechatPayment(payment, config)
-	case "alipay":
-		return s.queryAlipayPayment(payment, config)
-	default:
-		return nil, apperrors.ErrInvalidPaymentType.WithMessage(fmt.Sprintf("不支持的支付类型: %s", paymentMethod.Type))
-	}
-}
-
-// queryWechatPayment 查询微信支付：二次开发时在此调用 gopay 查询，成功后可 ApplyPaidResult 对账落库。
-func (s *PaymentGatewayServiceImpl) queryWechatPayment(payment *models.Payment, config map[string]any) (map[string]any, error) {
-	_ = payment
-	_ = config
-	return nil, apperrors.ErrPaymentGatewayNotImplemented
-}
-
-// queryAlipayPayment 查询支付宝：二次开发时在此调用 gopay 查询，成功后可 ApplyPaidResult 对账落库。
-func (s *PaymentGatewayServiceImpl) queryAlipayPayment(payment *models.Payment, config map[string]any) (map[string]any, error) {
-	_ = payment
-	_ = config
-	return nil, apperrors.ErrPaymentGatewayNotImplemented
+	return driver.Query(s.ctx, payment, paymentMethod, config)
 }
 
 // HandlePaymentNotify 处理支付回调通知
@@ -249,35 +72,11 @@ func (s *PaymentGatewayServiceImpl) HandlePaymentNotify(paymentMethod *models.Pa
 	if paymentMethod == nil {
 		return nil, apperrors.ErrInvalidPaymentType
 	}
-	// 根据支付类型处理回调
-	switch paymentMethod.Type {
-	case "mock":
-		return s.handleMockNotify(paymentMethod, notifyData)
-	case "wechat":
-		return s.handleWechatNotify(paymentMethod, notifyData)
-	case "alipay":
-		return s.handleAlipayNotify(paymentMethod, notifyData)
-	default:
-		return nil, apperrors.ErrInvalidPaymentType.WithMessage(fmt.Sprintf("不支持的支付类型: %s", paymentMethod.Type))
+	driver, err := requirePaymentGateway(paymentMethod.Type)
+	if err != nil {
+		return nil, err
 	}
-}
-
-// handleWechatNotify 微信支付回调：验签通过后构造 PaidResult 并调用 ApplyPaidResult。
-func (s *PaymentGatewayServiceImpl) handleWechatNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
-	_ = paymentMethod
-	_ = notifyData
-	// TODO: gopay wechat verify → PaidResult{PaymentNo: out_trade_no, ThirdPartyNo: transaction_id, ...}
-	// return ApplyPaidResult(s.ctx, result)
-	return nil, apperrors.ErrPaymentGatewayNotImplemented
-}
-
-// handleAlipayNotify 支付宝回调：验签通过后构造 PaidResult 并调用 ApplyPaidResult。
-func (s *PaymentGatewayServiceImpl) handleAlipayNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
-	_ = paymentMethod
-	_ = notifyData
-	// TODO: gopay alipay verify → PaidResult{PaymentNo: out_trade_no, ThirdPartyNo: trade_no, ...}
-	// return ApplyPaidResult(s.ctx, result)
-	return nil, apperrors.ErrPaymentGatewayNotImplemented
+	return driver.Notify(s.ctx, paymentMethod, notifyData)
 }
 
 func defaultPaymentNotifyURL(ctx context.Context, notifyType string) string {
