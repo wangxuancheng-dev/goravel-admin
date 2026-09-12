@@ -86,7 +86,7 @@ export function resolvePaymentMethodTypes(enabledTypes?: string[] | null): strin
   if (wanted.length === 0) {
     return []
   }
-  const known = PAYMENT_METHOD_TYPES.filter((value) => seen.has(value))
+  const known: string[] = PAYMENT_METHOD_TYPES.filter((value) => seen.has(value))
   for (const value of wanted) {
     if (!known.includes(value)) {
       known.push(value)

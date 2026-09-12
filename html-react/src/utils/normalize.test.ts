@@ -13,8 +13,12 @@ describe('normalizeEntity', () => {
   })
 
   it('normalizes nested children', () => {
-    const tree = normalizeTreeList([{ ID: 1, children: [{ ID: 2 }] }])
+    const tree = normalizeTreeList([{ ID: 1, children: [{ ID: 2 }] }]) as Array<{
+      ID: number
+      id: number
+      children: Array<{ ID: number; id: number }>
+    }>
     expect(tree[0].id).toBe(1)
-    expect((tree[0] as { children: Array<{ id: number }> }).children[0].id).toBe(2)
+    expect(tree[0].children[0].id).toBe(2)
   })
 })
