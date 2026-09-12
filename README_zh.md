@@ -327,6 +327,23 @@ npx wrangler deploy
 
 **注意：** `worker.js` 会处理 SPA 路由，当路径不是静态资源时回退到 `index.html`。仅上传 `dist`、不带 Worker 时，刷新 `/admins` 等路径会 404。
 
+### Cloudflare 部署文档站（VitePress）
+
+文档在 `website/`，与后台前端分开部署（独立 Worker / 域名）：
+
+```bash
+cd website
+npm install
+npm run build
+npx wrangler deploy
+# 或：npm run deploy
+```
+
+- **根目录：** `website/`（`wrangler.toml` + `worker.js`）
+- **产物：** `docs/.vitepress/dist`
+- **建议自定义域名：** `docs.xuancheng888.top`（勿与 `admin.` 共用同一 Worker）
+- 详细说明见 [website/README.md](./website/README.md)
+
 ### 性能分析
 
 pprof 性能分析工具地址：http://localhost:3000/debug/pprof/

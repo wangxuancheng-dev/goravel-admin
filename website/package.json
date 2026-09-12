@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vitepress dev docs --port 5175",
     "build": "vitepress build docs",
-    "serve": "vitepress preview docs --port 5175"
+    "serve": "vitepress preview docs --port 5175",
+    "deploy": "npm run build && npx wrangler deploy"
   },
   "devDependencies": {
     "vitepress": "^1.6.4",

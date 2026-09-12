@@ -330,6 +330,23 @@ npx wrangler deploy
 
 **Note:** `worker.js` handles SPA routing by falling back to `index.html` for non-asset paths. Uploading only `dist` without the Worker will 404 on refresh of routes like `/admins`.
 
+### Cloudflare docs site (VitePress)
+
+Docs live under `website/` and should be a **separate** Worker / domain from the admin SPA:
+
+```bash
+cd website
+npm install
+npm run build
+npx wrangler deploy
+# or: npm run deploy
+```
+
+- **Root directory:** `website/` (`wrangler.toml` + `worker.js`)
+- **Output:** `docs/.vitepress/dist`
+- **Suggested custom domain:** `docs.xuancheng888.top` (do not share the `admin` Worker)
+- Details: [website/README.md](./website/README.md)
+
 ### Performance Profiling
 
 pprof is available at: http://localhost:3000/debug/pprof/

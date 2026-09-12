@@ -615,3 +615,34 @@ git checkout <previous-commit>
 | 单服务部署 | ⭐ | ❌ | 开发/测试环境 | ⭐⭐ |
 | 蓝绿部署 + Nginx | ⭐⭐⭐ | ✅ | 生产环境（非容器） | ⭐⭐⭐⭐ |
 | Docker Compose 蓝绿 | ⭐⭐ | ✅ | 生产环境（容器化） | ⭐⭐⭐⭐⭐ |
+
+---
+
+## Docs site on Cloudflare
+
+VitePress lives under `website/`. Use a **separate subdomain** (e.g. `docs.example.com`), not the admin SPA Worker.
+
+### Workers + Assets
+
+```bash
+cd website
+npm install
+npm run build
+npx wrangler deploy
+# or npm run deploy
+```
+
+| Item | Notes |
+|------|--------|
+| Config | `website/wrangler.toml`, `website/worker.js` |
+| Output | `docs/.vitepress/dist` |
+| Worker name | `goravel-admin-docs` (do not reuse the `admin` Worker) |
+| Domain | Bind a `docs.` hostname; no `VITE_API_*` needed |
+
+`worker.js` maps clean paths like `/guide/getting-started` to `.html` so refresh works.
+
+### Pages (optional)
+
+Root=`website`, Build=`npm run build`, Output=`docs/.vitepress/dist`, Node 20.
+
+See [website/README.md](https://github.com/wangxuancheng-dev/goravel-admin/blob/main/website/README.md).

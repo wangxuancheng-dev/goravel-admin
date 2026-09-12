@@ -611,3 +611,34 @@ git checkout <previous-commit>
 | 单服务部署 | ⭐ | ❌ | 开发/测试环境 | ⭐⭐ |
 | 蓝绿部署 + Nginx | ⭐⭐⭐ | ✅ | 生产环境（非容器） | ⭐⭐⭐⭐ |
 | Docker Compose 蓝绿 | ⭐⭐ | ✅ | 生产环境（容器化） | ⭐⭐⭐⭐⭐ |
+
+---
+
+## 文档站部署（Cloudflare）
+
+VitePress 文档在仓库 `website/`，建议用**独立子域**（如 `docs.example.com`），与后台 SPA（`admin.`）分开。
+
+### Workers + Assets（与前端同套路）
+
+```bash
+cd website
+npm install
+npm run build
+npx wrangler deploy
+# 或 npm run deploy
+```
+
+| 项 | 说明 |
+|----|------|
+| 配置 | `website/wrangler.toml`、`website/worker.js` |
+| 产物 | `docs/.vitepress/dist` |
+| Worker 名 | `goravel-admin-docs`（勿与 `admin` Worker 混用） |
+| 域名 | 绑 `docs.` 子域即可；静态站无需 `VITE_API_*` |
+
+`worker.js` 会把 `/guide/getting-started` 映射到 `getting-started.html`，刷新不会 404。
+
+### Pages（可选）
+
+Root directory=`website`，Build=`npm run build`，Output=`docs/.vitepress/dist`，Node 20。
+
+更多说明见仓库 [website/README.md](https://github.com/wangxuancheng-dev/goravel-admin/blob/main/website/README.md)。
