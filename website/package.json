@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev docs",
+    "dev": "vitepress dev docs --port 5175",
     "build": "vitepress build docs",
-    "serve": "vitepress preview docs"
+    "serve": "vitepress preview docs --port 5175"
   },
   "devDependencies": {
     "vitepress": "^1.6.4",

@@ -15,6 +15,8 @@ npm install
 npm run dev
 ```
 
+本地默认：`http://localhost:5175`
+
 ## Build
 
 ```bash
