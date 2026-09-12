@@ -46,3 +46,53 @@ func TestCacheKeyOffModeUnchanged(t *testing.T) {
 		t.Fatalf("off StoragePrefix: %q", got)
 	}
 }
+
+func TestAllowHeaderFallbackDefaults(t *testing.T) {
+	prevResolver := facades.Config().GetString("tenancy.resolver")
+	prevFallback := facades.Config().GetString("tenancy.allow_header_fallback")
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.resolver", prevResolver)
+		facades.Config().Add("tenancy.allow_header_fallback", prevFallback)
+	})
+
+	facades.Config().Add("tenancy.allow_header_fallback", "")
+	facades.Config().Add("tenancy.resolver", "subdomain")
+	if AllowHeaderFallback() {
+		t.Fatal("subdomain should deny header fallback by default")
+	}
+	facades.Config().Add("tenancy.resolver", "header")
+	if !AllowHeaderFallback() {
+		t.Fatal("header resolver should allow fallback by default")
+	}
+	facades.Config().Add("tenancy.resolver", "subdomain")
+	facades.Config().Add("tenancy.allow_header_fallback", "true")
+	if !AllowHeaderFallback() {
+		t.Fatal("explicit true should allow fallback")
+	}
+}
+
+func TestPaymentNotifyPath(t *testing.T) {
+	prev := facades.Config().GetString("tenancy.driver")
+	t.Cleanup(func() { facades.Config().Add("tenancy.driver", prev) })
+
+	facades.Config().Add("tenancy.driver", "database")
+	if got := PaymentNotifyPath("acme", "wechat"); got != "/api/payment/notify/wechat/acme" {
+		t.Fatalf("got %q", got)
+	}
+	facades.Config().Add("tenancy.driver", "off")
+	if got := PaymentNotifyPath("acme", "wechat"); got != "/api/payment/notify/wechat" {
+		t.Fatalf("off got %q", got)
+	}
+}
+
+func TestSubdomainHintReserved(t *testing.T) {
+	if got := SubdomainHint("www.example.com"); got != "" {
+		t.Fatalf("reserved www: %q", got)
+	}
+	if got := SubdomainHint("acme.example.com"); got != "acme" {
+		t.Fatalf("tenant sub: %q", got)
+	}
+	if got := SubdomainHint("localhost"); got != "" {
+		t.Fatalf("localhost: %q", got)
+	}
+}

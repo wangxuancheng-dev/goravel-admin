@@ -4,11 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/goravel/framework/facades"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
+	"goravel/app/tenancyctx"
 )
 
 func TestPaymentGatewayNotifyAndQueryStubs(t *testing.T) {
@@ -44,4 +46,18 @@ func TestPaymentGatewayNotifyAndQueryStubs(t *testing.T) {
 	be, ok = apperrors.GetBusinessError(err)
 	require.True(t, ok)
 	assert.Equal(t, apperrors.ErrPaymentGatewayNotImplemented.Code, be.Code)
+}
+
+func TestDefaultPaymentNotifyURLIncludesTenant(t *testing.T) {
+	prevDriver := facades.Config().GetString("tenancy.driver")
+	prevURL := facades.Config().GetString("app.url")
+	facades.Config().Add("tenancy.driver", "database")
+	facades.Config().Add("app.url", "https://example.com")
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.driver", prevDriver)
+		facades.Config().Add("app.url", prevURL)
+	})
+
+	ctx := tenancyctx.WithTenant(context.Background(), 1, "tenant_1", "acme")
+	assert.Equal(t, "https://example.com/api/payment/notify/wechat/acme", defaultPaymentNotifyURL(ctx, "wechat"))
 }

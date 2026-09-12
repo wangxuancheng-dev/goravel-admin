@@ -8,6 +8,7 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
+	apperrors "goravel/app/errors"
 	"goravel/app/tenancyctx"
 )
 
@@ -23,6 +24,22 @@ func Resolver() string {
 		return "subdomain"
 	}
 	return "header"
+}
+
+// AllowHeaderFallback reports whether Header/Query/body hints may be used when
+// subdomain resolution yields nothing. Default: false for subdomain (public-safe),
+// true for header resolver (local/SPA DX). Override with TENANCY_ALLOW_HEADER_FALLBACK.
+func AllowHeaderFallback() bool {
+	raw := strings.TrimSpace(facades.Config().GetString("tenancy.allow_header_fallback", ""))
+	if raw != "" {
+		switch strings.ToLower(raw) {
+		case "1", "true", "yes", "on":
+			return true
+		default:
+			return false
+		}
+	}
+	return Resolver() != "subdomain"
 }
 
 // Bound reports whether ctx already carries a tenant ORM connection.
@@ -58,15 +75,10 @@ func StoragePrefix(ctx context.Context) string {
 	return "tenants/_unbound_/"
 }
 
-// HTTPHint reads tenant id/code from subdomain and/or header/query.
-func HTTPHint(ctx http.Context) string {
+// ClientHint reads tenant id/code from Header / Query only (never Host).
+func ClientHint(ctx http.Context) string {
 	if ctx == nil {
 		return ""
-	}
-	if Resolver() == "subdomain" {
-		if code := SubdomainHint(ctx.Request().Host()); code != "" {
-			return code
-		}
 	}
 	headerName := facades.Config().GetString("tenancy.header", "X-Tenant-ID")
 	raw := strings.TrimSpace(ctx.Request().Header(headerName, ""))
@@ -77,6 +89,37 @@ func HTTPHint(ctx http.Context) string {
 		raw = strings.TrimSpace(ctx.Request().Query("tenant_code", ""))
 	}
 	return raw
+}
+
+// HTTPHint resolves the tenant hint for middleware (no explicit body override).
+func HTTPHint(ctx http.Context) string {
+	hint, _ := ResolveHint(ctx, "")
+	return hint
+}
+
+// ResolveHint picks the effective tenant code/id for binding.
+// Priority for subdomain resolver: Host subdomain > (optional) client/body hint.
+// When subdomain is present and clientHint conflicts, returns ErrTenantHintConflict.
+func ResolveHint(ctx http.Context, clientHint string) (string, error) {
+	clientHint = strings.TrimSpace(clientHint)
+	if clientHint == "" && ctx != nil {
+		clientHint = ClientHint(ctx)
+	}
+
+	if Resolver() == "subdomain" && ctx != nil {
+		if sub := SubdomainHint(ctx.Request().Host()); sub != "" {
+			if clientHint != "" && !strings.EqualFold(clientHint, sub) {
+				return "", apperrors.ErrTenantHintConflict
+			}
+			return sub, nil
+		}
+		if !AllowHeaderFallback() {
+			// Public: apex/reserved host must not accept client-supplied tenant.
+			return "", nil
+		}
+	}
+
+	return clientHint, nil
 }
 
 // SubdomainHint extracts tenant code from host like acme.example.com.
@@ -102,4 +145,14 @@ func SubdomainHint(host string) string {
 		}
 	}
 	return label
+}
+
+// PaymentNotifyPath returns /api/payment/notify/{type}/{tenant} when tenancy is on.
+func PaymentNotifyPath(tenantCode, notifyType string) string {
+	notifyType = strings.ToLower(strings.TrimSpace(notifyType))
+	tenantCode = strings.TrimSpace(tenantCode)
+	if Enabled() && tenantCode != "" {
+		return fmt.Sprintf("/api/payment/notify/%s/%s", notifyType, tenantCode)
+	}
+	return fmt.Sprintf("/api/payment/notify/%s", notifyType)
 }

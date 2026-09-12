@@ -31,16 +31,19 @@ TENANCY_DRIVER=database
 
 ```ini
 TENANCY_DRIVER=database
-TENANCY_RESOLVER=header            # header | subdomain
+TENANCY_RESOLVER=subdomain            # 公网推荐；本地可用 header
 TENANCY_HEADER=X-Tenant-ID
+TENANCY_ALLOW_HEADER_FALLBACK=        # 空=subdomain 禁止客户端回落
 TENANCY_SUBDOMAIN_RESERVED=www,api,admin,platform,static,assets
 TENANCY_DATABASE_PREFIX=tenant_
 TENANCY_SCHEMA_PREFIX=tenant_
 TENANCY_PLATFORM_CONNECTION=       # 可选；钉死平台连接名，默认取 database.default
-TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true  # 同机空账号回落平台 DB_*；生产建议 false
+TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发可 true
                                           # 远程 host 始终要求独立 username/password
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
 TENANCY_BACKUP_KEEP=10                    # tenant:backup 保留份数；0=不清理
+TENANCY_POOL_MAX_IDLE_CONNS=2
+TENANCY_POOL_MAX_OPEN_CONNS=20
 
 PLATFORM_ADMIN_USERNAME=admin
 PLATFORM_ADMIN_PASSWORD=secret
@@ -57,7 +60,15 @@ PLATFORM_ADMIN_NAME=平台管理员
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
 3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；`tenant:migrate` 成功 → `ready`；未 ready 的租户不可绑定业务请求，也不可启用以绕过。
-5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`。
+5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
+
+## 公网部署（推荐）
+
+1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
+2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
+3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；无租户旧路径在 tenancy 开启时拒绝。
+4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20），避免几百商户打满 MySQL。
+5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
 ## 运维增强（P1）
 
@@ -149,6 +160,13 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | PUT | `/api/platform/tenants/{id}/status` | 启停 |
 | POST | `/api/platform/tenants/{id}/ping` | 探测租户库连通性 |
 
+公开支付回调（非 platform）：
+
+| Method | Path | 说明 |
+|--------|------|------|
+| POST | `/api/payment/notify/{type}/{tenant}` | wechat\|alipay；路径绑定租户 |
+| POST | `/api/payment/notify/{type}` | tenancy 关闭时可用；开启时 `tenant_required` |
+
 ## 代码约定
 
 | API | 用途 |
@@ -174,6 +192,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
 11. 仅 `provision_status=ready` 的租户可绑定业务；HTTP 开户禁止 migrate，须 CLI `tenant:migrate`。
-12. 远程租户库禁止空账号回落平台 root；生产建议 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。
+12. 远程租户库禁止空账号回落平台 root；公网默认 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。
 13. 平台表迁移不得落在租户库（`SkipOnTenantConnection`）；migrate 失败须可在平台侧看到 `last_migrate_error`。
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
+15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。

@@ -189,29 +189,17 @@ func resolveLoginIdentifier(ctx contractshttp.Context, fallbackIP string) string
 	return fallbackIP
 }
 
-// resolveLoginTenantHint 在 Tenant 中间件之前读取租户提示（body/query/header/subdomain）。
+// resolveLoginTenantHint 在限流键中纳入租户（subdomain 优先，可与 body 一并解析）。
 func resolveLoginTenantHint(ctx contractshttp.Context) string {
+	body := ""
 	for _, field := range []string{"tenant_code", "tenant_id"} {
 		if v := strings.TrimSpace(ctx.Request().Input(field, "")); v != "" {
-			return strings.ToLower(v)
+			body = v
+			break
 		}
 	}
-	if v := strings.TrimSpace(ctx.Request().Query("tenant_code", "")); v != "" {
-		return strings.ToLower(v)
-	}
-	if v := strings.TrimSpace(ctx.Request().Query("tenant_id", "")); v != "" {
-		return strings.ToLower(v)
-	}
-	header := facades.Config().GetString("tenancy.header", "X-Tenant-ID")
-	if v := strings.TrimSpace(ctx.Request().Header(header, "")); v != "" {
-		return strings.ToLower(v)
-	}
-	if tenancy.Resolver() == "subdomain" {
-		if code := tenancy.SubdomainHint(ctx.Request().Host()); code != "" {
-			return strings.ToLower(code)
-		}
-	}
-	return ""
+	hint, _ := tenancy.ResolveHint(ctx, body)
+	return strings.ToLower(strings.TrimSpace(hint))
 }
 
 // resolvePprofVerifyIdentifier 从上下文提取管理员 ID，找不到则回退到 IP

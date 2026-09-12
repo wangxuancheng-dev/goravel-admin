@@ -120,6 +120,7 @@ func TestDictionaryIndexAllowedWithPermission(t *testing.T) {
 }
 
 func TestPaymentNotifyStubReturnsNotImplemented(t *testing.T) {
+	withTenancyDriver(t, "off")
 	testCase := tests.TestCase{}
 	resp, err := testCase.Http(t).
 		WithHeader("Content-Type", "application/json").
@@ -136,6 +137,26 @@ func TestPaymentNotifyStubReturnsNotImplemented(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(content), &payload))
 	assert.Equal(t, 501, payload.Code, "body: %s", content)
 	assert.Equal(t, "payment_gateway_not_implemented", payload.ErrorCode)
+}
+
+func TestPaymentNotifyLegacyRequiresTenantWhenTenancyOn(t *testing.T) {
+	withTenancyDriver(t, "database")
+	testCase := tests.TestCase{}
+	resp, err := testCase.Http(t).
+		WithHeader("Content-Type", "application/json").
+		Post("/api/payment/notify/wechat", strings.NewReader(`{"out_trade_no":"demo"}`))
+	require.NoError(t, err)
+
+	content, err := resp.Content()
+	require.NoError(t, err)
+
+	var payload struct {
+		Code      int    `json:"code"`
+		ErrorCode string `json:"error_code"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(content), &payload))
+	assert.Equal(t, 400, payload.Code, "body: %s", content)
+	assert.Equal(t, "tenant_required", payload.ErrorCode)
 }
 
 func loginAdminWithPermission(t *testing.T, username, password, slug, method, path string) string {

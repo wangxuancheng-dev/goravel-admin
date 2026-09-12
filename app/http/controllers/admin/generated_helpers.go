@@ -75,7 +75,7 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusBadRequest
 	case code == "account_disabled" || code == "forbidden" || code == "tenant_disabled":
 		return http.StatusForbidden
-	case code == "tenant_required" || code == "tenancy_disabled":
+	case code == "tenant_required" || code == "tenancy_disabled" || code == "tenant_hint_conflict":
 		return http.StatusBadRequest
 	case code == "tenant_not_ready":
 		return http.StatusForbidden

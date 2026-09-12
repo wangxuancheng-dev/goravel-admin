@@ -22,8 +22,14 @@ func Api() {
 	facades.Route().Prefix("api").Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist()).Group(func(router route.Router) {
 		router.Get("public/files/{id}", attachmentController.PublicPreview)
 		router.Get("public/customer-service", publicConfigController.CustomerService)
-		// 支付回调骨架：固定返回 payment_gateway_not_implemented（非生产收单）
-		router.Post("payment/notify/{type}", paymentNotifyController.Notify)
+	})
+
+	// 支付回调：不挂 Tenant 中间件；租户从路径末段绑定（避免 gin :tenant/:type 冲突）
+	facades.Route().Prefix("api").Middleware(middleware.Lang(), middleware.Blacklist()).Group(func(router route.Router) {
+		router.Post("payment/notify/wechat/{tenant}", paymentNotifyController.NotifyWechat)
+		router.Post("payment/notify/alipay/{tenant}", paymentNotifyController.NotifyAlipay)
+		router.Post("payment/notify/wechat", paymentNotifyController.NotifyLegacyWechat)
+		router.Post("payment/notify/alipay", paymentNotifyController.NotifyLegacyAlipay)
 	})
 
 	// C端用户路由组：统一前缀

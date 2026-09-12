@@ -27,6 +27,7 @@ import (
 var (
 	tenantIdentPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 	registeredConns    sync.Map // connection_name -> struct{}
+	registerMu         sync.Mutex
 	migrateMu          sync.Mutex
 )
 
@@ -109,17 +110,49 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 	if tenant.ConnectionName == "" {
 		tenant.ConnectionName = TenantConnectionName(tenant.ID)
 	}
-	if _, loaded := registeredConns.LoadOrStore(tenant.ConnectionName, struct{}{}); loaded {
+
+	registerMu.Lock()
+	defer registerMu.Unlock()
+
+	if _, loaded := registeredConns.Load(tenant.ConnectionName); loaded {
 		return nil
 	}
 
 	cfg, err := s.buildConnectionConfig(tenant)
 	if err != nil {
-		registeredConns.Delete(tenant.ConnectionName)
 		return err
 	}
 	facades.Config().Add("database.connections."+tenant.ConnectionName, cfg)
+	registeredConns.Store(tenant.ConnectionName, struct{}{})
+
+	// Apply per-tenant pool limits (framework pool config is global-only).
+	o := appfacades.Orm().Connection(tenant.ConnectionName)
+	if db, err := o.DB(); err == nil && db != nil {
+		applyTenantPoolLimits(db)
+	}
 	return nil
+}
+
+func applyTenantPoolLimits(db interface {
+	SetMaxIdleConns(n int)
+	SetMaxOpenConns(n int)
+	SetConnMaxIdleTime(d time.Duration)
+	SetConnMaxLifetime(d time.Duration)
+}) {
+	idle := facades.Config().GetInt("tenancy.pool_max_idle_conns", 2)
+	open := facades.Config().GetInt("tenancy.pool_max_open_conns", 20)
+	idleSec := facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300)
+	lifeSec := facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800)
+	if idle < 0 {
+		idle = 0
+	}
+	if open < 1 {
+		open = 1
+	}
+	db.SetMaxIdleConns(idle)
+	db.SetMaxOpenConns(open)
+	db.SetConnMaxIdleTime(time.Duration(idleSec) * time.Second)
+	db.SetConnMaxLifetime(time.Duration(lifeSec) * time.Second)
 }
 
 // Forget drops a cached tenant connection registration and closes its sql.DB pool when possible.
@@ -140,7 +173,7 @@ func (s *TenantConnectionService) Forget(connectionName string) {
 func ValidateTenantCredentials(host, username, password string) error {
 	host = strings.TrimSpace(host)
 	username = strings.TrimSpace(username)
-	allowShared := facades.Config().GetBool("tenancy.allow_platform_db_credentials", true)
+	allowShared := facades.Config().GetBool("tenancy.allow_platform_db_credentials", false)
 	if host != "" {
 		if username == "" || strings.TrimSpace(password) == "" {
 			return apperrors.ErrTenantCredentialsRequired
@@ -212,6 +245,7 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 	}
 
 	connName := tenant.ConnectionName
+	pool := tenantPoolConfig()
 	switch driverName {
 	case models.TenantDriverMySQL:
 		return map[string]any{
@@ -224,6 +258,7 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 			"collation": "utf8mb4_unicode_ci",
 			"prefix":    "",
 			"singular":  false,
+			"pool":      pool,
 			"via": func() (driver.Driver, error) {
 				return mysqlfacades.Mysql(connName)
 			},
@@ -248,12 +283,22 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 			"singular": false,
 			"prefix":   "",
 			"schema":   schemaName,
+			"pool":     pool,
 			"via": func() (driver.Driver, error) {
 				return postgresfacades.Postgres(connName)
 			},
 		}, nil
 	default:
 		return nil, apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")
+	}
+}
+
+func tenantPoolConfig() map[string]any {
+	return map[string]any{
+		"max_idle_conns":     facades.Config().GetInt("tenancy.pool_max_idle_conns", 2),
+		"max_open_conns":     facades.Config().GetInt("tenancy.pool_max_open_conns", 20),
+		"conn_max_idletime":  facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300),
+		"conn_max_lifetime":  facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800),
 	}
 }
 
@@ -575,16 +620,17 @@ func ExtractTenantHint(ctx http.Context) string {
 	return tenancy.HTTPHint(ctx)
 }
 
-// BindHTTP 解析租户、注册连接并写入 HTTP context。hint 可空则从 Header/Query 取。
+// BindHTTP 解析租户、注册连接并写入 HTTP context。
+// hint 可空；公网 subdomain 模式下 Host 优先，且与 client hint 冲突时拒绝。
 func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error {
 	if !tenancy.Enabled() {
 		return nil
 	}
-	raw := strings.TrimSpace(hint)
-	if raw == "" {
-		raw = tenancy.HTTPHint(ctx)
+	raw, err := tenancy.ResolveHint(ctx, hint)
+	if err != nil {
+		return err
 	}
-	if raw == "" {
+	if strings.TrimSpace(raw) == "" {
 		return apperrors.ErrTenantRequired
 	}
 	tenant, err := s.FindTenantByIDOrCode(raw)

@@ -199,6 +199,8 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 					return response.Error(ctx, http.StatusNotFound, businessErr.Code)
 				case apperrors.ErrTenantDisabled.Code, apperrors.ErrTenantNotReady.Code:
 					return response.Error(ctx, http.StatusForbidden, businessErr.Code)
+				case apperrors.ErrTenantHintConflict.Code:
+					return response.Error(ctx, http.StatusBadRequest, businessErr.Code)
 				}
 			}
 			return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrTenantConnectionFailed.Code)

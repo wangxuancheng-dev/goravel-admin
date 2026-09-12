@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/go-pay/gopay"
 	"github.com/go-pay/gopay/alipay"
@@ -12,6 +13,8 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
+	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 )
 
 // PaymentGatewayService 第三方支付下单/查询/回调（与后台支付记录 CRUD 解耦）。
@@ -90,7 +93,7 @@ func (s *PaymentGatewayServiceImpl) createWechatPayment(payment *models.Payment,
 	// 设置回调地址（需要从配置中读取）
 	notifyURL, _ := config["notify_url"].(string)
 	if notifyURL == "" {
-		notifyURL = fmt.Sprintf("%s/api/payment/notify/wechat", facades.Config().GetString("app.url"))
+		notifyURL = defaultPaymentNotifyURL(s.ctx, "wechat")
 	}
 
 	// 创建支付订单
@@ -164,7 +167,7 @@ func (s *PaymentGatewayServiceImpl) createAlipayPayment(payment *models.Payment,
 	// 设置回调地址
 	notifyURL, _ := config["notify_url"].(string)
 	if notifyURL == "" {
-		notifyURL = fmt.Sprintf("%s/api/payment/notify/alipay", facades.Config().GetString("app.url"))
+		notifyURL = defaultPaymentNotifyURL(s.ctx, "alipay")
 	}
 	client.SetNotifyUrl(notifyURL)
 
@@ -239,16 +242,25 @@ func (s *PaymentGatewayServiceImpl) HandlePaymentNotify(paymentMethod *models.Pa
 	}
 }
 
-// handleWechatNotify 处理微信支付回调（骨架：固定 NotImplemented，路由见 /api/payment/notify/wechat）
+// handleWechatNotify 处理微信支付回调（骨架：固定 NotImplemented）
 func (s *PaymentGatewayServiceImpl) handleWechatNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
 	_ = paymentMethod
 	_ = notifyData
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
-// handleAlipayNotify 处理支付宝支付回调（骨架：固定 NotImplemented，路由见 /api/payment/notify/alipay）
+// handleAlipayNotify 处理支付宝支付回调（骨架：固定 NotImplemented）
 func (s *PaymentGatewayServiceImpl) handleAlipayNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
 	_ = paymentMethod
 	_ = notifyData
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
+}
+
+func defaultPaymentNotifyURL(ctx context.Context, notifyType string) string {
+	base := strings.TrimRight(facades.Config().GetString("app.url"), "/")
+	code := ""
+	if ctx != nil {
+		code, _ = tenancyctx.CodeFrom(ctx)
+	}
+	return base + tenancy.PaymentNotifyPath(code, notifyType)
 }
