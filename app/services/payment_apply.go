@@ -77,6 +77,8 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 
 	if order.Status == models.OrderStatusPending {
 		if err := orders.UpdateOrderByOrderNo(order.OrderNo, models.OrderStatusPaid, order.Remark); err != nil {
+			// Best-effort compensate: payment already marked paid on a (possibly different) shard table.
+			_ = payments.UpdatePaymentStatus(payment.ID, models.PaymentStatusPending, "", nil, "order sync failed: "+err.Error(), nil, payment.PaymentNo)
 			return nil, err
 		}
 	}

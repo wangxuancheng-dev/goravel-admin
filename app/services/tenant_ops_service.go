@@ -63,6 +63,9 @@ func (s *TenantOpsService) BeginQueuedOp(id uint, op string, withSeed bool) (*mo
 	}
 
 	lockKey := fmt.Sprintf("platform:tenant_op:%d", id)
+	// Short lock only to serialize BeginQueuedOp writers. Do NOT probe with a 1s Lock:
+	// under CACHE_STORE=memory a failed Get still schedules Forget and can delete an
+	// in-flight RunTenantOp lock. Busy state is enforced via last_op_*/provision_status.
 	lock := facades.Cache().Lock(lockKey, 15*time.Second)
 	if !lock.Get() {
 		return nil, TenantOpsArgs{}, apperrors.ErrTenantOpInProgress
@@ -164,6 +167,8 @@ func RunTenantOp(args TenantOpsArgs) error {
 	lockKey := fmt.Sprintf("platform:tenant_op:%d", args.TenantID)
 	lock := facades.Cache().Lock(lockKey, tenantOpLockTTL)
 	if !lock.Get() {
+		// Another worker still holds the op lock. Ack (nil) to avoid burning QUEUE_TRIES
+		// with immediate retries; the holder will write the final last_op_*/provision state.
 		facades.Log().Warningf("tenant_ops skip: lock held tenant_id=%d op=%s", args.TenantID, op)
 		return nil
 	}

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"math"
 
 	"github.com/go-pay/gopay"
 	"github.com/go-pay/gopay/wechat/v3"
@@ -48,7 +49,7 @@ func (d *wechatPaymentDriver) Create(ctx context.Context, payment *models.Paymen
 	bm.Set("out_trade_no", payment.PaymentNo)
 	bm.Set("description", payment.Remark)
 	bm.Set("amount", map[string]any{
-		"total":    int(payment.Amount * 100),
+		"total":    int(math.Round(payment.Amount * 100)),
 		"currency": "CNY",
 	})
 	bm.Set("notify_url", notifyURL)
