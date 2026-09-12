@@ -4,8 +4,6 @@
 
 设为 **`database`** 后：每租户独立 database（MySQL）或 database/schema（PostgreSQL）；**租户认证与业务都在该租户库**。平台控制台使用独立账号与 `/api/platform`，不切租户库。
 
-> 按新项目开发：不做旧版菜单/明文密码兼容。
-
 ## 架构
 
 ```text
@@ -106,8 +104,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 注意：
 
 - 公网请改用 `TENANCY_RESOLVER=subdomain`，并保持 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。
-- Compose 默认仍是演示单库；多租户是**可选进阶**，不要写进「三分钟上手」默认路径。
-- 更完整的命令与生产要点见下文「首启」「公网部署」。
+- Compose 默认仍是演示单库。
 
 ## 生产要点
 
@@ -121,7 +118,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
-3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；无租户旧路径在 tenancy 开启时拒绝。
+3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20），避免几百商户打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 

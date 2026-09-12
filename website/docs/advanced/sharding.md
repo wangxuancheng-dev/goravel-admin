@@ -1,8 +1,8 @@
 # 数据库分表指南
 
-> **Goravel v1.18**：分表查询/写入请使用 `appfacades.OrmQuery(ctx)` 传递请求 context。下文示例已对齐 v1.18，新代码请遵循 `NewXxxService(ctx)` + `OrmQuery(s.ctx)` 模式。
+分表查询/写入请使用 `appfacades.OrmQuery(ctx)`；服务层用 `NewXxxService(ctx)` + `OrmQuery(s.ctx)`。
 
-项目支持两种分表策略：**时间分表**（按月分表）和**哈希分表**（按ID哈希分表）。本文档包含分表功能的完整说明，包括如何创建分表、如何使用分表，以及如何为新的表添加分表支持。
+项目支持两种分表策略：**时间分表**（按月分表）和**哈希分表**（按ID哈希分表）。
 
 ## 分表策略概述
 

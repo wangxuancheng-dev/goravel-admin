@@ -4,7 +4,7 @@
 
 ---
 
-本项目后端（Go / Goravel）提供单元测试与集成测试支持，以提升代码质量和可维护性。
+本项目后端（Go / Goravel）提供单元测试与集成测试。
 
 ## 后端测试 (Go - Goravel)
 
@@ -205,16 +205,6 @@ func (s *TokenServiceTestSuite) TestHashToken() {
 | `frontend-vue` / `frontend-react` | `type-check` + `build:ci` |
 
 本地复现 integration：准备好 MySQL/Redis，配置 `.env` 后执行 migrate，再跑 feature 包。
-
----
-
-## 测试覆盖率目标
-
-| 模块类型 | 当前状态 | 目标 |
-|----------|----------|------|
-| Helpers / 纯逻辑 | ✅ 有单测 | 持续补充 |
-| Feature 冒烟 | ✅ 登录 / info / 模块开关 / API 鉴权 | 按模块增量 |
-| Services 全覆盖 | 部分 | 关键路径优先 |
 
 ---
 

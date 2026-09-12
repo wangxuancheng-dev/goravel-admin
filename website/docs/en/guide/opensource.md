@@ -1,9 +1,6 @@
 # Open-source scope & modules
 
-This project is an **open-source admin / secondary-development base**.  
-Goal: **run it, extend it safely, take it to production when you need to** — not a full commercial SaaS SRE suite.
-
-Chinese full version (always authoritative for edge cases): [开源定位与模块](/guide/opensource).
+Chinese full version: [开源定位与模块](/guide/opensource).
 
 ## Fit / not a fit
 
@@ -14,15 +11,15 @@ Chinese full version (always authoritative for edge cases): [开源定位与模�
 - RBAC, menus, logs, export, code generator
 - Small/medium business modules (users, orders, payments as optional demos)
 
-**Not a drop-in fit**
+**Not a fit**
 
-- Financial trading cores or **strong-consistency payment hubs** (payments here are admin + gateway skeleton)
+- Financial trading cores or strong-consistency payment hubs (payments here are admin + gateway sample)
 - Huge multi-region commercial SaaS platforms with hard SLAs
 - Turning on sharding + ES + multi-queue without ops planning
 
-> Demo accounts are for exploration only. Change default admin password and secrets for production.
+Demo accounts are for exploration only. Change default admin password and secrets for production.
 
-## Payment boundary (read this)
+## Payment boundary
 
 | Capability | Status |
 |------------|--------|
@@ -34,7 +31,7 @@ Chinese full version (always authoritative for edge cases): [开源定位与模�
 | New channels | `RegisterPaymentGateway` + `notify/{type}` |
 | Refund / original-path refund | Not provided |
 
-**Conclusion:** learn the full path with **mock**, then wire real verify. Do not treat defaults as a live acquiring system. Demo UI: `MODULE_PAYMENTS_ENABLED=true`. Keep off or mock-only on public production until you own the gateway.
+Demo UI: `MODULE_PAYMENTS_ENABLED=true`. Keep off or mock-only on public production until you own the gateway.
 
 ## Core vs advanced
 
@@ -47,7 +44,7 @@ Chinese full version (always authoritative for edge cases): [开源定位与模�
 | Variable | Default | Effect |
 |----------|---------|--------|
 | `MODULE_ORDERS_ENABLED` | `true` | Hide order menus + reject order APIs when false |
-| `MODULE_PAYMENTS_ENABLED` | `false` | Payment admin UI/API; gateway not product-complete |
+| `MODULE_PAYMENTS_ENABLED` | `false` | Payment admin UI/API; keep off on public deploy by default |
 | `PAYMENT_GATEWAYS_ENABLED` | empty | Gateway whitelist; empty = all registered |
 | `APP_ENABLE_DEV_TOOL` | `false` | Explicit `true` in production to open dev tools |
 

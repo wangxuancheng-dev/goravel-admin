@@ -4,7 +4,7 @@
 
 ---
 
-本文档用于避免“新增功能后遗漏改动”。当你新增后台模块、接口或页面时，请按下面清单逐项确认。
+新增后台模块、接口或页面时按下列项确认。
 
 ## 一、权限与菜单（必查）
 
@@ -30,7 +30,6 @@
       `app/utils/operation_title.go` 的 `generateDefaultTitle()` 增加兜底映射。
 - [ ] `html/src/views/log/OperationLogList.vue`：
   - [ ] `defaultTitleSlugs` 是否需要补新 slug（下拉预置项）
-  - [ ] `legacyTitleMap` 是否需要补历史 key 兼容映射（如连字符旧格式）
 
 ## 三、多语言（必查）
 

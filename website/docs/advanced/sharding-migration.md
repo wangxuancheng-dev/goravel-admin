@@ -1,10 +1,8 @@
 # 数据库分表迁移指南
 
-> **Goravel v1.18**：分表查询请使用 `appfacades.OrmQuery(ctx)`。详见 [分表指南 (SHARDING_GUIDE.md)](/advanced/sharding)。
+分表查询请使用 `appfacades.OrmQuery(ctx)`。完整分表说明见 [分表指南](/advanced/sharding)。
 
-> **注意**：本文档主要介绍分表字段修改的详细步骤。如需了解完整的分表功能说明，请参考 [分表指南 (SHARDING_GUIDE.md)](/advanced/sharding)。
-
-项目支持两种分表策略：**时间分表**（按月分表）和**哈希分表**（按ID哈希分表）。本文档主要介绍如何修改分表字段。
+项目支持**时间分表**与**哈希分表**。本文说明如何修改分表字段。
 
 ## 分表功能概述
 

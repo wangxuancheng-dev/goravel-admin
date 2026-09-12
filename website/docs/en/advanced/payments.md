@@ -4,9 +4,7 @@
 
 ---
 
-本仓库**不是**生产收单系统。目标是提供一条可跑通的「订单 → 支付单 → 回调落库 → 订单已支付」参考链路，方便在此基础上接入微信 / 支付宝。
-
-边界总览见 [开源定位](/guide/opensource) §1.1。
+订单 → 支付单 → 回调落库 → 订单已支付。能力边界见 [开源定位](/guide/opensource) §1.1。
 
 ## 1. 架构
 
@@ -123,7 +121,7 @@ func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.Payment
 ```
 
 2. 后台支付方式 `type` 填同一字符串（如 `stripe`）  
-3. 前端（可选）：在 Vue/React 的 `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` 增加同名项与 i18n；未配置字段时仍可出现在下拉（来自 `config.payment_gateways`），但表单无专用字段。**勿**再加未注册驱动的幽灵类型（qq/paypal 等壳子已移除）。  
+3. 前端（可选）：在 Vue/React 的 `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` 增加同名项与 i18n；未配置字段时仍可出现在下拉（来自 `config.payment_gateways`），但表单无专用字段。只注册已实现的驱动类型。
 
 已注册类型可用 `RegisteredPaymentGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考实现：`payment_gateway_mock.go`。
 
@@ -137,10 +135,3 @@ func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.Payment
 | 多租户 | 回调必须带 `{tenant}`；见 `tenancy.PaymentNotifyPath` |
 
 管理端 `/api/admin/info` 的 `config.payment_gateways` 会返回当前启用列表，前端支付方式「类型」下拉按此过滤。
-
-## 8. 明确不做
-
-- 退款 / 部分退款 API
-- 微信/支付宝真实验签与生产密钥管理
-- C 端完整收银台 UI
-- 金融级对账与分账

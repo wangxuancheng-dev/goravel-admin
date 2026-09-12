@@ -1,10 +1,5 @@
 # 开源定位与生产配置
 
-本文档面向把本项目当作**开源后台管理系统 / 二次开发底座**的使用者。  
-目标不是对标商业 SaaS 全套 SRE，而是：**能跑起来、能放心二次开发、能按需上生产。**
-
----
-
 ## 1. 适用 / 不适用
 
 ### 适合
@@ -14,19 +9,17 @@
 - 需要 RBAC、菜单、日志、导出、代码生成器的管理端
 - 中小规模业务扩展（用户、订单、支付管理等示例能力可选用）
 
-### 不适合（至少不能「开箱当核心」）
+### 不适合
 
-- 金融级交易核心、**强一致支付中台**（本仓库支付模块是后台管理 + 网关示例骨架）
+- 金融级交易核心、强一致支付中台（支付模块为管理端 + 网关示例）
 - 超大规模、多区域、强 SLA 的商业 SaaS 产品中台
-- 未做运维规划就直接开启「分表 + ES + 多队列」当生产核心
+- 未做运维规划就开启「分表 + ES + 多队列」当生产核心
 
-> 演示站账号仅用于体验，**切勿用于生产**。生产请改默认管理员密码，并配置独立密钥。
+演示站账号仅用于体验；生产请改默认管理员密码，并配置独立密钥。
 
 ---
 
-## 1.1 支付模块边界（必读）
-
-后台「支付方式 / 支付记录」用于**管理端演示与二次开发参考**，当前能力与缺口如下：
+## 1.1 支付模块边界
 
 | 能力 | 状态 |
 |------|------|
@@ -35,10 +28,10 @@
 | **Mock 网关** 下单 / 查询 / 回调 → `ApplyPaidResult`（支付+订单幂等已支付） | ✅ 本地可跑通，见 [支付参考](/advanced/payments) |
 | 微信 / 支付宝下单客户端调用（gopay） | ⚠️ 示例代码，需自备商户配置 |
 | 微信 / 支付宝查询与回调验签 | ⚠️ 返回 `payment_gateway_not_implemented`（501）；验签后复用 `ApplyPaidResult` |
-| 新渠道扩展 | ✅ `RegisterPaymentGateway` + 通用 `notify/{type}`，见 PAYMENTS_REFERENCE §6 |
+| 新渠道扩展 | ✅ `RegisterPaymentGateway` + 通用 `notify/{type}`，见 [支付参考](/advanced/payments) §6 |
 | 退款 API / 原路退 | ❌ 未提供（余额日志里的 refund 类型仅统计用） |
 
-**结论：** 用 **mock** 学完整链路，再替换微信/支付宝验签；不要把本项目默认当成可上线的收单 / 清算系统。演示后台可 `MODULE_PAYMENTS_ENABLED=true`；公网生产若未自研网关请保持关闭或仅开 mock。
+演示可开 `MODULE_PAYMENTS_ENABLED=true`；公网未自研网关时保持关闭或仅用 mock。
 
 ---
 
@@ -69,18 +62,16 @@
 | AI / pprof / Swagger | 开发与排障 | 生产默认关闭或限权 |
 | 一户一库多租户 | 大商户隔离（默认关闭） | `TENANCY_DRIVER=database`、平台 `/api/platform`、见 [多租户](/advanced/tenancy) |
 
-**AI（可选）：** 用于「代码生成器 → AI 辅助」与顶级 **AI 实验室**（文本 / 视觉 / 图片 / 语音 SDK 演示，演示站可用）。未配置 `AI_API_KEY`（或兼容别名 `OPENAI_API_KEY`）时，相关菜单与标签页自动隐藏。AI 实验室按管理员账号限流（`AI_LAB_RATE_LIMIT_PER_MINUTE` / `AI_LAB_RATE_LIMIT_PER_DAY`）。设置 `AI_ENABLED=false` 可显式关闭。详见 `.env.example` 中 AI 配置段。
+**AI（可选）：** 「代码生成器 → AI 辅助」与 **AI 实验室**（文本 / 视觉 / 图片 / 语音）。未配置 `AI_API_KEY`（或 `OPENAI_API_KEY`）时相关菜单自动隐藏。实验室限流：`AI_LAB_RATE_LIMIT_PER_MINUTE` / `AI_LAB_RATE_LIMIT_PER_DAY`。`AI_ENABLED=false` 可关闭。详见 `.env.example`。
 
-**原则：** 新用户先跑通核心；需要业务扩展再开进阶，并准备对应运维。
-
-### 模块开关（二次开发推荐）
+### 模块开关
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `MODULE_ORDERS_ENABLED` | `true` | 关闭后隐藏订单菜单并拒绝订单 API |
-| `MODULE_PAYMENTS_ENABLED` | `false` | 默认关闭（支付网关能力未成品）；`true` 仅用于管理端演示 UI |
+| `MODULE_PAYMENTS_ENABLED` | `false` | 管理端支付菜单与 API；公网默认建议关闭 |
 | `PAYMENT_GATEWAYS_ENABLED` | （空） | 启用渠道白名单，如 `wechat,alipay`；空则全部已注册驱动 |
-| `APP_ENABLE_DEV_TOOL` | `false` | 生产显式 `true` 才开放开发工具。表单演示：`local/development/test` 默认可见；代码生成器：仅 `local/development` 默认可见（`test` 默认隐藏） |
+| `APP_ENABLE_DEV_TOOL` | `false` | 生产需显式 `true` 才开放开发工具。表单演示：`local/development/test` 默认可见；代码生成器：仅 `local/development` 默认可见（`test` 默认隐藏） |
 
 登录 `Info` 与 `menus/tree` 会按开关过滤菜单；前端 `userStore.config` 同步 `orders_enabled` / `payments_enabled` / `payment_gateways`。菜单可见性以服务端为准；前端模块布尔字段目前为信息字段（非路由守卫），支付类型下拉以 `payment_gateways` 为准。
 
@@ -121,7 +112,6 @@ QUEUE_CONNECTION=redis
 QUEUE_CONCURRENT=2
 QUEUE_TRIES=5
 
-# 建议：限制管理端域名（可按需）
 # DOMAINS_ADMIN=admin.example.com
 
 # 生产默认关闭
@@ -144,13 +134,13 @@ SWAGGER_ENABLED=false
 
 - **导出**：下载 / 进度 SSE / 删除仅本人或配置的 `admin.super_admin_id`  
 - **附件**：私有文件读/写同归属规则；公开附件（`is_public=1`）已登录管理员可读，改删仍需所有者或超管  
-- **支付**：优先用 **mock** 跑通下单/回调/订单同步；微信/支付宝查询与回调验签仍为 `payment_gateway_not_implemented`（501），见 [支付参考](/advanced/payments)
+- **支付**：mock 可跑通下单/回调/订单同步；微信/支付宝查询与回调验签为 `payment_gateway_not_implemented`（501），见 [支付参考](/advanced/payments)
 
 ---
 
-## 4. 完整进阶配置（可选）
+## 4. 进阶配置
 
-在「最小生产」之上，按模块叠加：
+按需叠加：
 
 ### 4.1 异步导出 / 长任务
 
@@ -196,26 +186,11 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 # OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318
 ```
 
-未配置 exporter 时框架会自动禁用 `goravel:telemetry` runner，减少噪音。
+未配置 exporter 时框架会自动禁用 `goravel:telemetry` runner。
 
 ---
 
-## 5. 开源发布检查清单
-
-```text
-□ README 写清适用 / 不适用场景
-□ .env.example / .env.production.example 可对照最小生产配置
-□ migrate + seed 可一键初始化
-□ CI：unit + feature（MySQL/Redis）+ Vue/React type-check/build
-□ 演示账号与生产密钥分离说明
-□ 进阶模块（分表 / ES / 队列）标注为可选
-□ 冒烟集成测试：登录、鉴权接口、基础业务读接口
-□ 导出 / 私有附件具备归属校验
-```
-
----
-
-## 6. 相关文档
+## 5. 相关文档
 
 | 文档 | 说明 |
 |------|------|

@@ -12,7 +12,7 @@ Full Chinese detail: [生产清单](/deploy/production).
 4. Disable or lock down: Swagger, pprof, code generator  
 5. Log disk + backup policy ready  
 6. Start from `.env.production.example` — **do not** ship `docker-compose.yml` default passwords to production  
-7. Prefer `MODULE_PAYMENTS_ENABLED=false` unless you own the gateway (mock is for demos)
+7. Prefer `MODULE_PAYMENTS_ENABLED=false` unless you own the gateway
 
 ## Health
 

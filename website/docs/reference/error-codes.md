@@ -151,7 +151,6 @@
 | `write_csv_header_failed` | 写入 CSV 表头失败 | 500 |
 | `write_csv_data_failed` | 写入 CSV 数据失败 | 500 |
 | `csv_write_failed` | CSV 写入失败 | 500 |
-| `excel_not_implemented` | （已移除）导出支持 CSV / XLSX，见配置 `storage.export_format` | — |
 | `batch_delete_export_failed` | 批量删除导出记录失败 | 500 |
 | `invalid_csv_format` | CSV 格式无效 | 400 |
 

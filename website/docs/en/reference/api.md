@@ -4,18 +4,12 @@
 
 ---
 
-本文档详细描述了 Goravel Admin 后台管理系统的所有 API 接口。
-
-## 基础信息
-
 - **Base URL**: `http://localhost:3000/api/admin`
 - **认证方式**: JWT Bearer Token
 - **请求格式**: JSON
 - **响应格式**: JSON
 
-## 契约同步说明（2026-04）
-
-为避免文档与实现漂移，当前以 `routes/admin.go` 和 Swagger 产物为准。以下是已对齐的关键接口：
+以 `routes/admin.go` 和 Swagger 产物为准。关键接口：
 
 - 认证与会话：
   - `POST /login`
@@ -41,7 +35,7 @@
   - `GET /monitor/system-info`
   - `GET /monitor/system-info/stream`
 
-> 说明：本文后续部分若与上述不一致，请以上述“契约同步说明”和实际路由为准。
+> 与上文或路由不一致时，以 `routes/admin.go` / Swagger 为准。
 
 ## 接口速查表（联调用）
 

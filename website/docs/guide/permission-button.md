@@ -113,29 +113,7 @@ const { getButtonState } = usePermission()
 </script>
 ```
 
-#### 方法二：使用两个方法（兼容旧代码）
-
-```vue
-<template>
-  <div>
-    <el-button 
-      v-if="shouldShowButton('admin.store')" 
-      :disabled="isButtonDisabled('admin.store')"
-      @click="handleAdd"
-    >
-      添加
-    </el-button>
-  </div>
-</template>
-
-<script setup>
-import { usePermission } from '@/composables/usePermission'
-
-const { shouldShowButton, isButtonDisabled } = usePermission()
-</script>
-```
-
-#### 方法三：直接使用 store
+#### 方法二：直接使用 store
 
 ```vue
 <template>

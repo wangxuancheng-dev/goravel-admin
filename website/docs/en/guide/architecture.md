@@ -4,7 +4,7 @@
 
 ---
 
-本文档描述 Goravel Admin 后台管理系统的整体架构设计。
+Goravel Admin 后台管理系统的整体架构。
 
 ---
 

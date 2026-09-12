@@ -18,22 +18,22 @@ hero:
 
 features:
   - title: Suggested reading order
-    details: Quick start → open-source scope → architecture → development → production. Advanced topics (tenancy / payments / search / sharding) are optional.
+    details: Quick start → open-source scope → architecture → development → production. Tenancy / payments / search / sharding on demand.
   - title: Dual frontend
-    details: Vue and React share the same Admin API. Ship new features on both sides per the parity checklist.
-  - title: Core on, advanced opt-in
+    details: Vue and React share the same Admin API; ship new features on both sides.
+  - title: Core and advanced
     details: RBAC, logs, export, and the code generator work out of the box. Sharding, ES, multi-tenancy, and payment gateways are module switches.
 ---
 
-## How to read these docs
+## Docs navigation
 
-| Priority | Section | Audience |
-|----------|---------|----------|
-| 1 | [Quick start](/en/guide/getting-started) | Local or Docker first run |
-| 2 | [Open-source scope](/en/guide/opensource) | Fit / module switches |
-| 3 | [Architecture](/en/guide/architecture) | Before secondary development |
-| 4 | [Development](/en/guide/development) / [Code generator](/en/guide/code-generator) | Adding CRUD |
-| 5 | [Production](/en/deploy/production) | Before go-live |
-| On demand | [Advanced](/en/advanced/tenancy) / [Reference](/en/reference/api) | Tenancy, payments, sharding, DB notes |
+| Section | Notes |
+|---------|-------|
+| [Quick start](/en/guide/getting-started) | Local or Docker first run |
+| [Open-source scope](/en/guide/opensource) | Module boundaries and production config |
+| [Architecture](/en/guide/architecture) | Before secondary development |
+| [Development](/en/guide/development) / [Code generator](/en/guide/code-generator) | Adding CRUD |
+| [Production](/en/deploy/production) | Before go-live |
+| [Advanced](/en/advanced/tenancy) / [Reference](/en/reference/api) | Tenancy, payments, sharding, DB notes |
 
 Demo: https://admin.xuancheng888.top (demo / demo123 — not for production)

@@ -1,6 +1,6 @@
-# 开发指南：留言板模块 CRUD 完整示例
+# 开发指南：留言板模块 CRUD
 
-本文档以**留言板模块**为例，详细说明如何开发一个完整的增删改查功能，包括后端接口和前端页面。
+以留言板为例，说明完整 CRUD（后端接口 + 前端页面）。
 
 ## 目录
 
@@ -1416,7 +1416,6 @@ curl -X POST "http://localhost:3000/api/admin/guestbooks/1/reply" \
    - 文件：`html/src/views/log/OperationLogList.vue`
    - 位置：
      - `defaultTitleSlugs`（预置可选项）
-     - `getOperationTitle()` 中的 `legacyTitleMap`（历史键兼容时）
 
 ### 建议规则
 

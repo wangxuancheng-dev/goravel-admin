@@ -54,16 +54,14 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 Notes:
 
 - For public deploy use `TENANCY_RESOLVER=subdomain` and keep `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`.
-- Compose defaults stay single-DB; multi-tenancy is **optional advanced**.
-- Full commands and production rules: switch to the [Chinese tenancy page](/advanced/tenancy).
+- Compose defaults stay single-DB.
+- Full commands and production rules: [Chinese tenancy page](/advanced/tenancy).
 
 ---
 
 默认 **`TENANCY_DRIVER=off`**：整站单库。
 
 设为 **`database`** 后：每租户独立 database（MySQL）或 database/schema（PostgreSQL）；**租户认证与业务都在该租户库**。平台控制台使用独立账号与 `/api/platform`，不切租户库。
-
-> 按新项目开发：不做旧版菜单/明文密码兼容。
 
 ## 架构
 
@@ -125,7 +123,7 @@ PLATFORM_ADMIN_NAME=平台管理员
 
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
-3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；无租户旧路径在 tenancy 开启时拒绝。
+3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20），避免几百商户打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
