@@ -45,20 +45,15 @@ app/utils/
 
 html/ / html-react/
 └── src/utils/*.test.*                   # vitest：tenant、buildSearchParams、apiFactory、normalize、timeRange、storage（Vue 另含 xss）
-
-driver/
-├── kafka/queue_test.go                  # 集成测试：需要本地 Kafka
-├── nsq/queue_test.go                    # 集成测试：需要本地 nsqd
-├── rabbitmq/queue_test.go               # 集成测试：需要本地 RabbitMQ
-├── redisstream/queue_test.go            # 驱动子模块测试，使用 miniredis
-└── dm/integration_test.go               # 集成测试：需要 -tags dm 和 DM_TEST_DSN
 ```
+
+可选驱动源码已迁出本仓库，见 [可选驱动仓库](/reference/drivers)。
 
 ### 运行测试
 
 ```bash
-# 快速后端门禁（CI 默认使用，排除 tests/feature、driver 子模块、node_modules）
-mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|/driver/|node_modules')
+# 快速后端门禁（CI 默认使用，排除 tests/feature、node_modules）
+mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|node_modules')
 go test -count=1 -timeout=3m "${PKGS[@]}"
 
 # 冒烟 / feature 集成测试（需 migrate 后的数据库）
@@ -74,20 +69,20 @@ go test -v -timeout=30s ./app/http/helpers ./app/utils/...
 
 ### 集成测试（按需运行）
 
-`driver/*` 下的 Kafka、NSQ、RabbitMQ、Redis Stream 是独立 Go module，默认 `go test ./...` 不会进入这些目录。需要验证队列驱动时，进入对应目录单独运行：
+Kafka / NSQ / RabbitMQ / Redis Stream / 达梦驱动为独立仓库。本仓库默认 `go test ./...` 不会测试它们的源码。验证队列或达梦时，在对应仓库内运行，或：
 
 ```bash
-(cd driver/redisstream && go test -v ./...)
-(cd driver/kafka && go test -v -timeout=2m ./...)     # 需要 127.0.0.1:9092
-(cd driver/nsq && go test -v -timeout=2m ./...)       # 需要 127.0.0.1:4150
-(cd driver/rabbitmq && go test -v -timeout=2m ./...)  # 需要 127.0.0.1:5672
+go test -v github.com/wangxuancheng-dev/goravel-redis-stream/...
+go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-kafka/...     # 需要 127.0.0.1:9092
+go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-nsq/...       # 需要 127.0.0.1:4150
+go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-rabbitmq/...  # 需要 127.0.0.1:5672
 ```
 
 达梦驱动集成测试需要本地官方驱动、`dm` build tag 和可访问的达梦实例：
 
 ```bash
 set DM_TEST_DSN=dm://SYSDBA:SYSDBA@127.0.0.1:5236
-go test -tags dm ./driver/dm/... -run TestDMCrudAndTransaction -v
+go test -tags dm github.com/wangxuancheng-dev/goravel-dm -run TestDMCrudAndTransaction -v
 ```
 
 ### 卡住问题排查顺序
@@ -201,7 +196,7 @@ func (s *TokenServiceTestSuite) TestHashToken() {
 
 | Job | 内容 |
 |-----|------|
-| `backend` | 排除 `tests/feature` / `driver/` 的快速 `go test` |
+| `backend` | 排除 `tests/feature` 的快速 `go test` |
 | `backend-integration` | MySQL 8 + Redis 7 → `artisan migrate` → `go test ./tests/feature/...` |
 | `frontend-vue` / `frontend-react` | `type-check` + `build:ci` |
 

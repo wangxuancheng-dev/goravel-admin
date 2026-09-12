@@ -33,8 +33,8 @@ import (
 	"github.com/goravel/postgres"
 	"github.com/goravel/redis"
 	"github.com/goravel/s3"
+	"github.com/wangxuancheng-dev/goravel-dm"
 	"goravel/app/providers"
-	"goravel/driver/dm"
 )
 
 func Providers() []foundation.ServiceProvider {

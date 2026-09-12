@@ -1,7 +1,7 @@
 package config
 
 import (
-	dmfacades "goravel/driver/dm/facades"
+	dmfacades "github.com/wangxuancheng-dev/goravel-dm/facades"
 
 	"github.com/goravel/framework/contracts/database/driver"
 	"github.com/goravel/framework/facades"

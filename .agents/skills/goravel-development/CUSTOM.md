@@ -42,7 +42,7 @@ routes/
   web.go                    # Web/static routes
 html/                       # Vue 3 + Element Plus admin SPA
 html-react/                 # React 19 + Ant Design admin SPA
-driver/                     # Custom queue/DB drivers (dm, redisstream, …)
+website/                    # VitePress docs (zh/en)
 config/                     # Goravel config (one file per concern)
 lang/                       # Backend i18n (zh-CN, en-US, …)
 ```
@@ -78,8 +78,8 @@ lang/                       # Backend i18n (zh-CN, en-US, …)
 
 ## Custom drivers & packages
 
-- DM database: `driver/dm` (local replace in `go.mod`).
-- Queue drivers: `driver/redisstream`, plus external `goravel-kafka`, `goravel-nsq`, `goravel-rabbitmq`.
+- DM database: `github.com/wangxuancheng-dev/goravel-dm` (see `website/docs/reference/drivers.md`).
+- Queue drivers: `goravel-kafka`, `goravel-nsq`, `goravel-rabbitmq`, `goravel-redis-stream` (see `website/docs/reference/drivers.md`).
 - Prefer existing driver patterns when adding new integrations.
 
 ## Commands (this project)

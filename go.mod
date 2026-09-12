@@ -2,8 +2,6 @@ module goravel
 
 go 1.25.11
 
-replace github.com/wangxuancheng-dev/goravel-dm => ./driver/dm
-
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
@@ -27,6 +25,8 @@ require (
 	github.com/goravel/postgres v1.18.0
 	github.com/goravel/redis v1.18.0
 	github.com/goravel/s3 v1.18.0
+	github.com/meilisearch/meilisearch-go v0.31.0
+	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/minio/minio-go/v7 v7.2.1
 	github.com/mojocn/base64Captcha v1.3.6
 	github.com/oklog/ulid/v2 v2.1.1
@@ -39,6 +39,7 @@ require (
 	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/swaggo/swag v1.16.6
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.74
+	github.com/wangxuancheng-dev/goravel-dm v0.0.0-20260912060354-08f87d6b69c4
 	github.com/wangxuancheng-dev/goravel-kafka v0.0.0-20260408114414-93d3f2ece499
 	github.com/wangxuancheng-dev/goravel-nsq v0.0.0-20260408103730-49a87eeceaf3
 	github.com/wangxuancheng-dev/goravel-rabbitmq v0.0.0-20260408092214-efb340e6a9ab
@@ -159,8 +160,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.24 // indirect
-	github.com/meilisearch/meilisearch-go v0.31.0 // indirect
-	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect

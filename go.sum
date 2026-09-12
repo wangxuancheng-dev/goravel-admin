@@ -514,6 +514,8 @@ github.com/unrolled/secure v1.17.0 h1:Io7ifFgo99Bnh0J7+Q+qcMzWM6kaDPCA5FroFZEdbW
 github.com/unrolled/secure v1.17.0/go.mod h1:BmF5hyM6tXczk3MpQkFf1hpKSRqCyhqcbiQtiAF7+40=
 github.com/urfave/cli/v3 v3.10.1 h1:7Kx9H50hrHbRbyxgO1KP6/BcbiGRz0uYh5YyQ30JEEY=
 github.com/urfave/cli/v3 v3.10.1/go.mod h1:ysVLtOEmg2tOy6PknnYVhDoouyC/6N42TMeoMzskhso=
+github.com/wangxuancheng-dev/goravel-dm v0.0.0-20260912060354-08f87d6b69c4 h1:yMYAByr5MMf+NtR25nsDIvwev4uvtrYOkFmWo+9H09M=
+github.com/wangxuancheng-dev/goravel-dm v0.0.0-20260912060354-08f87d6b69c4/go.mod h1:00gBHnZ9YDAT6XOEtQBGFUsJ6TX6WpH8x6I6GoV3P7w=
 github.com/wangxuancheng-dev/goravel-kafka v0.0.0-20260408114414-93d3f2ece499 h1:LI/CRffSgPOKNGUZb4RAqiCZ0jYO7l5Mq5yoPaY6aDs=
 github.com/wangxuancheng-dev/goravel-kafka v0.0.0-20260408114414-93d3f2ece499/go.mod h1:5ZQmbJi9V1v3BbXWClXEpOhvTG081bY56dVNj89EROg=
 github.com/wangxuancheng-dev/goravel-nsq v0.0.0-20260408103730-49a87eeceaf3 h1:Fjxbc46224Y3cGRILqLXdcZkIfxGAP+7fPBRY/OcWCw=
@@ -539,6 +541,7 @@ github.com/xuri/excelize/v2 v2.10.1 h1:V62UlqopMqha3kOpnlHy2CcRVw1V8E63jFoWUmMzx
 github.com/xuri/excelize/v2 v2.10.1/go.mod h1:iG5tARpgaEeIhTqt3/fgXCGoBRt4hNXgCp3tfXKoOIc=
 github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 h1:+C0TIdyyYmzadGaL/HBLbf3WdLgC29pgyhTjAT/0nuE=
 github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9/go.mod h1:WwHg+CVyzlv/TX9xqBFXEZAuxOPxn2k1GNHwG41IIUQ=
+github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 github.com/yuin/gopher-lua v1.1.1 h1:kYKnWBjvbNP4XLT3+bPEwAXJx262OhaHDWDVOPjL46M=

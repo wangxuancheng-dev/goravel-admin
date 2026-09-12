@@ -40,7 +40,7 @@ jobs:
       - name: Unit tests (no external services)
         run: |
           set -euo pipefail
-          mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|/driver/|node_modules')
+          mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|node_modules')
           go test -count=1 -timeout=3m "${PKGS[@]}"
 
   backend-integration:
