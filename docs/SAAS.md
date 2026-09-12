@@ -7,12 +7,13 @@
 
 | 纳入评分 | 明确不纳入（默认关闭或骨架） |
 |----------|------------------------------|
-| 管理端 RBAC、菜单、日志、导出、代码生成 | 支付网关验签/落库（`MODULE_PAYMENTS_ENABLED=false`） |
+| 管理端 RBAC、菜单、日志、导出、代码生成 | 微信/支付宝真实验签与退款（用 mock 参考链路） |
 | 一户一库 / Schema、provision 门禁、平台控制台 | 多活异地机房、金融级审计 |
 | `/health` `/ready`、生产不安全默认告警 | 现成第三方告警面板 SaaS |
 | 搜索扩展点（ES / Meili，订单索引可选） | 业务全文检索开箱即用 |
+| 订单+支付 mock：`ApplyPaidResult` 幂等落库 | 生产收单 / 清算 |
 
-支付边界见 [OPENSOURCE.md](./OPENSOURCE.md) §1.1。
+支付边界见 [OPENSOURCE.md](./OPENSOURCE.md) §1.1、[PAYMENTS_REFERENCE.md](./PAYMENTS_REFERENCE.md)。
 
 ## 2. 上线前核对
 

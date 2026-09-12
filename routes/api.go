@@ -28,8 +28,10 @@ func Api() {
 	facades.Route().Prefix("api").Middleware(middleware.Lang(), middleware.Blacklist()).Group(func(router route.Router) {
 		router.Post("payment/notify/wechat/{tenant}", paymentNotifyController.NotifyWechat)
 		router.Post("payment/notify/alipay/{tenant}", paymentNotifyController.NotifyAlipay)
+		router.Post("payment/notify/mock/{tenant}", paymentNotifyController.NotifyMock)
 		router.Post("payment/notify/wechat", paymentNotifyController.NotifyLegacyWechat)
 		router.Post("payment/notify/alipay", paymentNotifyController.NotifyLegacyAlipay)
+		router.Post("payment/notify/mock", paymentNotifyController.NotifyLegacyMock)
 	})
 
 	// C端用户路由组：统一前缀

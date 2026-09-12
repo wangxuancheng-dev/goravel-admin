@@ -6,6 +6,7 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/http/apidoc"
 	"goravel/app/http/helpers"
+	adminreq "goravel/app/http/requests/admin"
 	"goravel/app/http/response"
 	"goravel/app/http/trans"
 	"goravel/app/jobs"
@@ -118,7 +119,35 @@ func (c *PaymentController) Show(ctx http.Context) http.Response {
 	return response.Success(ctx, c.PaymentService(ctx).PaymentToJSON(payment))
 }
 
-// Query asks the payment gateway for third-party status (scaffold: returns payment_gateway_not_implemented).
+// Store creates a payment for a pending order; optional initiate calls the gateway (mock returns notify hint).
+func (c *PaymentController) Store(ctx http.Context) http.Response {
+	var req adminreq.PaymentCreate
+	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
+		return resp
+	}
+
+	payment, err := c.PaymentService(ctx).CreatePayment(req.OrderNo, req.PaymentMethodID, 0, req.Amount, req.Remark)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "payment", http.StatusBadRequest, err, map[string]any{
+			"order_no":          req.OrderNo,
+			"payment_method_id": req.PaymentMethodID,
+		})
+	}
+
+	out := c.PaymentService(ctx).PaymentToJSON(payment)
+	if req.Initiate {
+		gateway, err := services.NewPaymentGatewayService(ctx).CreatePaymentOrder(payment, ctx.Request().Ip())
+		if err != nil {
+			return HandleGeneratedServiceError(ctx, "payment", http.StatusNotImplemented, err, map[string]any{
+				"payment_no": payment.PaymentNo,
+			})
+		}
+		out["gateway"] = gateway
+	}
+	return response.Success(ctx, out)
+}
+
+// Query asks the payment gateway for third-party status (mock reads local DB; wechat/alipay still stub).
 func (c *PaymentController) Query(ctx http.Context) http.Response {
 	paymentNo := ctx.Request().Route("id")
 	if paymentNo == "" {

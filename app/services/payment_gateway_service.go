@@ -18,7 +18,8 @@ import (
 )
 
 // PaymentGatewayService 第三方支付下单/查询/回调（与后台支付记录 CRUD 解耦）。
-// Query / Notify 已挂公开或管理端路由，但实现仍返回 ErrPaymentGatewayNotImplemented；见 docs/OPENSOURCE.md。
+// mock 类型提供可跑通的参考实现；wechat/alipay 下单为 gopay 示例，查询/回调验签仍返回 NotImplemented，
+// 二次开发时在 verify* 处接入后复用 ApplyPaidResult。见 docs/PAYMENTS_REFERENCE.md。
 type PaymentGatewayService interface {
 	CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error)
 	QueryPaymentOrder(payment *models.Payment) (map[string]any, error)
@@ -47,12 +48,19 @@ func (s *PaymentGatewayServiceImpl) CreatePaymentOrder(payment *models.Payment, 
 
 	// 解析配置
 	var config map[string]any
-	if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
-		return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
+	if strings.TrimSpace(paymentMethod.Config) != "" {
+		if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
+			return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
+		}
+	}
+	if config == nil {
+		config = map[string]any{}
 	}
 
 	// 根据支付类型调用不同的支付接口
 	switch paymentMethod.Type {
+	case "mock":
+		return s.createMockPayment(payment, config, clientIP)
 	case "wechat":
 		return s.createWechatPayment(payment, config, clientIP)
 	case "alipay":
@@ -200,12 +208,19 @@ func (s *PaymentGatewayServiceImpl) QueryPaymentOrder(payment *models.Payment) (
 
 	// 解析配置
 	var config map[string]any
-	if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
-		return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
+	if strings.TrimSpace(paymentMethod.Config) != "" {
+		if err := json.Unmarshal([]byte(paymentMethod.Config), &config); err != nil {
+			return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
+		}
+	}
+	if config == nil {
+		config = map[string]any{}
 	}
 
 	// 根据支付类型查询
 	switch paymentMethod.Type {
+	case "mock":
+		return s.queryMockPayment(payment, config)
 	case "wechat":
 		return s.queryWechatPayment(payment, config)
 	case "alipay":
@@ -215,14 +230,14 @@ func (s *PaymentGatewayServiceImpl) QueryPaymentOrder(payment *models.Payment) (
 	}
 }
 
-// queryWechatPayment 查询微信支付订单状态（示例骨架，未对接真实查询 API）
+// queryWechatPayment 查询微信支付：二次开发时在此调用 gopay 查询，成功后可 ApplyPaidResult 对账落库。
 func (s *PaymentGatewayServiceImpl) queryWechatPayment(payment *models.Payment, config map[string]any) (map[string]any, error) {
 	_ = payment
 	_ = config
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
-// queryAlipayPayment 查询支付宝支付订单状态（示例骨架，未对接真实查询 API）
+// queryAlipayPayment 查询支付宝：二次开发时在此调用 gopay 查询，成功后可 ApplyPaidResult 对账落库。
 func (s *PaymentGatewayServiceImpl) queryAlipayPayment(payment *models.Payment, config map[string]any) (map[string]any, error) {
 	_ = payment
 	_ = config
@@ -231,8 +246,13 @@ func (s *PaymentGatewayServiceImpl) queryAlipayPayment(payment *models.Payment, 
 
 // HandlePaymentNotify 处理支付回调通知
 func (s *PaymentGatewayServiceImpl) HandlePaymentNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
+	if paymentMethod == nil {
+		return nil, apperrors.ErrInvalidPaymentType
+	}
 	// 根据支付类型处理回调
 	switch paymentMethod.Type {
+	case "mock":
+		return s.handleMockNotify(paymentMethod, notifyData)
 	case "wechat":
 		return s.handleWechatNotify(paymentMethod, notifyData)
 	case "alipay":
@@ -242,17 +262,21 @@ func (s *PaymentGatewayServiceImpl) HandlePaymentNotify(paymentMethod *models.Pa
 	}
 }
 
-// handleWechatNotify 处理微信支付回调（骨架：固定 NotImplemented）
+// handleWechatNotify 微信支付回调：验签通过后构造 PaidResult 并调用 ApplyPaidResult。
 func (s *PaymentGatewayServiceImpl) handleWechatNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
 	_ = paymentMethod
 	_ = notifyData
+	// TODO: gopay wechat verify → PaidResult{PaymentNo: out_trade_no, ThirdPartyNo: transaction_id, ...}
+	// return ApplyPaidResult(s.ctx, result)
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
-// handleAlipayNotify 处理支付宝支付回调（骨架：固定 NotImplemented）
+// handleAlipayNotify 支付宝回调：验签通过后构造 PaidResult 并调用 ApplyPaidResult。
 func (s *PaymentGatewayServiceImpl) handleAlipayNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
 	_ = paymentMethod
 	_ = notifyData
+	// TODO: gopay alipay verify → PaidResult{PaymentNo: out_trade_no, ThirdPartyNo: trade_no, ...}
+	// return ApplyPaidResult(s.ctx, result)
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 

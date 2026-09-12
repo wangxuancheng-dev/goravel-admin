@@ -216,8 +216,9 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "支付方式删除", Slug: "payment_method.destroy", Method: "DELETE", Path: "/api/admin/payment-methods/*", Description: "删除支付方式", Status: 1, Sort: 5, MenuID: paymentMethodMenu.ID},
 		// 支付记录管理
 		{Name: "支付记录列表", Slug: "payment.index", Method: "GET", Path: "/api/admin/payments", Description: "查看支付记录列表", Status: 1, Sort: 1, MenuID: paymentRecordMenu.ID},
-		{Name: "支付记录详情", Slug: "payment.show", Method: "GET", Path: "/api/admin/payments/*", Description: "查看支付记录详情", Status: 1, Sort: 2, MenuID: paymentRecordMenu.ID},
-		{Name: "支付结果查询", Slug: "payment.query", Method: "POST", Path: "/api/admin/payments/*/query", Description: "查询第三方支付状态（骨架）", Status: 1, Sort: 3, MenuID: paymentRecordMenu.ID},
+		{Name: "创建支付记录", Slug: "payment.store", Method: "POST", Path: "/api/admin/payments", Description: "为待支付订单创建支付单（参考下单）", Status: 1, Sort: 2, MenuID: paymentRecordMenu.ID},
+		{Name: "支付记录详情", Slug: "payment.show", Method: "GET", Path: "/api/admin/payments/*", Description: "查看支付记录详情", Status: 1, Sort: 3, MenuID: paymentRecordMenu.ID},
+		{Name: "支付结果查询", Slug: "payment.query", Method: "POST", Path: "/api/admin/payments/*/query", Description: "查询第三方/ mock 支付状态", Status: 1, Sort: 4, MenuID: paymentRecordMenu.ID},
 	}
 
 	for _, perm := range permissions {

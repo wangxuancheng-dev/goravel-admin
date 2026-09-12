@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next'
 
 export type PaymentMethodType =
+  | 'mock'
   | 'wechat'
   | 'alipay'
   | 'qq'
@@ -33,6 +34,7 @@ export interface PaymentMethodConfigField {
 }
 
 export const PAYMENT_METHOD_TYPES: PaymentMethodType[] = [
+  'mock',
   'wechat',
   'alipay',
   'qq',
@@ -59,6 +61,10 @@ export const paymentMethodInitialSearchForm: PaymentMethodSearchForm = {
 }
 
 export const PAYMENT_TYPE_CONFIG_FIELDS: Record<PaymentMethodType, PaymentMethodConfigField[]> = {
+  mock: [
+    { key: 'shared_secret', type: 'input', inputType: 'password', group: 'basic', labelKey: 'cfg_shared_secret', placeholderKey: 'cfg_shared_secret_ph', tipKey: 'tip_mock_shared_secret' },
+    { key: 'notify_url', type: 'input', group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' },
+  ],
   wechat: [
     { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_app_id_ph', tipKey: 'tip_wechat_app_id' },
     { key: 'mch_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_mch_id', placeholderKey: 'cfg_mch_id_ph', tipKey: 'tip_wechat_mch_id' },

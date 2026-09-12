@@ -12,8 +12,9 @@ import (
 	"goravel/app/tenancy"
 )
 
-// PaymentNotifyController exposes scaffold notify endpoints that intentionally
-// return payment_gateway_not_implemented until real gateway wiring is added.
+// PaymentNotifyController handles public payment callbacks.
+// mock: full reference flow (verify optional HMAC → ApplyPaidResult).
+// wechat/alipay: return 501 until gopay verify is wired (same ApplyPaidResult hook).
 type PaymentNotifyController struct{}
 
 func NewPaymentNotifyController() *PaymentNotifyController {
@@ -28,12 +29,20 @@ func (c *PaymentNotifyController) NotifyAlipay(ctx http.Context) http.Response {
 	return c.handle(ctx, "alipay", strings.TrimSpace(ctx.Request().Route("tenant")))
 }
 
+func (c *PaymentNotifyController) NotifyMock(ctx http.Context) http.Response {
+	return c.handle(ctx, "mock", strings.TrimSpace(ctx.Request().Route("tenant")))
+}
+
 func (c *PaymentNotifyController) NotifyLegacyWechat(ctx http.Context) http.Response {
 	return c.handleLegacy(ctx, "wechat")
 }
 
 func (c *PaymentNotifyController) NotifyLegacyAlipay(ctx http.Context) http.Response {
 	return c.handleLegacy(ctx, "alipay")
+}
+
+func (c *PaymentNotifyController) NotifyLegacyMock(ctx http.Context) http.Response {
+	return c.handleLegacy(ctx, "mock")
 }
 
 func (c *PaymentNotifyController) handleLegacy(ctx http.Context, typ string) http.Response {
@@ -46,7 +55,9 @@ func (c *PaymentNotifyController) handleLegacy(ctx http.Context, typ string) htt
 }
 
 func (c *PaymentNotifyController) handle(ctx http.Context, typ, tenantCode string) http.Response {
-	if typ != "wechat" && typ != "alipay" {
+	switch typ {
+	case "wechat", "alipay", "mock":
+	default:
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidPaymentType)
 	}
 
@@ -76,12 +87,14 @@ func (c *PaymentNotifyController) handle(ctx http.Context, typ, tenantCode strin
 		data = map[string]any{}
 	}
 
-	_, err := services.NewPaymentGatewayService(ctx).HandlePaymentNotify(
-		&models.PaymentMethod{Type: typ, IsActive: true},
-		data,
-	)
+	method := c.resolvePaymentMethod(ctx, typ, data)
+	payment, err := services.NewPaymentGatewayService(ctx).HandlePaymentNotify(method, data)
 	if err == nil {
-		return response.Success(ctx)
+		return response.Success(ctx, map[string]any{
+			"payment_no": payment.PaymentNo,
+			"status":     payment.Status,
+			"order_no":   payment.OrderNo,
+		})
 	}
 	if businessErr, ok := apperrors.GetBusinessError(err); ok {
 		status := http.StatusBadRequest
@@ -91,4 +104,37 @@ func (c *PaymentNotifyController) handle(ctx http.Context, typ, tenantCode strin
 		return response.Error(ctx, status, businessErr)
 	}
 	return response.ErrorWithLog(ctx, "payment_notify", err, map[string]any{"type": typ, "tenant": tenantCode})
+}
+
+func (c *PaymentNotifyController) resolvePaymentMethod(ctx http.Context, typ string, data map[string]any) *models.PaymentMethod {
+	svc := services.NewPaymentMethodService(ctx)
+	if paymentNo := firstNotifyPaymentNo(data); paymentNo != "" {
+		if payment, err := services.NewPaymentService(ctx).GetPaymentByPaymentNo(paymentNo); err == nil && payment != nil {
+			if pm, err := svc.GetPaymentMethodByID(payment.PaymentMethodID); err == nil && pm != nil {
+				return pm
+			}
+		}
+	}
+	if pm, err := svc.FindActiveByType(typ); err == nil && pm != nil {
+		return pm
+	}
+	return &models.PaymentMethod{Type: typ, IsActive: true, Config: "{}"}
+}
+
+func firstNotifyPaymentNo(data map[string]any) string {
+	for _, k := range []string{"out_trade_no", "payment_no"} {
+		if s := strings.TrimSpace(stringFromAny(data[k])); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+func stringFromAny(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	default:
+		return ""
+	}
 }

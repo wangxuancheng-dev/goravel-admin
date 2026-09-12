@@ -16,13 +16,13 @@ import (
 func TestPaymentGatewayNotifyAndQueryStubs(t *testing.T) {
 	svc := NewPaymentGatewayService(context.Background())
 
-	_, err := svc.HandlePaymentNotify(&models.PaymentMethod{Type: "wechat", IsActive: true}, map[string]any{"out_trade_no": "x"})
+	_, err := svc.HandlePaymentNotify(&models.PaymentMethod{Type: "wechat", IsActive: true, Config: "{}"}, map[string]any{"out_trade_no": "x"})
 	require.Error(t, err)
 	be, ok := apperrors.GetBusinessError(err)
 	require.True(t, ok)
 	assert.Equal(t, apperrors.ErrPaymentGatewayNotImplemented.Code, be.Code)
 
-	_, err = svc.HandlePaymentNotify(&models.PaymentMethod{Type: "alipay", IsActive: true}, map[string]any{})
+	_, err = svc.HandlePaymentNotify(&models.PaymentMethod{Type: "alipay", IsActive: true, Config: "{}"}, map[string]any{})
 	require.Error(t, err)
 	be, ok = apperrors.GetBusinessError(err)
 	require.True(t, ok)
@@ -60,4 +60,5 @@ func TestDefaultPaymentNotifyURLIncludesTenant(t *testing.T) {
 
 	ctx := tenancyctx.WithTenant(context.Background(), 1, "tenant_1", "acme")
 	assert.Equal(t, "https://example.com/api/payment/notify/wechat/acme", defaultPaymentNotifyURL(ctx, "wechat"))
+	assert.Equal(t, "https://example.com/api/payment/notify/mock/acme", defaultPaymentNotifyURL(ctx, "mock"))
 }

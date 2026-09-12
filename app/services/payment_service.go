@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -307,11 +308,32 @@ func (s *PaymentServiceImpl) GetPayments(filters PaymentFilters, page, pageSize 
 	return payments, total, nil
 }
 
-// CreatePayment 创建支付记录（写入分表）
+// CreatePayment 创建支付记录（写入分表）。会校验订单存在、金额与订单一致、订单可支付。
 func (s *PaymentServiceImpl) CreatePayment(orderNo string, paymentMethodID uint, userID uint, amount float64, remark string) (*models.Payment, error) {
-	// 验证金额
+	orderNo = strings.TrimSpace(orderNo)
+	if orderNo == "" {
+		return nil, apperrors.ErrInvalidArgument.WithMessage("order_no is required")
+	}
+
+	order, _, err := NewOrderService(s.ctx).GetOrderByOrderNo(orderNo)
+	if err != nil {
+		return nil, err
+	}
+	if order.Status != "pending" {
+		return nil, apperrors.ErrOrderNotPayable
+	}
+
+	if amount <= 0 {
+		amount = order.Amount
+	}
 	if amount <= 0 {
 		return nil, apperrors.ErrPaymentAmountInvalid
+	}
+	if math.Abs(amount-order.Amount) > 0.009 {
+		return nil, apperrors.ErrPaymentAmountMismatch
+	}
+	if userID == 0 {
+		userID = order.UserID
 	}
 
 	// 验证支付方式
@@ -392,7 +414,7 @@ func (s *PaymentServiceImpl) UpdatePaymentStatus(paymentID uint, status string, 
 		updateData["third_party_no"] = thirdPartyNo
 	}
 	if payTime != nil {
-		updateData["pay_time"] = payTime
+		updateData["pay_time"] = *payTime
 	}
 	if failReason != "" {
 		updateData["fail_reason"] = failReason
@@ -404,7 +426,7 @@ func (s *PaymentServiceImpl) UpdatePaymentStatus(paymentID uint, status string, 
 		}
 	}
 
-	if _, err := appfacades.OrmQuery(s.ctx).Table(tableName).Where("id", payment.ID).Update(&models.Payment{}, updateData); err != nil {
+	if _, err := appfacades.OrmQuery(s.ctx).Table(tableName).Where("id", payment.ID).Update(updateData); err != nil {
 		return apperrors.ErrUpdateFailed.WithError(err)
 	}
 

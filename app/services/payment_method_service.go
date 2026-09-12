@@ -20,6 +20,7 @@ import (
 type PaymentMethodService interface {
 	GetPaymentMethodByID(id uint) (*models.PaymentMethod, error)
 	GetPaymentMethodByCode(code string) (*models.PaymentMethod, error)
+	FindActiveByType(paymentType string) (*models.PaymentMethod, error)
 	GetPaymentMethods(filters PaymentMethodFilters, page, pageSize int) ([]models.PaymentMethod, int64, error)
 	CreatePaymentMethod(name, code, paymentType string, config map[string]any, isActive bool, sort int, description string) (*models.PaymentMethod, error)
 	CreatePaymentMethodFromRequest(req *admin.PaymentMethodCreate) (*models.PaymentMethod, error)
@@ -72,6 +73,24 @@ func (s *PaymentMethodServiceImpl) GetPaymentMethodByID(id uint) (*models.Paymen
 func (s *PaymentMethodServiceImpl) GetPaymentMethodByCode(code string) (*models.PaymentMethod, error) {
 	var paymentMethod models.PaymentMethod
 	if err := appfacades.OrmQuery(s.ctx).Where("code", code).Where("is_active", true).FirstOrFail(&paymentMethod); err != nil {
+		return nil, apperrors.ErrPaymentMethodNotFound.WithError(err)
+	}
+	return &paymentMethod, nil
+}
+
+// FindActiveByType returns the first active payment method for a gateway type (sort ASC).
+func (s *PaymentMethodServiceImpl) FindActiveByType(paymentType string) (*models.PaymentMethod, error) {
+	paymentType = strings.TrimSpace(strings.ToLower(paymentType))
+	if paymentType == "" {
+		return nil, apperrors.ErrPaymentMethodNotFound
+	}
+	var paymentMethod models.PaymentMethod
+	if err := appfacades.OrmQuery(s.ctx).
+		Where("type", paymentType).
+		Where("is_active", true).
+		OrderBy("sort", "asc").
+		OrderBy("id", "asc").
+		FirstOrFail(&paymentMethod); err != nil {
 		return nil, apperrors.ErrPaymentMethodNotFound.WithError(err)
 	}
 	return &paymentMethod, nil
@@ -166,7 +185,12 @@ func (s *PaymentMethodServiceImpl) CreatePaymentMethod(name, code, paymentType s
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
 
-	return paymentMethod, nil
+	// map Create may not populate primary key — reload by unique code.
+	var created models.PaymentMethod
+	if err := appfacades.OrmQuery(s.ctx).Where("code", code).First(&created); err != nil || created.ID == 0 {
+		return nil, apperrors.ErrCreateFailed.WithError(err)
+	}
+	return &created, nil
 }
 
 // CreatePaymentMethodFromRequest 按请求创建支付方式

@@ -143,8 +143,11 @@ var (
 	ErrPaymentConfigRequired   = NewBusinessError("payment_config_required", "支付配置不能为空")
 	ErrCreatePaymentFailed     = NewBusinessError("create_payment_failed", "创建支付记录失败")
 	ErrPaymentAmountInvalid    = NewBusinessError("payment_amount_invalid", "支付金额无效")
+	ErrPaymentAmountMismatch   = NewBusinessError("payment_amount_mismatch", "支付金额与订单金额不一致")
 	ErrPaymentStatusInvalid    = NewBusinessError("payment_status_invalid", "支付状态无效")
+	ErrPaymentNotifyInvalid    = NewBusinessError("payment_notify_invalid", "支付回调数据无效")
 	ErrPaymentGatewayNotImplemented = NewBusinessError("payment_gateway_not_implemented", "支付网关该能力尚未实现，详见开源文档支付边界说明")
+	ErrOrderNotPayable         = NewBusinessError("order_not_payable", "订单当前状态不可支付")
 
 	// 导出相关错误
 	ErrExportRecordNotFound    = NewBusinessError("record_not_found", "导出记录不存在")

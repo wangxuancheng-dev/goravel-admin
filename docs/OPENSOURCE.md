@@ -31,12 +31,13 @@
 | 能力 | 状态 |
 |------|------|
 | 支付方式 CRUD、支付记录列表/详情/导出 | ✅ 可用 |
+| 为订单创建支付单 `POST /api/admin/payments` + 可选 `initiate` | ✅ 参考下单 |
+| **Mock 网关** 下单 / 查询 / 回调 → `ApplyPaidResult`（支付+订单幂等已支付） | ✅ 本地可跑通，见 [PAYMENTS_REFERENCE.md](./PAYMENTS_REFERENCE.md) |
 | 微信 / 支付宝下单客户端调用（gopay） | ⚠️ 示例代码，需自备商户配置 |
-| 支付结果查询 `POST /api/admin/payments/{id}/query` | ⚠️ 路由已接好，网关返回 `payment_gateway_not_implemented`（501） |
-| 支付回调 `POST /api/payment/notify/{wechat\|alipay}[/{tenant}]` | ⚠️ 公开路由已接好；tenancy 开启须带 `{tenant}`；网关返回 `payment_gateway_not_implemented`（501）；**未做验签/落库** |
+| 微信 / 支付宝查询与回调验签 | ⚠️ 路由已接；返回 `payment_gateway_not_implemented`（501）；验签后复用 `ApplyPaidResult` |
 | 退款 API / 原路退 | ❌ 未提供（余额日志里的 refund 类型仅统计用） |
 
-**结论：** 不要把本项目默认当成可上线的收单 / 清算系统。**默认 `MODULE_PAYMENTS_ENABLED=false`（demo-only）**；需要演示后台支付管理 UI 时再显式打开。回调/查询路由仅便于二次开发对接，不等于可用网关。
+**结论：** 用 **mock** 学完整链路，再替换微信/支付宝验签；不要把本项目默认当成可上线的收单 / 清算系统。演示后台可 `MODULE_PAYMENTS_ENABLED=true`；公网生产若未自研网关请保持关闭或仅开 mock。
 
 ---
 
@@ -127,7 +128,7 @@ SWAGGER_ENABLED=false
 
 - **导出**：下载 / 进度 SSE / 删除仅本人或配置的 `admin.super_admin_id`  
 - **附件**：私有文件读/写同归属规则；公开附件（`is_public=1`）已登录管理员可读，改删仍需所有者或超管  
-- **支付**：查询 / 回调能力返回 `payment_gateway_not_implemented`（501），勿当收单核心
+- **支付**：优先用 **mock** 跑通下单/回调/订单同步；微信/支付宝查询与回调验签仍为 `payment_gateway_not_implemented`（501），见 [PAYMENTS_REFERENCE.md](./PAYMENTS_REFERENCE.md)
 
 ---
 
@@ -212,3 +213,4 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 | [SEARCH.md](./SEARCH.md) | Elasticsearch / Meilisearch 切换、订单同步、文章扩展 |
 | [PRODUCTION.md](./PRODUCTION.md) | 生产上线清单、`/health` `/ready`、告警 |
 | [SAAS.md](./SAAS.md) | 中小 SaaS 分项目标与上线核对清单 |
+| [PAYMENTS_REFERENCE.md](./PAYMENTS_REFERENCE.md) | 订单/支付参考链路、mock 与微信支付宝扩展点 |

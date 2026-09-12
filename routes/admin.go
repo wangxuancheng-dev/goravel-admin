@@ -262,6 +262,7 @@ func Admin() {
 
 				// 支付记录管理
 				router.Get("payments", paymentController.Index)
+				router.Post("payments", paymentController.Store)
 				router.Get("payments/{id}", paymentController.Show)
 				router.Post("payments/{id}/query", paymentController.Query)
 				router.Post("payments/export", paymentController.Export)

@@ -1,4 +1,4 @@
-/** @typedef {'wechat'|'alipay'|'qq'|'allinpay'|'lakala'|'paypal'|'apple'|'saobei'} PaymentMethodType */
+/** @typedef {'mock'|'wechat'|'alipay'|'qq'|'allinpay'|'lakala'|'paypal'|'apple'|'saobei'} PaymentMethodType */
 
 /**
  * @typedef {Object} PaymentConfigField
@@ -15,6 +15,7 @@
  */
 
 export const PAYMENT_METHOD_TYPES = [
+  'mock',
   'wechat',
   'alipay',
   'qq',
@@ -38,6 +39,10 @@ export const CONFIG_KEY_ALIASES = {
  * @type {Record<PaymentMethodType, PaymentConfigField[]>}
  */
 export const PAYMENT_TYPE_CONFIG_FIELDS = {
+  mock: [
+    { key: 'shared_secret', type: 'input', inputType: 'password', required: false, group: 'basic', labelKey: 'cfg_shared_secret', placeholderKey: 'cfg_shared_secret_ph', tipKey: 'tip_mock_shared_secret' },
+    { key: 'notify_url', type: 'input', required: false, group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' }
+  ],
   wechat: [
     { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_app_id_ph', tipKey: 'tip_wechat_app_id' },
     { key: 'mch_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_mch_id', placeholderKey: 'cfg_mch_id_ph', tipKey: 'tip_wechat_mch_id' },
