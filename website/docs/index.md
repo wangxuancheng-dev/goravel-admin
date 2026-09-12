@@ -7,7 +7,7 @@ hero:
   tagline: Golang Goravel · Vue3 + Element Plus / React + Ant Design · RBAC · 代码生成 · Docker
   actions:
     - theme: brand
-      text: Docker 三分钟上手
+      text: 快速开始
       link: /guide/getting-started
     - theme: alt
       text: 开源定位与模块
@@ -29,7 +29,7 @@ features:
 
 | 优先级 | 章节 | 适合谁 |
 |--------|------|--------|
-| 1 | [Docker 快速开始](/guide/getting-started) | 第一次跑起来 |
+| 1 | [快速开始](/guide/getting-started) | 本机或 Docker 第一次跑起来 |
 | 2 | [开源定位与模块](/guide/opensource) | 判断能不能用、开哪些模块 |
 | 3 | [系统架构](/guide/architecture) | 二次开发前摸清结构 |
 | 4 | [开发指南](/guide/development) / [代码生成器](/guide/code-generator) | 加业务 CRUD |

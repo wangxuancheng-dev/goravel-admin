@@ -21,7 +21,7 @@ const zhSidebar = {
       collapsed: false,
       items: [
         { text: '项目简介', link: '/' },
-        { text: '1. Docker 快速开始', link: '/guide/getting-started' },
+        { text: '1. 快速开始（本机 / Docker）', link: '/guide/getting-started' },
         { text: '2. 开源定位与模块', link: '/guide/opensource' },
         { text: '3. 系统架构', link: '/guide/architecture' },
       ],
@@ -100,7 +100,7 @@ const enSidebar = {
       collapsed: false,
       items: [
         { text: 'Introduction', link: '/en/' },
-        { text: '1. Docker quick start', link: '/en/guide/getting-started' },
+        { text: '1. Quick start (local / Docker)', link: '/en/guide/getting-started' },
         { text: '2. Open-source scope', link: '/en/guide/opensource' },
         { text: '3. Architecture', link: '/en/guide/architecture' },
       ],

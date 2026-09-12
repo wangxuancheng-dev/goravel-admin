@@ -219,7 +219,7 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 
 | 文档 | 说明 |
 |------|------|
-| [Docker 快速开始](/guide/getting-started) | Docker 本地三分钟跑通 |
+| [快速开始](/guide/getting-started) | 本机开发或 Docker 一键跑通 |
 | [编译与部署](/deploy/build) | 编译与部署 |
 | [测试指南](/guide/testing) | 测试指南 |
 | [分表迁移](/advanced/sharding-migration) | 分表 |

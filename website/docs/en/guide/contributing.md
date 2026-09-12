@@ -6,15 +6,6 @@
 
 感谢您对 Goravel Admin 项目的关注！我们欢迎任何形式的贡献。
 
-## 目录
-
-- [行为准则](#行为准则)
-- [如何贡献](#如何贡献)
-- [开发环境](#开发环境)
-- [代码规范](#代码规范)
-- [提交规范](#提交规范)
-- [Pull Request 流程](#pull-request-流程)
-
 ---
 
 ## 行为准则
@@ -47,6 +38,8 @@
 ---
 
 ## 开发环境
+
+Full steps: [Quick start · Local](/en/guide/getting-started#local-dev). Summary below.
 
 ### 前置要求
 

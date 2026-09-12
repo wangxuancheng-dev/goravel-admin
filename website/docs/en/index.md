@@ -7,7 +7,7 @@ hero:
   tagline: Golang Goravel · Vue3 + Element Plus / React + Ant Design · RBAC · codegen · Docker
   actions:
     - theme: brand
-      text: Docker quick start
+      text: Quick start
       link: /en/guide/getting-started
     - theme: alt
       text: Open-source scope
@@ -29,7 +29,7 @@ features:
 
 | Priority | Section | Audience |
 |----------|---------|----------|
-| 1 | [Docker quick start](/en/guide/getting-started) | First run |
+| 1 | [Quick start](/en/guide/getting-started) | Local or Docker first run |
 | 2 | [Open-source scope](/en/guide/opensource) | Fit / module switches |
 | 3 | [Architecture](/en/guide/architecture) | Before secondary development |
 | 4 | [Development](/en/guide/development) / [Code generator](/en/guide/code-generator) | Adding CRUD |
