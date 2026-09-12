@@ -87,7 +87,7 @@ func init() {
 		"display_source_timezone": config.Env("APP_DISPLAY_SOURCE_TIMEZONE", carbon.UTC),
 		// Comma-separated response time field whitelist.
 		// Example: created_at,updated_at,deleted_at
-		"response_time_fields": config.Env("APP_RESPONSE_TIME_FIELDS", "created_at,updated_at,deleted_at"),
+		"response_time_fields": config.Env("APP_RESPONSE_TIME_FIELDS", "created_at,updated_at,deleted_at,pay_time"),
 		// Application Locale Configuration
 		//
 		// The application locale determines the default locale that will be used

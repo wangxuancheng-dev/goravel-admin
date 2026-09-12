@@ -23,7 +23,28 @@ CreatePayment (订单 pending)
 | 网关 | `app/services/payment_gateway_*.go` | 验签 + 归一化；mock 完整，微信/支付宝挂 TODO |
 | 回调 | `app/http/controllers/api/payment_notify_controller.go` | 公开路由；按支付单解析 `PaymentMethod` |
 
-## 2. Mock 快速跑通
+## 2. 分表如何定位（回调一定找得到）
+
+| 单号 | 格式 | 定位分表 |
+|------|------|----------|
+| `payment_no` | `PAY` + `YYYYMMDD` + ULID | `payments_YYYYMM` |
+| `order_no` | `ORD` + `YYYYMM` + ULID | `orders_YYYYMM` |
+
+回调流程：
+
+1. `out_trade_no` = `payment_no` → `GetPaymentByPaymentNo` **直接定位**支付分表  
+2. 取 `payment.order_no` → `GetOrderByOrderNo` **直接定位**订单分表  
+3. `ApplyPaidResult` 幂等更新支付 + 订单  
+
+跨月支付没问题：支付单创建在 2 月、3 月回调，仍用 2 月的 `payment_no` / `order_no` 定位原分表。
+
+## 3. 完成时间与时区
+
+- **存储**：`pay_time` 统一 **UTC** 写入  
+- **展示**：请求带 `X-Timezone`（前端已自动带）时，响应里的 `pay_time` / `created_at` / `updated_at` 会转到该时区显示（`APP_RESPONSE_TIME_FIELDS` 已含 `pay_time`）  
+- **筛选**：`start_time` / `end_time` 按请求时区解释后转 UTC 查库；`time_field=pay_time` 按**支付完成时间**筛，默认 `created_at`。按 `pay_time` 筛时会多扫前一个月分表，避免「上月建单、本月支付」漏查  
+
+## 4. Mock 快速跑通
 
 1. 后台创建支付方式：`type=mock`，可选 `shared_secret`
 2. 创建待支付订单（管理端订单）

@@ -280,13 +280,17 @@ func hasTimezoneRequest(ctx http.Context) bool {
 }
 
 func getTimeFieldWhitelist() map[string]struct{} {
-	defaultFields := []string{"created_at", "updated_at", "deleted_at", "createdat", "updatedat", "deletedat"}
+	defaultFields := []string{
+		"created_at", "updated_at", "deleted_at",
+		"pay_time",
+		"createdat", "updatedat", "deletedat", "paytime",
+	}
 	whitelist := make(map[string]struct{}, len(defaultFields))
 	for _, field := range defaultFields {
 		whitelist[field] = struct{}{}
 	}
 
-	// 支持通过配置扩展字段：app.response_time_fields=created_at,updated_at,deleted_at
+	// 支持通过配置扩展字段：app.response_time_fields=created_at,updated_at,deleted_at,pay_time
 	configFields := facades.Config().GetString("app.response_time_fields", "")
 	if strings.TrimSpace(configFields) == "" {
 		return whitelist

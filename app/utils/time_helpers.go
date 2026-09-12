@@ -67,12 +67,12 @@ func FormatDate(t time.Time) string {
 	return t.Format(DateFormat)
 }
 
-// FormatDateTimePtr 格式化时间指针为标准日期时间字符串
+// FormatDateTimePtr 格式化时间指针为标准日期时间字符串（统一按 UTC，配合响应时区转换）
 func FormatDateTimePtr(t *time.Time) string {
 	if t == nil || t.IsZero() {
 		return ""
 	}
-	return t.Format(DateTimeFormat)
+	return t.UTC().Format(DateTimeFormat)
 }
 
 // ParseDateTimeInLocation 在指定时区解析日期时间字符串

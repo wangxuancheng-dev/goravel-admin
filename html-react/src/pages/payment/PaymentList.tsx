@@ -191,6 +191,16 @@ export default function PaymentList() {
             options: createPaymentStatusOptions(t),
           },
           {
+            name: 'time_field',
+            label: t('payment.time_field'),
+            type: 'select',
+            placeholder: t('payment.time_field_placeholder'),
+            options: [
+              { label: t('payment.time_field_created_at'), value: 'created_at' },
+              { label: t('payment.time_field_pay_time'), value: 'pay_time' },
+            ],
+          },
+          {
             name: 'start_time',
             label: t('payment.start_time'),
             type: 'datetime',

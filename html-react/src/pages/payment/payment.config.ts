@@ -10,6 +10,7 @@ export interface PaymentSearchForm {
   payment_method_id: string | number
   user_id: string
   status: string
+  time_field: string
   start_time: string
   end_time: string
   [key: string]: string | number
@@ -22,6 +23,7 @@ export function createPaymentInitialSearchForm(): PaymentSearchForm {
     payment_method_id: '',
     user_id: '',
     status: '',
+    time_field: 'created_at',
     start_time: getSevenDaysAgo(),
     end_time: '',
   }

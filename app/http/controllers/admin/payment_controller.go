@@ -181,6 +181,7 @@ func (c *PaymentController) Export(ctx http.Context) http.Response {
 		"payment_method_id": filters.PaymentMethodID,
 		"user_id":           filters.UserID,
 		"status":            filters.Status,
+		"time_field":        filters.TimeField,
 		"order_by":          filters.OrderBy,
 	}
 	if !filters.StartTime.IsZero() {

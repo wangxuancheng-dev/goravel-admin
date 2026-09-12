@@ -35,7 +35,7 @@ type PaymentService interface {
 	UpdatePaymentStatus(paymentID uint, status string, thirdPartyNo string, payTime *time.Time, failReason string, notifyData map[string]any, paymentNo ...string) error
 }
 
-// PaymentFilters 支付记录查询过滤器
+// PaymentFilters 支付列表筛选
 type PaymentFilters struct {
 	PaymentNo       string
 	OrderNo         string
@@ -44,7 +44,28 @@ type PaymentFilters struct {
 	Status          string
 	StartTime       time.Time
 	EndTime         time.Time
-	OrderBy         string
+	// TimeField: created_at (default) | pay_time — list/export range column.
+	// Request timezone is converted to UTC via GetTimeInputOrQueryParam before these times are set.
+	TimeField string
+	OrderBy   string
+}
+
+// paymentTimeColumn returns the SQL column used for list time-range filters.
+func paymentTimeColumn(timeField string) string {
+	if strings.EqualFold(strings.TrimSpace(timeField), "pay_time") {
+		return "pay_time"
+	}
+	return "created_at"
+}
+
+// paymentShardScanRange picks which monthly payment tables to open.
+// When filtering by pay_time, look back one extra month so cross-month pay still hits the create-month shard.
+func paymentShardScanRange(filters PaymentFilters) (time.Time, time.Time) {
+	start, end := filters.StartTime, filters.EndTime
+	if paymentTimeColumn(filters.TimeField) == "pay_time" && !start.IsZero() {
+		start = start.AddDate(0, -1, 0)
+	}
+	return start, end
 }
 
 // ParsePaymentListTimeRange 解析支付列表时间；开始为空默认近 7 天，结束为空默认当前时间。
@@ -91,6 +112,7 @@ func BuildPaymentFiltersFromHTTP(ctx http.Context) (PaymentFilters, error) {
 		Status:          ctx.Request().Input("status", ctx.Request().Query("status", "")),
 		StartTime:       startTime,
 		EndTime:         endTime,
+		TimeField:       ctx.Request().Input("time_field", ctx.Request().Query("time_field", "created_at")),
 		OrderBy:         ctx.Request().Input("order_by", ctx.Request().Query("order_by", "")),
 	}, nil
 }
@@ -102,12 +124,16 @@ const PaymentCountThreshold int64 = 100000
 func BuildPaymentQuery(ctx context.Context, tableName string, filters PaymentFilters) orm.Query {
 	query := appfacades.OrmQuery(ctx).Table(tableName).Where("deleted_at IS NULL")
 
-	// 时间范围
+	// 时间范围（请求侧已按 X-Timezone 转成 UTC；time_field=pay_time 时按完成时间筛）
+	timeCol := paymentTimeColumn(filters.TimeField)
 	if !filters.StartTime.IsZero() {
-		query = query.Where("created_at >= ?", utils.FormatDateTime(filters.StartTime))
+		query = query.Where(timeCol+" >= ?", utils.FormatDateTime(filters.StartTime))
 	}
 	if !filters.EndTime.IsZero() {
-		query = query.Where("created_at <= ?", utils.FormatDateTime(filters.EndTime))
+		query = query.Where(timeCol+" <= ?", utils.FormatDateTime(filters.EndTime))
+	}
+	if timeCol == "pay_time" && (!filters.StartTime.IsZero() || !filters.EndTime.IsZero()) {
+		query = query.Where(timeCol + " IS NOT NULL")
 	}
 
 	// 精确匹配条件
@@ -250,7 +276,8 @@ func (s *PaymentServiceImpl) GetPayments(filters PaymentFilters, page, pageSize 
 	}
 
 	// 获取需要查询的所有分表
-	tableNames := utils.GetShardingTableNames("payments", filters.StartTime, filters.EndTime)
+	shardStart, shardEnd := paymentShardScanRange(filters)
+	tableNames := utils.GetShardingTableNames("payments", shardStart, shardEnd)
 	if len(tableNames) == 0 {
 		return []models.Payment{}, 0, nil
 	}
@@ -414,7 +441,7 @@ func (s *PaymentServiceImpl) UpdatePaymentStatus(paymentID uint, status string, 
 		updateData["third_party_no"] = thirdPartyNo
 	}
 	if payTime != nil {
-		updateData["pay_time"] = *payTime
+		updateData["pay_time"] = payTime.UTC()
 	}
 	if failReason != "" {
 		updateData["fail_reason"] = failReason
@@ -459,12 +486,15 @@ func (s *PaymentServiceImpl) buildPaymentWhereClause(filters PaymentFilters) (st
 		args = append(args, filters.Status)
 	}
 	if !filters.StartTime.IsZero() {
-		conditions = append(conditions, "created_at >= ?")
+		conditions = append(conditions, paymentTimeColumn(filters.TimeField)+" >= ?")
 		args = append(args, filters.StartTime)
 	}
 	if !filters.EndTime.IsZero() {
-		conditions = append(conditions, "created_at <= ?")
+		conditions = append(conditions, paymentTimeColumn(filters.TimeField)+" <= ?")
 		args = append(args, filters.EndTime)
+	}
+	if paymentTimeColumn(filters.TimeField) == "pay_time" && (!filters.StartTime.IsZero() || !filters.EndTime.IsZero()) {
+		conditions = append(conditions, "pay_time IS NOT NULL")
 	}
 
 	if len(conditions) == 0 {
@@ -541,14 +571,18 @@ func (s *PaymentServiceImpl) buildPaymentShardingWhereClause(filters any) (strin
 	var conditions []string
 	var args []any
 
-	// 时间范围（必填）
+	// 时间范围（请求已转 UTC；time_field 可选 created_at|pay_time）
+	timeCol := paymentTimeColumn(paymentFilters.TimeField)
 	if !paymentFilters.StartTime.IsZero() {
-		conditions = append(conditions, "created_at >= ?")
+		conditions = append(conditions, timeCol+" >= ?")
 		args = append(args, paymentFilters.StartTime)
 	}
 	if !paymentFilters.EndTime.IsZero() {
-		conditions = append(conditions, "created_at <= ?")
+		conditions = append(conditions, timeCol+" <= ?")
 		args = append(args, paymentFilters.EndTime)
+	}
+	if timeCol == "pay_time" && (!paymentFilters.StartTime.IsZero() || !paymentFilters.EndTime.IsZero()) {
+		conditions = append(conditions, "pay_time IS NOT NULL")
 	}
 
 	// 支付单号筛选

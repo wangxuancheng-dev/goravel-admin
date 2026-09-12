@@ -8,6 +8,7 @@ export function createPaymentInitialSearchForm() {
     payment_method_id: '',
     user_id: '',
     status: '',
+    time_field: 'created_at',
     start_time: getSevenDaysAgo(),
     end_time: ''
   }
@@ -34,6 +35,15 @@ export function createPaymentSearchFields(t) {
         { label: t('payment.status_paid'), value: 'paid' },
         { label: t('payment.status_failed'), value: 'failed' },
         { label: t('payment.status_cancelled'), value: 'cancelled' }
+      ]
+    },
+    {
+      prop: 'time_field',
+      type: 'select',
+      placeholder: t('payment.time_field_placeholder'),
+      options: [
+        { label: t('payment.time_field_created_at'), value: 'created_at' },
+        { label: t('payment.time_field_pay_time'), value: 'pay_time' }
       ]
     },
     { prop: 'start_time', type: 'datetime', placeholder: t('payment.start_time_placeholder') },

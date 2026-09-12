@@ -21,6 +21,10 @@ type PaidResult struct {
 }
 
 // ApplyPaidResult marks a payment paid (idempotent) and syncs the related order when still pending.
+//
+// Sharding: payment is located by payment_no (PAY+YYYYMMDD → payments_YYYYMM);
+// order is located by payment.OrderNo (ORD+YYYYMM → orders_YYYYMM). Cross-month
+// pay is fine — each no encodes its own create month.
 func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, error) {
 	paymentNo := strings.TrimSpace(result.PaymentNo)
 	if paymentNo == "" {
@@ -60,8 +64,11 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 
 	payTime := result.PayTime
 	if payTime == nil {
-		now := time.Now()
+		now := time.Now().UTC()
 		payTime = &now
+	} else {
+		utc := payTime.UTC()
+		payTime = &utc
 	}
 
 	if err := payments.UpdatePaymentStatus(payment.ID, "paid", result.ThirdPartyNo, payTime, "", result.NotifyData, payment.PaymentNo); err != nil {
