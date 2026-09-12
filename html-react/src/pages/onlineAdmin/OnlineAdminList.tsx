@@ -20,6 +20,7 @@ import ColumnSettingDialog from '@/components/ColumnSettingDialog'
 import SearchForm from '@/components/SearchForm'
 import PermissionButton from '@/components/PermissionButton'
 import { entityField } from '@/utils/normalize'
+import { promptSensitiveConfirm } from '@/utils/sensitiveConfirm'
 
 interface OnlineAdminRow {
   id: number | string
@@ -87,39 +88,37 @@ export default function OnlineAdminList() {
   const { toolbar } = useCrudActions({ onRefresh: refresh })
 
   const handleKickOut = (row: OnlineAdminRow) => {
-    modal.confirm({
-      title: t('common.confirm'),
-      content: t('online_admin.kick_out_confirm', { username: row.username }),
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          await kickOutOnlineAdmin(row.id)
-          message.success(t('online_admin.kick_out_success'))
-          await refresh()
-        } catch (error) {
-          showError(error, t('online_admin.kick_out_failed'))
-        }
-      },
-    })
+    void (async () => {
+      try {
+        const confirmCode = await promptSensitiveConfirm(modal, t, {
+          title: t('online_admin.kick_out_confirm', { username: row.username }),
+        })
+        await kickOutOnlineAdmin(row.id, { confirm_code: confirmCode })
+        message.success(t('online_admin.kick_out_success'))
+        await refresh()
+      } catch (error) {
+        if ((error as Error)?.message === 'cancel') return
+        showError(error, t('online_admin.kick_out_failed'))
+      }
+    })()
   }
 
   const handleBatchKickOut = () => {
     if (!selectedRowKeys.length) return
-    modal.confirm({
-      title: t('common.confirm'),
-      content: t('online_admin.batch_kick_out_confirm', { count: selectedRowKeys.length }),
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          await batchKickOutOnlineAdmins(selectedRowKeys)
-          message.success(t('online_admin.batch_kick_out_success'))
-          setSelectedRowKeys([])
-          await refresh()
-        } catch (error) {
-          showError(error, t('online_admin.batch_kick_out_failed'))
-        }
-      },
-    })
+    void (async () => {
+      try {
+        const confirmCode = await promptSensitiveConfirm(modal, t, {
+          title: t('online_admin.batch_kick_out_confirm', { count: selectedRowKeys.length }),
+        })
+        await batchKickOutOnlineAdmins(selectedRowKeys, { confirm_code: confirmCode })
+        message.success(t('online_admin.batch_kick_out_success'))
+        setSelectedRowKeys([])
+        await refresh()
+      } catch (error) {
+        if ((error as Error)?.message === 'cancel') return
+        showError(error, t('online_admin.batch_kick_out_failed'))
+      }
+    })()
   }
 
   const columns: ColumnsType<OnlineAdminRow> = [

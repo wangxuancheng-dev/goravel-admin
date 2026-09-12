@@ -91,6 +91,7 @@ const {
   initialSearchForm: blacklistInitialSearchForm,
   defaultSort: 'id:desc',
   deleteApi: deleteBlacklist,
+  requireSensitiveConfirm: true,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })
 

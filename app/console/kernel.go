@@ -14,6 +14,8 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 	// Use ScheduleTracked so automatic runs also write last-run cache for the admin page.
 	// Times below are UTC (see comments for Beijing equivalents).
 	return []schedule.Event{
+		// 北京时间 01:00 = UTC 17:00（前一天）：先归档再清理
+		ScheduleTracked("operation_log:archive").DailyAt("17:00").OnOneServer(),
 		// 北京时间 02:00 = UTC 18:00（前一天）
 		ScheduleTracked("app:clear-logs").DailyAt("18:00").OnOneServer(),
 		// 北京时间 03:00 = UTC 19:00（前一天）
@@ -29,6 +31,7 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 func (kernel *Kernel) Commands() []console.Command {
 	return []console.Command{
 		&commands.ClearLogs{},
+		&commands.ArchiveOperationLogs{},
 		&commands.ClearChunks{},
 		&commands.CreateToken{},
 		&commands.QueueStats{},

@@ -36,6 +36,8 @@ export interface CodeGeneratorOptions {
   has_delete?: boolean
   has_export?: boolean
   export_async?: boolean
+  has_import?: boolean
+  import_async?: boolean
   enable_batch_actions?: boolean
   show_toolbar?: boolean
   is_tree_list?: boolean

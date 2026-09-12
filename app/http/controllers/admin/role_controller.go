@@ -91,6 +91,10 @@ func (c *RoleController) Update(ctx http.Context) http.Response {
 }
 
 func (c *RoleController) Destroy(ctx http.Context) http.Response {
+	if resp := RequireSensitiveConfirm(ctx, "role"); resp != nil {
+		return resp
+	}
+
 	id := helpers.GetUintRoute(ctx, "id")
 	if err := c.RoleService(ctx).Delete(id); err != nil {
 		return HandleGeneratedServiceError(ctx, "role", http.StatusInternalServerError, err, map[string]any{"id": id})

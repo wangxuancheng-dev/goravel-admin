@@ -8,23 +8,18 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
+	apppayment "goravel/app/payment"
 )
 
-// PaidResult is the normalized outcome after a gateway verifies a successful payment.
-// Gateways (mock / wechat / alipay) should only verify + map fields; business writes go through ApplyPaidResult.
-type PaidResult struct {
-	PaymentNo    string
-	ThirdPartyNo string
-	PayTime      *time.Time
-	Amount       *float64 // optional; when set, must match payment.Amount
-	NotifyData   map[string]any
-}
+// PaidResult re-exports the domain type for backward-compatible imports in services/gateways/tests.
+type PaidResult = apppayment.PaidResult
 
 // ApplyPaidResult marks a payment paid (idempotent) and syncs the related order when still pending.
 //
 // Sharding: payment is located by payment_no (PAY+YYYYMMDD → payments_YYYYMM);
 // order is located by payment.OrderNo (ORD+YYYYMM → orders_YYYYMM). Cross-month
 // pay is fine — each no encodes its own create month.
+// Status gate lives in goravel/app/payment (ApplyPaidResultStatusGate).
 func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, error) {
 	paymentNo := strings.TrimSpace(result.PaymentNo)
 	if paymentNo == "" {
@@ -32,25 +27,25 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 	}
 
 	payments := NewPaymentService(ctx)
-	payment, err := payments.GetPaymentByPaymentNo(paymentNo)
+	pay, err := payments.GetPaymentByPaymentNo(paymentNo)
 	if err != nil {
 		return nil, err
 	}
 
-	skip, err := applyPaidResultStatusGate(payment.Status)
+	skip, err := apppayment.ApplyPaidResultStatusGate(pay.Status)
 	if err != nil {
 		return nil, err
 	}
 	if skip {
-		return payment, nil
+		return pay, nil
 	}
 
-	if result.Amount != nil && math.Abs(*result.Amount-payment.Amount) > 0.009 {
+	if result.Amount != nil && math.Abs(*result.Amount-pay.Amount) > 0.009 {
 		return nil, apperrors.ErrPaymentAmountMismatch
 	}
 
 	orders := NewOrderService(ctx)
-	order, _, err := orders.GetOrderByOrderNo(payment.OrderNo)
+	order, _, err := orders.GetOrderByOrderNo(pay.OrderNo)
 	if err != nil {
 		return nil, err
 	}
@@ -72,28 +67,17 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 		payTime = &utc
 	}
 
-	if err := payments.UpdatePaymentStatus(payment.ID, models.PaymentStatusPaid, result.ThirdPartyNo, payTime, "", result.NotifyData, payment.PaymentNo); err != nil {
+	if err := payments.UpdatePaymentStatus(pay.ID, models.PaymentStatusPaid, result.ThirdPartyNo, payTime, "", result.NotifyData, pay.PaymentNo); err != nil {
 		return nil, err
 	}
 
 	if order.Status == models.OrderStatusPending {
 		if err := orders.UpdateOrderByOrderNo(order.OrderNo, models.OrderStatusPaid, order.Remark); err != nil {
 			// Best-effort compensate: payment already marked paid on a (possibly different) shard table.
-			_ = payments.UpdatePaymentStatus(payment.ID, models.PaymentStatusPending, "", nil, "order sync failed: "+err.Error(), nil, payment.PaymentNo)
+			_ = payments.UpdatePaymentStatus(pay.ID, models.PaymentStatusPending, "", nil, "order sync failed: "+err.Error(), nil, pay.PaymentNo)
 			return nil, err
 		}
 	}
 
 	return payments.GetPaymentByPaymentNo(paymentNo)
-}
-
-// applyPaidResultStatusGate returns skip=true when payment is already paid (idempotent no-op).
-func applyPaidResultStatusGate(status string) (skip bool, err error) {
-	if status == models.PaymentStatusPaid {
-		return true, nil
-	}
-	if status != models.PaymentStatusPending {
-		return false, apperrors.ErrPaymentStatusInvalid.WithMessage("only pending payments can be marked paid")
-	}
-	return false, nil
 }

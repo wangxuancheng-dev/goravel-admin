@@ -1,19 +1,35 @@
-import { createCRUDApi<<if .HasExport>>, extendApi<<end>> } from '@/utils/apiFactory'
+import { createCRUDApi<<if or .HasExport .HasImport>>, extendApi<<end>> } from '@/utils/apiFactory'
 import { normalizeListResponse } from '@/utils/normalize'
-<<if .HasExport>>
+<<if or .HasExport .HasImport>>
 import request from '@/utils/request'
 <<end>>
 
 const base<<.ModelName>>Api = createCRUDApi('<<.ModuleName>>s')
 
-<<if .HasExport>>
+<<if or .HasExport .HasImport>>
 const <<.ModuleName>>Api = extendApi(base<<.ModelName>>Api, {
+<<if .HasExport>>
   export: (params?: Record<string, unknown>) =>
     request({
       url: '/<<.ModuleName>>s/export',
       method: 'post',
       data: params,
-    }),
+    })<<if .HasImport>>,<<end>>
+<<end>>
+<<if .HasImport>>
+  import: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request({
+      url: '/<<.ModuleName>>s/import',
+      method: 'post',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+<<end>>
 })
 <<else>>
 const <<.ModuleName>>Api = base<<.ModelName>>Api
@@ -39,4 +55,8 @@ export const delete<<.ModelName>> = <<.ModuleName>>Api.delete
 
 <<if .HasExport>>
 export const export<<.ModelName>> = <<.ModuleName>>Api.export
+<<end>>
+
+<<if .HasImport>>
+export const import<<.ModelName>> = <<.ModuleName>>Api.import
 <<end>>

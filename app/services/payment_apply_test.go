@@ -9,6 +9,7 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
+	apppayment "goravel/app/payment"
 )
 
 func TestMockNotifySignRoundTrip(t *testing.T) {
@@ -36,15 +37,15 @@ func TestPaidResultRequiresPaymentNo(t *testing.T) {
 }
 
 func TestApplyPaidResultDecisionIdempotent(t *testing.T) {
-	skip, err := applyPaidResultStatusGate(models.PaymentStatusPaid)
+	skip, err := apppayment.ApplyPaidResultStatusGate(models.PaymentStatusPaid)
 	require.NoError(t, err)
 	assert.True(t, skip, "already-paid payments must short-circuit without order writes")
 
-	skip, err = applyPaidResultStatusGate(models.PaymentStatusPending)
+	skip, err = apppayment.ApplyPaidResultStatusGate(models.PaymentStatusPending)
 	require.NoError(t, err)
 	assert.False(t, skip)
 
-	skip, err = applyPaidResultStatusGate(models.PaymentStatusFailed)
+	skip, err = apppayment.ApplyPaidResultStatusGate(models.PaymentStatusFailed)
 	require.Error(t, err)
 	assert.False(t, skip)
 	be, ok := apperrors.GetBusinessError(err)

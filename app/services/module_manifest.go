@@ -39,6 +39,7 @@ type ModuleManifest struct {
 	HasEdit        bool                  `json:"has_edit"`
 	HasDelete      bool                  `json:"has_delete"`
 	HasExport      bool                  `json:"has_export"`
+	HasImport      bool                  `json:"has_import"`
 	Permissions    []ModulePermissionDef `json:"permissions"`
 }
 
@@ -57,6 +58,7 @@ func BuildModuleManifest(moduleName, tableName string, options map[string]bool, 
 	hasEdit := optionEnabled(options, "has_edit", true)
 	hasDelete := optionEnabled(options, "has_delete", true)
 	hasExport := optionEnabled(options, "has_export", false)
+	hasImport := optionEnabled(options, "has_import", false)
 
 	frontend := "react"
 	menuTitle := toPascalCase(moduleName)
@@ -88,6 +90,7 @@ func BuildModuleManifest(moduleName, tableName string, options map[string]bool, 
 		HasEdit:        hasEdit,
 		HasDelete:      hasDelete,
 		HasExport:      hasExport,
+		HasImport:      hasImport,
 		Permissions: []ModulePermissionDef{
 			{Name: menuTitle + "列表", Slug: moduleName + ".index", Method: "GET", Path: apiBase, Description: "查看" + menuTitle + "列表", Sort: 1},
 			{Name: menuTitle + "详情", Slug: moduleName + ".show", Method: "GET", Path: apiBase + "/*", Description: "查看" + menuTitle + "详情", Sort: 2},
@@ -116,6 +119,12 @@ func BuildModuleManifest(moduleName, tableName string, options map[string]bool, 
 		manifest.Permissions = append(manifest.Permissions, ModulePermissionDef{
 			Name: menuTitle + "导出", Slug: moduleName + ".export", Method: "POST", Path: apiBase + "/export",
 			Description: "导出" + menuTitle + "列表", Sort: 6,
+		})
+	}
+	if hasImport {
+		manifest.Permissions = append(manifest.Permissions, ModulePermissionDef{
+			Name: menuTitle + "导入", Slug: moduleName + ".import", Method: "POST", Path: apiBase + "/import",
+			Description: "导入" + menuTitle + " CSV", Sort: 7,
 		})
 	}
 

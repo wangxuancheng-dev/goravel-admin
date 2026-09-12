@@ -39,6 +39,7 @@ func (c *HealthController) Ready(ctx http.Context) http.Response {
 	if report.Status != "ready" {
 		status = http.StatusServiceUnavailable
 	}
+	health.MaybeAlertNotReady(report)
 	return ctx.Response().Json(status, http.Json{
 		"status":    report.Status,
 		"timestamp": report.Timestamp,

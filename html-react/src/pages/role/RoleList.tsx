@@ -49,6 +49,7 @@ export default function RoleList() {
       setOpen(true)
     },
     deleteApi: deleteRole,
+    requireSensitiveConfirm: true,
   })
 
   const columns: ColumnsType<RoleRow> = [

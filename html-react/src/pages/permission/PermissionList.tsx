@@ -35,6 +35,7 @@ export default function PermissionList() {
       createApi={createPermission}
       updateApi={updatePermission}
       deleteApi={deletePermission}
+      requireSensitiveConfirmOnDelete
       createTitle={t('permission.add')}
       editTitle={t('permission.edit')}
       initialSearchForm={{ name: '', slug: '' }}

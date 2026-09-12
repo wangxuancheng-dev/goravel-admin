@@ -2,6 +2,13 @@ package services
 
 import (
 	"context"
+<<if .HasImport>>
+	"encoding/csv"
+	"fmt"
+	"strings"
+
+	"github.com/spf13/cast"
+<<end>>
 
 	appfacades "goravel/app/facades"
 	"github.com/goravel/framework/contracts/database/orm"
@@ -21,6 +28,9 @@ type <<.ServiceName>> interface {
 <<end>>
 <<if .HasExport>>
 	GetAll<<.ModelName>>ForExport(filters <<.ModelName>>Filters) ([]models.<<.ModelName>>, error)
+<<end>>
+<<if .HasImport>>
+	ImportFromCSV(csvContent string) (*ImportResult, error)
 <<end>>
 <<if .HasCreate>>
 	Create(req *admin.<<.RequestCreateName>>) (*models.<<.ModelName>>, error)
@@ -168,6 +178,79 @@ func (s *<<.ServiceName>>Impl) GetAll<<.ModelName>>ForExport(filters <<.ModelNam
 	}
 
 	return list, nil
+}
+<<end>>
+
+<<if .HasImport>>
+// ImportFromCSV imports <<.ModelName>> rows from CSV content.
+// Header names should match field names (case-insensitive). Customize as needed.
+func (s *<<.ServiceName>>Impl) ImportFromCSV(csvContent string) (*ImportResult, error) {
+	reader := csv.NewReader(strings.NewReader(csvContent))
+	reader.TrimLeadingSpace = true
+	reader.LazyQuotes = true
+
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, apperrors.ErrInvalidCSVFormat.WithError(err)
+	}
+	if len(records) < 2 {
+		return nil, apperrors.ErrInvalidCSVFormat.WithMessage("CSV文件至少需要表头和数据行")
+	}
+
+	headerMap := make(map[string]int)
+	for i, header := range records[0] {
+		headerMap[strings.TrimSpace(strings.ToLower(header))] = i
+	}
+
+	result := &ImportResult{
+		TotalRows: len(records) - 1,
+		Errors:    []string{},
+	}
+
+	for rowIndex, row := range records[1:] {
+		lineNo := rowIndex + 2
+		if len(row) == 0 || (len(row) == 1 && strings.TrimSpace(row[0]) == "") {
+			result.TotalRows--
+			continue
+		}
+
+		item := &models.<<.ModelName>>{}
+<<- range .FormFields>>
+<<- if and (ne .Name "id") (ne .Name "created_at") (ne .Name "updated_at") (ne .Name "deleted_at") .ShowInForm>>
+		if idx, ok := headerMap["<<.Name>>"]; ok && idx < len(row) {
+			val := strings.TrimSpace(row[idx])
+			<<- if eq .GoType "string">>
+			item.<<.FieldName>> = val
+			<<- else if eq .GoType "uint8">>
+			item.<<.FieldName>> = uint8(cast.ToUint(val))
+			<<- else if eq .GoType "uint64">>
+			item.<<.FieldName>> = cast.ToUint64(val)
+			<<- else if eq .GoType "uint">>
+			item.<<.FieldName>> = cast.ToUint(val)
+			<<- else if eq .GoType "int64">>
+			item.<<.FieldName>> = cast.ToInt64(val)
+			<<- else if eq .GoType "int">>
+			item.<<.FieldName>> = cast.ToInt(val)
+			<<- else if eq .GoType "float64">>
+			item.<<.FieldName>> = cast.ToFloat64(val)
+			<<- else if eq .GoType "bool">>
+			item.<<.FieldName>> = cast.ToBool(val)
+			<<- else>>
+			_ = val // unsupported type <<.GoType>> for <<.Name>>; set manually if needed
+			<<- end>>
+		}
+<<- end>>
+<<- end>>
+
+		if err := appfacades.OrmQuery(s.ctx).Create(item); err != nil {
+			result.FailedCount++
+			result.Errors = append(result.Errors, fmt.Sprintf("第%d行：%v", lineNo, err))
+			continue
+		}
+		result.SuccessCount++
+	}
+
+	return result, nil
 }
 <<end>>
 

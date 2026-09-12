@@ -43,8 +43,20 @@
     </template>
     <<end>>
 
-    <<if .HasExport>>
+    <<if or .HasExport .HasImport>>
     <template #extra-buttons>
+      <<if .HasImport>>
+      <el-button
+        type="primary"
+        :disabled="getButtonState('<<.ModuleName>>.import').disabled || isImporting"
+        :loading="isImporting"
+        @click="handleImport"
+      >
+        <el-icon><Upload /></el-icon>
+        {{ $t('common.import') }}
+      </el-button>
+      <<end>>
+      <<if .HasExport>>
       <el-button
         type="success"
         :disabled="getButtonState('<<.ModuleName>>.export').disabled || isExporting"
@@ -53,6 +65,7 @@
       >
         {{ $t('common.export') }}
       </el-button>
+      <<end>>
     </template>
     <<end>>
 
@@ -106,6 +119,15 @@
       />
     </template>
   </ListPage>
+  <<if .HasImport>>
+  <input
+    ref="fileInputRef"
+    type="file"
+    accept=".csv"
+    style="display: none"
+    @change="handleFileChange"
+  />
+  <<end>>
 </template>
 
 <script setup>
@@ -123,6 +145,11 @@ import { extractTextFromMarkdown } from '@/utils/markdown'
 <<end>>
 <<if .HasExport>>
 import { export<<.ModelName>> } from '@/api/<<.ModuleName>>'
+<<end>>
+<<if .HasImport>>
+import { Upload } from '@element-plus/icons-vue'
+import { useCsvImport } from '@/composables/useCsvImport'
+import { import<<.ModelName>> } from '@/api/<<.ModuleName>>'
 <<end>>
 import {
   get<<.ModelName>>List,
@@ -177,6 +204,13 @@ const {
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),
   normalizeRows: false
 })
+
+<<if .HasImport>>
+const { fileInputRef, isImporting, handleImport, handleFileChange } = useCsvImport({
+  importApi: import<<.ModelName>>,
+  onSuccess: () => loadData()
+})
+<<end>>
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
 const searchFields = computed(() => create<<.ModelName>>SearchFields(t))

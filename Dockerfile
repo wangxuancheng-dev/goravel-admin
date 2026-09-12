@@ -11,14 +11,17 @@ RUN go mod tidy
 RUN go build --ldflags "-extldflags -static" -o main .
 
 # Optional SPA stage: docker build --build-arg BUILD_FRONTEND=1
+# When BUILD_FRONTEND=1, builds React (html-react/) — the primary shipping UI — into public/admin.
+# Default BUILD_FRONTEND=0 keeps API-only images fast (no Node build).
 ARG BUILD_FRONTEND=0
 FROM node:20-alpine AS frontend
 ARG BUILD_FRONTEND=0
 WORKDIR /frontend
-COPY html/package*.json ./
+COPY html-react/package*.json ./
 RUN if [ "$BUILD_FRONTEND" = "1" ]; then npm ci; else mkdir -p /frontend/dist && touch /frontend/dist/.keep; fi
-COPY html/ ./
-RUN if [ "$BUILD_FRONTEND" = "1" ]; then npm run build; else mkdir -p /frontend/dist && touch /frontend/dist/.keep; fi
+COPY html-react/ ./
+# build:ci = vite only (skip tsc) for reliable Docker builds
+RUN if [ "$BUILD_FRONTEND" = "1" ]; then npm run build:ci; else mkdir -p /frontend/dist && touch /frontend/dist/.keep; fi
 
 FROM alpine:latest
 
@@ -32,7 +35,7 @@ COPY --from=builder /build/database/ /www/database/
 COPY --from=builder /build/public/ /www/public/
 COPY --from=builder /build/storage/ /www/storage/
 COPY --from=builder /build/resources/ /www/resources/
-# When BUILD_FRONTEND=1, Vue dist is copied into public/admin for same-origin SPA serving.
+# When BUILD_FRONTEND=1, React (html-react) dist is copied into public/admin for same-origin SPA serving.
 COPY --from=frontend /frontend/dist/ /www/public/admin/
 # Runtime configuration must be injected by docker compose, Kubernetes secrets,
 # or environment variables. Do not bake .env into the image.

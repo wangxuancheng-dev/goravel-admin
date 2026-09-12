@@ -172,13 +172,18 @@ func Admin() {
 			router.Post("operation-logs/clean", operationLogController.Clean)
 			router.Post("operation-logs/archive", operationLogController.Archive)
 
-			// 导出管理
+			// 导出 / 导入任务中心
 			router.Get("exports", exportController.Index)
 			router.Get("exports/{id}/download", exportController.Download)
 			router.Get("exports/{id}/progress", exportController.StreamExportProgress).
 				WithoutMiddleware(middleware.RequestTimeout(), middleware.OperationLog(), middleware.ApiMetric())
 			router.Delete("exports/{id}", exportController.Destroy)
 			router.Post("exports/batch-delete", exportController.BatchDestroy)
+
+			router.Get("imports", importController.Index)
+			router.Get("imports/{id}", importController.Show)
+			router.Get("imports/{id}/error-file", importController.DownloadErrorFile)
+			router.Delete("imports/{id}", importController.Destroy)
 
 			// 登录日志
 			router.Get("login-logs", loginLogController.Index)
@@ -249,8 +254,6 @@ func Admin() {
 				router.Post("orders/export", orderController.Export)
 				router.Post("orders/import", orderController.Import)
 				router.Get("orders/export/status/{id}", orderController.GetExportStatus)
-				router.Get("imports/{id}", importController.Show)
-				router.Get("imports/{id}/error-file", importController.DownloadErrorFile)
 			})
 
 			// 用户管理

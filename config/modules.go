@@ -12,7 +12,7 @@ func init() {
 		"payments_enabled": config.Env("MODULE_PAYMENTS_ENABLED", false),
 		// 启用的支付网关类型（逗号分隔）。空=全部已注册驱动；例：wechat,alipay
 		"payment_gateways_enabled": config.Env("PAYMENT_GATEWAYS_ENABLED", ""),
-		// 代码生成器前端目标：vue / react / vue,react（默认两者都生成）
-		"code_generator_frontend": config.Env("CODE_GENERATOR_FRONTEND", "vue,react"),
+		// 代码生成器前端目标：react / vue / react,vue（默认两者都生成；顺序建议 react 优先）
+		"code_generator_frontend": config.Env("CODE_GENERATOR_FRONTEND", "react,vue"),
 	})
 }

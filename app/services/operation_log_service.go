@@ -79,6 +79,9 @@ func (s *OperationLogServiceImpl) GetByID(id uint, withAdmin bool) (*models.Oper
 	if err := query.FirstOrFail(&log); err != nil {
 		return nil, apperrors.ErrLogNotFound.WithError(err)
 	}
+	if !CanAccessOwnedBy(s.ctx, log.AdminID) {
+		return nil, apperrors.ErrForbidden
+	}
 	return &log, nil
 }
 
@@ -130,6 +133,8 @@ func (s *OperationLogServiceImpl) GetList(filters OperationLogFilters, page, pag
 	if filters.EndTime != "" {
 		query = query.Where("created_at <= ?", filters.EndTime)
 	}
+
+	query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "admin_id"})
 
 	orderBy := filters.OrderBy
 	if orderBy == "" {

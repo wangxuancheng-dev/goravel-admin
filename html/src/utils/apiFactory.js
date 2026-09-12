@@ -62,12 +62,14 @@ export function createCRUDApi(resource) {
     /**
      * 删除资源
      * @param {string|number} id - 资源 ID
+     * @param {Object} [data] - 可选 body（如 confirm_code）
      * @returns {Promise} 请求结果
      */
-    delete: (id) => {
+    delete: (id, data) => {
       return request({
         url: `/${resource}/${id}`,
-        method: 'delete'
+        method: 'delete',
+        ...(data ? { data } : {})
       })
     },
 

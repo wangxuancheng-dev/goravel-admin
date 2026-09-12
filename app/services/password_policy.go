@@ -1,11 +1,13 @@
 package services
 
 import (
+	"context"
 	"unicode"
 
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
+	"goravel/app/utils"
 )
 
 // PasswordPolicy 密码策略（便于单测注入，不依赖 facades）。
@@ -16,24 +18,35 @@ type PasswordPolicy struct {
 	RequireSpecial bool
 }
 
-// DefaultPasswordPolicy 从配置读取密码策略。
-func DefaultPasswordPolicy() PasswordPolicy {
+// ResolvePasswordPolicy 优先读 configs 表 group=login_security，再回退到 facades.Config / .env。
+func ResolvePasswordPolicy(ctx context.Context) PasswordPolicy {
 	cfg := facades.Config()
-	minLen := cfg.GetInt("login_security.password_min_length", 8)
+	envMin := cfg.GetInt("login_security.password_min_length", 8)
+	minLen := utils.GetConfigValueInt(ctx, "login_security", "password_min_length", envMin)
 	if minLen < 1 {
 		minLen = 8
 	}
 	return PasswordPolicy{
 		MinLength:      minLen,
-		RequireLetter:  cfg.GetBool("login_security.password_require_letter", true),
-		RequireNumber:  cfg.GetBool("login_security.password_require_number", true),
-		RequireSpecial: cfg.GetBool("login_security.password_require_special", false),
+		RequireLetter:  utils.GetConfigValueBool(ctx, "login_security", "password_require_letter", cfg.GetBool("login_security.password_require_letter", true)),
+		RequireNumber:  utils.GetConfigValueBool(ctx, "login_security", "password_require_number", cfg.GetBool("login_security.password_require_number", true)),
+		RequireSpecial: utils.GetConfigValueBool(ctx, "login_security", "password_require_special", cfg.GetBool("login_security.password_require_special", false)),
 	}
+}
+
+// DefaultPasswordPolicy 从配置读取密码策略（无请求上下文时使用）。
+func DefaultPasswordPolicy() PasswordPolicy {
+	return ResolvePasswordPolicy(context.Background())
 }
 
 // ValidatePasswordPolicy 按 login_security 配置校验密码强度。
 func ValidatePasswordPolicy(password string) error {
 	return ValidatePasswordAgainstPolicy(password, DefaultPasswordPolicy())
+}
+
+// ValidatePasswordPolicyCtx 带上下文的密码策略校验（多租户 / DB 覆盖）。
+func ValidatePasswordPolicyCtx(ctx context.Context, password string) error {
+	return ValidatePasswordAgainstPolicy(password, ResolvePasswordPolicy(ctx))
 }
 
 // ValidatePasswordAgainstPolicy 按给定策略校验密码（纯逻辑，便于单测）。

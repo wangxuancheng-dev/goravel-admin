@@ -90,6 +90,10 @@ func (c *PermissionController) Update(ctx http.Context) http.Response {
 }
 
 func (c *PermissionController) Destroy(ctx http.Context) http.Response {
+	if resp := RequireSensitiveConfirm(ctx, "permission"); resp != nil {
+		return resp
+	}
+
 	id := helpers.GetUintRoute(ctx, "id")
 	if err := c.PermissionService(ctx).Delete(id); err != nil {
 		return HandleGeneratedServiceError(ctx, "permission", http.StatusInternalServerError, err, map[string]any{"id": id})

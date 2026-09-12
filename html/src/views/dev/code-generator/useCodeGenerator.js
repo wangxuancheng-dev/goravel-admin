@@ -42,6 +42,7 @@ export function useCodeGenerator() {
     { value: 'request_create', labelKey: 'file_request_create' },
     { value: 'request_update', labelKey: 'file_request_update' },
     { value: 'export_job', labelKey: 'file_export_job' },
+    { value: 'import_job', labelKey: 'file_import_job' },
   ]
 
   const vueFileTypes = [
@@ -112,6 +113,7 @@ export function useCodeGenerator() {
     files: buildDefaultFiles(['vue', 'react']),
     options: ['has_create', 'has_edit', 'has_delete', 'show_toolbar'],
     export_mode: 'none',
+    import_mode: 'none',
     fields: [
       {
         name: 'name',
@@ -248,6 +250,8 @@ export function useCodeGenerator() {
   const buildGeneratorOptions = () => ({
     has_export: form.export_mode !== 'none',
     export_async: form.export_mode === 'async',
+    has_import: form.import_mode !== 'none',
+    import_async: form.import_mode === 'async',
     has_create: form.options.includes('has_create'),
     has_edit: form.options.includes('has_edit'),
     has_delete: form.options.includes('has_delete'),

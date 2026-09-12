@@ -58,7 +58,8 @@ func (s *CodeGeneratorServiceImpl) generateReactAPI(moduleName, tableName string
 		return GeneratedFile{}, fmt.Errorf("failed to read react api template: %w", err)
 	}
 
-	hasCreate, hasEdit, hasDelete, hasExport := frontendCrudOptions(options)
+	hasCreate, hasEdit, hasDelete, hasExport, hasImport := frontendCrudOptions(options)
+	importAsync := options != nil && options["import_async"]
 	templateFields := s.convertFieldsToTemplateFields(fields)
 	data := struct {
 		ModelName   string
@@ -69,6 +70,8 @@ func (s *CodeGeneratorServiceImpl) generateReactAPI(moduleName, tableName string
 		HasEdit     bool
 		HasDelete   bool
 		HasExport   bool
+		HasImport   bool
+		ImportAsync bool
 	}{
 		ModelName:   toPascalCase(moduleName),
 		ModuleName:  moduleName,
@@ -78,6 +81,8 @@ func (s *CodeGeneratorServiceImpl) generateReactAPI(moduleName, tableName string
 		HasEdit:     hasEdit,
 		HasDelete:   hasDelete,
 		HasExport:   hasExport,
+		HasImport:   hasImport,
+		ImportAsync: importAsync,
 	}
 
 	content, err := s.executeTemplate(string(templateContent), data)
@@ -99,12 +104,13 @@ func (s *CodeGeneratorServiceImpl) generateReactListPage(moduleName, tableName s
 		return GeneratedFile{}, fmt.Errorf("failed to read react list template: %w", err)
 	}
 
-	hasCreate, hasEdit, hasDelete, hasExport := frontendCrudOptions(options)
+	hasCreate, hasEdit, hasDelete, hasExport, hasImport := frontendCrudOptions(options)
 	exportAsync := options != nil && options["export_async"]
+	importAsync := options != nil && options["import_async"]
 	enableBatchActions, showToolbar := frontendListOptions(options)
 	templateFields := s.convertFieldsToTemplateFields(fields)
 	isTreeList := options != nil && options["is_tree_list"]
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, isTreeList)
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, isTreeList)
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {
@@ -128,12 +134,13 @@ func (s *CodeGeneratorServiceImpl) generateReactListPageConfig(moduleName, table
 		return GeneratedFile{}, fmt.Errorf("failed to read react list config template: %w", err)
 	}
 
-	hasCreate, hasEdit, hasDelete, hasExport := frontendCrudOptions(options)
+	hasCreate, hasEdit, hasDelete, hasExport, hasImport := frontendCrudOptions(options)
 	exportAsync := options != nil && options["export_async"]
+	importAsync := options != nil && options["import_async"]
 	enableBatchActions, showToolbar := frontendListOptions(options)
 	templateFields := s.convertFieldsToTemplateFields(fields)
 	isTreeList := options != nil && options["is_tree_list"]
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, isTreeList)
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, isTreeList)
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {
@@ -157,11 +164,11 @@ func (s *CodeGeneratorServiceImpl) generateReactFormModal(moduleName, tableName 
 		return GeneratedFile{}, fmt.Errorf("failed to read react form template: %w", err)
 	}
 
-	hasCreate, hasEdit, _, _ := frontendCrudOptions(options)
+	hasCreate, hasEdit, _, _, _ := frontendCrudOptions(options)
 	enableBatchActions, showToolbar := frontendListOptions(options)
 	templateFields := s.convertFieldsToTemplateFields(fields)
 	isTreeList := options != nil && options["is_tree_list"]
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, false, false, false, enableBatchActions, showToolbar, isTreeList)
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, false, false, false, false, false, enableBatchActions, showToolbar, isTreeList)
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {
@@ -174,8 +181,8 @@ func (s *CodeGeneratorServiceImpl) generateReactFormModal(moduleName, tableName 
 	}, nil
 }
 
-func frontendCrudOptions(options map[string]bool) (hasCreate, hasEdit, hasDelete, hasExport bool) {
-	hasCreate, hasEdit, hasDelete, hasExport = true, true, true, false
+func frontendCrudOptions(options map[string]bool) (hasCreate, hasEdit, hasDelete, hasExport, hasImport bool) {
+	hasCreate, hasEdit, hasDelete, hasExport, hasImport = true, true, true, false, false
 	if options == nil {
 		return
 	}
@@ -190,6 +197,9 @@ func frontendCrudOptions(options map[string]bool) (hasCreate, hasEdit, hasDelete
 	}
 	if val, ok := options["has_export"]; ok {
 		hasExport = val
+	}
+	if val, ok := options["has_import"]; ok {
+		hasImport = val
 	}
 	return
 }

@@ -122,6 +122,10 @@ func (c *BlacklistController) Show(ctx http.Context) http.Response {
 // @Router       /api/admin/blacklists [post]
 // @Security     BearerAuth
 func (c *BlacklistController) Store(ctx http.Context) http.Response {
+	if resp := RequireSensitiveConfirm(ctx, "blacklist"); resp != nil {
+		return resp
+	}
+
 	var req adminrequests.BlacklistCreate
 	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
 		return resp
@@ -182,6 +186,10 @@ func (c *BlacklistController) Update(ctx http.Context) http.Response {
 // @Router       /api/admin/blacklists/{id} [delete]
 // @Security     BearerAuth
 func (c *BlacklistController) Destroy(ctx http.Context) http.Response {
+	if resp := RequireSensitiveConfirm(ctx, "blacklist"); resp != nil {
+		return resp
+	}
+
 	id := helpers.GetUintRoute(ctx, "id")
 	if err := c.BlacklistService(ctx).Delete(id); err != nil {
 		return HandleGeneratedServiceError(ctx, "blacklist", http.StatusInternalServerError, err, map[string]any{"id": id})

@@ -6,19 +6,19 @@ This repo ships two admin UIs against the **same** `/api/admin` (and platform `/
 
 | Role | Directory | Notes |
 |------|-----------|--------|
-| **Primary shipping UI** | `html/` (Vue 3) | Default production frontend; docs screenshots, Docker `BUILD_FRONTEND=1`, codegen Vue templates |
-| **Peer showcase** | `html-react/` (React 19) | Same-repo React showcase; separate CI type-check / test / build. **New features land on Vue first** |
+| **Primary shipping UI** | `html-react/` (React 19) | Default production frontend; docs screenshots, Docker `BUILD_FRONTEND=1` → `public/admin`. **New features land on React first** |
+| **Peer reference** | `html/` (Vue 3) | Same-repo Vue reference; separate CI type-check / test / build. Keep API/permission parity with React |
 
-Prefer Vue (`html/`) first, then follow up React (`html-react/`). Same PR when practical; otherwise call out the follow-up in the PR.
+Prefer React (`html-react/`) first, then follow up Vue (`html/`). Same PR when practical; otherwise call out the follow-up in the PR.
 
 ## Change checklist
 
 - [ ] API path / query / body matches backend
-- [ ] Permission slugs / menu routes (Vue first is OK)
+- [ ] Permission slugs / menu routes (React first is OK)
 - [ ] Tenant header / query parity
 - [ ] i18n keys (or backend `error_code`)
 - [ ] Module flags aligned with backend
-- [ ] Codegen: Vue first; React templates same batch or follow-up
+- [ ] Codegen: prefer React first (`CODE_GENERATOR_FRONTEND`, suggested default `react,vue`); Vue templates same batch or follow-up
 - [ ] Shared util: minimal vitest on both sides
 
 See also: [Architecture](/en/guide/architecture), [Production](/en/deploy/production).

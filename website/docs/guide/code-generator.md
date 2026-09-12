@@ -19,10 +19,10 @@
 
 ### 1. 配置（代码生成器页面）
 
-Vue（`html/`）与 React（`html-react/`）页面能力一致。勾选 **树形列表** 时：
+React（`html-react/`，主发货）与 Vue（`html/`，参考）页面能力一致。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标。勾选 **树形列表** 时：
 
-- Vue 生成 `TreeListPage` 树表 + 表单页
 - React 生成树形 `Table`（展开/收起、无分页、`page_size: 1000`）+ `FormModal`（`parent_id` 使用 `TreeSelect`）
+- Vue 生成 `TreeListPage` 树表 + 表单页
 
 树形模块建议在字段中包含 `parent_id`（及用于展示的名称字段，如 `name` / `title`）。勾选树形时后端 `Index` 无搜索条件返回树形 `list`，有搜索时返回扁平列表；前端会自动将扁平数据组装为树。
 

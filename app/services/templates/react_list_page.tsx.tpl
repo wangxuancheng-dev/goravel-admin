@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Space<<if .HasListStatusSwitch>>, Switch<<end>>, Table } from 'antd'
+import { Space<<if .HasListStatusSwitch>>, Switch<<end>>, Table<<if or .HasImport (and .HasExport (not .ExportAsync))>>, App<<end>><<if .HasImport>>, Upload<<end>> } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useTranslation } from 'react-i18next'
 import {
@@ -7,6 +7,7 @@ import {
   get<<.ModelName>>List,
   <<if and .HasEdit .HasListStatusSwitch>>update<<.ModelName>>,<<end>>
   <<if .HasExport>>export<<.ModelName>>,<<end>>
+  <<if .HasImport>>import<<.ModelName>>,<<end>>
 } from '@/api/<<.ModuleNameK>>'
 import { useListPage } from '@/hooks/useListPage'
 import { handlePaginatedTableChange } from '@/utils/tableChange'
@@ -16,8 +17,11 @@ import { usePermission } from '@/hooks/usePermission'
 import { useQueuedExport } from '@/hooks/useQueuedExport'
 <<end>>
 <<if and .HasExport (not .ExportAsync)>>
-import { App } from 'antd'
 import { useNavigate } from 'react-router-dom'
+<<end>>
+<<if .HasImport>>
+import { UploadOutlined } from '@ant-design/icons'
+import type { UploadProps } from 'antd/es/upload'
 <<end>>
 import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
@@ -44,6 +48,9 @@ export default function <<.ModelName>>List() {
   const { getButtonState } = usePermission()
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<string | number | null>(null)
+<<if or .HasImport (and .HasExport (not .ExportAsync))>>
+  const { message } = App.useApp()
+<<end>>
 
   const {
     tableData,
@@ -81,7 +88,6 @@ export default function <<.ModelName>>List() {
   })
 <<end>>
 <<if and .HasExport (not .ExportAsync)>>
-  const { message } = App.useApp()
   const navigate = useNavigate()
   const [exporting, setExporting] = useState(false)
   const handleExport = async () => {
@@ -107,6 +113,47 @@ export default function <<.ModelName>>List() {
     } finally {
       setExporting(false)
     }
+  }
+<<end>>
+<<if .HasImport>>
+  const [importing, setImporting] = useState(false)
+  const uploadProps: UploadProps = {
+    accept: '.csv',
+    showUploadList: false,
+    beforeUpload: (file) => {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        message.error(t('common.invalid_file_type'))
+        return false
+      }
+      setImporting(true)
+      void import<<.ModelName>>(file as File)
+        .then((res) => {
+          const payload = (res.data || {}) as Record<string, unknown>
+          const result = ((payload.data || payload) as Record<string, unknown>) || {}
+          if (result.async && result.import_id) {
+            message.success(t('export.task_submitted'))
+            return
+          }
+          const successCount = Number(result.success_count || 0)
+          const failedCount = Number(result.failed_count || 0)
+          const errors = Array.isArray(result.errors) ? (result.errors as string[]) : []
+          if (successCount > 0) {
+            message.success(t('common.import_success'))
+            if (failedCount > 0 && errors.length) {
+              message.warning(errors.slice(0, 10).join('\n'))
+            }
+            void refresh()
+          } else {
+            message.warning(t('common.import_no_data'))
+            if (errors.length) {
+              message.error(errors.slice(0, 10).join('\n'))
+            }
+          }
+        })
+        .catch(() => message.error(t('common.operation_failed')))
+        .finally(() => setImporting(false))
+      return false
+    },
   }
 <<end>>
 
@@ -207,6 +254,13 @@ export default function <<.ModelName>>List() {
       extra={
         <Space>
           {toolbar}
+          <<if .HasImport>>
+          <Upload {...uploadProps}>
+            <PermissionButton permission="<<.ModuleName>>.import" icon={<UploadOutlined />} loading={importing}>
+              {t('common.import')}
+            </PermissionButton>
+          </Upload>
+          <<end>>
           <<if .HasExport>>
           <PermissionButton
             permission="<<.ModuleName>>.export"

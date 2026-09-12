@@ -60,7 +60,7 @@ function formatExportSize(size?: number) {
   return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
-export default function ExportList() {
+export default function ExportList({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useTranslation()
   const { message, modal } = App.useApp()
   const showError = useUnhandledError()
@@ -286,20 +286,8 @@ export default function ExportList() {
     [confirmDelete, downloadingIds, getButtonState, t],
   )
 
-  return (
-    <PageContainer
-      title={t('menu.export')}
-      extra={
-        <Space>
-          {selectedRowKeys.length > 0 && getButtonState('export.destroy').show ? (
-            <Button danger onClick={handleBatchDelete}>
-              {t('common.delete_selected', { defaultValue: '删除选中' })} ({selectedRowKeys.length})
-            </Button>
-          ) : null}
-          {toolbar}
-        </Space>
-      }
-    >
+  const content = (
+    <>
       <SearchForm
         fields={[
           {
@@ -367,6 +355,39 @@ export default function ExportList() {
           handlePaginatedTableChange({ pager, sorter, pagination, loadData, handleSortChange })
         }
       />
+    </>
+  )
+
+  if (embedded) {
+    return (
+      <div>
+        {selectedRowKeys.length > 0 && getButtonState('export.destroy').show ? (
+          <div style={{ marginBottom: 16 }}>
+            <Button danger onClick={handleBatchDelete}>
+              {t('common.delete_selected', { defaultValue: '删除选中' })} ({selectedRowKeys.length})
+            </Button>
+          </div>
+        ) : null}
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <PageContainer
+      title={t('menu.export')}
+      extra={
+        <Space>
+          {selectedRowKeys.length > 0 && getButtonState('export.destroy').show ? (
+            <Button danger onClick={handleBatchDelete}>
+              {t('common.delete_selected', { defaultValue: '删除选中' })} ({selectedRowKeys.length})
+            </Button>
+          ) : null}
+          {toolbar}
+        </Space>
+      }
+    >
+      {content}
     </PageContainer>
   )
 }

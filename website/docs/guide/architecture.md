@@ -10,8 +10,8 @@ Goravel Admin 后台管理系统的整体架构。
 ┌─────────────────────────────────────────────────────────────────┐
 │                         客户端 (Browser)                         │
 ├───────────────────────────────┬─────────────────────────────────┤
-│   Vue 3 SPA (html/)           │   React 19 SPA (html-react/)    │
-│   Element Plus + vxe-table    │   Ant Design 6                  │
+│   React 19 SPA (html-react/)  │   Vue 3 SPA (html/)             │
+│   Ant Design 6（主发货）       │   Element Plus + vxe-table      │
 ├───────────────────────────────┴─────────────────────────────────┤
 │                         Nginx / CDN                              │
 ├─────────────────────────────────────────────────────────────────┤
@@ -22,7 +22,7 @@ Goravel Admin 后台管理系统的整体架构。
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-两套前端**对接同一 Admin API**。**Vue（`html/`）是主发货 UI**；React（`html-react/`）为对等展示实现，**新功能优先落 Vue**。对齐清单见 [双前端对齐](/guide/frontend-parity)。架构上后端一份，前端双实现。
+两套前端**对接同一 Admin API**。**React（`html-react/`）是主发货 UI**；Vue（`html/`）为对等参考实现，**新功能优先落 React**。对齐清单见 [双前端对齐](/guide/frontend-parity)。架构上后端一份，前端双实现。
 
 可选多租户（默认 `TENANCY_DRIVER=off`）：设为 `database` 后为**一户一库/Schema**（连接级隔离，非行级 `tenant_id`）；`platform:install` 首启；平台控制台 `/api/platform`，租户业务在租户库。权威说明见 [多租户](/advanced/tenancy)。
 
@@ -36,8 +36,8 @@ Goravel Admin 后台管理系统的整体架构。
 |------|------|-------------|
 | **后端框架** | Goravel | v1.18（以 `go.mod` 为准） |
 | **编程语言** | Go | 1.25+（以 `go.mod` 为准） |
-| **前端（Vue）** | Vue 3 + Element Plus + VXE-Table + Pinia | 目录 `html/` |
-| **前端（React）** | React 19 + Ant Design 6 + Zustand + React Router 7 | 目录 `html-react/` |
+| **前端（React，主发货）** | React 19 + Ant Design 6 + Zustand + React Router 7 | 目录 `html-react/` |
+| **前端（Vue，参考）** | Vue 3 + Element Plus + VXE-Table + Pinia | 目录 `html/` |
 | **数据库** | MySQL / PostgreSQL | 8.0+ / 15+ |
 | **缓存 / 队列** | Redis（可选 sync 队列本地跑） | 7.0+ |
 | **认证** | JWT | - |
@@ -46,8 +46,8 @@ Goravel Admin 后台管理系统的整体架构。
 
 ```
 ┌──────────────────────────────┐  ┌──────────────────────────────┐
-│        前端 Vue (html/)       │  │     前端 React (html-react/)  │
-│  Views / Components / Store  │  │  Pages / Components / Stores │
+│   前端 React (html-react/)    │  │        前端 Vue (html/)       │
+│  Pages / Components / Stores │  │  Views / Components / Store  │
 │  request.js + apiFactory     │  │  request.ts + apiFactory      │
 └──────────────┬───────────────┘  └──────────────┬───────────────┘
                │  /api/admin                      │
@@ -176,15 +176,15 @@ admin, resp := response.FindByID[models.Admin](ctx, id, nil)
 
 两套 SPA **共用后端契约**（`code` / `message` / `error_code` / `data.list`），目录与栈不同，业务模块应对齐。
 
-| | Vue (`html/`) | React (`html-react/`) |
+| | React (`html-react/`，主发货) | Vue (`html/`，参考) |
 |---|---|---|
-| UI | Element Plus + vxe-table | Ant Design 6 |
-| 状态 | Pinia | Zustand |
-| 列表页 | `useListPage` / `useStandardListPage` | `useListPage` + `SimpleCrudPage` 等 |
-| API | `apiFactory` + `request.js` | `apiFactory` + `request.ts` |
-| i18n | `vue-i18n`（`locales/zh-CN|en-US.json`） | `react-i18next`（同结构 locales） |
+| UI | Ant Design 6 | Element Plus + vxe-table |
+| 状态 | Zustand | Pinia |
+| 列表页 | `useListPage` + `SimpleCrudPage` 等 | `useListPage` / `useStandardListPage` |
+| API | `apiFactory` + `request.ts` | `apiFactory` + `request.js` |
+| i18n | `react-i18next`（同结构 locales） | `vue-i18n`（`locales/zh-CN|en-US.json`） |
 
-**同发约定：** 新增或修改管理端功能时，Vue 与 React 在同一变更集中交付（除非明确只改一端）。
+**同发约定：** 新增或修改管理端功能时，优先落 React，再跟进 Vue；理想情况同一变更集交付（除非明确只改一端）。
 
 ### Vue 目录结构
 

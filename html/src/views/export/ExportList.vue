@@ -2,7 +2,7 @@
   <ListPage
     ref="listPageRef"
     page-class="export"
-    :title="$t('menu.export')"
+    :title="embedded ? '' : $t('menu.export')"
     :show-add-button="false"
     :search-form="searchForm"
     :search-fields="searchFields"
@@ -89,6 +89,10 @@ import {
   getExportStatusTagType,
   isExportCompleted
 } from './export.config'
+
+defineProps({
+  embedded: { type: Boolean, default: false }
+})
 
 const { t, locale } = useI18n()
 const listPageRef = ref(null)

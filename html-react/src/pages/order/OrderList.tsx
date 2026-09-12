@@ -226,6 +226,10 @@ export default function OrderList() {
         .then((res) => {
           const payload = (res.data || {}) as Record<string, unknown>
           const result = ((payload.data || payload) as Record<string, unknown>) || {}
+          if (result.async && result.import_id) {
+            message.success(t('export.task_submitted'))
+            return
+          }
           const successCount = Number(result.success_count || 0)
           const failedCount = Number(result.failed_count || 0)
           const errors = Array.isArray(result.errors) ? (result.errors as string[]) : []

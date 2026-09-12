@@ -177,6 +177,20 @@ func isAsyncExportEnabled(options map[string]bool) bool {
 	return options["export_async"]
 }
 
+func hasImportEnabled(options map[string]bool) bool {
+	if options == nil {
+		return false
+	}
+	return options["has_import"]
+}
+
+func isAsyncImportEnabled(options map[string]bool) bool {
+	if !hasImportEnabled(options) {
+		return false
+	}
+	return options["import_async"]
+}
+
 func normalizeFrontendWhitespace(content string) string {
 	content = normalizeGeneratedContent(content)
 
@@ -266,6 +280,7 @@ func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields
 		{"request_update", s.generateRequestUpdate, nil, nil},
 		{"migration", s.generateMigration, nil, nil},
 		{"export_job", s.generateExportJob, isAsyncExportEnabled, nil},
+		{"import_job", s.generateImportJob, isAsyncImportEnabled, nil},
 		{"api", s.generateFrontendAPI, nil, func([]FieldConfig, map[string]bool) bool { return !vueGeneratorEnabled() }},
 		{"list_page_config", s.generateFrontendListPageConfig, nil, func([]FieldConfig, map[string]bool) bool { return !vueGeneratorEnabled() }},
 		{"list_page", s.generateFrontendListPage, nil, func([]FieldConfig, map[string]bool) bool { return !vueGeneratorEnabled() }},
@@ -289,6 +304,9 @@ func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields
 		}
 		if isAsyncExportEnabled(options) {
 			selectedMap["export_job"] = true
+		}
+		if isAsyncImportEnabled(options) {
+			selectedMap["import_job"] = true
 		}
 		// list page always pairs with its config module
 		if selectedMap["list_page"] {
@@ -432,7 +450,28 @@ func (s *CodeGeneratorServiceImpl) Save(moduleName, tableName string, fields []F
 		}
 	}
 
+	if s.containsGeneratedImportJob(files) {
+		updated, err := s.syncImportQueueJobs(moduleName)
+		if err != nil {
+			return nil, err
+		}
+		if updated {
+			if !containsString(savedFiles, "app/providers/queue_service_provider.go") {
+				savedFiles = append(savedFiles, "app/providers/queue_service_provider.go")
+			}
+		}
+	}
+
 	return savedFiles, nil
+}
+
+func containsString(list []string, target string) bool {
+	for _, item := range list {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *CodeGeneratorServiceImpl) ForceSave(moduleName, tableName string, fields []FieldConfig, selectedFiles []string, options map[string]bool) ([]string, error) {
@@ -475,6 +514,18 @@ func (s *CodeGeneratorServiceImpl) ForceSave(moduleName, tableName string, field
 		}
 	}
 
+	if s.containsGeneratedImportJob(files) {
+		updated, err := s.syncImportQueueJobs(moduleName)
+		if err != nil {
+			return nil, err
+		}
+		if updated {
+			if !containsString(savedFiles, "app/providers/queue_service_provider.go") {
+				savedFiles = append(savedFiles, "app/providers/queue_service_provider.go")
+			}
+		}
+	}
+
 	return savedFiles, nil
 }
 
@@ -497,6 +548,16 @@ func (s *CodeGeneratorServiceImpl) containsGeneratedExportJob(files []GeneratedF
 	return false
 }
 
+func (s *CodeGeneratorServiceImpl) containsGeneratedImportJob(files []GeneratedFile) bool {
+	for _, file := range files {
+		base := filepath.Base(filepath.ToSlash(file.Path))
+		if strings.HasPrefix(filepath.ToSlash(file.Path), "app/jobs/") && strings.HasPrefix(base, "import_") && strings.HasSuffix(base, ".go") {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map[string]bool) (bool, error) {
 	const adminRoutePath = "routes/admin.go"
 	content, err := os.ReadFile(adminRoutePath)
@@ -511,12 +572,17 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 	resourceRoute := fmt.Sprintf("\t\t\trouter.Resource(\"%ss\", %s)", moduleName, controllerVar)
 
 	hasExport := false
+	hasImport := false
 	if options != nil {
 		if val, ok := options["has_export"]; ok {
 			hasExport = val
 		}
+		if val, ok := options["has_import"]; ok {
+			hasImport = val
+		}
 	}
 	exportRoute := fmt.Sprintf("\t\t\trouter.Post(\"%ss/export\", %s.Export)", moduleName, controllerVar)
+	importRoute := fmt.Sprintf("\t\t\trouter.Post(\"%ss/import\", %s.Import)", moduleName, controllerVar)
 
 	updated := false
 
@@ -538,6 +604,9 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 		if hasExport {
 			insertBlock += "\n" + exportRoute
 		}
+		if hasImport {
+			insertBlock += "\n" + importRoute
+		}
 
 		if strings.Contains(routeContent, marker) {
 			routeContent = strings.Replace(routeContent, marker, insertBlock+marker, 1)
@@ -545,9 +614,48 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 			routeContent += insertBlock + "\n"
 		}
 		updated = true
-	} else if hasExport && !strings.Contains(routeContent, exportRoute) {
-		routeContent = strings.Replace(routeContent, resourceRoute, resourceRoute+"\n"+exportRoute, 1)
-		updated = true
+	} else {
+		if hasExport && !strings.Contains(routeContent, exportRoute) {
+			routeContent = strings.Replace(routeContent, resourceRoute, resourceRoute+"\n"+exportRoute, 1)
+			updated = true
+		}
+		if hasImport && !strings.Contains(routeContent, importRoute) {
+			anchor := resourceRoute
+			if hasExport && strings.Contains(routeContent, exportRoute) {
+				anchor = exportRoute
+			}
+			routeContent = strings.Replace(routeContent, anchor, anchor+"\n"+importRoute, 1)
+			updated = true
+		}
+	}
+
+	// Ensure shared import status / error-file routes exist (mirrors orders wiring).
+	if hasImport {
+		if !strings.Contains(routeContent, "importController := admin.NewImportController()") {
+			marker := "\n\n\t// Admin 路由组"
+			decl := "\n\timportController := admin.NewImportController()"
+			if strings.Contains(routeContent, marker) {
+				routeContent = strings.Replace(routeContent, marker, decl+marker, 1)
+			} else {
+				routeContent += decl + "\n"
+			}
+			updated = true
+		}
+		importShowRoute := "\t\t\trouter.Get(\"imports/{id}\", importController.Show)"
+		importErrorRoute := "\t\t\trouter.Get(\"imports/{id}/error-file\", importController.DownloadErrorFile)"
+		if !strings.Contains(routeContent, importShowRoute) {
+			marker := "\n\t\t\t// 代码生成器（仅在开发环境可用）"
+			block := "\n" + importShowRoute + "\n" + importErrorRoute
+			if strings.Contains(routeContent, marker) {
+				routeContent = strings.Replace(routeContent, marker, block+marker, 1)
+			} else {
+				routeContent += block + "\n"
+			}
+			updated = true
+		} else if !strings.Contains(routeContent, importErrorRoute) {
+			routeContent = strings.Replace(routeContent, importShowRoute, importShowRoute+"\n"+importErrorRoute, 1)
+			updated = true
+		}
 	}
 
 	if !updated {
@@ -582,7 +690,34 @@ func (s *CodeGeneratorServiceImpl) syncQueueJobs(moduleName string) (bool, error
 
 // injectExportJobRegistration inserts an Export{Model}s job line before the search-sync marker.
 func injectExportJobRegistration(content, modelName string) (string, bool) {
-	jobLine := fmt.Sprintf("\t\t&jobs.Export%ss{},", modelName)
+	return injectQueueJobRegistration(content, fmt.Sprintf("\t\t&jobs.Export%ss{},", modelName))
+}
+
+// syncImportQueueJobs injects &jobs.Import{Model}s{} into QueueServiceProvider.Jobs().
+func (s *CodeGeneratorServiceImpl) syncImportQueueJobs(moduleName string) (bool, error) {
+	const queueProviderPath = "app/providers/queue_service_provider.go"
+	content, err := os.ReadFile(queueProviderPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", queueProviderPath, err)
+	}
+
+	updatedContent, updated := injectImportJobRegistration(string(content), toPascalCase(moduleName))
+	if !updated {
+		return false, nil
+	}
+
+	if err := os.WriteFile(queueProviderPath, []byte(updatedContent), 0644); err != nil {
+		return false, fmt.Errorf("failed to write %s: %w", queueProviderPath, err)
+	}
+	return true, nil
+}
+
+// injectImportJobRegistration inserts an Import{Model}s job line before the search-sync marker.
+func injectImportJobRegistration(content, modelName string) (string, bool) {
+	return injectQueueJobRegistration(content, fmt.Sprintf("\t\t&jobs.Import%ss{},", modelName))
+}
+
+func injectQueueJobRegistration(content, jobLine string) (string, bool) {
 	if strings.Contains(content, jobLine) {
 		return content, false
 	}
@@ -985,6 +1120,8 @@ func (s *CodeGeneratorServiceImpl) getTemplateName(fileType string, fields []Fie
 		return "templates/migration.tpl", nil
 	case "export_job":
 		return "templates/export_job.tpl", nil
+	case "import_job":
+		return "templates/import_job.tpl", nil
 	case "api":
 		return "templates/api.js.tpl", nil
 	case "list_page_config":
@@ -1015,6 +1152,8 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 	hasDelete := true
 	hasExport := false
 	exportAsync := false
+	hasImport := false
+	importAsync := false
 	enableBatchActions := false
 	showToolbar := true
 
@@ -1033,6 +1172,12 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 		}
 		if val, ok := options["export_async"]; ok {
 			exportAsync = val
+		}
+		if val, ok := options["has_import"]; ok {
+			hasImport = val
+		}
+		if val, ok := options["import_async"]; ok {
+			importAsync = val
 		}
 		if val, ok := options["enable_batch_actions"]; ok {
 			enableBatchActions = val
@@ -1076,6 +1221,8 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasDelete         bool
 			HasExport         bool
 			ExportAsync       bool
+			HasImport         bool
+			ImportAsync       bool
 			IsTreeList        bool
 		}{
 			ControllerName:    toPascalCase(moduleName) + "Controller",
@@ -1091,6 +1238,8 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasDelete:         hasDelete,
 			HasExport:         hasExport,
 			ExportAsync:       exportAsync,
+			HasImport:         hasImport,
+			ImportAsync:       importAsync,
 			IsTreeList:        optionEnabled(options, "is_tree_list", false),
 		}
 	case "service":
@@ -1113,6 +1262,8 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasDelete         bool
 			HasExport         bool
 			ExportAsync       bool
+			HasImport         bool
+			ImportAsync       bool
 			IsTreeList        bool
 			ParentIDFieldName string
 		}{
@@ -1128,6 +1279,8 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasDelete:         hasDelete,
 			HasExport:         hasExport,
 			ExportAsync:       exportAsync,
+			HasImport:         hasImport,
+			ImportAsync:       importAsync,
 			IsTreeList:        optionEnabled(options, "is_tree_list", false),
 			ParentIDFieldName: resolveParentIDFieldName(templateFields),
 		}
@@ -1178,6 +1331,8 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasEdit     bool
 			HasDelete   bool
 			HasExport   bool
+			HasImport   bool
+			ImportAsync bool
 		}{
 			ModelName:   toPascalCase(moduleName),
 			ModuleName:  moduleName,
@@ -1187,8 +1342,10 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasEdit:     hasEdit,
 			HasDelete:   hasDelete,
 			HasExport:   hasExport,
+			HasImport:   hasImport,
+			ImportAsync: importAsync,
 		}
-	case "export_job":
+	case "export_job", "import_job":
 		return struct {
 			ModelName  string
 			ModuleName string
@@ -1199,7 +1356,7 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			ListFields: templateFields,
 		}
 	case "list_page", "list_page_config":
-		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 	case "react_api":
 		return struct {
 			ModelName   string
@@ -1210,6 +1367,8 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasEdit     bool
 			HasDelete   bool
 			HasExport   bool
+			HasImport   bool
+			ImportAsync bool
 		}{
 			ModelName:   toPascalCase(moduleName),
 			ModuleName:  moduleName,
@@ -1219,9 +1378,11 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasEdit:     hasEdit,
 			HasDelete:   hasDelete,
 			HasExport:   hasExport,
+			HasImport:   hasImport,
+			ImportAsync: importAsync,
 		}
 	case "react_list_page", "react_list_page_config", "react_form_modal":
-		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 	case "form_page":
 		formFields := applyTreeListFieldFlags(templateFields, optionEnabled(options, "is_tree_list", false))
 		// 检查是否有 editor 类型的字段
@@ -1455,6 +1616,8 @@ func (s *CodeGeneratorServiceImpl) generateController(moduleName, tableName stri
 	hasDelete := true
 	hasExport := false
 	exportAsync := false
+	hasImport := false
+	importAsync := false
 
 	if options != nil {
 		if val, ok := options["has_create"]; ok {
@@ -1471,6 +1634,12 @@ func (s *CodeGeneratorServiceImpl) generateController(moduleName, tableName stri
 		}
 		if val, ok := options["export_async"]; ok {
 			exportAsync = val
+		}
+		if val, ok := options["has_import"]; ok {
+			hasImport = val
+		}
+		if val, ok := options["import_async"]; ok {
+			importAsync = val
 		}
 	}
 
@@ -1496,6 +1665,8 @@ func (s *CodeGeneratorServiceImpl) generateController(moduleName, tableName stri
 		HasDelete         bool
 		HasExport         bool
 		ExportAsync       bool
+		HasImport         bool
+		ImportAsync       bool
 		IsTreeList        bool
 	}{
 		ControllerName:    toPascalCase(moduleName) + "Controller",
@@ -1512,6 +1683,8 @@ func (s *CodeGeneratorServiceImpl) generateController(moduleName, tableName stri
 		HasDelete:         hasDelete,
 		HasExport:         hasExport,
 		ExportAsync:       exportAsync,
+		HasImport:         hasImport,
+		ImportAsync:       importAsync,
 		IsTreeList:        optionEnabled(options, "is_tree_list", false),
 	}
 
@@ -1538,6 +1711,8 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 	hasDelete := true
 	hasExport := false
 	exportAsync := false
+	hasImport := false
+	importAsync := false
 
 	if options != nil {
 		if val, ok := options["has_create"]; ok {
@@ -1554,6 +1729,12 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 		}
 		if val, ok := options["export_async"]; ok {
 			exportAsync = val
+		}
+		if val, ok := options["has_import"]; ok {
+			hasImport = val
+		}
+		if val, ok := options["import_async"]; ok {
+			importAsync = val
 		}
 	}
 
@@ -1577,6 +1758,8 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 		HasDelete         bool
 		HasExport         bool
 		ExportAsync       bool
+		HasImport         bool
+		ImportAsync       bool
 		IsTreeList        bool
 		ParentIDFieldName string
 	}{
@@ -1592,6 +1775,8 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 		HasDelete:         hasDelete,
 		HasExport:         hasExport,
 		ExportAsync:       exportAsync,
+		HasImport:         hasImport,
+		ImportAsync:       importAsync,
 		IsTreeList:        optionEnabled(options, "is_tree_list", false),
 		ParentIDFieldName: resolveParentIDFieldName(templateFields),
 	}
@@ -1631,6 +1816,31 @@ func (s *CodeGeneratorServiceImpl) generateExportJob(moduleName, tableName strin
 
 	return GeneratedFile{
 		Path:    fmt.Sprintf("app/jobs/export_%ss.go", toSnakeCase(moduleName)),
+		Content: content,
+	}, nil
+}
+
+func (s *CodeGeneratorServiceImpl) generateImportJob(moduleName, tableName string, fields []FieldConfig, options map[string]bool) (GeneratedFile, error) {
+	templateContent, err := templates.ReadFile("templates/import_job.tpl")
+	if err != nil {
+		return GeneratedFile{}, fmt.Errorf("failed to read import_job template: %w", err)
+	}
+
+	data := struct {
+		ModelName  string
+		ModuleName string
+	}{
+		ModelName:  toPascalCase(moduleName),
+		ModuleName: moduleName,
+	}
+
+	content, err := s.executeTemplate(string(templateContent), data)
+	if err != nil {
+		return GeneratedFile{}, err
+	}
+
+	return GeneratedFile{
+		Path:    fmt.Sprintf("app/jobs/import_%ss.go", toSnakeCase(moduleName)),
 		Content: content,
 	}, nil
 }
@@ -1741,6 +1951,8 @@ func (s *CodeGeneratorServiceImpl) generateFrontendAPI(moduleName, tableName str
 	hasEdit := true
 	hasDelete := true
 	hasExport := false
+	hasImport := false
+	importAsync := false
 
 	if options != nil {
 		if val, ok := options["has_create"]; ok {
@@ -1755,6 +1967,12 @@ func (s *CodeGeneratorServiceImpl) generateFrontendAPI(moduleName, tableName str
 		if val, ok := options["has_export"]; ok {
 			hasExport = val
 		}
+		if val, ok := options["has_import"]; ok {
+			hasImport = val
+		}
+		if val, ok := options["import_async"]; ok {
+			importAsync = val
+		}
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
@@ -1767,6 +1985,8 @@ func (s *CodeGeneratorServiceImpl) generateFrontendAPI(moduleName, tableName str
 		HasEdit     bool
 		HasDelete   bool
 		HasExport   bool
+		HasImport   bool
+		ImportAsync bool
 	}{
 		ModelName:   toPascalCase(moduleName),
 		ModuleName:  moduleName,
@@ -1776,6 +1996,8 @@ func (s *CodeGeneratorServiceImpl) generateFrontendAPI(moduleName, tableName str
 		HasEdit:     hasEdit,
 		HasDelete:   hasDelete,
 		HasExport:   hasExport,
+		HasImport:   hasImport,
+		ImportAsync: importAsync,
 	}
 
 	content, err := s.executeTemplate(string(templateContent), data)
@@ -1792,7 +2014,7 @@ func (s *CodeGeneratorServiceImpl) generateFrontendAPI(moduleName, tableName str
 func (s *CodeGeneratorServiceImpl) buildListPageTemplateData(
 	moduleName string,
 	templateFields []TemplateFieldConfig,
-	hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, isTreeList bool,
+	hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, isTreeList bool,
 ) any {
 	formFields := applyTreeListFieldFlags(templateFields, isTreeList)
 
@@ -1818,6 +2040,8 @@ func (s *CodeGeneratorServiceImpl) buildListPageTemplateData(
 		HasDelete          bool
 		HasExport          bool
 		ExportAsync        bool
+		HasImport          bool
+		ImportAsync        bool
 		EnableBatchActions bool
 		ShowToolbar        bool
 		IsTreeList         bool
@@ -1846,6 +2070,8 @@ func (s *CodeGeneratorServiceImpl) buildListPageTemplateData(
 		HasDelete:           hasDelete,
 		HasExport:           hasExport,
 		ExportAsync:         exportAsync,
+		HasImport:           hasImport,
+		ImportAsync:         importAsync,
 		EnableBatchActions:  enableBatchActions,
 		ShowToolbar:         showToolbar,
 		IsTreeList:          isTreeList,
@@ -1960,6 +2186,8 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPageConfig(moduleName, ta
 	hasDelete := true
 	hasExport := false
 	exportAsync := false
+	hasImport := false
+	importAsync := false
 	enableBatchActions := false
 	showToolbar := true
 
@@ -1979,6 +2207,12 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPageConfig(moduleName, ta
 		if val, ok := options["export_async"]; ok {
 			exportAsync = val
 		}
+		if val, ok := options["has_import"]; ok {
+			hasImport = val
+		}
+		if val, ok := options["import_async"]; ok {
+			importAsync = val
+		}
 		if val, ok := options["enable_batch_actions"]; ok {
 			enableBatchActions = val
 		}
@@ -1988,7 +2222,7 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPageConfig(moduleName, ta
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {
@@ -2013,6 +2247,8 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPage(moduleName, tableNam
 	hasDelete := true
 	hasExport := false
 	exportAsync := false
+	hasImport := false
+	importAsync := false
 	enableBatchActions := false
 	showToolbar := true
 
@@ -2032,6 +2268,12 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPage(moduleName, tableNam
 		if val, ok := options["export_async"]; ok {
 			exportAsync = val
 		}
+		if val, ok := options["has_import"]; ok {
+			hasImport = val
+		}
+		if val, ok := options["import_async"]; ok {
+			importAsync = val
+		}
 		if val, ok := options["enable_batch_actions"]; ok {
 			enableBatchActions = val
 		}
@@ -2041,7 +2283,7 @@ func (s *CodeGeneratorServiceImpl) generateFrontendListPage(moduleName, tableNam
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {

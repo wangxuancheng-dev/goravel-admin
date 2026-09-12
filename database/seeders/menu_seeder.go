@@ -269,11 +269,11 @@ func (s *MenuSeeder) Run() error {
 
 	createOrUpdateMenu(models.Menu{
 		ParentID:  systemMenu.ID,
-		Title:     "导出管理",
+		Title:     "导入导出",
 		Slug:      "export",
 		Icon:      "Document",
 		Path:      "/exports",
-		Component: "export/ExportList",
+		Component: "export/TaskCenter",
 		Type:      2,
 		Status:    1,
 		Sort:      10,

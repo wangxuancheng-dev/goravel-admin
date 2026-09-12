@@ -25,7 +25,28 @@ func (c *ImportController) importRecordService(ctx http.Context) services.Import
 	return services.NewImportRecordService(ctx)
 }
 
-// Show returns import task status for the current admin (or super).
+// Index 导入记录列表
+func (c *ImportController) Index(ctx http.Context) http.Response {
+	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
+	filters := services.BuildImportRecordFiltersFromHTTP(ctx)
+
+	svc := c.importRecordService(ctx)
+	imports, total, err := svc.GetList(filters, page, pageSize)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, err, nil)
+	}
+
+	result := make([]map[string]any, len(imports))
+	for i := range imports {
+		payload := svc.ImportRecordToJSON(&imports[i])
+		payload["status_text"] = importStatusText(ctx, imports[i].Status)
+		result[i] = payload
+	}
+
+	return response.Paginate(ctx, result, total, page, pageSize)
+}
+
+// Show returns import task status for the current admin (or scoped).
 func (c *ImportController) Show(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
 	if id == 0 {
@@ -36,26 +57,25 @@ func (c *ImportController) Show(ctx http.Context) http.Response {
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "import", http.StatusNotFound, err, map[string]any{"id": id})
 	}
-	if resp := ForbidUnlessOwnerOrSuper(ctx, record.AdminID); resp != nil {
-		return resp
+
+	payload := c.importRecordService(ctx).ImportRecordToJSON(record)
+	payload["status_text"] = importStatusText(ctx, record.Status)
+	return response.Success(ctx, payload)
+}
+
+// Destroy 删除导入记录及关联文件
+func (c *ImportController) Destroy(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
 
-	errorFileURL := ""
-	if record.ErrorFilePath != "" {
-		errorFileURL = fmt.Sprintf("/api/admin/imports/%d/error-file", record.ID)
+	if err := c.importRecordService(ctx).DeleteWithFile(id); err != nil {
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, err, map[string]any{
+			"importId": id,
+		})
 	}
-
-	return response.Success(ctx, http.Json{
-		"id":             record.ID,
-		"type":           record.Type,
-		"status":         record.Status,
-		"status_text":    importStatusText(ctx, record.Status),
-		"total_rows":     record.TotalRows,
-		"success_rows":   record.SuccessRows,
-		"failed_rows":    record.FailedRows,
-		"error_file_url": errorFileURL,
-		"error_msg":      record.ErrorMsg,
-	})
+	return response.Success(ctx)
 }
 
 // DownloadErrorFile downloads the failed-rows CSV for an import.
@@ -68,9 +88,6 @@ func (c *ImportController) DownloadErrorFile(ctx http.Context) http.Response {
 	record, err := c.importRecordService(ctx).GetByID(id)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "import", http.StatusNotFound, err, map[string]any{"id": id})
-	}
-	if resp := ForbidUnlessOwnerOrSuper(ctx, record.AdminID); resp != nil {
-		return resp
 	}
 	if strings.TrimSpace(record.ErrorFilePath) == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrFilePathRequired.Code)

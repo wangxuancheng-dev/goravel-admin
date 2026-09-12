@@ -73,6 +73,8 @@ func DispatchNotificationChannels(ctx context.Context, notifications ...*models.
 	mailEnabled := facades.Config().GetBool("notification.mail_enabled", false)
 	webhookEnabled := facades.Config().GetBool("notification.webhook_enabled", false)
 	webhookURL := strings.TrimSpace(facades.Config().GetString("notification.webhook_url", ""))
+	mailTypes := facades.Config().GetString("notification.mail_types", "")
+	webhookTypes := facades.Config().GetString("notification.webhook_types", "")
 
 	if !mailEnabled && !(webhookEnabled && webhookURL != "") {
 		return
@@ -82,13 +84,28 @@ func DispatchNotificationChannels(ctx context.Context, notifications ...*models.
 		if n == nil {
 			continue
 		}
-		if mailEnabled && n.ReceiverID != nil && *n.ReceiverID > 0 {
+		if mailEnabled && n.ReceiverID != nil && *n.ReceiverID > 0 && notificationTypeAllowed(mailTypes, n.Type) {
 			dispatchNotificationMail(ctx, n)
 		}
-		if webhookEnabled && webhookURL != "" {
+		if webhookEnabled && webhookURL != "" && notificationTypeAllowed(webhookTypes, n.Type) {
 			dispatchNotificationWebhook(webhookURL, n)
 		}
 	}
+}
+
+// notificationTypeAllowed reports whether notifType is in the comma allowlist.
+// Empty allowlist means all types are allowed (when the channel itself is on).
+func notificationTypeAllowed(allowlistCSV, notifType string) bool {
+	allowlistCSV = strings.TrimSpace(allowlistCSV)
+	if allowlistCSV == "" {
+		return true
+	}
+	for _, part := range strings.Split(allowlistCSV, ",") {
+		if strings.EqualFold(strings.TrimSpace(part), strings.TrimSpace(notifType)) {
+			return true
+		}
+	}
+	return false
 }
 
 func dispatchNotificationMail(ctx context.Context, n *models.Notification) {

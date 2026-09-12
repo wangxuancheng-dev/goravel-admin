@@ -28,9 +28,46 @@ func TestInjectExportJobRegistration(t *testing.T) {
 	assert.Equal(t, updated, again)
 }
 
+func TestInjectImportJobRegistration(t *testing.T) {
+	base := `func (receiver *QueueServiceProvider) Jobs() []queue.Job {
+	return []queue.Job{
+		&jobs.ImportOrders{},
+		&jobs.ExportArticles{},
+		// 搜索引擎同步任务（可切换 driver）
+		&queuejobs.SyncOrderSearch{},
+	}
+}
+`
+
+	updated, ok := injectImportJobRegistration(base, "Product")
+	require.True(t, ok)
+	assert.Contains(t, updated, "&jobs.ImportProducts{},")
+	assert.Contains(t, updated, "// 搜索引擎同步任务")
+
+	again, ok := injectImportJobRegistration(updated, "Product")
+	assert.False(t, ok)
+	assert.Equal(t, updated, again)
+}
+
+func TestHasImportEnabled(t *testing.T) {
+	assert.False(t, hasImportEnabled(nil))
+	assert.False(t, hasImportEnabled(map[string]bool{}))
+	assert.True(t, hasImportEnabled(map[string]bool{"has_import": true}))
+	assert.False(t, isAsyncImportEnabled(map[string]bool{"has_import": true}))
+	assert.True(t, isAsyncImportEnabled(map[string]bool{"has_import": true, "import_async": true}))
+	assert.False(t, isAsyncImportEnabled(map[string]bool{"import_async": true}))
+}
+
 func TestContainsGeneratedExportJob(t *testing.T) {
 	s := &CodeGeneratorServiceImpl{}
 	assert.True(t, s.containsGeneratedExportJob([]GeneratedFile{{Path: "app/jobs/export_products.go"}}))
 	assert.False(t, s.containsGeneratedExportJob([]GeneratedFile{{Path: "app/jobs/send_email.go"}}))
 	assert.False(t, s.containsGeneratedExportJob([]GeneratedFile{{Path: "app/services/product_service.go"}}))
+}
+
+func TestContainsGeneratedImportJob(t *testing.T) {
+	s := &CodeGeneratorServiceImpl{}
+	assert.True(t, s.containsGeneratedImportJob([]GeneratedFile{{Path: "app/jobs/import_products.go"}}))
+	assert.False(t, s.containsGeneratedImportJob([]GeneratedFile{{Path: "app/jobs/export_products.go"}}))
+	assert.False(t, s.containsGeneratedImportJob([]GeneratedFile{{Path: "app/services/product_service.go"}}))
 }

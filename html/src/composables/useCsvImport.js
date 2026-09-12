@@ -48,6 +48,14 @@ export function useCsvImport(options = {}) {
       const response = await importApi(file)
       const result = response.data?.data || response.data
 
+      if (result?.async && result?.import_id) {
+        ElMessage.success(t('export.task_submitted') || t('common.operation_success') || 'Queued')
+        if (onSuccess) {
+          await onSuccess(result)
+        }
+        return
+      }
+
       if (result.success_count > 0) {
         ElMessage.success(
           t(successKey) ||

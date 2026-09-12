@@ -3,13 +3,14 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { compact, map } from 'lodash-es'
 import logger from '../utils/logger'
+import { promptSensitiveConfirm } from '../utils/sensitiveConfirm'
 
 /**
  * CRUD 配置选项
  */
 export interface UseCrudOptions {
   /** 单个删除 API 函数 */
-  deleteApi?: (id: number | string) => Promise<any>
+  deleteApi?: (id: number | string, data?: Record<string, unknown>) => Promise<any>
   /** 批量删除 API 函数 */
   batchDeleteApi?: (ids: (number | string)[]) => Promise<any>
   /** 删除确认提示的 i18n key */
@@ -20,6 +21,8 @@ export interface UseCrudOptions {
   batchDeleteConfirmKey?: string
   /** 提示框标题的 i18n key */
   tipKey?: string
+  /** 删除前二次确认（TOTP / 当前密码 → confirm_code） */
+  requireSensitiveConfirm?: boolean
   /** 删除成功回调 */
   onDeleteSuccess?: (deletedItems: any, deletedIds: number | string | (number | string)[]) => void
   /** 删除失败回调 */
@@ -84,6 +87,7 @@ export function useCrud(options: UseCrudOptions = {}): UseCrudReturn {
     deleteSuccessKey = '',
     batchDeleteConfirmKey = '',
     tipKey = 'form.tip',
+    requireSensitiveConfirm = false,
     onDeleteSuccess = null,
     onDeleteError = null,
     beforeDelete = null,
@@ -180,7 +184,12 @@ export function useCrud(options: UseCrudOptions = {}): UseCrudReturn {
         return
       }
 
-      await deleteApi(id)
+      if (requireSensitiveConfirm) {
+        const confirmCode = await promptSensitiveConfirm(t)
+        await deleteApi(id, { confirm_code: confirmCode })
+      } else {
+        await deleteApi(id)
+      }
 
       // 删除成功提示
       const successKey = deleteSuccessKey || 'common.delete_success'

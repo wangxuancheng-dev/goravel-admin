@@ -315,6 +315,14 @@ export default function CodeGenerator() {
                     </Radio.Group>
                   </Form.Item>
 
+                  <Form.Item label={t('code_generator.import_mode')}>
+                    <Radio.Group value={cg.importMode} onChange={(e) => cg.setImportMode(e.target.value)}>
+                      <Radio value="none">{t('code_generator.import_mode_none')}</Radio>
+                      <Radio value="sync">{t('code_generator.import_mode_sync')}</Radio>
+                      <Radio value="async">{t('code_generator.import_mode_async')}</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+
                   <Button type="primary" icon={<PlusOutlined />} onClick={cg.handleAddField}>
                     {t('code_generator.add_field')}
                   </Button>

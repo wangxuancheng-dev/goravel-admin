@@ -25,8 +25,20 @@ Full Chinese detail: [生产清单](/deploy/production).
 - **Attachments:** private R/W same rule; public (`is_public=1`) readable by logged-in admins; mutate still owner/super  
 - **Payments:** use **mock** for end-to-end; WeChat/Alipay query & notify verify still stub (`payment_gateway_not_implemented`)
 
+## Admin SPA (React) & Docker
+
+**React (`html-react/`) is the primary shipping UI**; Vue (`html/`) is the peer reference. Images default to `BUILD_FRONTEND=0` (API-only). Set `BUILD_FRONTEND=1` to build **React** into `public/admin`.
+
+```bash
+cd html-react && npm ci && npm run build
+docker build --build-arg BUILD_FRONTEND=1 -t goravel-admin .
+```
+
+Full Chinese detail: [生产清单](/deploy/production) §6.
+
 ## Related
 
 - [Build & deploy](/en/deploy/build)  
 - [Docker production](/en/deploy/docker)  
 - [Testing](/en/guide/testing)  
+

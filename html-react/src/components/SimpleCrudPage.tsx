@@ -16,6 +16,7 @@ import PermissionButton from '@/components/PermissionButton'
 import ColumnSettingDialog from '@/components/ColumnSettingDialog'
 import { entityField } from '@/utils/normalize'
 import { handlePaginatedTableChange } from '@/utils/tableChange'
+import { promptSensitiveConfirm } from '@/utils/sensitiveConfirm'
 import type { ListFetchFn } from '@/types'
 
 export interface SimpleField {
@@ -40,7 +41,7 @@ interface SimpleCrudPageProps<T extends SimpleCrudRow> {
   fetchApi: ListFetchFn
   createApi: (data: unknown) => Promise<unknown>
   updateApi: (id: string | number, data: unknown) => Promise<unknown>
-  deleteApi: (id: string | number) => Promise<unknown>
+  deleteApi: (id: string | number, data?: Record<string, unknown>) => Promise<unknown>
   searchFields?: SearchField[]
   initialSearchForm?: Record<string, unknown>
   formFields: SimpleField[]
@@ -52,11 +53,15 @@ interface SimpleCrudPageProps<T extends SimpleCrudRow> {
   extraColumns?: ColumnsType<T>
   renderExtraForm?: (editing: boolean) => ReactNode
   columnSettingKey?: string
+  /** Prompt for confirm_code when creating */
+  requireSensitiveConfirmOnCreate?: boolean
+  /** Prompt for confirm_code when deleting */
+  requireSensitiveConfirmOnDelete?: boolean
 }
 
 export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCrudPageProps<T>) {
   const { t } = useTranslation()
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const showError = useUnhandledError()
   const { getButtonState } = usePermission()
   const [form] = Form.useForm()
@@ -111,6 +116,7 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
       setOpen(true)
     },
     deleteApi: props.deleteApi,
+    requireSensitiveConfirm: props.requireSensitiveConfirmOnDelete,
   })
 
   const columns = useMemo<ColumnsType<T>>(() => {
@@ -190,6 +196,10 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
         await props.updateApi(editId, values)
         message.success(t('common.update_success'))
       } else {
+        if (props.requireSensitiveConfirmOnCreate) {
+          const confirmCode = await promptSensitiveConfirm(modal, t)
+          values.confirm_code = confirmCode
+        }
         await props.createApi(values)
         message.success(t('common.create_success'))
       }
@@ -197,6 +207,7 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
       await refresh()
     } catch (error) {
       if ((error as { errorFields?: unknown })?.errorFields) return
+      if ((error as Error)?.message === 'cancel') return
       showError(error, t('common.operation_failed'))
     } finally {
       setSubmitting(false)

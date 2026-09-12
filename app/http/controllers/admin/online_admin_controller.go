@@ -36,6 +36,10 @@ func (c *OnlineAdminController) Index(ctx http.Context) http.Response {
 
 // KickOut 踢下线（删除 token）
 func (c *OnlineAdminController) KickOut(ctx http.Context) http.Response {
+	if resp := RequireSensitiveConfirm(ctx, "online_admin"); resp != nil {
+		return resp
+	}
+
 	tokenID := helpers.GetUintRoute(ctx, "id")
 	if err := c.OnlineAdminService(ctx).KickOut(tokenID); err != nil {
 		return HandleGeneratedServiceError(ctx, "online_admin", http.StatusInternalServerError, err, map[string]any{
@@ -47,6 +51,10 @@ func (c *OnlineAdminController) KickOut(ctx http.Context) http.Response {
 
 // BatchKickOut 批量踢下线
 func (c *OnlineAdminController) BatchKickOut(ctx http.Context) http.Response {
+	if resp := RequireSensitiveConfirm(ctx, "online_admin"); resp != nil {
+		return resp
+	}
+
 	tokenIDs := ctx.Request().Input("token_ids")
 	if tokenIDs == "" {
 		return HandleGeneratedServiceError(ctx, "online_admin", http.StatusBadRequest, apperrors.ErrTokenIDsRequired, nil)

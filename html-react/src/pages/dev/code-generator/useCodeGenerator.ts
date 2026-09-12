@@ -25,6 +25,7 @@ const backendFileTypes = [
   { value: 'request_create', labelKey: 'file_request_create' },
   { value: 'request_update', labelKey: 'file_request_update' },
   { value: 'export_job', labelKey: 'file_export_job' },
+  { value: 'import_job', labelKey: 'file_import_job' },
 ] as const
 
 const vueFileTypes = [
@@ -113,6 +114,7 @@ export function useCodeGenerator() {
   const [files, setFiles] = useState<string[]>(buildDefaultFiles(['vue', 'react']))
   const [options, setOptions] = useState<string[]>(['has_create', 'has_edit', 'has_delete', 'show_toolbar'])
   const [exportMode, setExportMode] = useState<'none' | 'sync' | 'async'>('none')
+  const [importMode, setImportMode] = useState<'none' | 'sync' | 'async'>('none')
   const [installEnabled, setInstallEnabled] = useState(true)
   const [parentMenuSlug, setParentMenuSlug] = useState('')
   const [menuSort, setMenuSort] = useState(0)
@@ -215,6 +217,8 @@ export function useCodeGenerator() {
     (): CodeGeneratorOptions => ({
       has_export: exportMode !== 'none',
       export_async: exportMode === 'async',
+      has_import: importMode !== 'none',
+      import_async: importMode === 'async',
       has_create: options.includes('has_create'),
       has_edit: options.includes('has_edit'),
       has_delete: options.includes('has_delete'),
@@ -222,7 +226,7 @@ export function useCodeGenerator() {
       show_toolbar: options.includes('show_toolbar'),
       is_tree_list: options.includes('is_tree_list'),
     }),
-    [exportMode, options],
+    [exportMode, importMode, options],
   )
 
   const buildInstallConfig = useCallback((): ModuleInstallConfig => {
@@ -740,6 +744,8 @@ export function useCodeGenerator() {
     setOptions,
     exportMode,
     setExportMode,
+    importMode,
+    setImportMode,
     installEnabled,
     setInstallEnabled,
     parentMenuSlug,

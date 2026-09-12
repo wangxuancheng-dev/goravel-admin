@@ -10,17 +10,21 @@ export async function getOnlineAdminList(params?: Record<string, unknown>) {
   return normalizeListResponse(res)
 }
 
-export function kickOutOnlineAdmin(id: string | number) {
+export function kickOutOnlineAdmin(id: string | number, data?: Record<string, unknown>) {
   return request({
     url: `/online-admins/${id}`,
     method: 'delete',
+    ...(data ? { data } : {}),
   })
 }
 
-export function batchKickOutOnlineAdmins(tokenIds: Array<string | number>) {
+export function batchKickOutOnlineAdmins(
+  tokenIds: Array<string | number>,
+  data?: Record<string, unknown>,
+) {
   return request({
     url: '/online-admins/batch-kick-out',
     method: 'post',
-    data: { token_ids: tokenIds.join(',') },
+    data: { token_ids: tokenIds.join(','), ...data },
   })
 }

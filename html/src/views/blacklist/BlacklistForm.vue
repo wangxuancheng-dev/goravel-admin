@@ -48,6 +48,7 @@ import {
   updateBlacklist
 } from '../../api/blacklist'
 import { mapFields } from '../../utils/normalizeFormData'
+import { promptSensitiveConfirm } from '../../utils/sensitiveConfirm'
 
 const props = defineProps({
   modelValue: {
@@ -217,7 +218,8 @@ const handleSubmit = async () => {
           await updateBlacklist(formData.id, submitData)
           ElMessage.success(t('blacklist.update_success'))
         } else {
-          await createBlacklist(submitData)
+          const confirmCode = await promptSensitiveConfirm(t)
+          await createBlacklist({ ...submitData, confirm_code: confirmCode })
           ElMessage.success(t('blacklist.create_success'))
         }
         dialogVisible.value = false

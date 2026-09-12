@@ -1,14 +1,19 @@
 ﻿package admin
 
 import (
-<<if .HasExport>>
-<<if .ExportAsync>>
+<<if or (and .HasImport .ImportAsync) (and .HasExport .ExportAsync)>>
 	"goravel/app/jobs"
+<<end>>
+<<if or .HasImport (and .HasExport .ExportAsync)>>
 	"goravel/app/utils"
 <<end>>
-<<if not .ExportAsync>>
+<<if and .HasExport (not .ExportAsync)>>
 	"github.com/spf13/cast"
 <<end>>
+<<if .HasImport>>
+	"strings"
+
+	"goravel/app/http/trans"
 <<end>>
 
 	apperrors "goravel/app/errors"
@@ -248,4 +253,100 @@ func (c *<<.ControllerName>>) Export(ctx http.Context) http.Response {
 	return response.Error(ctx, http.StatusForbidden, "forbidden")
 <<end>>
 }
+
+// Import imports <<.ModelName>> records from CSV.
+func (c *<<.ControllerName>>) Import(ctx http.Context) http.Response {
+<<- if .HasImport>>
+	adminID, err := helpers.GetAdminIDFromContext(ctx)
+	if err != nil {
+		return response.Error(ctx, http.StatusUnauthorized, "unauthorized")
+	}
+
+	file, err := ctx.Request().File("file")
+	if err != nil {
+		return response.Error(ctx, http.StatusBadRequest, "file_required")
+	}
+
+	asyncFlag := strings.TrimSpace(ctx.Request().Query("async", ctx.Request().Input("async", "")))
+	forceAsync := asyncFlag == "1" || strings.EqualFold(asyncFlag, "true")
+
+	disk, path, filename, dataRows, saveErr := services.SaveUploadedCSVForAsync(ctx, file)
+	if saveErr != nil {
+		attrs := map[string]any{"filename": filename, "admin_id": adminID}
+		fallback := http.StatusInternalServerError
+		if _, ok := apperrors.GetBusinessError(saveErr); ok {
+			fallback = http.StatusBadRequest
+		}
+		return HandleGeneratedServiceError(ctx, "import", fallback, saveErr, attrs)
+	}
+
+<<- if .ImportAsync>>
+	if forceAsync || dataRows >= services.AsyncImportRowThreshold {
+		return c.enqueue<<.ModelName>>Import(ctx, disk, path, dataRows)
+	}
+<<- else>>
+	_ = forceAsync
+<<- end>>
+
+	storage, storErr := utils.StorageDisk(disk)
+	if storErr != nil {
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, storErr, nil)
+	}
+	csvContent, getErr := storage.Get(path)
+	if getErr != nil {
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, getErr, nil)
+	}
+	defer func() { _ = storage.Delete(path) }()
+
+	result, err := c.<<.ServiceName>>(ctx).ImportFromCSV(csvContent)
+	if err != nil {
+		attrs := map[string]any{"filename": filename, "admin_id": adminID}
+		fallback := http.StatusInternalServerError
+		if _, ok := apperrors.GetBusinessError(err); ok {
+			fallback = http.StatusBadRequest
+		}
+		return HandleGeneratedServiceError(ctx, "import", fallback, err, attrs)
+	}
+
+	return response.Success(ctx, http.Json{
+		"async":         false,
+		"total_rows":    result.TotalRows,
+		"success_count": result.SuccessCount,
+		"failed_count":  result.FailedCount,
+		"errors":        result.Errors,
+		"message":       trans.Get(ctx, "import_success"),
+	})
+<<- else>>
+	return response.Error(ctx, http.StatusForbidden, "forbidden")
+<<end>>
+}
+
+<<- if and .HasImport .ImportAsync>>
+func (c *<<.ControllerName>>) enqueue<<.ModelName>>Import(ctx http.Context, disk, path string, totalRows int) http.Response {
+	result := EnqueueAsyncImport(ctx, EnqueueAsyncImportInput{
+		LockResource: "<<.ModuleName>>s_import",
+		ImportType:   "<<.ModuleName>>s",
+		Disk:         disk,
+		Path:         path,
+		TotalRows:    totalRows,
+		Job:          &jobs.Import<<.ModelName>>s{},
+	})
+	if result.Unauthorized {
+		return response.Error(ctx, http.StatusUnauthorized, "unauthorized")
+	}
+	if result.Blocked {
+		return response.Error(ctx, http.StatusTooManyRequests, "too_many_requests")
+	}
+	if result.Err != nil {
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, result.Err, map[string]any{
+			"import_id": result.ImportID,
+		})
+	}
+	return response.Success(ctx, http.Json{
+		"async":     true,
+		"import_id": result.ImportID,
+		"message":   trans.Get(ctx, "queued"),
+	})
+}
+<<- end>>
 

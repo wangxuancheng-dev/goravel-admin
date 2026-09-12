@@ -652,10 +652,50 @@ export default function Monitor() {
                 </span>
               </div>
             ) : null}
+            {process.queries !== undefined && process.queries > 0 ? (
+              <div className="process-item">
+                <span className="process-label">{t('monitor.process_queries')}:</span>
+                <span className="process-value">{formatNumber(process.queries)}</span>
+              </div>
+            ) : null}
             {process.uptime !== undefined && process.uptime > 0 ? (
               <div className="process-item">
                 <span className="process-label">{t('monitor.process_uptime')}:</span>
                 <span className="process-value">{formatUptime(process.uptime)}</span>
+              </div>
+            ) : null}
+            {process.slow_queries !== undefined && process.slow_queries > 0 ? (
+              <div className="process-item">
+                <span className="process-label">{t('monitor.process_slow_queries')}:</span>
+                <span className="process-value warning">{formatNumber(process.slow_queries)}</span>
+              </div>
+            ) : null}
+            {process.table_locks_waited !== undefined && process.table_locks_waited > 0 ? (
+              <div className="process-item">
+                <span className="process-label">{t('monitor.process_table_locks')}:</span>
+                <span className="process-value warning">
+                  {formatNumber(process.table_locks_waited)}
+                </span>
+              </div>
+            ) : null}
+            {process.innodb_row_lock_waits !== undefined && process.innodb_row_lock_waits > 0 ? (
+              <div className="process-item">
+                <span className="process-label">{t('monitor.process_row_locks')}:</span>
+                <span className="process-value warning">
+                  {formatNumber(process.innodb_row_lock_waits)}
+                </span>
+              </div>
+            ) : null}
+            {process.threads_running !== undefined ? (
+              <div className="process-item">
+                <span className="process-label">{t('monitor.process_threads_running')}:</span>
+                <span className="process-value">{formatNumber(process.threads_running)}</span>
+              </div>
+            ) : null}
+            {process.buffer_pool_size !== undefined && process.buffer_pool_size > 0 ? (
+              <div className="process-item">
+                <span className="process-label">{t('monitor.process_buffer_pool')}:</span>
+                <span className="process-value">{formatBytes(process.buffer_pool_size)}</span>
               </div>
             ) : null}
             {process.process_name ? (
@@ -680,6 +720,12 @@ export default function Monitor() {
               <div className="process-item">
                 <span className="process-label">{t('monitor.postgresql_active_connections')}:</span>
                 <span className="process-value">{formatNumber(process.active_connections)}</span>
+              </div>
+            ) : null}
+            {process.idle_connections !== undefined ? (
+              <div className="process-item">
+                <span className="process-label">{t('monitor.postgresql_idle_connections')}:</span>
+                <span className="process-value">{formatNumber(process.idle_connections)}</span>
               </div>
             ) : null}
             {process.database_size !== undefined && process.database_size > 0 ? (
@@ -821,6 +867,49 @@ export default function Monitor() {
           </Col>
           <Col xs={24} lg={12}>
             <Card className="monitor-card" title={t('monitor.network_speed_chart')}>
+              {systemInfo.net?.speed_total_mbps !== undefined ? (
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: 12,
+                    background: 'var(--ant-color-fill-quaternary, #f5f5f5)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                    {t('monitor.bandwidth_speed')}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, opacity: 0.65 }}>{t('monitor.current_speed')}:</span>
+                    <span style={{ fontSize: 16, fontWeight: 600 }}>
+                      {formatNumber(Number(systemInfo.net?.speed_total_mbps || 0), 2)} Mbps
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, opacity: 0.65 }}>{t('monitor.peak_speed')}:</span>
+                    <span style={{ fontSize: 16, fontWeight: 600 }}>
+                      {formatNumber(Number(systemInfo.net?.peak_total_mbps || 0), 2)} Mbps
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.55, marginTop: 8 }}>
+                    <span>↑{formatNumber(Number(systemInfo.net?.speed_sent_mbps || 0), 2)} Mbps</span>
+                    <span style={{ margin: '0 8px' }}>|</span>
+                    <span>↓{formatNumber(Number(systemInfo.net?.speed_recv_mbps || 0), 2)} Mbps</span>
+                  </div>
+                </div>
+              ) : null}
               <ChartPanel option={networkChartOption} />
             </Card>
           </Col>

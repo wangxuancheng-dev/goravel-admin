@@ -162,12 +162,16 @@ func (s *PermissionSeeder) Run() error {
 		// 个人中心
 		{Name: "修改资料", Slug: "profile.update", Method: "PUT", Path: "/api/admin/profile", Description: "修改当前登录管理员资料", Status: 1, Sort: 1, MenuID: profileMenu.ID},
 		{Name: "修改密码", Slug: "password.update", Method: "PUT", Path: "/api/admin/password", Description: "修改当前登录管理员密码", Status: 1, Sort: 2, MenuID: profileMenu.ID},
-		// 导出管理
+		// 导出 / 导入任务中心
 		{Name: "导出列表", Slug: "export.index", Method: "GET", Path: "/api/admin/exports", Description: "查看导出记录列表", Status: 1, Sort: 1, MenuID: exportMenu.ID},
 		{Name: "导出数据下载", Slug: "export.download", Method: "GET", Path: "/api/admin/exports/*/download", Description: "下载导出数据文件", Status: 1, Sort: 2, MenuID: exportMenu.ID},
 		// {Name: "导出进度", Slug: "export.progress", Method: "GET", Path: "/api/admin/exports/*/progress", Description: "查看导出任务进度", Status: 1, Sort: 3, MenuID: exportMenu.ID},
 		{Name: "删除导出", Slug: "export.destroy", Method: "DELETE", Path: "/api/admin/exports/*", Description: "删除导出记录及源文件", Status: 1, Sort: 4, MenuID: exportMenu.ID},
 		{Name: "导出批量删除", Slug: "export.batch_delete", Method: "POST", Path: "/api/admin/exports/batch-delete", Description: "批量删除导出记录", Status: 1, Sort: 5, MenuID: exportMenu.ID},
+		{Name: "导入列表", Slug: "import.index", Method: "GET", Path: "/api/admin/imports", Description: "查看导入记录列表", Status: 1, Sort: 6, MenuID: exportMenu.ID},
+		{Name: "导入详情", Slug: "import.show", Method: "GET", Path: "/api/admin/imports/*", Description: "查看导入任务详情", Status: 1, Sort: 7, MenuID: exportMenu.ID},
+		{Name: "导入错误文件下载", Slug: "import.download_error", Method: "GET", Path: "/api/admin/imports/*/error-file", Description: "下载导入失败行文件", Status: 1, Sort: 8, MenuID: exportMenu.ID},
+		{Name: "删除导入", Slug: "import.destroy", Method: "DELETE", Path: "/api/admin/imports/*", Description: "删除导入记录及关联文件", Status: 1, Sort: 9, MenuID: exportMenu.ID},
 		// 附件管理
 		{Name: "附件列表", Slug: "attachment.index", Method: "GET", Path: "/api/admin/attachments", Description: "查看附件列表", Status: 1, Sort: 1, MenuID: attachmentMenu.ID},
 		{Name: "附件上传", Slug: "attachment.upload", Method: "POST", Path: "/api/admin/attachments/upload", Description: "上传附件", Status: 1, Sort: 2, MenuID: attachmentMenu.ID},

@@ -75,6 +75,7 @@ import {
   kickOutOnlineAdmin,
   batchKickOutOnlineAdmins
 } from '@/api/onlineAdmin'
+import { promptSensitiveConfirm } from '@/utils/sensitiveConfirm'
 import {
   onlineAdminInitialSearchForm,
   createOnlineAdminSearchFields,
@@ -127,7 +128,8 @@ const handleKickOut = async (row) => {
       t('common.confirm'),
       { type: 'warning' }
     )
-    await kickOutOnlineAdmin(row.id)
+    const confirmCode = await promptSensitiveConfirm(t)
+    await kickOutOnlineAdmin(row.id, { confirm_code: confirmCode })
     ElMessage.success(t('online_admin.kick_out_success'))
     loadData()
   } catch {
@@ -143,7 +145,10 @@ const handleBatchKickOut = async () => {
       t('common.confirm'),
       { type: 'warning' }
     )
-    await batchKickOutOnlineAdmins(selectedRows.value.map((item) => item.id))
+    const confirmCode = await promptSensitiveConfirm(t)
+    await batchKickOutOnlineAdmins(selectedRows.value.map((item) => item.id), {
+      confirm_code: confirmCode
+    })
     ElMessage.success(t('online_admin.batch_kick_out_success'))
     handleSelectionChange([])
     loadData()

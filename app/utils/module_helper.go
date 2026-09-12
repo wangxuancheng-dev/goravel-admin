@@ -39,12 +39,12 @@ func CodeGeneratorEnabled() bool {
 	return facades.Config().GetBool("app.enable_dev_tool", false)
 }
 
-// CodeGeneratorFrontends returns enabled codegen targets: vue, react (default both).
-// CODE_GENERATOR_FRONTEND accepts: vue | react | vue,react | both | all
+// CodeGeneratorFrontends returns enabled codegen targets: react, vue (default both; react first).
+// CODE_GENERATOR_FRONTEND accepts: vue | react | react,vue | vue,react | both | all
 func CodeGeneratorFrontends() []string {
-	raw := strings.ToLower(strings.TrimSpace(facades.Config().GetString("module.code_generator_frontend", "vue,react")))
+	raw := strings.ToLower(strings.TrimSpace(facades.Config().GetString("module.code_generator_frontend", "react,vue")))
 	if raw == "" || raw == "both" || raw == "all" {
-		return []string{"vue", "react"}
+		return []string{"react", "vue"}
 	}
 
 	seen := map[string]bool{}
@@ -53,8 +53,8 @@ func CodeGeneratorFrontends() []string {
 		part = strings.TrimSpace(part)
 		switch part {
 		case "both", "all":
-			seen["vue"] = true
 			seen["react"] = true
+			seen["vue"] = true
 		case "vue", "react":
 			if !seen[part] {
 				seen[part] = true
@@ -63,14 +63,14 @@ func CodeGeneratorFrontends() []string {
 		}
 	}
 
-	if seen["vue"] && !containsString(out, "vue") {
-		out = append(out, "vue")
-	}
 	if seen["react"] && !containsString(out, "react") {
 		out = append(out, "react")
 	}
+	if seen["vue"] && !containsString(out, "vue") {
+		out = append(out, "vue")
+	}
 	if len(out) == 0 {
-		return []string{"vue", "react"}
+		return []string{"react", "vue"}
 	}
 	return out
 }

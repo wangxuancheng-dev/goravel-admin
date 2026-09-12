@@ -49,6 +49,7 @@ func (i *ModuleInstallerImpl) Install(manifest *ModuleManifest) (*ModuleInstallR
 			"has_edit":   manifest.HasEdit,
 			"has_delete": manifest.HasDelete,
 			"has_export": manifest.HasExport,
+			"has_import": manifest.HasImport,
 		}, &ModuleInstallConfig{
 			MenuTitle:      manifest.MenuTitle,
 			ParentMenuSlug: manifest.ParentMenuSlug,

@@ -23,6 +23,9 @@
         <el-tab-pane :label="$t('config.storage_config')" name="storage">
           <StorageConfig ref="storageConfigRef" />
         </el-tab-pane>
+        <el-tab-pane :label="$t('config.login_security_config')" name="login_security">
+          <LoginSecurityConfig ref="loginSecurityConfigRef" />
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
@@ -35,6 +38,7 @@ import CustomerServiceConfig from './components/CustomerServiceConfig.vue'
 import EmailConfig from './components/EmailConfig.vue'
 import CaptchaConfig from './components/CaptchaConfig.vue'
 import StorageConfig from './components/StorageConfig.vue'
+import LoginSecurityConfig from './components/LoginSecurityConfig.vue'
 
 const activeTab = ref('website')
 const websiteConfigRef = ref(null)
@@ -42,6 +46,7 @@ const customerServiceConfigRef = ref(null)
 const emailConfigRef = ref(null)
 const captchaConfigRef = ref(null)
 const storageConfigRef = ref(null)
+const loginSecurityConfigRef = ref(null)
 
 const handleTabChange = (tabName) => {
   // 切换tab时可以重新加载数据
@@ -55,6 +60,8 @@ const handleTabChange = (tabName) => {
     captchaConfigRef.value.loadData()
   } else if (tabName === 'storage' && storageConfigRef.value) {
     storageConfigRef.value.loadData()
+  } else if (tabName === 'login_security' && loginSecurityConfigRef.value) {
+    loginSecurityConfigRef.value.loadData()
   }
 }
 </script>

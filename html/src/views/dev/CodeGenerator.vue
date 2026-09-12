@@ -117,6 +117,14 @@
               </el-radio-group>
             </el-form-item>
 
+            <el-form-item :label="$t('code_generator.import_mode')">
+              <el-radio-group v-model="form.import_mode">
+                <el-radio label="none">{{ $t('code_generator.import_mode_none') }}</el-radio>
+                <el-radio label="sync">{{ $t('code_generator.import_mode_sync') }}</el-radio>
+                <el-radio label="async">{{ $t('code_generator.import_mode_async') }}</el-radio>
+              </el-radio-group>
+            </el-form-item>
+
             <el-button type="primary" @click="handleAddField">
               <el-icon><Plus /></el-icon>
               {{ $t('code_generator.add_field') }}

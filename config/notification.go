@@ -10,5 +10,8 @@ func init() {
 		"mail_enabled":    config.Env("NOTIFICATION_MAIL_ENABLED", false),
 		"webhook_enabled": config.Env("NOTIFICATION_WEBHOOK_ENABLED", false),
 		"webhook_url":     config.Env("NOTIFICATION_WEBHOOK_URL", ""),
+		// Comma-separated type allowlists; empty = all types when channel enabled
+		"mail_types":    config.Env("NOTIFICATION_MAIL_TYPES", ""),
+		"webhook_types": config.Env("NOTIFICATION_WEBHOOK_TYPES", ""),
 	})
 }

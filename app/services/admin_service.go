@@ -346,7 +346,7 @@ func (s *AdminServiceImpl) UpdateOwnPassword(adminID uint, oldPassword, newPassw
 	if !facades.Hash().Check(oldPassword, adminModel.Password) {
 		return apperrors.ErrOldPasswordError
 	}
-	if err := ValidatePasswordPolicy(newPassword); err != nil {
+	if err := ValidatePasswordPolicyCtx(s.ctx, newPassword); err != nil {
 		return err
 	}
 	hashedPassword, err := facades.Hash().Make(newPassword)
@@ -367,7 +367,7 @@ func (s *AdminServiceImpl) ResetPassword(adminID uint, newPassword string) error
 	if err != nil {
 		return err
 	}
-	if err := ValidatePasswordPolicy(newPassword); err != nil {
+	if err := ValidatePasswordPolicyCtx(s.ctx, newPassword); err != nil {
 		return err
 	}
 	hashedPassword, err := facades.Hash().Make(newPassword)

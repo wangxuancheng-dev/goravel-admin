@@ -9,6 +9,7 @@ import (
 
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
+	"goravel/app/utils"
 )
 
 // LoginAnomalyAlert 异地登录告警内容（通知已创建；邮件由调用方可选发送）。
@@ -33,7 +34,9 @@ func NewLoginAnomalyService(ctx context.Context) LoginAnomalyService {
 }
 
 func (s *LoginAnomalyServiceImpl) CheckAndAlert(admin models.Admin, currentIP string) (*LoginAnomalyAlert, error) {
-	if !facades.Config().GetBool("login_security.anomaly_alert_enabled", true) {
+	enabled := utils.GetConfigValueBool(s.ctx, "login_security", "anomaly_alert_enabled",
+		facades.Config().GetBool("login_security.anomaly_alert_enabled", true))
+	if !enabled {
 		return nil, nil
 	}
 	currentIP = strings.TrimSpace(currentIP)

@@ -43,6 +43,8 @@ export default function BlacklistList() {
       createApi={createBlacklist}
       updateApi={updateBlacklist}
       deleteApi={deleteBlacklist}
+      requireSensitiveConfirmOnCreate
+      requireSensitiveConfirmOnDelete
       createTitle={t('blacklist.add_blacklist')}
       editTitle={t('blacklist.edit_blacklist')}
       initialSearchForm={{ ip: '', status: '' }}
