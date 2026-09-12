@@ -81,6 +81,7 @@ func TestTenantIsProvisionReady(t *testing.T) {
 		{"", true},
 		{models.TenantProvisionReady, true},
 		{models.TenantProvisionPending, false},
+		{models.TenantProvisionMigrating, false},
 		{models.TenantProvisionFailed, false},
 	}
 	for _, tc := range cases {

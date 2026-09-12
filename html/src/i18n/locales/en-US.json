@@ -1048,7 +1048,7 @@
     "database_placeholder": "Default: prefix+code",
     "schema": "Schema",
     "schema_placeholder": "Used for PG schema isolation",
-    "migrate_cli_tip": "Run migrate/seed via CLI: go run . artisan tenant:migrate {code} (HTTP only registers / optional CREATE)",
+    "migrate_cli_tip": "After create, use list actions to queue migrate (optional seed). Bulk/restore stay on CLI",
     "remote_connection": "Remote connection (optional; empty falls back to platform DB_*)",
     "host": "Host",
     "host_placeholder": "Empty = platform DB_HOST",
@@ -1059,7 +1059,25 @@
     "password_placeholder": "Empty = platform password",
     "password_keep": "Leave blank to keep current password",
     "skip_create": "Skip CREATE",
-    "skip_create_tip": "Enable when the remote DB already exists; otherwise CREATE runs on the target Host"
+    "skip_create_tip": "Enable when the remote DB already exists; otherwise CREATE runs on the target Host",
+    "provision_status": "Provision",
+    "provision_pending": "Pending",
+    "provision_migrating": "Migrating",
+    "provision_ready": "Ready",
+    "provision_failed": "Failed",
+    "last_op": "Last op",
+    "op_migrate": "Migrate",
+    "op_seed": "Seed",
+    "op_backup": "Backup",
+    "op_ping": "Ping",
+    "op_queued": "Queued",
+    "op_with_seed": "Run seed after migrate",
+    "op_migrate_confirm": "Queue migrate for this tenant?",
+    "op_seed_confirm": "Queue seed for this tenant? (may duplicate seed data)",
+    "op_backup_confirm": "Queue backup for this tenant? (requires mysqldump/pg_dump)",
+    "ping_ok": "Tenant DB reachable",
+    "migrate_error": "Migrate error",
+    "backup_path": "Backup path"
   },
   "platform": {
     "title": "Platform Console",
@@ -1078,8 +1096,8 @@
     "health_db_ok": "Database OK",
     "health_db_bad": "Database unreachable",
     "health_tenants": "Tenants {active}/{total} active",
-    "cli_ops_title": "Ops CLI",
-    "cli_ops_hint": "After register, migrate/seed via CLI; HTTP only registers (optional CREATE). Example: go run . artisan tenant:migrate {code}"
+    "cli_ops_title": "Tenant ops",
+    "cli_ops_hint": "Per-tenant migrate/seed/backup via list actions (async queue); migrate-all / restore remain CLI"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

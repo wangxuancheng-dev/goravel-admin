@@ -17,7 +17,7 @@
 - 🏢 一户一库/Schema 多租户：默认 off 单库；开启后 Tenant→Jwt，认证与业务均在租户库；`tenant:seed`；导出/上传/缓存租户前缀
 - 🏢 平台控制台（Landlord）：`platform_admins` + `/api/platform` + `/platform/login`；租户管理迁出租户后台；远程 DB 凭据；子域解析；`platform:admin` / `tenant:backup|restore`
 - 🔒 远程租户建库打到目标 Host；`tenants.password` APP_KEY 加密；`skip_create`；mysqldump 密码走 defaults-extra-file
-- 🛠️ `platform:install` 首启；HTTP 开户禁止 migrate（CLI）
+- 🛠️ `platform:install` 首启；HTTP 开户禁止同步 migrate；平台控制台支持单户异步 migrate/seed/backup（`tenant_ops`）
 
 ## [1.0.0] - 2024-12-25
 

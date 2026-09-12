@@ -50,7 +50,7 @@ func (r *TenantRestore) Handle(ctx console.Context) error {
 		ctx.Error("租户不存在: " + idOrCode)
 		return nil
 	}
-	host, port, user, pass, database, err := resolveTenantDSN(tenant)
+	host, port, user, pass, database, err := services.ResolveTenantDSN(tenant)
 	if err != nil {
 		ctx.Error(err.Error())
 		return err
@@ -63,7 +63,7 @@ func (r *TenantRestore) Handle(ctx console.Context) error {
 		cmd = exec.Command("psql", args...)
 		cmd.Env = env
 	default:
-		defaultsFile, err := writeMySQLDefaultsFile(user, pass)
+		defaultsFile, err := services.WriteMySQLDefaultsFile(user, pass)
 		if err != nil {
 			ctx.Error(err.Error())
 			return err

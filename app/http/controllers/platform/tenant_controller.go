@@ -1,14 +1,18 @@
 package platform
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/contracts/queue"
+	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
 	"goravel/app/http/controllers/admin"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
+	"goravel/app/jobs"
 	"goravel/app/models"
 	"goravel/app/services"
 )
@@ -168,4 +172,57 @@ func (c *TenantController) Ping(ctx http.Context) http.Response {
 		"tenant":           services.TenantToJSON(tenant),
 		"provision_status": tenant.ProvisionStatus,
 	})
+}
+
+type tenantMigrateBody struct {
+	WithSeed bool `json:"with_seed" form:"with_seed"`
+}
+
+func (c *TenantController) ops() *services.TenantOpsService {
+	return services.NewTenantOpsService()
+}
+
+func (c *TenantController) enqueueOp(ctx http.Context, op string, withSeed bool) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	tenant, args, err := c.ops().BeginQueuedOp(id, op, withSeed)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
+	}
+	payload, err := json.Marshal(args)
+	if err != nil {
+		_ = c.ops().MarkOpFailed(tenant, err.Error())
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
+	}
+	if err := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
+		Type:  "string",
+		Value: string(payload),
+	}}).OnQueue("long-running").Dispatch(); err != nil {
+		_ = c.ops().MarkOpFailed(tenant, err.Error())
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(err), map[string]any{"id": id})
+	}
+	return response.Success(ctx, map[string]any{
+		"queued": true,
+		"op":     op,
+		"tenant": services.TenantToJSON(tenant),
+	})
+}
+
+// Migrate enqueues async migrate (optional seed) for one tenant.
+func (c *TenantController) Migrate(ctx http.Context) http.Response {
+	var body tenantMigrateBody
+	_ = ctx.Request().Bind(&body)
+	return c.enqueueOp(ctx, models.TenantOpMigrate, body.WithSeed)
+}
+
+// Seed enqueues async db:seed for one tenant.
+func (c *TenantController) Seed(ctx http.Context) http.Response {
+	return c.enqueueOp(ctx, models.TenantOpSeed, false)
+}
+
+// Backup enqueues async mysqldump/pg_dump for one tenant.
+func (c *TenantController) Backup(ctx http.Context) http.Response {
+	return c.enqueueOp(ctx, models.TenantOpBackup, false)
 }

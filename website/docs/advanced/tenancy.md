@@ -22,8 +22,8 @@ TENANCY_DRIVER=database
 | 入口 | `/login` | `/platform/login` |
 | API | `/api/admin` | `/api/platform` |
 | Token | `token` | `platform_token` |
-| 开户 migrate | — | **仅 CLI**（HTTP 只登记/建库） |
-| 开户状态 | — | `provision_status`: `pending` → `ready`（`tenant:migrate` 成功后）；未 ready 禁止业务绑定 |
+| 开户 migrate | — | 平台 UI 异步入队 / CLI；HTTP 开户仍禁止同步 migrate |
+| 开户状态 | — | `provision_status`: `pending` → `migrating` → `ready`/`failed` |
 
 ## 配置
 
@@ -101,6 +101,8 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 | `/platform/login` | 平台控制台（`PLATFORM_ADMIN_*`） |
 | `/login` + Header `X-Tenant-ID: acme`，或 `/login?tenant_code=acme` | 租户后台（租户库管理员，以 seed 为准） |
 
+开户后可在平台租户列表点 **迁移**（异步，可选 seed），无需再跑 CLI；`QUEUE_CONNECTION=sync` 时任务在请求内同步执行，生产请用 Redis + `long-running` worker。
+
 注意：
 
 - 公网请改用 `TENANCY_RESOLVER=subdomain`，并保持 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。
@@ -111,8 +113,9 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 1. **平台连接钉死**：`PlatformOrmQuery` 使用 `tenancy.platform_connection`，不跟随 migrate 时临时翻转的 `database.default`。
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
 3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
-4. **开户状态**：HTTP/CLI 创建后为 `pending`；`tenant:migrate` 成功 → `ready`；未 ready 的租户不可绑定业务请求，也不可启用以绕过。
+4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试（防永久卡住）。
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
+6. **异步运维**：单户 migrate / seed / backup 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` / `restore` 仍仅 CLI。
 
 ## 公网部署（推荐）
 
@@ -125,8 +128,8 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 ## 运维增强
 
 1. **Landlord 迁移跳过**：平台表迁移（`tenants` / `platform_admins` / `jobs` / provision/migrate meta）在 `tenant_*` 连接上 `SkipOnTenantConnection` 空跑，避免污染租户库。
-2. **Migrate 可见性**：`last_migrate_error` / `migrated_at`；失败写 `provision_status=failed`。
-3. **连接探测**：`POST /api/platform/tenants/{id}/ping`。
+2. **Migrate / 运维可见性**：`last_migrate_error` / `migrated_at`；平台 UI 另有 `last_op` / `last_op_status` / `last_op_message` / `last_backup_path`。失败写 `provision_status=failed`（seed 失败不降级已 ready）。
+3. **连接探测 / 异步操作**：`POST .../ping`；`.../migrate|seed|backup` 入队。
 4. **登录限流**：`login` limiter 键含 body/query/header/`subdomain` 租户提示，避免跨租户互相锁号。
 5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
 6. **PG sslmode**：`TENANCY_POSTGRES_SSLMODE` 或 `DB_SSLMODE`。
@@ -207,10 +210,15 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/login` | 登录 |
 | GET | `/api/platform/info` | 当前管理员 |
 | POST | `/api/platform/logout` | 登出 |
-| GET/POST | `/api/platform/tenants` | 列表 / 开户（无 migrate） |
+| GET/POST | `/api/platform/tenants` | 列表 / 开户（无同步 migrate） |
 | GET/PUT | `/api/platform/tenants/{id}` | 详情 / 更新连接 |
 | PUT | `/api/platform/tenants/{id}/status` | 启停 |
 | POST | `/api/platform/tenants/{id}/ping` | 探测租户库连通性 |
+| POST | `/api/platform/tenants/{id}/migrate` | 异步 migrate（body 可选 `with_seed`） |
+| POST | `/api/platform/tenants/{id}/seed` | 异步 seed |
+| POST | `/api/platform/tenants/{id}/backup` | 异步备份 |
+
+平台控制台列表可操作单户 **Ping / 迁移 / 种子 / 备份**（入队 `tenant_ops`，`long-running` 队列）。`migrate-all` / `restore` / `backup-all` 仍仅 CLI。
 
 公开支付回调（非 platform）：
 
@@ -243,7 +251,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 8. 浏览器跨域 header 解析租户时，`CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`。
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
-11. 仅 `provision_status=ready` 的租户可绑定业务；HTTP 开户禁止 migrate，须 CLI `tenant:migrate`。
+11. 仅 `provision_status=ready` 的租户可绑定业务；HTTP 开户禁止同步 migrate，可走平台 UI 异步迁移或 CLI `tenant:migrate`。
 12. 远程租户库禁止空账号回落平台 root；公网默认 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。
 13. 平台表迁移不得落在租户库（`SkipOnTenantConnection`）；migrate 失败须可在平台侧看到 `last_migrate_error`。
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。

@@ -34,6 +34,9 @@ func Platform() {
 			router.Put("tenants/{id}", tenantController.Update)
 			router.Put("tenants/{id}/status", tenantController.UpdateStatus)
 			router.Post("tenants/{id}/ping", tenantController.Ping)
+			router.Post("tenants/{id}/migrate", tenantController.Migrate)
+			router.Post("tenants/{id}/seed", tenantController.Seed)
+			router.Post("tenants/{id}/backup", tenantController.Backup)
 		})
 	})
 }

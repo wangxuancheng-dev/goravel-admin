@@ -1,9 +1,12 @@
-package commands
+package services
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"goravel/app/models"
 )
 
 func TestPruneTenantBackups(t *testing.T) {
@@ -39,5 +42,40 @@ func TestPruneTenantBackupsNoopWhenKeepZero(t *testing.T) {
 	removed, err := pruneTenantBackups(dir, 0)
 	if err != nil || removed != 0 {
 		t.Fatalf("removed=%d err=%v", removed, err)
+	}
+}
+
+func TestTenantOpBusy(t *testing.T) {
+	if tenantOpBusy(nil) {
+		t.Fatal("nil should not be busy")
+	}
+	if tenantOpBusy(&models.Tenant{ProvisionStatus: models.TenantProvisionReady}) {
+		t.Fatal("ready idle should not be busy")
+	}
+	now := time.Now()
+	if !tenantOpBusy(&models.Tenant{
+		ProvisionStatus: models.TenantProvisionMigrating,
+		LastOpAt:        &now,
+	}) {
+		t.Fatal("migrating should be busy")
+	}
+	if !tenantOpBusy(&models.Tenant{
+		LastOpStatus: models.TenantOpStatusQueued,
+		LastOpAt:     &now,
+	}) {
+		t.Fatal("queued should be busy")
+	}
+	stale := time.Now().Add(-31 * time.Minute)
+	if tenantOpBusy(&models.Tenant{
+		ProvisionStatus: models.TenantProvisionMigrating,
+		LastOpStatus:    models.TenantOpStatusQueued,
+		LastOpAt:        &stale,
+	}) {
+		t.Fatal("stale migrating/queued should allow retry")
+	}
+	if tenantOpBusy(&models.Tenant{
+		LastOpStatus: models.TenantOpStatusQueued,
+	}) {
+		t.Fatal("queued without last_op_at should allow retry")
 	}
 }

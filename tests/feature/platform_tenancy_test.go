@@ -164,6 +164,22 @@ func TestPlatformChangePassword(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestPlatformCreateRejectsSyncMigrate(t *testing.T) {
+	withTenancyDriver(t, "database")
+	token := loginPlatformSmoke(t)
+
+	body := `{"code":"sync_migrate_reject","name":"Reject Sync","migrate":true}`
+	testCase := tests.TestCase{}
+	resp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		WithHeader("Content-Type", "application/json").
+		Post("/api/platform/tenants", strings.NewReader(body))
+	require.NoError(t, err)
+	content, err := resp.Content()
+	require.NoError(t, err)
+	assert.Contains(t, content, "tenant_migrate_via_cli")
+}
+
 func TestTenancyCacheAndSearchIndexIsolation(t *testing.T) {
 	withTenancyDriver(t, "database")
 

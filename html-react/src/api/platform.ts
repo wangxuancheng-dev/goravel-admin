@@ -49,6 +49,22 @@ export function updatePlatformTenantStatus(id: string | number, status: number) 
   return platformRequest.put(`/tenants/${id}/status`, { status })
 }
 
+export function pingPlatformTenant(id: string | number) {
+  return platformRequest.post(`/tenants/${id}/ping`)
+}
+
+export function migratePlatformTenant(id: string | number, data?: { with_seed?: boolean }) {
+  return platformRequest.post(`/tenants/${id}/migrate`, data || {})
+}
+
+export function seedPlatformTenant(id: string | number) {
+  return platformRequest.post(`/tenants/${id}/seed`)
+}
+
+export function backupPlatformTenant(id: string | number) {
+  return platformRequest.post(`/tenants/${id}/backup`)
+}
+
 export function completePlatformLogin(res: { data?: { token?: string; admin?: unknown } }) {
   if (res?.data?.token) setPlatformToken(res.data.token)
   if (res?.data?.admin) setPlatformAdmin(res.data.admin)

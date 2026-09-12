@@ -10,7 +10,7 @@
 4. `APP_DEBUG=false`，关闭 Swagger / 代码生成器 / pprof
 5. `MODULE_PAYMENTS_ENABLED=false`
 6. 一户一库时：`TENANCY_RESOLVER=subdomain`，`TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`
-7. `migrate`（平台库）；租户库用 `tenant:migrate` / `tenant:migrate-all`
+7. `migrate`（平台库）；租户库用平台 UI 异步迁移或 `tenant:migrate` / `tenant:migrate-all`；异步运维需 `long-running` worker
 8. 修改默认管理员密码；平台管理员用 `platform:install`
 
 应用在 `APP_ENV=production` 时会对不安全默认项打 **Warning** 日志（不阻断启动），见 `app/production/warn.go`。

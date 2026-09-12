@@ -193,7 +193,7 @@ func (s *TenantConnectionService) SetProvisionStatus(tenant *models.Tenant, stat
 	}
 	status = strings.TrimSpace(status)
 	switch status {
-	case models.TenantProvisionPending, models.TenantProvisionReady, models.TenantProvisionFailed:
+	case models.TenantProvisionPending, models.TenantProvisionMigrating, models.TenantProvisionReady, models.TenantProvisionFailed:
 	default:
 		return apperrors.ErrInvalidArgument.WithMessage("invalid provision_status")
 	}
@@ -723,6 +723,7 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	err := s.WithTenantConnection(tenant, func() error {
 		return facades.Artisan().Call("migrate")
 	})
+	now := time.Now()
 	if err != nil {
 		_ = s.SetProvisionStatus(tenant, models.TenantProvisionFailed)
 		msg := err.Error()
@@ -731,20 +732,35 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 		}
 		_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
 			"last_migrate_error": msg,
+			"last_op":            models.TenantOpMigrate,
+			"last_op_status":     models.TenantOpStatusFailed,
+			"last_op_message":    msg,
+			"last_op_at":         now,
 		})
 		tenant.LastMigrateError = msg
+		tenant.LastOp = models.TenantOpMigrate
+		tenant.LastOpStatus = models.TenantOpStatusFailed
+		tenant.LastOpMessage = msg
+		tenant.LastOpAt = &now
 		return err
 	}
-	now := time.Now()
 	if err := s.SetProvisionStatus(tenant, models.TenantProvisionReady); err != nil {
 		return err
 	}
 	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
 		"last_migrate_error": "",
 		"migrated_at":        now,
+		"last_op":            models.TenantOpMigrate,
+		"last_op_status":     models.TenantOpStatusSuccess,
+		"last_op_message":    "migrate ok",
+		"last_op_at":         now,
 	})
 	tenant.LastMigrateError = ""
 	tenant.MigratedAt = &now
+	tenant.LastOp = models.TenantOpMigrate
+	tenant.LastOpStatus = models.TenantOpStatusSuccess
+	tenant.LastOpMessage = "migrate ok"
+	tenant.LastOpAt = &now
 	return nil
 }
 

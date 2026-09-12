@@ -47,6 +47,22 @@ export function updatePlatformTenantStatus(id, status) {
   return platformRequest.put(`/tenants/${id}/status`, { status })
 }
 
+export function pingPlatformTenant(id) {
+  return platformRequest.post(`/tenants/${id}/ping`)
+}
+
+export function migratePlatformTenant(id, data = {}) {
+  return platformRequest.post(`/tenants/${id}/migrate`, data)
+}
+
+export function seedPlatformTenant(id) {
+  return platformRequest.post(`/tenants/${id}/seed`)
+}
+
+export function backupPlatformTenant(id) {
+  return platformRequest.post(`/tenants/${id}/backup`)
+}
+
 export async function completePlatformLogin(res) {
   const token = res?.data?.token
   const admin = res?.data?.admin

@@ -56,8 +56,10 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusInternalServerError
 	case code == "too_many_requests" || code == "login_locked":
 		return http.StatusTooManyRequests
-	case code == "schedule_busy":
+	case code == "schedule_busy" || code == "tenant_op_in_progress":
 		return http.StatusConflict
+	case code == "tenant_migrate_via_cli":
+		return http.StatusBadRequest
 	case code == "old_password_error" ||
 		code == "google_code_invalid" ||
 		code == "google_code_required" ||

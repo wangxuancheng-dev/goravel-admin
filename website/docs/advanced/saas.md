@@ -36,4 +36,4 @@
 ### 测试与工程质量
 
 - [ ] CI unit gate + 关键 feature（含租户隔离、provision 门禁、权限/模块开关）通过
-- [ ] 新开户：`pending` → `tenant:migrate` → `ready` 后再放业务流量
+- [ ] 新开户：`pending` → 平台 UI 异步迁移（或 `tenant:migrate`）→ `ready` 后再放业务流量；生产有 `long-running` worker

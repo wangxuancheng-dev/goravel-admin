@@ -328,6 +328,11 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 		"connection_name":    t.ConnectionName,
 		"last_migrate_error": t.LastMigrateError,
 		"migrated_at":        t.MigratedAt,
+		"last_op":            t.LastOp,
+		"last_op_status":     t.LastOpStatus,
+		"last_op_message":    t.LastOpMessage,
+		"last_op_at":         t.LastOpAt,
+		"last_backup_path":   t.LastBackupPath,
 		"created_at":         t.CreatedAt,
 		"updated_at":         t.UpdatedAt,
 	}

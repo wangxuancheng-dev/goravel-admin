@@ -18,9 +18,20 @@ const (
 	TenantDriverPostgres = "postgres"
 
 	// Provision lifecycle (platform tenants table).
-	TenantProvisionPending = "pending"
-	TenantProvisionReady   = "ready"
-	TenantProvisionFailed  = "failed"
+	TenantProvisionPending   = "pending"
+	TenantProvisionMigrating = "migrating"
+	TenantProvisionReady     = "ready"
+	TenantProvisionFailed    = "failed"
+
+	TenantOpMigrate = "migrate"
+	TenantOpSeed    = "seed"
+	TenantOpBackup  = "backup"
+
+	TenantOpStatusIdle    = "idle"
+	TenantOpStatusQueued  = "queued"
+	TenantOpStatusRunning = "running"
+	TenantOpStatusSuccess = "success"
+	TenantOpStatusFailed  = "failed"
 )
 
 // Tenant 平台库中的租户元数据（一户一库 / 一 schema）
@@ -29,7 +40,7 @@ type Tenant struct {
 	Code             string     `gorm:"uniqueIndex;size:64;not null;comment:租户短码" json:"code"`
 	Name             string     `gorm:"size:100;not null;comment:显示名称" json:"name"`
 	Status           uint8      `gorm:"default:1;index;comment:1启用 0禁用" json:"status"`
-	ProvisionStatus  string     `gorm:"size:32;default:pending;index;comment:pending|ready|failed" json:"provision_status"`
+	ProvisionStatus  string     `gorm:"size:32;default:pending;index;comment:pending|migrating|ready|failed" json:"provision_status"`
 	Driver           string     `gorm:"size:20;not null;comment:mysql|postgres" json:"driver"`
 	Isolation        string     `gorm:"size:20;not null;comment:database|schema" json:"isolation"`
 	Host             string     `gorm:"size:255;comment:空则回落平台 DB_HOST" json:"host"`
@@ -41,6 +52,11 @@ type Tenant struct {
 	ConnectionName   string     `gorm:"size:64;uniqueIndex;not null;comment:运行时 connection 名" json:"connection_name"`
 	LastMigrateError string     `gorm:"type:text;comment:最近一次 migrate 错误" json:"last_migrate_error"`
 	MigratedAt       *time.Time `gorm:"comment:最近一次 migrate 成功时间" json:"migrated_at"`
+	LastOp           string     `gorm:"size:32;comment:最近平台运维操作" json:"last_op"`
+	LastOpStatus     string     `gorm:"size:32;comment:idle|queued|running|success|failed" json:"last_op_status"`
+	LastOpMessage    string     `gorm:"type:text;comment:最近运维结果" json:"last_op_message"`
+	LastOpAt         *time.Time `gorm:"comment:最近运维时间" json:"last_op_at"`
+	LastBackupPath   string     `gorm:"size:512;comment:最近备份路径" json:"last_backup_path"`
 	orm.SoftDeletes
 }
 

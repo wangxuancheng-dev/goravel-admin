@@ -12,14 +12,21 @@ import {
   Space,
   Switch,
   Table,
+  Tag,
+  Tooltip,
+  Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useTranslation } from 'react-i18next'
 import { SettingOutlined } from '@ant-design/icons'
 import {
+  backupPlatformTenant,
   createPlatformTenant,
   getPlatformTenantList,
+  migratePlatformTenant,
+  pingPlatformTenant,
   platformHealth,
+  seedPlatformTenant,
   updatePlatformTenant,
   updatePlatformTenantStatus,
 } from '@/api/platform'
@@ -45,15 +52,29 @@ interface TenantRow {
   username?: string
   has_password?: boolean
   status?: number
+  provision_status?: string
+  last_op?: string
+  last_op_status?: string
+  last_op_message?: string
+  last_migrate_error?: string
+  last_backup_path?: string
+  migrated_at?: string
   created_at?: string
+}
+
+function isTenantBusy(row: TenantRow) {
+  if (row.provision_status === 'migrating') return true
+  return row.last_op_status === 'queued' || row.last_op_status === 'running'
 }
 
 export default function PlatformTenantList() {
   const { t } = useTranslation()
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const showError = useUnhandledError()
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<TenantRow | null>(null)
+  const [migrateTarget, setMigrateTarget] = useState<TenantRow | null>(null)
+  const [withSeed, setWithSeed] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [healthDesc, setHealthDesc] = useState(t('platform.cli_ops_hint'))
@@ -108,26 +129,100 @@ export default function PlatformTenantList() {
         username: String(entityField(record, 'username', '') ?? ''),
         has_password: Boolean(entityField(record, 'has_password', false)),
         status: Number(entityField(record, 'status', 0) ?? 0),
+        provision_status: String(entityField(record, 'provision_status', '') ?? ''),
+        last_op: String(entityField(record, 'last_op', '') ?? ''),
+        last_op_status: String(entityField(record, 'last_op_status', '') ?? ''),
+        last_op_message: String(entityField(record, 'last_op_message', '') ?? ''),
+        last_migrate_error: String(entityField(record, 'last_migrate_error', '') ?? ''),
+        last_backup_path: String(entityField(record, 'last_backup_path', '') ?? ''),
+        migrated_at: String(entityField(record, 'migrated_at', '') ?? ''),
         created_at: String(entityField(record, 'created_at', '') ?? ''),
       }
     },
   })
 
+  const hasBusy = tableData.some(isTenantBusy)
+  useEffect(() => {
+    if (!hasBusy) return
+    const timer = window.setInterval(() => {
+      void refresh()
+    }, 3000)
+    return () => window.clearInterval(timer)
+  }, [hasBusy, refresh])
+
+  const provisionLabel = (status?: string) => {
+    switch (status) {
+      case 'ready':
+        return t('tenant.provision_ready')
+      case 'migrating':
+        return t('tenant.provision_migrating')
+      case 'failed':
+        return t('tenant.provision_failed')
+      case 'pending':
+      default:
+        return t('tenant.provision_pending')
+    }
+  }
+
+  const provisionColor = (status?: string) => {
+    switch (status) {
+      case 'ready':
+        return 'success'
+      case 'migrating':
+        return 'processing'
+      case 'failed':
+        return 'error'
+      default:
+        return 'default'
+    }
+  }
+
+  const runQueued = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn()
+      message.success(t('tenant.op_queued'))
+      await refresh()
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    }
+  }
+
   const columns = useMemo<ColumnsType<TenantRow>>(
     () => [
-      { title: t('table.id'), dataIndex: 'id', key: 'id', width: 80, sorter: true },
-      { title: t('tenant.code'), dataIndex: 'code', key: 'code' },
-      { title: t('tenant.name'), dataIndex: 'name', key: 'name' },
-      { title: t('tenant.driver'), dataIndex: 'driver', key: 'driver', width: 100 },
-      { title: t('tenant.isolation'), dataIndex: 'isolation', key: 'isolation', width: 110 },
-      { title: t('tenant.host'), dataIndex: 'host', key: 'host' },
-      { title: t('tenant.database'), dataIndex: 'database', key: 'database' },
-      { title: t('tenant.schema'), dataIndex: 'schema', key: 'schema' },
+      { title: t('table.id'), dataIndex: 'id', key: 'id', width: 70, sorter: true },
+      { title: t('tenant.code'), dataIndex: 'code', key: 'code', width: 110 },
+      { title: t('tenant.name'), dataIndex: 'name', key: 'name', width: 120 },
+      { title: t('tenant.driver'), dataIndex: 'driver', key: 'driver', width: 90 },
+      { title: t('tenant.database'), dataIndex: 'database', key: 'database', width: 140 },
+      {
+        title: t('tenant.provision_status'),
+        dataIndex: 'provision_status',
+        key: 'provision_status',
+        width: 110,
+        render: (status: string, row) => (
+          <Tooltip title={row.last_migrate_error || row.last_op_message || undefined}>
+            <Tag color={provisionColor(status)}>{provisionLabel(status)}</Tag>
+          </Tooltip>
+        ),
+      },
+      {
+        title: t('tenant.last_op'),
+        key: 'last_op',
+        width: 140,
+        render: (_, row) => {
+          if (!row.last_op && !row.last_op_status) return '—'
+          return (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {row.last_op || '—'} / {row.last_op_status || '—'}
+            </Typography.Text>
+          )
+        },
+      },
       {
         title: t('common.status'),
         dataIndex: 'status',
         key: 'status',
-        width: 110,
+        width: 90,
         render: (status, row) => (
           <Switch
             checked={Number(status) === 1}
@@ -143,33 +238,92 @@ export default function PlatformTenantList() {
           />
         ),
       },
-      { title: t('table.created_at'), dataIndex: 'created_at', key: 'created_at', width: 180 },
+      { title: t('table.created_at'), dataIndex: 'created_at', key: 'created_at', width: 170 },
       {
         title: t('common.operation'),
         key: 'actions',
-        width: 100,
-        render: (_, row) => (
-          <Button
-            type="link"
-            onClick={() => {
-              setEditing(row)
-              form.setFieldsValue({
-                name: row.name,
-                host: row.host,
-                port: row.port || 0,
-                username: row.username,
-                password: '',
-                database: row.database,
-                schema: row.schema,
-              })
-            }}
-          >
-            {t('common.edit')}
-          </Button>
-        ),
+        width: 280,
+        fixed: 'right',
+        render: (_, row) => {
+          const busy = isTenantBusy(row)
+          return (
+            <Space size={0} wrap>
+              <Button
+                type="link"
+                size="small"
+                disabled={busy}
+                onClick={() => {
+                  setEditing(row)
+                  form.setFieldsValue({
+                    name: row.name,
+                    host: row.host,
+                    port: row.port || 0,
+                    username: row.username,
+                    password: '',
+                    database: row.database,
+                    schema: row.schema,
+                  })
+                }}
+              >
+                {t('common.edit')}
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                onClick={async () => {
+                  try {
+                    await pingPlatformTenant(row.id)
+                    message.success(t('tenant.ping_ok'))
+                  } catch (error) {
+                    showError(error, t('common.operation_failed'))
+                  }
+                }}
+              >
+                {t('tenant.op_ping')}
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                disabled={busy}
+                onClick={() => {
+                  setWithSeed(true)
+                  setMigrateTarget(row)
+                }}
+              >
+                {t('tenant.op_migrate')}
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                disabled={busy}
+                onClick={() => {
+                  modal.confirm({
+                    title: t('tenant.op_seed_confirm'),
+                    onOk: () => runQueued(() => seedPlatformTenant(row.id)),
+                  })
+                }}
+              >
+                {t('tenant.op_seed')}
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                disabled={busy}
+                onClick={() => {
+                  modal.confirm({
+                    title: t('tenant.op_backup_confirm'),
+                    onOk: () => runQueued(() => backupPlatformTenant(row.id)),
+                  })
+                }}
+              >
+                {t('tenant.op_backup')}
+              </Button>
+            </Space>
+          )
+        },
       },
     ],
-    [t, message, refresh, showError, form],
+    [t, message, modal, refresh, showError, form],
   )
 
   const {
@@ -284,6 +438,7 @@ export default function PlatformTenantList() {
         loading={loading}
         dataSource={tableData}
         columns={filteredColumns}
+        scroll={{ x: 1200 }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.pageSize,
@@ -304,6 +459,41 @@ export default function PlatformTenantList() {
         fixedColumns={fixedColumns}
         onConfirm={handleColumnSettingConfirm}
       />
+
+      <Modal
+        title={t('tenant.op_migrate')}
+        open={!!migrateTarget}
+        onCancel={() => setMigrateTarget(null)}
+        onOk={() => {
+          if (!migrateTarget) return
+          void (async () => {
+            try {
+              await migratePlatformTenant(migrateTarget.id, { with_seed: withSeed })
+              message.success(t('tenant.op_queued'))
+              setMigrateTarget(null)
+              await refresh()
+            } catch (error) {
+              showError(error, t('common.operation_failed'))
+            }
+          })()
+        }}
+        destroyOnHidden
+      >
+        <p>{t('tenant.op_migrate_confirm')}</p>
+        <div>
+          <Switch checked={withSeed} onChange={setWithSeed} />{' '}
+          <span style={{ marginLeft: 8 }}>{t('tenant.op_with_seed')}</span>
+        </div>
+        {migrateTarget?.last_migrate_error ? (
+          <Alert
+            style={{ marginTop: 12 }}
+            type="error"
+            showIcon
+            message={t('tenant.migrate_error')}
+            description={migrateTarget.last_migrate_error}
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         title={t('tenant.add')}
