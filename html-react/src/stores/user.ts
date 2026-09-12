@@ -31,6 +31,9 @@ function toBasicAdminInfo(adminInfo: AdminInfo): AdminInfo {
     phone: adminInfo.phone || (adminInfo as { Phone?: string }).Phone,
     department_id: adminInfo.department_id || (adminInfo as { DepartmentID?: number }).DepartmentID,
     department: adminInfo.department || (adminInfo as { Department?: unknown }).Department,
+    must_change_password: !!(
+      adminInfo.must_change_password ?? (adminInfo as { mustChangePassword?: boolean }).mustChangePassword
+    ),
     roles: (adminInfo.roles || (adminInfo as { Roles?: AdminInfo['roles'] }).Roles || []).map((role) => ({
       id: role.id || (role as { ID?: number }).ID!,
       name: role.name || (role as { Name?: string }).Name || '',

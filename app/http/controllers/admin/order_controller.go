@@ -335,7 +335,51 @@ func (r *OrderController) Import(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, "file_required")
 	}
 
-	result, filename, err := services.NewImportOrderService(ctx).ImportUploadedCSV(file)
+	importSvc := services.NewImportOrderService(ctx)
+	asyncFlag := strings.TrimSpace(ctx.Request().Query("async", ctx.Request().Input("async", "")))
+	forceAsync := asyncFlag == "1" || strings.EqualFold(asyncFlag, "true")
+
+	// Peek row count via temp save when async requested or for threshold check.
+	// Always save-then-count when forceAsync; otherwise sync path keeps previous behavior unless large.
+	if forceAsync {
+		disk, path, filename, dataRows, saveErr := importSvc.SaveUploadedCSVForAsync(file)
+		if saveErr != nil {
+			attrs := map[string]any{"filename": filename, "admin_id": adminID}
+			fallback := http.StatusInternalServerError
+			if _, ok := apperrors.GetBusinessError(saveErr); ok {
+				fallback = http.StatusBadRequest
+			}
+			return HandleGeneratedServiceError(ctx, "import", fallback, saveErr, attrs)
+		}
+		return r.enqueueOrderImport(ctx, disk, path, dataRows)
+	}
+
+	// Sync path: save briefly to count; if over threshold, keep file and enqueue.
+	disk, path, filename, dataRows, saveErr := importSvc.SaveUploadedCSVForAsync(file)
+	if saveErr != nil {
+		attrs := map[string]any{"filename": filename, "admin_id": adminID}
+		fallback := http.StatusInternalServerError
+		if _, ok := apperrors.GetBusinessError(saveErr); ok {
+			fallback = http.StatusBadRequest
+		}
+		return HandleGeneratedServiceError(ctx, "import", fallback, saveErr, attrs)
+	}
+	if dataRows >= services.AsyncImportRowThreshold {
+		return r.enqueueOrderImport(ctx, disk, path, dataRows)
+	}
+
+	// Small file: import sync then delete source.
+	storage, storErr := utils.StorageDisk(disk)
+	if storErr != nil {
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, storErr, nil)
+	}
+	csvContent, getErr := storage.Get(path)
+	if getErr != nil {
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, getErr, nil)
+	}
+	defer func() { _ = storage.Delete(path) }()
+
+	result, err := importSvc.ImportOrders(csvContent)
 	if err != nil {
 		attrs := map[string]any{"filename": filename, "admin_id": adminID}
 		fallback := http.StatusInternalServerError
@@ -346,10 +390,38 @@ func (r *OrderController) Import(ctx http.Context) http.Response {
 	}
 
 	return response.Success(ctx, http.Json{
+		"async":         false,
 		"total_rows":    result.TotalRows,
 		"success_count": result.SuccessCount,
 		"failed_count":  result.FailedCount,
 		"errors":        result.Errors,
 		"message":       trans.Get(ctx, "import_success"),
+	})
+}
+
+func (r *OrderController) enqueueOrderImport(ctx http.Context, disk, path string, totalRows int) http.Response {
+	result := EnqueueAsyncImport(ctx, EnqueueAsyncImportInput{
+		LockResource: "orders_import",
+		ImportType:   models.ImportTypeOrders,
+		Disk:         disk,
+		Path:         path,
+		TotalRows:    totalRows,
+		Job:          &jobs.ImportOrders{},
+	})
+	if result.Unauthorized {
+		return response.Error(ctx, http.StatusUnauthorized, "unauthorized")
+	}
+	if result.Blocked {
+		return response.Error(ctx, http.StatusTooManyRequests, "too_many_requests")
+	}
+	if result.Err != nil {
+		return HandleGeneratedServiceError(ctx, "import", http.StatusInternalServerError, result.Err, map[string]any{
+			"import_id": result.ImportID,
+		})
+	}
+	return response.Success(ctx, http.Json{
+		"async":     true,
+		"import_id": result.ImportID,
+		"message":   trans.Get(ctx, "queued"),
 	})
 }

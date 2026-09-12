@@ -313,7 +313,11 @@ const handleLogin = async () => {
           await new Promise(resolve => setTimeout(resolve, 100))
           await userStore.fetchUserInfo()
           ElMessage.success(t('login.login_success'))
-          router.push('/')
+          if (userStore.adminInfo?.must_change_password) {
+            router.push({ path: '/profile', query: { tab: 'password' } })
+          } else {
+            router.push('/')
+          }
         } else {
           throw new Error(t('login.login_failed'))
         }

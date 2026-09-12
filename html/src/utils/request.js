@@ -213,7 +213,14 @@ request.interceptors.response.use(
         if (businessCode === 401) {
           handle401Error(message || t('error.unauthorized'))
         } else if (businessCode === 403) {
-          handle403Error(message || t('error.forbidden'))
+          if (errorCode === 'must_change_password') {
+            ElMessage.warning(message || t('profile.must_change_password_title'))
+            if (router.currentRoute.value.path !== '/profile') {
+              router.replace({ path: '/profile', query: { tab: 'password' } }).catch(() => {})
+            }
+          } else {
+            handle403Error(message || t('error.forbidden'))
+          }
         } else {
           // 显示后端返回的实际错误消息
           ElMessage.error(message || t('error.default'))
@@ -282,8 +289,16 @@ request.interceptors.response.use(
         }
       } else if (status === 403) {
         if (!isAuthEndpoint) {
-          handle403Error(message || t('error.forbidden'))
-          error.__handled = true
+          if (errorCode === 'must_change_password') {
+            ElMessage.warning(message || t('profile.must_change_password_title'))
+            if (router.currentRoute.value.path !== '/profile') {
+              router.replace({ path: '/profile', query: { tab: 'password' } }).catch(() => {})
+            }
+            error.__handled = true
+          } else {
+            handle403Error(message || t('error.forbidden'))
+            error.__handled = true
+          }
         } else {
           // 登录接口错误，不在这里显示，让 Login.vue 处理
           error.errorCode = errorCode

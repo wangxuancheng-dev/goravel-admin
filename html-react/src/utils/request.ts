@@ -145,7 +145,14 @@ http.interceptors.response.use(
         if (businessCode === 401) {
           handle401Error(msg || i18n.t('error.unauthorized'))
         } else if (businessCode === 403) {
-          handle403Error(msg || i18n.t('error.forbidden'))
+          if (errorCode === 'must_change_password') {
+            antdMessage.warning(msg || i18n.t('profile.must_change_password_title'))
+            if (!window.location.pathname.includes('/profile')) {
+              window.location.replace('/profile?tab=password')
+            }
+          } else {
+            handle403Error(msg || i18n.t('error.forbidden'))
+          }
         } else {
           antdMessage.error(msg || i18n.t('error.default'))
         }
@@ -201,8 +208,16 @@ http.interceptors.response.use(
         }
       } else if (status === 403) {
         if (!isAuthEndpoint) {
-          handle403Error(msg || i18n.t('error.forbidden'))
-          error.__handled = true
+          if (errorCode === 'must_change_password') {
+            antdMessage.warning(msg || i18n.t('profile.must_change_password_title'))
+            if (!window.location.pathname.includes('/profile')) {
+              window.location.replace('/profile?tab=password')
+            }
+            error.__handled = true
+          } else {
+            handle403Error(msg || i18n.t('error.forbidden'))
+            error.__handled = true
+          }
         } else {
           error.errorCode = errorCode
           error.message = msg

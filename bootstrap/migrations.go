@@ -75,5 +75,7 @@ func Migrations() []schema.Migration {
 		&migrations.M20260912000002AddMigrateMetaToTenants{},
 		&migrations.M20260912000003AddDataScopeToRoles{},
 		&migrations.M20260913000001AddTenantOpsMeta{},
+		&migrations.M20260913000002AddMustChangePasswordToAdmins{},
+		&migrations.M20260913000003CreateImportsTable{},
 	}
 }

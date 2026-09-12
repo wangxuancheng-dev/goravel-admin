@@ -112,6 +112,9 @@ func (s *ArticleServiceImpl) GetByID(id uint) (*models.Article, error) {
 	if err := query.FirstOrFail(&item); err != nil {
 		return nil, apperrors.ErrRecordNotFound.WithError(err)
 	}
+	if !CanAccessOwnedBy(s.ctx, item.AdminId) {
+		return nil, apperrors.ErrForbidden
+	}
 	return &item, nil
 }
 

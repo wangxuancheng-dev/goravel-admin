@@ -34,3 +34,20 @@ func TestPaidResultRequiresPaymentNo(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, apperrors.ErrPaymentNoRequired.Code, be.Code)
 }
+
+func TestApplyPaidResultDecisionIdempotent(t *testing.T) {
+	skip, err := applyPaidResultStatusGate(models.PaymentStatusPaid)
+	require.NoError(t, err)
+	assert.True(t, skip, "already-paid payments must short-circuit without order writes")
+
+	skip, err = applyPaidResultStatusGate(models.PaymentStatusPending)
+	require.NoError(t, err)
+	assert.False(t, skip)
+
+	skip, err = applyPaidResultStatusGate(models.PaymentStatusFailed)
+	require.Error(t, err)
+	assert.False(t, skip)
+	be, ok := apperrors.GetBusinessError(err)
+	require.True(t, ok)
+	assert.Equal(t, apperrors.ErrPaymentStatusInvalid.Code, be.Code)
+}

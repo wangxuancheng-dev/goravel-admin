@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -23,6 +25,7 @@ type OperationLogService interface {
 	Delete(id uint) error
 	BatchDelete(ids []uint) error
 	Clean(days int) error
+	Archive(days int) (exportID uint, err error)
 	GetTitleOptions() []string
 }
 
@@ -173,6 +176,105 @@ func (s *OperationLogServiceImpl) Clean(days int) error {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
 	return nil
+}
+
+// Archive exports operation logs older than N days to CSV (sync), then deletes those rows.
+func (s *OperationLogServiceImpl) Archive(days int) (uint, error) {
+	if days <= 0 {
+		days = constants.DefaultCleanLogDays
+	}
+	cutoffTime := time.Now().AddDate(0, 0, -days)
+
+	var logs []models.OperationLog
+	if err := appfacades.OrmQuery(s.ctx).Model(&models.OperationLog{}).
+		Where("created_at < ?", cutoffTime).
+		Order("id asc").
+		Find(&logs); err != nil {
+		return 0, apperrors.ErrQueryFailed.WithError(err)
+	}
+
+	adminID := uint(0)
+	if admin := adminFromContext(s.ctx); admin != nil {
+		adminID = admin.ID
+	}
+
+	disk := "local"
+	if v := utils.GetConfigValue(s.ctx, "storage", "file_disk", ""); v != "" {
+		disk = v
+	} else if v := utils.GetConfigValue(s.ctx, "storage", "export_disk", ""); v != "" {
+		disk = v
+	}
+
+	exportRecord := models.Export{
+		AdminID: adminID,
+		Type:    models.ExportTypeOperationLogsArchive,
+		Status:  models.ExportStatusProcessing,
+		Disk:    disk,
+	}
+	if err := appfacades.OrmQuery(s.ctx).Create(&exportRecord); err != nil {
+		return 0, apperrors.ErrCreateFailed.WithError(err)
+	}
+
+	headers := []string{
+		"id", "admin_id", "trace_id", "method", "path", "title", "ip",
+		"user_agent", "request", "response", "changes", "status", "error_msg", "duration", "created_at",
+	}
+	data := make([][]string, 0, len(logs))
+	for _, log := range logs {
+		createdAt := ""
+		if log.CreatedAt != nil && !log.CreatedAt.IsZero() {
+			createdAt = log.CreatedAt.ToDateTimeString()
+		}
+		data = append(data, []string{
+			fmt.Sprintf("%d", log.ID),
+			fmt.Sprintf("%d", log.AdminID),
+			log.TraceID,
+			log.Method,
+			log.Path,
+			log.Title,
+			log.IP,
+			log.UserAgent,
+			log.Request,
+			log.Response,
+			log.Changes,
+			fmt.Sprintf("%d", log.Status),
+			log.ErrorMsg,
+			fmt.Sprintf("%d", log.Duration),
+			createdAt,
+		})
+	}
+
+	filename := fmt.Sprintf("operation_logs_archive_%d_%s.csv", exportRecord.ID, time.Now().Format("20060102_150405"))
+	exportService := &ExportServiceImpl{
+		disk:   disk,
+		path:   "exports",
+		format: "csv",
+	}
+	filePath, err := exportService.ExportToCSV(headers, data, filename, true)
+	if err != nil {
+		exportRecord.Status = models.ExportStatusFailed
+		exportRecord.ErrorMsg = err.Error()
+		_ = appfacades.OrmQuery(s.ctx).Save(&exportRecord)
+		return exportRecord.ID, err
+	}
+
+	exportRecord.Path = filePath
+	exportRecord.Filename = path.Base(filePath)
+	exportRecord.Extension = "csv"
+	exportRecord.Status = models.ExportStatusSuccess
+	if storage, storErr := utils.StorageDisk(exportRecord.Disk); storErr == nil {
+		if size, sizeErr := storage.Size(filePath); sizeErr == nil {
+			exportRecord.Size = size
+		}
+	}
+	if err := appfacades.OrmQuery(s.ctx).Save(&exportRecord); err != nil {
+		return exportRecord.ID, apperrors.ErrUpdateFailed.WithError(err)
+	}
+
+	if err := s.Clean(days); err != nil {
+		return exportRecord.ID, err
+	}
+	return exportRecord.ID, nil
 }
 
 func (s *OperationLogServiceImpl) GetTitleOptions() []string {

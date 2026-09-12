@@ -1,13 +1,13 @@
 package services
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/filesystem"
-	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -19,12 +19,15 @@ import (
 	"goravel/app/utils/errorlog"
 )
 
+// AsyncImportRowThreshold 超过该数据行数时订单导入走异步（可用 ?async=1 强制异步）。
+const AsyncImportRowThreshold = 500
+
 // ImportOrderService 订单导入服务
 type ImportOrderService struct {
-	ctx http.Context
+	ctx context.Context
 }
 
-func NewImportOrderService(ctx http.Context) *ImportOrderService {
+func NewImportOrderService(ctx context.Context) *ImportOrderService {
 	return &ImportOrderService{ctx: ctx}
 }
 
@@ -63,6 +66,56 @@ func (s *ImportOrderService) ImportUploadedCSV(file filesystem.File) (*ImportRes
 	return result, filename, err
 }
 
+// SaveUploadedCSVForAsync persists the upload for a background import job (not deleted).
+func (s *ImportOrderService) SaveUploadedCSVForAsync(file filesystem.File) (disk, savedPath, filename string, dataRows int, err error) {
+	if file == nil {
+		return "", "", "", 0, apperrors.ErrFileRequired
+	}
+	filename = file.GetClientOriginalName()
+	if !strings.HasSuffix(strings.ToLower(filename), ".csv") {
+		return "", "", filename, 0, apperrors.ErrInvalidFileType
+	}
+
+	disk = "local"
+	storage := facades.Storage().Disk(disk)
+	tmpDir := strings.TrimSuffix(helpers.TenantStoragePrefix(s.ctx), "/")
+	if tmpDir == "" {
+		tmpDir = "imports/pending"
+	} else {
+		tmpDir = tmpDir + "/imports/pending"
+	}
+	savedPath, err = storage.PutFile(tmpDir, file)
+	if err != nil {
+		return disk, "", filename, 0, err
+	}
+	csvContent, err := storage.Get(savedPath)
+	if err != nil {
+		_ = storage.Delete(savedPath)
+		return disk, "", filename, 0, err
+	}
+	dataRows = CountCSVDataRows(csvContent)
+	return disk, savedPath, filename, dataRows, nil
+}
+
+// CountCSVDataRows counts non-empty data rows (excluding header).
+func CountCSVDataRows(csvContent string) int {
+	reader := csv.NewReader(strings.NewReader(csvContent))
+	reader.TrimLeadingSpace = true
+	reader.LazyQuotes = true
+	records, err := reader.ReadAll()
+	if err != nil || len(records) < 2 {
+		return 0
+	}
+	count := 0
+	for _, row := range records[1:] {
+		if len(row) == 0 || (len(row) == 1 && strings.TrimSpace(row[0]) == "") {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
 // ImportOrderRow 导入订单行数据
 type ImportOrderRow struct {
 	OrderID     string // 订单ID（可选，如果为空则自动生成订单号）
@@ -97,7 +150,7 @@ func (s *ImportOrderService) ImportOrders(csvContent string) (*ImportResult, err
 
 	records, err := reader.ReadAll()
 	if err != nil {
-		errorlog.RecordHTTP(s.ctx, "import", "解析CSV失败", map[string]any{
+		errorlog.Record(s.ctx, "import", "解析CSV失败", map[string]any{
 			"error": err.Error(),
 		}, "解析CSV失败: %v", err)
 		return nil, apperrors.ErrInvalidCSVFormat.WithError(err)
@@ -340,7 +393,7 @@ func (s *ImportOrderService) importOrderGroup(orderService OrderService, orderKe
 	// 创建订单（使用空字符串作为requestID，让服务自动生成）
 	order, _, err := orderService.CreateOrder(userID, amount, products, "", remark)
 	if err != nil {
-		errorlog.RecordHTTP(s.ctx, "import", "创建订单失败", map[string]any{
+		errorlog.Record(s.ctx, "import", "创建订单失败", map[string]any{
 			"order_key": orderKey,
 			"user_id":   userID,
 			"amount":    amount,

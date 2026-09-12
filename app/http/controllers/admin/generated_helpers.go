@@ -61,6 +61,9 @@ func businessErrorStatus(code string, fallback int) int {
 	case code == "tenant_migrate_via_cli":
 		return http.StatusBadRequest
 	case code == "old_password_error" ||
+		code == "password_too_weak" ||
+		code == "sensitive_confirm_required" ||
+		code == "sensitive_confirm_invalid" ||
 		code == "google_code_invalid" ||
 		code == "google_code_required" ||
 		code == "google_authenticator_not_bound" ||
@@ -68,7 +71,8 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusBadRequest
 	case code == "token_refresh_failed":
 		return http.StatusUnauthorized
-	case strings.HasPrefix(code, "role_protected_") ||
+	case code == "must_change_password" ||
+		strings.HasPrefix(code, "role_protected_") ||
 		strings.HasPrefix(code, "admin_protected_") ||
 		strings.HasPrefix(code, "admin_cannot_") ||
 		code == "protected_admin":

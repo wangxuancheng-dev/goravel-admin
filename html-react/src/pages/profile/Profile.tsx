@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { App, Alert, Avatar, Button, Card, Form, Input, Modal, Space, Spin, Steps, Tabs, Typography } from 'antd'
 import { LoadingOutlined, UserOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { updatePassword, updateProfile } from '@/api/profile'
 import {
   bindGoogleAuthenticator,
@@ -54,6 +55,8 @@ export default function ProfilePage() {
   const showError = useUnhandledError()
   const adminInfo = useUserStore((s) => s.adminInfo)
   const fetchUserInfo = useUserStore((s) => s.fetchUserInfo)
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'password' ? 'password' : 'basic')
   const [profileForm] = Form.useForm()
   const [passwordForm] = Form.useForm()
   const [bindForm] = Form.useForm()
@@ -133,6 +136,7 @@ export default function ProfilePage() {
       })
       message.success(t('common.update_success'))
       passwordForm.resetFields()
+      await fetchUserInfo(true)
     } catch (error) {
       if ((error as { errorFields?: unknown })?.errorFields) return
       showError(error, t('common.operation_failed'))
@@ -203,9 +207,20 @@ export default function ProfilePage() {
 
   return (
     <PageContainer title={t('menu.profile')}>
+      {adminInfo?.must_change_password ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={t('profile.must_change_password_title')}
+          description={t('profile.must_change_password_desc')}
+        />
+      ) : null}
       <Card>
         <Tabs
+          activeKey={activeTab}
           onChange={(key) => {
+            setActiveTab(key)
             if (key === '2fa') void load2fa()
           }}
           items={[

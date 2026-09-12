@@ -379,6 +379,28 @@ func (c *AdminController) ResetGoogleAuthenticator(ctx http.Context) http.Respon
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrProtectedAdmin.Code)
 	}
 
+	currentAdmin, resp := c.currentAdminFromContext(ctx)
+	if resp != nil {
+		return resp
+	}
+	if currentAdmin == nil {
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrNotLoggedIn.Code)
+	}
+
+	confirmCode := ctx.Request().Input("confirm_code")
+	if confirmCode == "" {
+		confirmCode = ctx.Request().Input("confirm_password")
+	}
+	if confirmCode == "" {
+		confirmCode = ctx.Request().Input("code")
+	}
+	if err := services.VerifySensitiveConfirm(ctx, currentAdmin.ID, confirmCode); err != nil {
+		return HandleGeneratedServiceError(ctx, "admin", http.StatusBadRequest, err, map[string]any{
+			"target_admin_id":  targetAdminID,
+			"current_admin_id": currentAdmin.ID,
+		})
+	}
+
 	targetIsBound, err := c.googleAuthenticatorService(ctx).IsBound(targetAdminID)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{

@@ -94,6 +94,7 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "部门创建", Slug: "department.store", Method: "POST", Path: "/api/admin/departments", Description: "创建部门", Status: 1, Sort: 3, MenuID: departmentMenu.ID},
 		{Name: "部门更新", Slug: "department.update", Method: "PUT", Path: "/api/admin/departments/*", Description: "更新部门", Status: 1, Sort: 4, MenuID: departmentMenu.ID},
 		{Name: "部门删除", Slug: "department.destroy", Method: "DELETE", Path: "/api/admin/departments/*", Description: "删除部门", Status: 1, Sort: 5, MenuID: departmentMenu.ID},
+		{Name: "部门管理员批量转移", Slug: "department.transfer_admins", Method: "POST", Path: "/api/admin/departments/*/transfer-admins", Description: "批量转移部门管理员", Status: 1, Sort: 6, MenuID: departmentMenu.ID},
 		// 岗位管理
 		{Name: "岗位列表", Slug: "position.index", Method: "GET", Path: "/api/admin/positions", Description: "查看岗位列表", Status: 1, Sort: 1, MenuID: positionMenu.ID},
 		{Name: "岗位详情", Slug: "position.show", Method: "GET", Path: "/api/admin/positions/*", Description: "查看岗位详情", Status: 1, Sort: 2, MenuID: positionMenu.ID},
@@ -127,7 +128,8 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "操作日志详情", Slug: "operation_log.show", Method: "GET", Path: "/api/admin/operation-logs/*", Description: "查看操作日志详情", Status: 1, Sort: 2, MenuID: operationLogMenu.ID},
 		{Name: "操作日志删除", Slug: "operation_log.destroy", Method: "DELETE", Path: "/api/admin/operation-logs/*", Description: "删除操作日志", Status: 1, Sort: 3, MenuID: operationLogMenu.ID},
 		{Name: "操作日志批量删除", Slug: "operation_log.batch_delete", Method: "POST", Path: "/api/admin/operation-logs/batch-delete", Description: "批量删除操作日志", Status: 1, Sort: 4, MenuID: operationLogMenu.ID},
-		// {Name: "操作日志清理", Slug: "operation_log.clean", Method: "POST", Path: "/api/admin/operation-logs/clean", Description: "清理操作日志", Status: 1, Sort: 5, MenuID: operationLogMenu.ID},
+		{Name: "操作日志清理", Slug: "operation_log.clean", Method: "POST", Path: "/api/admin/operation-logs/clean", Description: "清理操作日志", Status: 1, Sort: 5, MenuID: operationLogMenu.ID},
+		{Name: "操作日志归档", Slug: "operation_log.archive", Method: "POST", Path: "/api/admin/operation-logs/archive", Description: "归档并清理操作日志", Status: 1, Sort: 6, MenuID: operationLogMenu.ID},
 		// 登录日志
 		{Name: "登录日志列表", Slug: "login_log.index", Method: "GET", Path: "/api/admin/login-logs", Description: "查看登录日志列表", Status: 1, Sort: 1, MenuID: loginLogMenu.ID},
 		{Name: "登录日志详情", Slug: "login_log.show", Method: "GET", Path: "/api/admin/login-logs/*", Description: "查看登录日志详情", Status: 1, Sort: 2, MenuID: loginLogMenu.ID},
@@ -196,6 +198,8 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "订单删除", Slug: "order.destroy", Method: "DELETE", Path: "/api/admin/orders/*", Description: "删除订单", Status: 1, Sort: 5, MenuID: orderMenu.ID},
 		{Name: "订单导出", Slug: "order.export", Method: "POST", Path: "/api/admin/orders/export", Description: "导出订单列表", Status: 1, Sort: 6, MenuID: orderMenu.ID},
 		{Name: "订单导入", Slug: "order.import", Method: "POST", Path: "/api/admin/orders/import", Description: "导入订单列表", Status: 1, Sort: 7, MenuID: orderMenu.ID},
+		{Name: "导入状态", Slug: "order.import_status", Method: "GET", Path: "/api/admin/imports/*", Description: "查看异步导入状态", Status: 1, Sort: 8, MenuID: orderMenu.ID},
+		{Name: "导入错误文件", Slug: "order.import_error_file", Method: "GET", Path: "/api/admin/imports/*/error-file", Description: "下载导入失败行文件", Status: 1, Sort: 9, MenuID: orderMenu.ID},
 		// 用户管理
 		{Name: "用户列表", Slug: "user.index", Method: "GET", Path: "/api/admin/users", Description: "查看用户列表", Status: 1, Sort: 1, MenuID: userMenu.ID},
 		{Name: "用户详情", Slug: "user.show", Method: "GET", Path: "/api/admin/users/*", Description: "查看用户详情", Status: 1, Sort: 2, MenuID: userMenu.ID},

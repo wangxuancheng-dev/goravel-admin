@@ -127,7 +127,8 @@ export default function LoginPage() {
 
       await fetchUserInfo(true)
       message.success(t('login.login_success'))
-      navigate('/dashboard', { replace: true })
+      const mustChange = !!useUserStore.getState().adminInfo?.must_change_password
+      navigate(mustChange ? '/profile?tab=password' : '/dashboard', { replace: true })
     } catch (error) {
       const err = error as ApiError
       const code = err.errorCode || ''

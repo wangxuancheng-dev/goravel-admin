@@ -77,3 +77,28 @@ go run . artisan migrate
 curl -sf http://127.0.0.1:3000/health
 curl -sf http://127.0.0.1:3000/ready
 ```
+
+## 6. 管理端 SPA（Vue）与 Docker
+
+默认 **Vue（`html/`）是主发货 UI**；React（`html-react/`）为对等展示实现，不随镜像默认打包。
+
+本地 / CI 单独构建前端：
+
+```bash
+cd html && npm ci && npm run build
+# 产物在 html/dist；可用 nginx 反代，或拷到 public/admin 由 Go 静态托管
+```
+
+Docker 镜像支持可选同镜像内嵌 SPA：
+
+```bash
+# 仅 API（默认）：不构建前端，public/admin 可能为空目录
+docker build -t goravel-admin .
+
+# 构建 Vue 并复制到 public/admin
+docker build --build-arg BUILD_FRONTEND=1 -t goravel-admin .
+```
+
+健康检查使用 **`GET /ready`**（就绪，含 DB/Redis），Dockerfile `HEALTHCHECK` 与 blue/green compose 已对齐；存活仍可用 `GET /health`。
+
+通知渠道（邮件 / Webhook）见环境变量：`NOTIFICATION_MAIL_ENABLED`、`NOTIFICATION_WEBHOOK_ENABLED`、`NOTIFICATION_WEBHOOK_URL`。

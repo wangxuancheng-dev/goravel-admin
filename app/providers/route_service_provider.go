@@ -174,6 +174,74 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 			limit.PerDay(perDay).Response(rateLimited).By(key + ":day"),
 		}
 	})
+
+	// 后台已认证 API 角色限流
+	facades.RateLimiter().For("adminApi", func(ctx contractshttp.Context) contractshttp.Limit {
+		perMinute := resolveAdminAPIRateLimit(ctx)
+		adminID := resolveAdminIdentifier(ctx)
+		return limit.PerMinute(perMinute).Response(func(ctx contractshttp.Context) {
+			response.Abort(ctx, contractshttp.StatusTooManyRequests, "too_many_requests")
+		}).By("admin_api:" + adminID)
+	})
+}
+
+// resolveAdminAPIRateLimit 按角色与请求方法选择限流阈值。
+func resolveAdminAPIRateLimit(ctx contractshttp.Context) int {
+	cfg := facades.Config()
+	superLimit := cfg.GetInt("login_security.role_rate_limits.super_admin_per_minute", 1200)
+	defaultLimit := cfg.GetInt("login_security.role_rate_limits.default_per_minute", 300)
+	writeLimit := cfg.GetInt("login_security.role_rate_limits.write_per_minute", 120)
+	if superLimit < 1 {
+		superLimit = 1200
+	}
+	if defaultLimit < 1 {
+		defaultLimit = 300
+	}
+	if writeLimit < 1 {
+		writeLimit = 120
+	}
+
+	if isSuperAdminFromContext(ctx) {
+		return superLimit
+	}
+
+	method := strings.ToUpper(ctx.Request().Method())
+	switch method {
+	case "POST", "PUT", "PATCH", "DELETE":
+		return writeLimit
+	default:
+		return defaultLimit
+	}
+}
+
+func isSuperAdminFromContext(ctx contractshttp.Context) bool {
+	adminValue := ctx.Value("admin")
+	if adminValue == nil {
+		return false
+	}
+
+	var admin models.Admin
+	switch v := adminValue.(type) {
+	case models.Admin:
+		admin = v
+	case *models.Admin:
+		if v == nil {
+			return false
+		}
+		admin = *v
+	default:
+		return false
+	}
+
+	if len(admin.Roles) == 0 {
+		_ = facades.OrmQuery(ctx).Where("id", admin.ID).With("Roles").First(&admin)
+	}
+	for _, role := range admin.Roles {
+		if role.Slug == "super-admin" && role.Status == 1 {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveLoginIdentifier 从请求中提取登录标识（username > email > X-Username > IP fallback）。

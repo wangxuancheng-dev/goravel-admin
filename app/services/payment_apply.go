@@ -37,11 +37,12 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 		return nil, err
 	}
 
-	if payment.Status == models.PaymentStatusPaid {
-		return payment, nil
+	skip, err := applyPaidResultStatusGate(payment.Status)
+	if err != nil {
+		return nil, err
 	}
-	if payment.Status != models.PaymentStatusPending {
-		return nil, apperrors.ErrPaymentStatusInvalid.WithMessage("only pending payments can be marked paid")
+	if skip {
+		return payment, nil
 	}
 
 	if result.Amount != nil && math.Abs(*result.Amount-payment.Amount) > 0.009 {
@@ -84,4 +85,15 @@ func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, e
 	}
 
 	return payments.GetPaymentByPaymentNo(paymentNo)
+}
+
+// applyPaidResultStatusGate returns skip=true when payment is already paid (idempotent no-op).
+func applyPaidResultStatusGate(status string) (skip bool, err error) {
+	if status == models.PaymentStatusPaid {
+		return true, nil
+	}
+	if status != models.PaymentStatusPending {
+		return false, apperrors.ErrPaymentStatusInvalid.WithMessage("only pending payments can be marked paid")
+	}
+	return false, nil
 }

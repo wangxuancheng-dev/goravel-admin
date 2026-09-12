@@ -1394,6 +1394,8 @@
     "phone_invalid": "Please enter a valid phone number",
     "update_success": "Update successful",
     "password_update_success": "Password updated successfully",
+    "must_change_password_title": "Change your password",
+    "must_change_password_desc": "Your password was reset or must be changed before you can continue.",
     "avatar_update_success": "Avatar updated successfully",
     "avatar_format_error": "Avatar must be an image",
     "avatar_size_error": "Avatar size cannot exceed 2MB",

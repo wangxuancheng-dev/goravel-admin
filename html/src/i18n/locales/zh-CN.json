@@ -1403,6 +1403,8 @@
     "phone_invalid": "请输入有效的手机号",
     "update_success": "更新成功",
     "password_update_success": "密码修改成功",
+    "must_change_password_title": "请先修改密码",
+    "must_change_password_desc": "管理员已重置您的密码，或账号要求强制改密。修改成功后方可继续使用系统。",
     "avatar_update_success": "头像更新成功",
     "avatar_format_error": "头像只能是图片格式",
     "avatar_size_error": "头像大小不能超过 2MB",

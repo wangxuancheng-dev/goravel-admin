@@ -19,6 +19,7 @@ type DepartmentService interface {
 	GetList(filters DepartmentFilters, page, pageSize int) ([]models.Department, int64, error)
 	GetIndex(filters DepartmentFilters) (any, error)
 	HasAdmins(departmentID uint) (bool, error)
+	TransferAdmins(fromDeptID, toDeptID uint) (int64, error)
 	Create(req *admin.DepartmentCreate) (*models.Department, error)
 	Update(id uint, req *admin.DepartmentUpdate) (*models.Department, error)
 	Delete(id uint) error
@@ -121,6 +122,33 @@ func (s *DepartmentServiceImpl) HasAdmins(departmentID uint) (bool, error) {
 		return false, apperrors.ErrQueryFailed.WithError(err)
 	}
 	return count > 0, nil
+}
+
+// TransferAdmins moves all admins from fromDeptID to toDeptID.
+func (s *DepartmentServiceImpl) TransferAdmins(fromDeptID, toDeptID uint) (int64, error) {
+	if fromDeptID == 0 || toDeptID == 0 {
+		return 0, apperrors.ErrParamsError
+	}
+	if fromDeptID == toDeptID {
+		return 0, apperrors.ErrParamsError.WithMessage("source and target department must differ")
+	}
+	if _, err := s.GetByID(fromDeptID); err != nil {
+		return 0, err
+	}
+	if _, err := s.GetByID(toDeptID); err != nil {
+		return 0, err
+	}
+
+	result, err := appfacades.OrmQuery(s.ctx).Model(&models.Admin{}).
+		Where("department_id", fromDeptID).
+		Update("department_id", toDeptID)
+	if err != nil {
+		return 0, apperrors.ErrUpdateFailed.WithError(err)
+	}
+	if result == nil {
+		return 0, nil
+	}
+	return result.RowsAffected, nil
 }
 
 func (s *DepartmentServiceImpl) Create(req *admin.DepartmentCreate) (*models.Department, error) {

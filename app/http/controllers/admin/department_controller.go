@@ -88,3 +88,33 @@ func (c *DepartmentController) Destroy(ctx http.Context) http.Response {
 	}
 	return response.Success(ctx, "delete_success", http.Json{})
 }
+
+type DepartmentTransferAdminsRequest struct {
+	ToDepartmentID uint `json:"to_department_id" form:"to_department_id"`
+}
+
+// TransferAdmins moves all admins from this department to another.
+func (c *DepartmentController) TransferAdmins(ctx http.Context) http.Response {
+	fromID := helpers.GetUintRoute(ctx, "id")
+	var req DepartmentTransferAdminsRequest
+	_ = ctx.Request().Bind(&req)
+	if req.ToDepartmentID == 0 {
+		req.ToDepartmentID = uint(helpers.GetIntQuery(ctx, "to_department_id", 0))
+	}
+	if fromID == 0 || req.ToDepartmentID == 0 {
+		return response.Error(ctx, http.StatusBadRequest, "params_error")
+	}
+
+	affected, err := c.DepartmentService(ctx).TransferAdmins(fromID, req.ToDepartmentID)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "department", http.StatusInternalServerError, err, map[string]any{
+			"from_department_id": fromID,
+			"to_department_id":   req.ToDepartmentID,
+		})
+	}
+	return response.Success(ctx, http.Json{
+		"affected":           affected,
+		"from_department_id": fromID,
+		"to_department_id":   req.ToDepartmentID,
+	})
+}

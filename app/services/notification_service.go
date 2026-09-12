@@ -121,6 +121,8 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 			wsnotifications.Hub().Broadcast(s.wsTenantID(), notification)
 		}
 
+		DispatchNotificationChannels(s.ctx, notifications...)
+
 		return first, nil
 	}
 
@@ -136,6 +138,7 @@ func (s *NotificationServiceImpl) Create(title, content, notifType string, sende
 	}
 
 	wsnotifications.Hub().Broadcast(s.wsTenantID(), notification)
+	DispatchNotificationChannels(s.ctx, notification)
 
 	return notification, nil
 }
@@ -158,6 +161,11 @@ func (s *NotificationServiceImpl) buildNotificationQuery(adminID uint, notifType
 		query = query.Where("is_read = ?", false)
 	}
 
+	// Scope by receiver_id for announcement-style lists. Skip for message threads so
+	// "sent by me" rows remain visible when the receiver is outside the actor's dept scope.
+	if notifType != "message" {
+		query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "receiver_id"})
+	}
 	return query
 }
 

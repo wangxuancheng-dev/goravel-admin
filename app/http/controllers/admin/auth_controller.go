@@ -277,7 +277,9 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeInvalid.Code)
 		}
 	} else {
-		if r.captchaService(ctx).Enabled() {
+		captchaRequired := r.captchaService(ctx).Enabled() ||
+			r.lockoutService(ctx).GetFailureCount(ip, loginRequest.Username) >= 2
+		if captchaRequired {
 			captchaID := ctx.Request().Input("captcha_id")
 			captchaAnswer := ctx.Request().Input("captcha_answer")
 			if ok, messageKey := r.captchaService(ctx).Verify(captchaID, captchaAnswer); !ok {
@@ -292,6 +294,11 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 
 	// 所有验证通过，清除失败计数
 	r.lockoutService(ctx).ClearFailures(ip, loginRequest.Username)
+
+	// 登录异常检测（在写入本次成功日志之前对比上次成功 IP）
+	if alert, _ := services.NewLoginAnomalyService(ctx).CheckAndAlert(admin, ip); alert != nil && alert.Email != "" {
+		_ = services.EnqueueEmailFn(alert.Email, alert.Title, alert.Content)
+	}
 
 	// 验证通过，生成token并完成登录
 	token, err := r.authService(ctx).IssueAdminToken(ctx, admin.ID)
@@ -310,10 +317,11 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	return response.SuccessWithHeader(ctx, "login_success", "Authorization", "Bearer "+token, http.Json{
 		"token": token,
 		"admin": http.Json{
-			"id":       admin.ID,
-			"username": admin.Username,
-			"nickname": admin.Nickname,
-			"avatar":   admin.Avatar,
+			"id":                   admin.ID,
+			"username":             admin.Username,
+			"nickname":             admin.Nickname,
+			"avatar":               admin.Avatar,
+			"must_change_password": admin.MustChangePassword == 1,
 		},
 	})
 }
@@ -322,12 +330,21 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 // Query check=1：仅返回是否开启，不生成图片（避免登录页探测时产生无用 captcha）
 func (r *AuthController) Captcha(ctx http.Context) http.Response {
 	enabled := r.captchaService(ctx).Enabled()
+	ip := helpers.GetRealIP(ctx)
+	username := ctx.Request().Query("username", "")
+	if username == "" {
+		username = ctx.Request().Input("username", "")
+	}
+	adaptiveRequired := username != "" && r.lockoutService(ctx).GetFailureCount(ip, username) >= 2
+	required := enabled || adaptiveRequired
+
 	captchaData := http.Json{
-		"enabled": enabled,
+		"enabled":  enabled,
+		"required": required,
 	}
 
 	checkOnly := ctx.Request().Query("check", "") == "1"
-	if enabled && !checkOnly {
+	if required && !checkOnly {
 		captchaID, image, err := r.captchaService(ctx).Generate()
 		if err != nil {
 			return HandleGeneratedServiceError(ctx, "captcha", http.StatusInternalServerError, err, nil)
@@ -413,20 +430,21 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 
 	return response.Success(ctx, http.Json{
 		"admin": http.Json{
-			"id":             admin.ID,
-			"username":       admin.Username,
-			"nickname":       admin.Nickname,
-			"avatar":         admin.Avatar,
-			"email":          admin.Email,
-			"phone":          admin.Phone,
-			"department_id":  admin.DepartmentID,
-			"department":     admin.Department,
-			"position_id":    admin.PositionID,
-			"position":       admin.Position,
-			"roles":          admin.Roles,
-			"permissions":    permissions,
-			"menus":          menuTreeData, // 返回树形结构
-			"is_super_admin": isSuperAdmin,
+			"id":                   admin.ID,
+			"username":             admin.Username,
+			"nickname":             admin.Nickname,
+			"avatar":               admin.Avatar,
+			"email":                admin.Email,
+			"phone":                admin.Phone,
+			"department_id":        admin.DepartmentID,
+			"department":           admin.Department,
+			"position_id":          admin.PositionID,
+			"position":             admin.Position,
+			"roles":                admin.Roles,
+			"permissions":          permissions,
+			"menus":                menuTreeData, // 返回树形结构
+			"is_super_admin":       isSuperAdmin,
+			"must_change_password": admin.MustChangePassword == 1,
 		},
 		"config": http.Json{
 			"show_buttons_without_permission": showButtonsWithoutPermission,

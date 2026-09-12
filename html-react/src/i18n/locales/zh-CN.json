@@ -301,7 +301,9 @@
     "bind_failed": "绑定失败",
     "unbind_success": "解绑成功",
     "unbind_failed": "解绑失败",
-    "unbind_confirm": "解绑后，您将需要使用图形验证码登录。确定要解绑吗？"
+    "unbind_confirm": "解绑后，您将需要使用图形验证码登录。确定要解绑吗？",
+    "must_change_password_title": "请先修改密码",
+    "must_change_password_desc": "管理员已重置您的密码，或账号要求强制改密。修改成功后方可继续使用系统。"
   },
   "notification": {
     "center": "通知中心",

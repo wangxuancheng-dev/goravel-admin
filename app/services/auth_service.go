@@ -347,7 +347,7 @@ func (s *AuthServiceImpl) GetAdminInfo(ctx http.Context) (*models.Admin, []model
 
 // RecordLoginLog 记录登录日志
 func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, username string, status uint8, message string, request string) error {
-	ip := ctx.Request().Ip()
+	ip := helpers.GetRealIP(ctx)
 
 	// 先创建登录日志记录（Location 字段先为空，避免阻塞登录流程）
 	loginLog := models.LoginLog{

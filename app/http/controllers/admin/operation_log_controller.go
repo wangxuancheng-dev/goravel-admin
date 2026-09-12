@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
@@ -107,6 +108,28 @@ func (c *OperationLogController) Clean(ctx http.Context) http.Response {
 		})
 	}
 	return response.Success(ctx, "clean_success", http.Json{})
+}
+
+// Archive exports old operation logs to CSV then deletes them.
+func (c *OperationLogController) Archive(ctx http.Context) http.Response {
+	days := helpers.GetIntQuery(ctx, "days", constants.DefaultCleanLogDays)
+	if bodyDays := ctx.Request().Input("days"); bodyDays != "" {
+		if n, err := strconv.Atoi(bodyDays); err == nil && n > 0 {
+			days = n
+		}
+	}
+
+	exportID, err := c.OperationLogService(ctx).Archive(days)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "operation-log", http.StatusInternalServerError, err, map[string]any{
+			"days":      days,
+			"export_id": exportID,
+		})
+	}
+	return response.Success(ctx, http.Json{
+		"export_id": exportID,
+		"days":      days,
+	})
 }
 
 func (c *OperationLogController) GetTitleOptions(ctx http.Context) http.Response {

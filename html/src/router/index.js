@@ -557,6 +557,14 @@ router.beforeEach((to, from, next) => {
           }
           return
         }
+        if (
+          userStore.adminInfo?.must_change_password &&
+          to.path !== '/profile' &&
+          to.path !== '/login'
+        ) {
+          next({ path: '/profile', query: { tab: 'password' } })
+          return
+        }
         next()
         return
       }

@@ -32,6 +32,7 @@ func Admin() {
 	notificationWsController := admin.NewNotificationWsController()
 	optionController := admin.NewOptionController()
 	exportController := admin.NewExportController()
+	importController := admin.NewImportController()
 	attachmentController := admin.NewAttachmentController()
 	attachmentCategoryController := admin.NewAttachmentCategoryController()
 	orderController := admin.NewOrderController()
@@ -56,13 +57,17 @@ func Admin() {
 			})
 		})
 
-		// 已登录：Tenant → Blacklist → Jwt（off 时 Tenant 为 no-op）
-		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt()).Group(func(router route.Router) {
+		// 已登录：Tenant → Blacklist → Jwt → 强制改密门禁
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange()).Group(func(router route.Router) {
 			// 认证相关
 			router.Get("info", adminAuthController.Info)
 
 			router.Post("logout", adminAuthController.Logout)
 			router.Get("heartbeat", adminAuthController.Heartbeat)
+
+			// 强制改密场景下仍需可改自己的密码（不经过 Permission）
+			passwordController := admin.NewPasswordController()
+			router.Put("password", passwordController.UpdatePassword)
 
 			// 谷歌验证码相关
 			router.Get("google-authenticator/status", adminAuthController.GetGoogleAuthenticatorStatus)
@@ -105,14 +110,13 @@ func Admin() {
 			// 目前 attachmentController.Preview 已经是处理图片流的了
 		})
 
-		// 业务 CRUD：Tenant → Blacklist → Jwt → Permission
-		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt(), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
+		// 业务 CRUD：Tenant → Blacklist → Jwt → 强制改密 → 角色限流 → Permission
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange(), httpmiddleware.Throttle("adminApi"), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
 
 			router.Put("profile", adminAuthController.UpdateProfile)
 
-			// 密码管理
+			// 密码管理（重置他人密码仍需权限）
 			passwordController := admin.NewPasswordController()
-			router.Put("password", passwordController.UpdatePassword)
 			router.Put("admins/{id}/password", passwordController.ResetPassword)
 
 			// 管理员管理
@@ -133,6 +137,7 @@ func Admin() {
 
 			// 部门管理 - 使用 Resource 路由
 			router.Resource("departments", departmentController)
+			router.Post("departments/{id}/transfer-admins", departmentController.TransferAdmins)
 
 			// 岗位管理
 			router.Resource("positions", positionController)
@@ -165,6 +170,7 @@ func Admin() {
 			router.Delete("operation-logs/{id}", operationLogController.Destroy)
 			router.Post("operation-logs/batch-delete", operationLogController.BatchDestroy)
 			router.Post("operation-logs/clean", operationLogController.Clean)
+			router.Post("operation-logs/archive", operationLogController.Archive)
 
 			// 导出管理
 			router.Get("exports", exportController.Index)
@@ -243,6 +249,8 @@ func Admin() {
 				router.Post("orders/export", orderController.Export)
 				router.Post("orders/import", orderController.Import)
 				router.Get("orders/export/status/{id}", orderController.GetExportStatus)
+				router.Get("imports/{id}", importController.Show)
+				router.Get("imports/{id}/error-file", importController.DownloadErrorFile)
 			})
 
 			// 用户管理

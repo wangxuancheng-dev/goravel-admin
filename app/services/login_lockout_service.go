@@ -16,6 +16,8 @@ import (
 type LoginLockoutService interface {
 	// IsLocked 检查该 IP+用户名 是否处于锁定状态，返回 (是否锁定, 剩余分钟数)。
 	IsLocked(ip, username string) (bool, int)
+	// GetFailureCount 返回当前失败计数（未锁定时的连续失败次数）。
+	GetFailureCount(ip, username string) int
 	// RecordFailure 记录一次失败，返回 (当前失败次数, 是否触发锁定)。
 	RecordFailure(ip, username string) (int, bool)
 	// ClearFailures 登录成功后清除计数。
@@ -55,6 +57,11 @@ func (s *LoginLockoutServiceImpl) IsLocked(ip, username string) (bool, int) {
 	}
 	minutes := facades.Cache().GetInt(key+"_ttl", 0)
 	return true, minutes
+}
+
+// GetFailureCount 返回当前失败计数。
+func (s *LoginLockoutServiceImpl) GetFailureCount(ip, username string) int {
+	return facades.Cache().GetInt(s.attemptsKey(ip, username), 0)
 }
 
 // RecordFailure 记录失败，到达阈值时写入锁定标记。

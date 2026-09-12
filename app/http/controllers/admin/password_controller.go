@@ -57,11 +57,23 @@ func (c *PasswordController) UpdatePassword(ctx http.Context) http.Response {
 
 // ResetPassword 重置密码（管理员操作）
 func (c *PasswordController) ResetPassword(ctx http.Context) http.Response {
+	operatorID, resp := c.currentAdminID(ctx)
+	if resp != nil {
+		return resp
+	}
+
 	id := helpers.GetUintRoute(ctx, "id")
 
 	var req adminrequests.ResetPassword
 	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
 		return resp
+	}
+
+	if err := services.VerifySensitiveConfirm(ctx, operatorID, req.SensitiveConfirmCode()); err != nil {
+		return HandleGeneratedServiceError(ctx, "password", http.StatusBadRequest, err, map[string]any{
+			"admin_id":    id,
+			"operator_id": operatorID,
+		})
 	}
 
 	if err := c.AdminService(ctx).ResetPassword(id, req.Password); err != nil {

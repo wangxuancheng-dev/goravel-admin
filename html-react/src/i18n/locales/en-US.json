@@ -524,7 +524,9 @@
     "bind_failed": "Failed to bind",
     "unbind_success": "Unbound successfully",
     "unbind_failed": "Failed to unbind",
-    "unbind_confirm": "After unbinding, you will need to sign in with the captcha. Are you sure you want to unbind?"
+    "unbind_confirm": "After unbinding, you will need to sign in with the captcha. Are you sure you want to unbind?",
+    "must_change_password_title": "Change your password",
+    "must_change_password_desc": "Your password was reset or must be changed before you can continue."
   },
   "menu_page": {
     "add": "Add Menu",

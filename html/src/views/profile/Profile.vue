@@ -1,5 +1,14 @@
 <template>
   <div class="profile-container">
+    <el-alert
+      v-if="userStore.adminInfo?.must_change_password"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 16px;"
+      :title="$t('profile.must_change_password_title')"
+      :description="$t('profile.must_change_password_desc')"
+    />
     <el-row :gutter="20">
       <el-col :span="8">
         <el-card class="profile-card">
@@ -257,6 +266,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, Plus, Loading } from '@element-plus/icons-vue'
@@ -271,10 +281,11 @@ import { useUserStore } from '../../store/user'
 import { usePermission } from '../../composables/usePermission'
 
 const { t } = useI18n()
+const route = useRoute()
 const userStore = useUserStore()
 const { getButtonState } = usePermission()
 
-const activeTab = ref('info')
+const activeTab = ref(route.query.tab === 'password' ? 'password' : 'info')
 const infoFormRef = ref(null)
 const passwordFormRef = ref(null)
 const infoSubmitting = ref(false)

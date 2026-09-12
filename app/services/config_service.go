@@ -38,7 +38,34 @@ func NewConfigService(ctx context.Context) ConfigService {
 	return &ConfigServiceImpl{ctx: ctx}
 }
 
-// GetByGroup 根据分组获取配置（邮箱分组会掩码密码）
+// sensitiveConfigKeys maps config group → keys that must be blanked on read and
+// skipped on save when the incoming value is empty (preserve stored secret).
+var sensitiveConfigKeys = map[string]map[string]struct{}{
+	"email": {
+		"email_password": {},
+	},
+	"payment": {
+		"api_key":      {},
+		"api_secret":   {},
+		"private_key":  {},
+		"secret":       {},
+		"secret_key":   {},
+		"mch_secret":   {},
+		"app_secret":   {},
+		"notify_secret": {},
+	},
+}
+
+func isSensitiveConfigKey(group, key string) bool {
+	keys, ok := sensitiveConfigKeys[group]
+	if !ok {
+		return false
+	}
+	_, ok = keys[key]
+	return ok
+}
+
+// GetByGroup 根据分组获取配置（敏感字段读出时置空）
 func (s *ConfigServiceImpl) GetByGroup(group string) ([]models.Config, error) {
 	if group == "" {
 		return nil, apperrors.ErrConfigGroupRequired
@@ -48,11 +75,9 @@ func (s *ConfigServiceImpl) GetByGroup(group string) ([]models.Config, error) {
 	// 查询配置，即使没有数据也返回空数组，不返回错误
 	_ = appfacades.OrmQuery(s.ctx).Where("group", group).Order("sort asc, id asc").Get(&configs)
 
-	if group == "email" {
-		for i := range configs {
-			if configs[i].Key == "email_password" {
-				configs[i].Value = ""
-			}
+	for i := range configs {
+		if isSensitiveConfigKey(group, configs[i].Key) {
+			configs[i].Value = ""
 		}
 	}
 
@@ -121,8 +146,8 @@ func (s *ConfigServiceImpl) Save(group string, configsMap map[string]any) error 
 			valueStr = cast.ToString(value)
 		}
 
-		// 邮箱密码为空且已存在时跳过更新，保留原值
-		if group == "email" && key == "email_password" && valueStr == "" {
+		// 敏感字段为空且已存在时跳过更新，保留原值
+		if isSensitiveConfigKey(group, key) && valueStr == "" {
 			if _, exists := configMap[key]; exists {
 				continue
 			}

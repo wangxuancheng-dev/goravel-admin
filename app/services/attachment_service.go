@@ -659,7 +659,21 @@ func (s *AttachmentServiceImpl) GetByID(id uint) (*models.Attachment, error) {
 	if err := appfacades.OrmQuery(s.ctx).Where("id", id).FirstOrFail(&attachment); err != nil {
 		return nil, apperrors.ErrAttachmentNotFound.WithError(err)
 	}
+	// Public attachments are readable across scope; private ones require data-scope access.
+	if attachment.IsPublic != 1 && !CanAccessOwnedBy(s.ctx, attachment.AdminID) {
+		return nil, apperrors.ErrForbidden
+	}
 	return &attachment, nil
+}
+
+func (s *AttachmentServiceImpl) ensureCanMutate(attachment *models.Attachment) error {
+	if attachment == nil {
+		return apperrors.ErrAttachmentNotFound
+	}
+	if !CanAccessOwnedBy(s.ctx, attachment.AdminID) {
+		return apperrors.ErrForbidden
+	}
+	return nil
 }
 
 // GetByIDs 根据ID列表获取附件
@@ -739,6 +753,9 @@ func (s *AttachmentServiceImpl) UpdateDisplayName(id uint, displayName string) e
 	if err := appfacades.OrmQuery(s.ctx).Where("id", id).FirstOrFail(&attachment); err != nil {
 		return apperrors.ErrAttachmentNotFound.WithError(err)
 	}
+	if err := s.ensureCanMutate(&attachment); err != nil {
+		return err
+	}
 
 	attachment.DisplayName = displayName
 	if err := appfacades.OrmQuery(s.ctx).Save(&attachment); err != nil {
@@ -761,6 +778,9 @@ func (s *AttachmentServiceImpl) UpdateCategory(id uint, categoryID uint) error {
 	if err := appfacades.OrmQuery(s.ctx).Where("id", id).FirstOrFail(&attachment); err != nil {
 		return apperrors.ErrAttachmentNotFound.WithError(err)
 	}
+	if err := s.ensureCanMutate(&attachment); err != nil {
+		return err
+	}
 
 	categoryService := NewAttachmentCategoryService(s.ctx)
 	if _, err := categoryService.GetByID(categoryID); err != nil {
@@ -779,6 +799,9 @@ func (s *AttachmentServiceImpl) UpdateVisibility(id uint, isPublic bool) error {
 	var attachment models.Attachment
 	if err := appfacades.OrmQuery(s.ctx).Where("id", id).FirstOrFail(&attachment); err != nil {
 		return apperrors.ErrAttachmentNotFound.WithError(err)
+	}
+	if err := s.ensureCanMutate(&attachment); err != nil {
+		return err
 	}
 
 	if isPublic {
@@ -804,6 +827,9 @@ func (s *AttachmentServiceImpl) resolveDefaultCategoryID() uint {
 
 // DeleteFile 删除文件
 func (s *AttachmentServiceImpl) DeleteFile(attachment *models.Attachment) error {
+	if err := s.ensureCanMutate(attachment); err != nil {
+		return err
+	}
 	// 删除文件
 	if attachment.Path != "" && attachment.Disk != "" {
 		storage, err := utils.StorageDisk(attachment.Disk)

@@ -33,6 +33,7 @@ const zhSidebar = {
         { text: '4. 开发指南', link: '/guide/development' },
         { text: '5. 代码生成器', link: '/guide/code-generator' },
         { text: '6. 双前端对齐', link: '/guide/frontend-parity' },
+        { text: '7. Service 包拆分', link: '/guide/service-packages' },
         { text: '7. 权限按钮配置', link: '/guide/permission-button' },
         { text: '硬编码检查清单', link: '/guide/hardcoded-checklist' },
       ],

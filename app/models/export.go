@@ -27,8 +27,9 @@ const (
 
 // 导出类型常量
 const (
-	ExportTypeOrders   string = "orders"   // 订单导出
-	ExportTypeAdmins   string = "admins"   // 管理员导出
-	ExportTypePayments string = "payments" // 支付记录导出
-	ExportTypeUsers    string = "users"    // 用户导出
+	ExportTypeOrders                string = "orders"                  // 订单导出
+	ExportTypeAdmins                string = "admins"                  // 管理员导出
+	ExportTypePayments              string = "payments"                // 支付记录导出
+	ExportTypeUsers                 string = "users"                   // 用户导出
+	ExportTypeOperationLogsArchive  string = "operation_logs_archive"  // 操作日志归档
 )

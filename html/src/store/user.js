@@ -78,6 +78,7 @@ export const useUserStore = defineStore('user', {
         phone: adminInfo.phone || adminInfo.Phone,
         department_id: adminInfo.department_id || adminInfo.DepartmentID,
         department: adminInfo.department || adminInfo.Department,
+        must_change_password: !!(adminInfo.must_change_password ?? adminInfo.mustChangePassword),
         // roles 只存储基本信息，避免存储完整的关联数据
         roles: (adminInfo.roles || adminInfo.Roles || []).map(role => ({
           id: role.id || role.ID,

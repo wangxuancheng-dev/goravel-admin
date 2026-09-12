@@ -19,6 +19,8 @@ export interface AdminInfo {
   menus?: MenuNode[]
   is_super_admin?: boolean
   isSuperAdmin?: boolean
+  must_change_password?: boolean
+  mustChangePassword?: boolean
 }
 
 export interface FeatureConfig {

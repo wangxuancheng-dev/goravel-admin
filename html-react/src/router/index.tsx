@@ -52,9 +52,14 @@ function NavigatorBridge() {
 function AuthGuard() {
   const location = useLocation()
   const token = useUserStore((s) => s.token)
+  const mustChange = useUserStore((s) => !!s.adminInfo?.must_change_password)
 
   if (!token) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  }
+
+  if (mustChange && location.pathname !== '/profile') {
+    return <Navigate to="/profile?tab=password" replace />
   }
 
   return (
