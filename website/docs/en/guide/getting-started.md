@@ -29,6 +29,8 @@ Defaults:
 
 Disable auto-seed with `RUN_SEED=false` in `.env`.
 
+> Default is **single database** (`TENANCY_DRIVER=off`). To enable database-per-tenant with Docker locally, see [Multi-tenancy · Docker local](/en/advanced/tenancy#docker-local-setup).
+
 ## Frontend development
 
 Compose starts the API only. Frontends:

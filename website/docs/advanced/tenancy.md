@@ -54,6 +54,61 @@ PLATFORM_ADMIN_NAME=平台管理员
 ```
 前端：`VITE_TENANCY_ENABLED=true`（或 `VITE_TENANCY_DRIVER=database`）。
 
+## Docker 本地开启
+
+默认 `docker compose` / [快速开始](/guide/getting-started) 为**单库**（`TENANCY_DRIVER=off`）。本地要试用一户一库时：
+
+1. 先按快速开始把栈跑起来（`.env` 来自 `.env.docker.example`）。
+2. 在根目录 `.env` 中增加或改成：
+
+```ini
+TENANCY_DRIVER=database
+TENANCY_RESOLVER=header
+TENANCY_HEADER=X-Tenant-ID
+# 同机 MySQL 容器可共用平台库账号建 tenant_*（仅本地）
+TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true
+
+PLATFORM_ADMIN_USERNAME=admin
+PLATFORM_ADMIN_PASSWORD=secret
+PLATFORM_ADMIN_NAME=平台管理员
+```
+
+3. 重启 API 容器使配置生效：
+
+```bash
+docker compose up -d app
+# 或
+docker compose restart app
+```
+
+4. 平台首启 + 开示例租户（容器内二进制为 `/www/main`）：
+
+```bash
+docker compose exec app /www/main artisan platform:install
+docker compose exec app /www/main artisan tenant:create acme "Acme" --migrate
+```
+
+5. 前端本地开发时开启租户提示（`html/.env` 或 `html-react/.env`）：
+
+```ini
+VITE_TENANCY_ENABLED=true
+VITE_TENANCY_DRIVER=database
+VITE_TENANCY_HEADER=X-Tenant-ID
+```
+
+6. 访问：
+
+| 入口 | 说明 |
+|------|------|
+| `/platform/login` | 平台控制台（`PLATFORM_ADMIN_*`） |
+| `/login` + Header `X-Tenant-ID: acme`，或 `/login?tenant_code=acme` | 租户后台（租户库管理员，以 seed 为准） |
+
+注意：
+
+- 公网请改用 `TENANCY_RESOLVER=subdomain`，并保持 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。
+- Compose 默认仍是演示单库；多租户是**可选进阶**，不要写进「三分钟上手」默认路径。
+- 更完整的命令与生产要点见下文「首启」「公网部署」。
+
 ## 生产要点（P0）
 
 1. **平台连接钉死**：`PlatformOrmQuery` 使用 `tenancy.platform_connection`，不跟随 migrate 时临时翻转的 `database.default`。

@@ -32,7 +32,7 @@
 |------|------|
 | 支付方式 CRUD、支付记录列表/详情/导出 | ✅ 可用 |
 | 为订单创建支付单 `POST /api/admin/payments` + 可选 `initiate` | ✅ 参考下单 |
-| **Mock 网关** 下单 / 查询 / 回调 → `ApplyPaidResult`（支付+订单幂等已支付） | ✅ 本地可跑通，见 [PAYMENTS_REFERENCE.md](/advanced/payments) |
+| **Mock 网关** 下单 / 查询 / 回调 → `ApplyPaidResult`（支付+订单幂等已支付） | ✅ 本地可跑通，见 [支付参考](/advanced/payments) |
 | 微信 / 支付宝下单客户端调用（gopay） | ⚠️ 示例代码，需自备商户配置 |
 | 微信 / 支付宝查询与回调验签 | ⚠️ 返回 `payment_gateway_not_implemented`（501）；验签后复用 `ApplyPaidResult` |
 | 新渠道扩展 | ✅ `RegisterPaymentGateway` + 通用 `notify/{type}`，见 PAYMENTS_REFERENCE §6 |
@@ -62,12 +62,12 @@
 | 模块 | 何时需要 | 相关配置 / 文档 |
 |------|----------|-----------------|
 | Redis 缓存 / 队列 | 生产导出、异步任务、限流与锁 | `CACHE_STORE`、`QUEUE_CONNECTION` |
-| 订单 / 支付分表 | 数据量大、按月归档 | [SHARDING_MIGRATION.md](/advanced/sharding-migration)、`SHARDING_*` |
+| 订单 / 支付分表 | 数据量大、按月归档 | [分表迁移](/advanced/sharding-migration)、`SHARDING_*` |
 | Elasticsearch | 订单检索、全文检索 | `ELASTICSEARCH_*`、ES Worker |
 | 多队列驱动 | Kafka / RabbitMQ / NSQ / Redis Stream | `.env.example` 队列段 |
 | OpenTelemetry | Jaeger / Grafana 等统一观测 | `OTEL_*`、[Telemetry 文档](https://www.goravel.dev/zh_CN/digging-deeper/telemetry.html) |
 | AI / pprof / Swagger | 开发与排障 | 生产默认关闭或限权 |
-| 一户一库多租户 | 大商户隔离（默认关闭） | `TENANCY_DRIVER=database`、平台 `/api/platform`、见 [TENANT_RESERVED.md](/advanced/tenancy) |
+| 一户一库多租户 | 大商户隔离（默认关闭） | `TENANCY_DRIVER=database`、平台 `/api/platform`、见 [多租户](/advanced/tenancy) |
 
 **AI（可选）：** 用于「代码生成器 → AI 辅助」与顶级 **AI 实验室**（文本 / 视觉 / 图片 / 语音 SDK 演示，演示站可用）。未配置 `AI_API_KEY`（或兼容别名 `OPENAI_API_KEY`）时，相关菜单与标签页自动隐藏。AI 实验室按管理员账号限流（`AI_LAB_RATE_LIMIT_PER_MINUTE` / `AI_LAB_RATE_LIMIT_PER_DAY`）。设置 `AI_ENABLED=false` 可显式关闭。详见 `.env.example` 中 AI 配置段。
 
@@ -138,13 +138,13 @@ SWAGGER_ENABLED=false
 5. 日志磁盘与备份策略就绪  
 6. 使用 `.env.production.example` 起步，**勿**直接用 `docker-compose.yml` 默认口令上生产  
 
-部署细节见 [PRODUCTION.md](/deploy/production)（健康检查 `/health` `/ready`、告警与上线清单）、[BUILD.md](/deploy/build)、[DOCKER_DEPLOY.md](/deploy/docker)。
+部署细节见 [生产清单](/deploy/production)（健康检查 `/health` `/ready`、告警与上线清单）、[编译与部署](/deploy/build)、[Docker 生产部署](/deploy/docker)。
 
 ### 资源归属（管理端）
 
 - **导出**：下载 / 进度 SSE / 删除仅本人或配置的 `admin.super_admin_id`  
 - **附件**：私有文件读/写同归属规则；公开附件（`is_public=1`）已登录管理员可读，改删仍需所有者或超管  
-- **支付**：优先用 **mock** 跑通下单/回调/订单同步；微信/支付宝查询与回调验签仍为 `payment_gateway_not_implemented`（501），见 [PAYMENTS_REFERENCE.md](/advanced/payments)
+- **支付**：优先用 **mock** 跑通下单/回调/订单同步；微信/支付宝查询与回调验签仍为 `payment_gateway_not_implemented`（501），见 [支付参考](/advanced/payments)
 
 ---
 
@@ -173,7 +173,7 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 ### 4.3 搜索引擎（Elasticsearch / Meilisearch）
 
-详见 [SEARCH.md](/advanced/search)。
+详见 [搜索](/advanced/search)。
 
 ```ini
 SEARCH_DRIVER=elasticsearch   # 或 meilisearch
@@ -186,7 +186,7 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 # MEILISEARCH_HOST=http://127.0.0.1:7700
 ```
 
-需要搜索集群 + `queue-search` Worker。Outbox 积压可用 `go run . artisan search:retry-outbox` 补偿。初始化：`search:init-orders-index`，全量：`search:sync-orders`。其他业务索引用 `search.RegisterDefinition` 扩展（见 [SEARCH.md](/advanced/search)）。
+需要搜索集群 + `queue-search` Worker。Outbox 积压可用 `go run . artisan search:retry-outbox` 补偿。初始化：`search:init-orders-index`，全量：`search:sync-orders`。其他业务索引用 `search.RegisterDefinition` 扩展（见 [搜索](/advanced/search)）。
 
 ### 4.4 OpenTelemetry
 
@@ -219,14 +219,14 @@ ELASTICSEARCH_URLS=http://127.0.0.1:9200
 
 | 文档 | 说明 |
 |------|------|
-| [QUICKSTART_DOCKER.md](/guide/getting-started) | Docker 本地三分钟跑通 |
-| [BUILD.md](/deploy/build) | 编译与部署 |
-| [TESTING.md](/guide/testing) | 测试指南 |
-| [SHARDING_MIGRATION.md](/advanced/sharding-migration) | 分表 |
-| [ERROR_CODES.md](/reference/error-codes) | 错误码 |
-| [ARCHITECTURE.md](/guide/architecture) | 架构 |
-| [TENANT_RESERVED.md](/advanced/tenancy) | 一户一库 / PG Schema 多租户（`TENANCY_DRIVER=database`） |
-| [SEARCH.md](/advanced/search) | Elasticsearch / Meilisearch 切换、订单同步、文章扩展 |
-| [PRODUCTION.md](/deploy/production) | 生产上线清单、`/health` `/ready`、告警 |
-| [SAAS.md](/advanced/saas) | 中小 SaaS 分项目标与上线核对清单 |
-| [PAYMENTS_REFERENCE.md](/advanced/payments) | 订单/支付参考链路、mock 与微信支付宝扩展点 |
+| [Docker 快速开始](/guide/getting-started) | Docker 本地三分钟跑通 |
+| [编译与部署](/deploy/build) | 编译与部署 |
+| [测试指南](/guide/testing) | 测试指南 |
+| [分表迁移](/advanced/sharding-migration) | 分表 |
+| [错误码](/reference/error-codes) | 错误码 |
+| [系统架构](/guide/architecture) | 架构 |
+| [多租户](/advanced/tenancy) | 一户一库 / PG Schema 多租户（`TENANCY_DRIVER=database`） |
+| [搜索](/advanced/search) | Elasticsearch / Meilisearch 切换、订单同步、文章扩展 |
+| [生产清单](/deploy/production) | 生产上线清单、`/health` `/ready`、告警 |
+| [SaaS 核对清单](/advanced/saas) | 中小 SaaS 分项目标与上线核对清单 |
+| [支付参考](/advanced/payments) | 订单/支付参考链路、mock 与微信支付宝扩展点 |

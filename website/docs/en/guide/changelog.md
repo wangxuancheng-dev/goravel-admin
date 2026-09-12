@@ -22,7 +22,7 @@
 - 🏢 平台控制台（Landlord）：`platform_admins` + `/api/platform` + `/platform/login`；租户管理迁出租户后台；远程 DB 凭据；子域解析；`platform:admin` / `tenant:backup|restore`
 - 🔒 远程租户建库打到目标 Host；`tenants.password` APP_KEY 加密；`skip_create`；mysqldump 密码走 defaults-extra-file
 - 🛠️ `platform:install` 首启；HTTP 开户禁止 migrate（CLI）；去掉明文密码/旧菜单兼容
-- ⚠️ 支付第三方回调 / 查询 / 退款仅为示例骨架，非正式支付中台（见 OPENSOURCE.md）
+- ⚠️ 支付第三方回调 / 查询 / 退款仅为示例骨架，非正式支付中台（见开源定位文档）
 
 ## [1.0.0] - 2024-12-25
 

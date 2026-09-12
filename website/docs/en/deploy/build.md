@@ -119,7 +119,7 @@ cd /www/goravel-admin
 # ./main artisan db:seed --seeder=GeneratedModulesSeeder
 ```
 
-详见 [CODE_GENERATOR.md](/guide/code-generator)。
+详见 [代码生成器](/guide/code-generator)。
 
 ### 步骤 5：启动和管理服务
 
@@ -325,7 +325,7 @@ cd /www/goravel-admin/v1
 # ./main artisan db:seed --seeder=GeneratedModulesSeeder
 ```
 
-详见 [CODE_GENERATOR.md](/guide/code-generator)。
+详见 [代码生成器](/guide/code-generator)。
 
 ```bash
 # 试运行

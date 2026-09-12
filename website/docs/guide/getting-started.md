@@ -2,7 +2,7 @@
 
 面向新用户：用 Docker Compose 拉起 **MySQL + Redis + API**，约三条命令即可登录后台。
 
-生产蓝绿部署请看 [DOCKER_DEPLOY.md](/deploy/docker)。
+生产蓝绿部署请看 [Docker 生产部署](/deploy/docker)。
 
 ## 前置
 
@@ -28,6 +28,8 @@ docker compose up -d --build
 | 环境文件 | 必须有根目录 `.env`（由 `.env.docker.example` 复制） |
 
 关闭自动填充：在 `.env` 设 `RUN_SEED=false`。
+
+> 默认**单库**（`TENANCY_DRIVER=off`）。若要用 Docker 开启一户一库多租户，见 [多租户 · Docker 本地开启](/advanced/tenancy#docker-本地开启)。
 
 ## 前端开发
 

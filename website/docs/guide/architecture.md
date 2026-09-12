@@ -32,9 +32,9 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-两套前端**对接同一 Admin API**，约定新功能同发。**Vue（`html/`）为主参考实现**，React（`html-react/`）为一等公民对等实现；对齐清单见 [FRONTEND_PARITY.md](/guide/frontend-parity)。架构上后端一份，前端双实现。
+两套前端**对接同一 Admin API**，约定新功能同发。**Vue（`html/`）为主参考实现**，React（`html-react/`）为一等公民对等实现；对齐清单见 [双前端对齐](/guide/frontend-parity)。架构上后端一份，前端双实现。
 
-可选多租户（默认 `TENANCY_DRIVER=off`）：设为 `database` 后为**一户一库/Schema**（连接级隔离，非行级 `tenant_id`）；`platform:install` 首启；平台控制台 `/api/platform`，租户业务在租户库。权威说明见 [TENANT_RESERVED.md](/advanced/tenancy)。
+可选多租户（默认 `TENANCY_DRIVER=off`）：设为 `database` 后为**一户一库/Schema**（连接级隔离，非行级 `tenant_id`）；`platform:install` 首启；平台控制台 `/api/platform`，租户业务在租户库。权威说明见 [多租户](/advanced/tenancy)。
 
 ---
 

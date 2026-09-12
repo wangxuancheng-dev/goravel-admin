@@ -186,7 +186,7 @@ export RUN_SEED=false
 # docker exec <container> /www/main artisan db:seed --seeder=GeneratedModulesSeeder
 ```
 
-详见 [CODE_GENERATOR.md](/guide/code-generator)。
+详见 [代码生成器](/guide/code-generator)。
 
 ## 🔍 查看状态
 

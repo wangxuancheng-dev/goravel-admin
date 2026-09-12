@@ -27,6 +27,6 @@
 
 ## 相关文档
 
-- [ARCHITECTURE.md](/guide/architecture) — 整体架构
-- [OPENSOURCE.md](/guide/opensource) — 开源定位与模块开关
-- [TESTING.md](/guide/testing) — 测试与 CI
+- [系统架构](/guide/architecture) — 整体架构
+- [开源定位](/guide/opensource) — 开源定位与模块开关
+- [测试指南](/guide/testing) — 测试与 CI

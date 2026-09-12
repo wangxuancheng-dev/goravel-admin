@@ -1,6 +1,61 @@
 # Multi-tenancy
 
-> This page mirrors the Chinese documentation for accuracy. Switch language to **简体中文**, or open the [Chinese version](/advanced/tenancy).
+> Chinese remains the full reference: [多租户](/advanced/tenancy). Key local Docker steps are below in English.
+
+## Docker local setup
+
+Default `docker compose` / [quick start](/en/guide/getting-started) is **single-DB** (`TENANCY_DRIVER=off`). To try database-per-tenant locally:
+
+1. Bring the stack up per the quick start (`.env` from `.env.docker.example`).
+2. Add or change in the root `.env`:
+
+```ini
+TENANCY_DRIVER=database
+TENANCY_RESOLVER=header
+TENANCY_HEADER=X-Tenant-ID
+# Same MySQL container may reuse platform DB credentials (local only)
+TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true
+
+PLATFORM_ADMIN_USERNAME=admin
+PLATFORM_ADMIN_PASSWORD=secret
+PLATFORM_ADMIN_NAME=Platform Admin
+```
+
+3. Restart the API container:
+
+```bash
+docker compose up -d app
+# or
+docker compose restart app
+```
+
+4. Bootstrap platform + sample tenant (binary path inside the container is `/www/main`):
+
+```bash
+docker compose exec app /www/main artisan platform:install
+docker compose exec app /www/main artisan tenant:create acme "Acme" --migrate
+```
+
+5. Enable tenant hints for local frontends (`html/.env` or `html-react/.env`):
+
+```ini
+VITE_TENANCY_ENABLED=true
+VITE_TENANCY_DRIVER=database
+VITE_TENANCY_HEADER=X-Tenant-ID
+```
+
+6. Open:
+
+| Entry | Notes |
+|-------|--------|
+| `/platform/login` | Platform console (`PLATFORM_ADMIN_*`) |
+| `/login` + header `X-Tenant-ID: acme`, or `/login?tenant_code=acme` | Tenant admin (seed credentials in the tenant DB) |
+
+Notes:
+
+- For public deploy use `TENANCY_RESOLVER=subdomain` and keep `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`.
+- Compose defaults stay single-DB; multi-tenancy is **optional advanced**.
+- Full commands and production rules: switch to the [Chinese tenancy page](/advanced/tenancy).
 
 ---
 

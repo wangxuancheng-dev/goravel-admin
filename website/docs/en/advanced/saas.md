@@ -5,7 +5,7 @@
 ---
 
 面向**公网可服务的中小 SaaS / 运营后台**（一户一库可选、非金融收单）。  
-对照维度目标：**各项 ≥ 8.5 / 10**。详细运维步骤见 [PRODUCTION.md](/deploy/production)。
+对照维度目标：**各项 ≥ 8.5 / 10**。详细运维步骤见 [生产清单](/deploy/production)。
 
 ## 1. 范围约定（功能完整度）
 
@@ -17,7 +17,7 @@
 | 搜索扩展点（ES / Meili，订单索引可选） | 业务全文检索开箱即用 |
 | 订单+支付 mock：`ApplyPaidResult` 幂等落库 | 生产收单 / 清算 |
 
-支付边界见 [OPENSOURCE.md](/guide/opensource) §1.1、[PAYMENTS_REFERENCE.md](/advanced/payments)。
+支付边界见 [开源定位](/guide/opensource) §1.1、[支付参考](/advanced/payments)。
 
 ## 2. 上线前核对
 
