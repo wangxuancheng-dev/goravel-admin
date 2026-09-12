@@ -50,6 +50,9 @@ func (c *PaymentNotifyController) handle(ctx http.Context, typ, tenantCode strin
 	if _, ok := services.LookupPaymentGateway(typ); !ok {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidPaymentType)
 	}
+	if !services.IsPaymentGatewayEnabled(typ) {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrPaymentGatewayDisabled)
+	}
 
 	if tenancy.Enabled() {
 		if tenantCode == "" {

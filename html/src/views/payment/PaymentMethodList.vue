@@ -61,6 +61,7 @@ import PaymentMethodForm from './PaymentMethodForm.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import { createCrudActions } from '@/utils/listPageHelpers'
 import { getPaymentMethodList, deletePaymentMethod } from '@/api/paymentMethod'
+import { useUserStore } from '@/store/user'
 import {
   paymentMethodInitialSearchForm,
   createPaymentMethodSearchFields,
@@ -69,6 +70,7 @@ import {
 } from './paymentMethod.config'
 
 const { t } = useI18n()
+const userStore = useUserStore()
 const listPageRef = ref(null)
 const paymentMethodFormRef = ref(null)
 
@@ -97,7 +99,9 @@ const {
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })
 
-const searchFields = computed(() => createPaymentMethodSearchFields(t))
+const searchFields = computed(() =>
+  createPaymentMethodSearchFields(t, userStore.config?.paymentGateways)
+)
 const tableColumns = computed(() => createPaymentMethodTableColumns(t))
 
 const operationActions = computed(() =>

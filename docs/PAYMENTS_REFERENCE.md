@@ -128,8 +128,11 @@ func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.Payment
 | 变量 / 开关 | 说明 |
 |-------------|------|
 | `MODULE_PAYMENTS_ENABLED` | 管理端支付菜单与 API；**不影响**公开 notify |
+| `PAYMENT_GATEWAYS_ENABLED` | 启用的网关类型（逗号分隔），如 `wechat,alipay`。空 / `*` / `all` = 全部已注册驱动。未列入的类型：不可创建支付方式、不可下单/查询/回调 |
 | `APP_URL` | 拼默认 `notify_url` |
 | 多租户 | 回调必须带 `{tenant}`；见 `tenancy.PaymentNotifyPath` |
+
+管理端 `/api/admin/info` 的 `config.payment_gateways` 会返回当前启用列表，前端支付方式「类型」下拉按此过滤。
 
 ## 8. 明确不做
 

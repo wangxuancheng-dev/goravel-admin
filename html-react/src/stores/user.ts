@@ -13,6 +13,7 @@ const defaultConfig: FeatureConfig = {
   aiEnabled: false,
   ordersEnabled: true,
   paymentsEnabled: true,
+  paymentGateways: null,
   devToolsEnabled: false,
   codeGeneratorEnabled: false,
   searchEnabled: false,
@@ -156,6 +157,11 @@ export const useUserStore = create<UserState>((set, get) => {
           aiEnabled: !!(config?.ai_enabled || config?.aiEnabled),
           ordersEnabled: (config?.orders_enabled ?? config?.ordersEnabled ?? true) as boolean,
           paymentsEnabled: (config?.payments_enabled ?? config?.paymentsEnabled ?? false) as boolean,
+          paymentGateways: (Array.isArray(config?.payment_gateways)
+            ? config.payment_gateways
+            : Array.isArray(config?.paymentGateways)
+              ? config.paymentGateways
+              : null) as string[] | null,
           devToolsEnabled: !!(config?.dev_tools_enabled || config?.devToolsEnabled),
           codeGeneratorEnabled: !!(config?.code_generator_enabled || config?.codeGeneratorEnabled),
           searchEnabled: !!(config?.search_enabled || config?.searchEnabled),

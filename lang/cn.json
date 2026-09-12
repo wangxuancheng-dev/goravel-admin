@@ -238,6 +238,7 @@
     "payment_not_found": "支付记录不存在",
     "payment_method_disabled": "支付方式已禁用",
     "invalid_payment_type": "无效的支付类型",
+    "payment_gateway_disabled": "该支付渠道未在服务端启用",
     "payment_config_required": "支付配置不能为空",
     "create_payment_failed": "创建支付记录失败",
     "payment_amount_invalid": "支付金额无效",

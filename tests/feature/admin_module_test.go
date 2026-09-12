@@ -38,6 +38,7 @@ func TestAdminInfoExposesModuleConfig(t *testing.T) {
 		"ai_enabled",
 		"orders_enabled",
 		"payments_enabled",
+		"payment_gateways",
 		"dev_tools_enabled",
 		"code_generator_enabled",
 		"search_enabled",

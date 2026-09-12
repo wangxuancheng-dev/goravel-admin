@@ -79,6 +79,7 @@
 |------|------|------|
 | `MODULE_ORDERS_ENABLED` | `true` | 关闭后隐藏订单菜单并拒绝订单 API |
 | `MODULE_PAYMENTS_ENABLED` | `false` | 默认关闭（支付网关能力未成品）；`true` 仅用于管理端演示 UI |
+| `PAYMENT_GATEWAYS_ENABLED` | （空） | 启用渠道白名单，如 `wechat,alipay`；空则全部已注册驱动 |
 | `APP_ENABLE_DEV_TOOL` | `false` | 生产显式 `true` 才开放开发工具。表单演示：`local/development/test` 默认可见；代码生成器：仅 `local/development` 默认可见（`test` 默认隐藏） |
 
 登录 `Info` 与 `menus/tree` 会按开关过滤菜单；前端 `userStore.config` 同步 `orders_enabled` 等字段。

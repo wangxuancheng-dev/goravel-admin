@@ -224,6 +224,7 @@ import {
 import { mapFields, getField } from '../../utils/normalizeFormData'
 import logger from '../../utils/logger'
 import ErrorHandler from '../../utils/errorHandler'
+import { useUserStore } from '@/store/user'
 import {
   createPaymentMethodTypeOptions,
   getPaymentMethodTypeLabel,
@@ -242,6 +243,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'success'])
 
 const { t } = useI18n()
+const userStore = useUserStore()
 const formRef = ref(null)
 const submitting = ref(false)
 const loading = ref(false)
@@ -271,7 +273,9 @@ const dialogTitle = computed(() =>
 )
 
 const formData = reactive(getFormInitialValue())
-const typeOptions = computed(() => createPaymentMethodTypeOptions(t))
+const typeOptions = computed(() =>
+  createPaymentMethodTypeOptions(t, userStore.config?.paymentGateways)
+)
 
 const basicConfigFields = computed(() => getConfigFieldsByGroup(formData.type, 'basic'))
 const advancedConfigFields = computed(() => getConfigFieldsByGroup(formData.type, 'advanced'))

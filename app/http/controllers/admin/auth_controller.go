@@ -437,6 +437,7 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 			"ai_enabled":                      utils.AIEnabled(),
 			"orders_enabled":                  utils.OrdersEnabled(),
 			"payments_enabled":                utils.PaymentsEnabled(),
+			"payment_gateways":                services.EnabledPaymentGateways(),
 			"dev_tools_enabled":               utils.DevToolsEnabled(),
 			"code_generator_enabled":          utils.CodeGeneratorEnabled(),
 			"code_generator_frontends":        utils.CodeGeneratorFrontends(),

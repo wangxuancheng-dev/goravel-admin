@@ -58,6 +58,39 @@ func TestRegisteredPaymentGatewaysIncludeBuiltin(t *testing.T) {
 	assert.Contains(t, types, "alipay")
 }
 
+func TestPaymentGatewayAllowlist(t *testing.T) {
+	prevOrders := facades.Config().GetBool("module.orders_enabled", true)
+	prevPayments := facades.Config().GetBool("module.payments_enabled", false)
+	prevGateways := facades.Config().GetString("module.payment_gateways_enabled", "")
+	prevFrontend := facades.Config().GetString("module.code_generator_frontend", "vue,react")
+	restore := func(gateways string) {
+		facades.Config().Add("module", map[string]any{
+			"orders_enabled":           prevOrders,
+			"payments_enabled":         prevPayments,
+			"payment_gateways_enabled": gateways,
+			"code_generator_frontend":  prevFrontend,
+		})
+	}
+	t.Cleanup(func() { restore(prevGateways) })
+
+	restore("")
+	assert.True(t, IsPaymentGatewayEnabled("mock"))
+	assert.True(t, IsPaymentGatewayEnabled("wechat"))
+	assert.ElementsMatch(t, RegisteredPaymentGatewayTypes(), EnabledPaymentGateways())
+
+	restore("wechat,alipay")
+	assert.False(t, IsPaymentGatewayEnabled("mock"))
+	assert.True(t, IsPaymentGatewayEnabled("wechat"))
+	assert.True(t, IsPaymentGatewayEnabled("alipay"))
+	assert.Equal(t, []string{"alipay", "wechat"}, EnabledPaymentGateways())
+
+	_, err := requirePaymentGateway("mock")
+	require.Error(t, err)
+	be, ok := apperrors.GetBusinessError(err)
+	require.True(t, ok)
+	assert.Equal(t, apperrors.ErrPaymentGatewayDisabled.Code, be.Code)
+}
+
 func TestRegisterPaymentGatewayCustomType(t *testing.T) {
 	const typ = "demo_ext_channel"
 	RegisterPaymentGateway(&stubPaymentDriver{typ: typ})

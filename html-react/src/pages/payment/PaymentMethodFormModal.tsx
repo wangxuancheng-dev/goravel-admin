@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { createPaymentMethod, getPaymentMethodDetail, updatePaymentMethod } from '@/api/paymentMethod'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { entityField } from '@/utils/normalize'
+import { useUserStore } from '@/stores/user'
 import {
   collectConfigPayload,
   createEmptyConfig,
@@ -101,7 +102,11 @@ export default function PaymentMethodFormModal({
   const isEdit = Boolean(editId)
 
   const typeValue = Form.useWatch('type', form)
-  const typeOptions = useMemo(() => createPaymentMethodTypeOptions(t), [t])
+  const paymentGateways = useUserStore((s) => s.config.paymentGateways)
+  const typeOptions = useMemo(
+    () => createPaymentMethodTypeOptions(t, paymentGateways),
+    [t, paymentGateways],
+  )
   const basicFields = useMemo(() => getConfigFieldsByGroup(typeValue, 'basic'), [typeValue])
   const advancedFields = useMemo(() => getConfigFieldsByGroup(typeValue, 'advanced'), [typeValue])
 

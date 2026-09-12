@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Space, Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,7 @@ import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
 import PermissionButton from '@/components/PermissionButton'
 import { entityField } from '@/utils/normalize'
+import { useUserStore } from '@/stores/user'
 import PaymentMethodFormModal from './PaymentMethodFormModal'
 import {
   createPaymentMethodTypeOptions,
@@ -33,6 +34,11 @@ interface PaymentMethodRow {
 export default function PaymentMethodList() {
   const { t } = useTranslation()
   const { getButtonState } = usePermission()
+  const paymentGateways = useUserStore((s) => s.config.paymentGateways)
+  const typeFilterOptions = useMemo(
+    () => createPaymentMethodTypeOptions(t, paymentGateways),
+    [t, paymentGateways],
+  )
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<string | number | null>(null)
 
@@ -148,7 +154,7 @@ export default function PaymentMethodList() {
             label: t('payment_method.type'),
             type: 'select',
             placeholder: t('payment_method.type_placeholder'),
-            options: createPaymentMethodTypeOptions(t),
+            options: typeFilterOptions,
           },
           {
             name: 'is_active',

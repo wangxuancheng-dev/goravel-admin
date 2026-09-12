@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/dromara/carbon/v2"
@@ -156,6 +157,10 @@ func (s *PaymentMethodServiceImpl) validatePaymentMethodCodeUnique(code string, 
 
 // CreatePaymentMethod 创建支付方式
 func (s *PaymentMethodServiceImpl) CreatePaymentMethod(name, code, paymentType string, config map[string]any, isActive bool, sort int, description string) (*models.PaymentMethod, error) {
+	paymentType = strings.ToLower(strings.TrimSpace(paymentType))
+	if !IsPaymentGatewayEnabled(paymentType) {
+		return nil, apperrors.ErrPaymentGatewayDisabled.WithMessage(fmt.Sprintf("payment gateway disabled: %s", paymentType))
+	}
 	if err := s.validatePaymentMethodCodeUnique(code, 0); err != nil {
 		return nil, err
 	}
@@ -203,6 +208,9 @@ func (s *PaymentMethodServiceImpl) UpdatePaymentMethod(id uint, name string, con
 	paymentMethod, err := s.GetPaymentMethodByID(id)
 	if err != nil {
 		return err
+	}
+	if isActive && !IsPaymentGatewayEnabled(paymentMethod.Type) {
+		return apperrors.ErrPaymentGatewayDisabled.WithMessage(fmt.Sprintf("payment gateway disabled: %s", paymentMethod.Type))
 	}
 
 	// 序列化配置
@@ -263,6 +271,9 @@ func (s *PaymentMethodServiceImpl) UpdatePaymentMethodByRequest(httpCtx http.Con
 		paymentMethod.Config = string(configBytes)
 	}
 	if req.IsActive != nil {
+		if *req.IsActive && !IsPaymentGatewayEnabled(paymentMethod.Type) {
+			return nil, apperrors.ErrPaymentGatewayDisabled.WithMessage(fmt.Sprintf("payment gateway disabled: %s", paymentMethod.Type))
+		}
 		paymentMethod.IsActive = *req.IsActive
 	}
 	if req.Sort != nil {

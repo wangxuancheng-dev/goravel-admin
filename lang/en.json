@@ -282,6 +282,7 @@
     "payment_not_found": "Payment record not found",
     "payment_method_disabled": "Payment method is disabled",
     "invalid_payment_type": "Invalid payment type",
+    "payment_gateway_disabled": "This payment gateway is not enabled on the server",
     "payment_config_required": "Payment config is required",
     "create_payment_failed": "Failed to create payment record",
     "payment_amount_invalid": "Invalid payment amount",

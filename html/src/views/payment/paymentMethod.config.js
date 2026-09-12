@@ -118,8 +118,32 @@ export const paymentMethodInitialSearchForm = {
   description: ''
 }
 
-export function createPaymentMethodTypeOptions(t) {
-  return PAYMENT_METHOD_TYPES.map((value) => ({
+export function resolvePaymentMethodTypes(enabledTypes) {
+  if (!Array.isArray(enabledTypes)) {
+    return PAYMENT_METHOD_TYPES
+  }
+  const wanted = []
+  const seen = new Set()
+  for (const raw of enabledTypes) {
+    const value = String(raw || '').toLowerCase().trim()
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    wanted.push(value)
+  }
+  if (wanted.length === 0) {
+    return []
+  }
+  const known = PAYMENT_METHOD_TYPES.filter((value) => seen.has(value))
+  for (const value of wanted) {
+    if (!known.includes(value)) {
+      known.push(value)
+    }
+  }
+  return known
+}
+
+export function createPaymentMethodTypeOptions(t, enabledTypes) {
+  return resolvePaymentMethodTypes(enabledTypes).map((value) => ({
     label: t(`payment_method.type_${value}`),
     value
   }))
@@ -183,14 +207,14 @@ export function collectConfigPayload(type, formConfig = {}) {
   return config
 }
 
-export function createPaymentMethodSearchFields(t) {
+export function createPaymentMethodSearchFields(t, enabledTypes) {
   return [
     { prop: 'name', type: 'input', placeholder: t('payment_method.name_placeholder') },
     {
       prop: 'type',
       type: 'select',
       placeholder: t('payment_method.type_placeholder'),
-      options: createPaymentMethodTypeOptions(t)
+      options: createPaymentMethodTypeOptions(t, enabledTypes)
     },
     {
       prop: 'is_active',

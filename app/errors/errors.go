@@ -140,6 +140,7 @@ var (
 	ErrPaymentMethodDisabled   = NewBusinessError("payment_method_disabled", "支付方式已禁用")
 	ErrPaymentMethodCodeExists = NewBusinessError("payment_method_code_exists", "支付方式代码已存在")
 	ErrInvalidPaymentType      = NewBusinessError("invalid_payment_type", "无效的支付类型")
+	ErrPaymentGatewayDisabled  = NewBusinessError("payment_gateway_disabled", "该支付渠道未在服务端启用")
 	ErrPaymentConfigRequired   = NewBusinessError("payment_config_required", "支付配置不能为空")
 	ErrCreatePaymentFailed     = NewBusinessError("create_payment_failed", "创建支付记录失败")
 	ErrPaymentAmountInvalid    = NewBusinessError("payment_amount_invalid", "支付金额无效")

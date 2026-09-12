@@ -131,8 +131,34 @@ export const PAYMENT_TYPE_CONFIG_FIELDS: Record<PaymentMethodType, PaymentMethod
   ],
 }
 
-export function createPaymentMethodTypeOptions(t: TFunction) {
-  return PAYMENT_METHOD_TYPES.map((value) => ({
+export function resolvePaymentMethodTypes(enabledTypes?: string[] | null): string[] {
+  if (!Array.isArray(enabledTypes)) {
+    return [...PAYMENT_METHOD_TYPES]
+  }
+  const wanted: string[] = []
+  const seen = new Set<string>()
+  for (const raw of enabledTypes) {
+    const value = String(raw || '')
+      .toLowerCase()
+      .trim()
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    wanted.push(value)
+  }
+  if (wanted.length === 0) {
+    return []
+  }
+  const known = PAYMENT_METHOD_TYPES.filter((value) => seen.has(value))
+  for (const value of wanted) {
+    if (!known.includes(value)) {
+      known.push(value)
+    }
+  }
+  return known
+}
+
+export function createPaymentMethodTypeOptions(t: TFunction, enabledTypes?: string[] | null) {
+  return resolvePaymentMethodTypes(enabledTypes).map((value) => ({
     label: t(`payment_method.type_${value}`),
     value,
   }))
