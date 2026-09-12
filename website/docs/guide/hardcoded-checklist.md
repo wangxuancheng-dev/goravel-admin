@@ -4,7 +4,7 @@
 
 ## 一、权限与菜单（必查）
 
-**推荐（代码生成器模块）：** 使用开发工具 → 代码生成器 →「安装菜单与权限」，或保存代码时勾选自动安装。详见 [CODE_GENERATOR.md](./CODE_GENERATOR.md)。manifest 文件位于 `database/seeders/modules/*.json`，生产部署执行：
+**推荐（代码生成器模块）：** 使用开发工具 → 代码生成器 →「安装菜单与权限」，或保存代码时勾选自动安装。详见 [CODE_GENERATOR.md](/guide/code-generator)。manifest 文件位于 `database/seeders/modules/*.json`，生产部署执行：
 
 ```bash
 ./main artisan db:seed --seeder=GeneratedModulesSeeder

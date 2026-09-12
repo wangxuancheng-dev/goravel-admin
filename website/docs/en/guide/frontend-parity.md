@@ -1,4 +1,8 @@
-# 双前端对齐清单（Vue / React）
+# Frontend parity
+
+> This page mirrors the Chinese documentation for accuracy. Switch language to **简体中文**, or open the [Chinese version](/guide/frontend-parity).
+
+---
 
 本仓库提供两套管理端前端，对接**同一** `/api/admin`（及平台 `/api/platform`）契约。
 
@@ -27,6 +31,6 @@
 
 ## 相关文档
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — 整体架构
-- [OPENSOURCE.md](./OPENSOURCE.md) — 开源定位与模块开关
-- [TESTING.md](./TESTING.md) — 测试与 CI
+- [ARCHITECTURE.md](/guide/architecture) — 整体架构
+- [OPENSOURCE.md](/guide/opensource) — 开源定位与模块开关
+- [TESTING.md](/guide/testing) — 测试与 CI

@@ -9,7 +9,7 @@ to **goravel-admin**. AI agents MUST read this file together with `SKILL.md`.
 - **Go module:** `goravel` — import app code as `goravel/app/...`, `goravel/config`, etc.
 - **Framework:** `github.com/goravel/framework v1.18.x` (full scaffold; all facades installed).
 - **HTTP driver:** Gin via `github.com/goravel/gin`.
-- **Facades:** `app/facades/` — see `docs/FACADES_MANAGEMENT.md` for install/uninstall notes.
+- **Facades:** `app/facades/` — see `website/docs/reference/facades.md` for install/uninstall notes.
 
 ## Skill layering (which skill to use)
 

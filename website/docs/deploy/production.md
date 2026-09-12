@@ -1,6 +1,6 @@
 # 生产上线清单与健康检查
 
-面向公网部署的运维约定。功能边界见 [OPENSOURCE.md](./OPENSOURCE.md)；多租户见 [TENANT_RESERVED.md](./TENANT_RESERVED.md)；中小 SaaS 评分清单见 [SAAS.md](./SAAS.md)。
+面向公网部署的运维约定。功能边界见 [OPENSOURCE.md](/guide/opensource)；多租户见 [TENANT_RESERVED.md](/advanced/tenancy)；中小 SaaS 评分清单见 [SAAS.md](/advanced/saas)。
 
 ## 1. 启动前
 

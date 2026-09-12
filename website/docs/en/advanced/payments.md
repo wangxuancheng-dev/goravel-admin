@@ -1,8 +1,12 @@
-# 支付 / 订单参考实现（二次开发）
+# Payments reference
+
+> This page mirrors the Chinese documentation for accuracy. Switch language to **简体中文**, or open the [Chinese version](/advanced/payments).
+
+---
 
 本仓库**不是**生产收单系统。目标是提供一条可跑通的「订单 → 支付单 → 回调落库 → 订单已支付」参考链路，方便在此基础上接入微信 / 支付宝。
 
-边界总览见 [OPENSOURCE.md](./OPENSOURCE.md) §1.1。
+边界总览见 [OPENSOURCE.md](/guide/opensource) §1.1。
 
 ## 1. 架构
 

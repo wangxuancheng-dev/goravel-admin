@@ -7,7 +7,7 @@ import (
 func init() {
 	config := facades.Config()
 	config.Add("tenancy", map[string]any{
-		// off | database — database 表示一租户一库/Schema（见 docs/TENANT_RESERVED.md）
+		// off | database — database 表示一租户一库/Schema（见 website/docs/advanced/tenancy.md）
 		"driver": config.Env("TENANCY_DRIVER", "off"),
 		// 租户解析：header（X-Tenant-ID / Query）| subdomain（公网推荐）
 		"resolver": config.Env("TENANCY_RESOLVER", "header"),

@@ -2293,10 +2293,10 @@ func resolveFieldDictionary(name, dictionary, formType string) string {
 
 // GenerateWithAI 使用 AI 辅助生成代码配置
 func (s *CodeGeneratorServiceImpl) GenerateWithAI(ctx context.Context, userDescription string) (*AIGeneratedConfig, error) {
-	// 读取 AI 模块开发提示词
-	promptFile, err := os.ReadFile("docs/AI_MODULE_DEVELOPMENT_PROMPT.md")
+	// 读取 AI 模块开发提示词（正文在 VitePress website/docs）
+	promptFile, err := readAIModulePromptFile()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read AI_MODULE_DEVELOPMENT_PROMPT.md: %w", err)
+		return nil, fmt.Errorf("failed to read AI module prompt: %w", err)
 	}
 
 	// 构建系统提示词
@@ -2492,4 +2492,21 @@ func (s *CodeGeneratorServiceImpl) GenerateWithAI(ctx context.Context, userDescr
 	}
 
 	return &config, nil
+}
+
+// readAIModulePromptFile loads the AI codegen system prompt from the VitePress docs tree.
+func readAIModulePromptFile() ([]byte, error) {
+	candidates := []string{
+		"website/docs/advanced/ai-module.md",
+		filepath.Join("website", "docs", "advanced", "ai-module.md"),
+	}
+	var lastErr error
+	for _, path := range candidates {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			return data, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }

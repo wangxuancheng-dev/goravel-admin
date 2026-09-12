@@ -29,7 +29,7 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 
 **不适合：** 直接当金融交易核心、超大规模商业 SaaS 中台；分表 / ES / 多队列需额外运维，请按需开启。
 
-模块分层、最小生产配置与进阶配置说明见：[docs/OPENSOURCE.md](./docs/OPENSOURCE.md)。
+模块分层、最小生产配置与进阶配置说明见：[开源定位](./website/docs/guide/opensource.md)（`cd website && npm run dev`）。
 
 ### 截图展示
 
@@ -111,13 +111,13 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 
 #### 进阶模块（可选）
 
-以下能力**默认不必开启**，按业务需要再接入（详见 [OPENSOURCE.md](./docs/OPENSOURCE.md)）：
+以下能力**默认不必开启**，按业务需要再接入（详见 [开源定位](./website/docs/guide/opensource.md)）：
 
 - 订单 / 支付按月分表、用户余额哈希分表
 - Elasticsearch 订单同步与检索
 - Redis 异步队列、导出长任务、多队列驱动（Kafka / RabbitMQ / NSQ 等）
 - OpenTelemetry 导出到 Jaeger / Grafana
-- 支付管理示例（**非完整收单**：无可用回调 / 退款，见 [OPENSOURCE.md](./docs/OPENSOURCE.md#11-支付模块边界必读)）
+- 支付管理示例（**非完整收单**：无可用回调 / 退款，见 [开源定位](./website/docs/guide/opensource.md)）
 
 ### 技术栈
 
@@ -200,7 +200,7 @@ docker compose up -d --build
 
 ### 构建与部署
 
-详细的编译打包和部署说明，包括跨平台编译、Docker 部署、systemd 服务配置等，请参考 [BUILD.md](./docs/BUILD.md)。
+详细的编译打包和部署说明，包括跨平台编译、Docker 部署、systemd 服务配置等，请参考 [编译部署](./website/docs/deploy/build.md)。
 
 ### API 文档
 
@@ -212,7 +212,7 @@ docker compose up -d --build
 
 项目包含 Swagger API 文档，支持交互式 API 探索。
 
-错误码总览（前端联调建议必读）：[docs/ERROR_CODES.md](./docs/ERROR_CODES.md)
+错误码总览（前端联调建议必读）：[错误码](./website/docs/reference/error-codes.md)
 
 **访问 Swagger 文档：**
 
@@ -274,12 +274,12 @@ swag init
 ### 数据库分表（进阶）
 
 项目支持按月分表策略（订单等）。**新用户可先忽略**，仅在数据量大时再启用。  
-详细说明：[docs/SHARDING_MIGRATION.md](./docs/SHARDING_MIGRATION.md)、[docs/OPENSOURCE.md](./docs/OPENSOURCE.md)。
+详细说明：[分表迁移](./website/docs/advanced/sharding-migration.md)、[开源定位](./website/docs/guide/opensource.md)。
 
 ### 生产配置
 
-- **最小生产配置**（后台管理为主，不分表 / 不用 ES）：见 [docs/OPENSOURCE.md](./docs/OPENSOURCE.md#3-最小生产配置)
-- **完整进阶配置**（队列、分表、ES、OTEL）：见 [docs/OPENSOURCE.md](./docs/OPENSOURCE.md#4-完整进阶配置可选)
+- **最小生产配置**（后台管理为主，不分表 / 不用 ES）：见 [开源定位](./website/docs/guide/opensource.md)
+- **完整进阶配置**（队列、分表、ES、OTEL）：见 [开源定位](./website/docs/guide/opensource.md)
 
 ### 安全特性
 
@@ -370,20 +370,24 @@ upx -9 main
 
 ### 项目文档
 
+**推荐：** [VitePress 文档站](./website/README.md) — **只维护** `website/docs/`（及 `website/docs/en/`）
+
+```bash
+cd website && npm install && npm run dev
+```
+
 | 文档 | 说明 |
 |------|------|
-| [API.md](./docs/API.md) | 完整 API 接口文档 |
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 系统架构设计 |
-| [DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) | 开发指南：CRUD 模块完整开发示例（以留言板模块为例，包含后端接口和前端页面） |
-| [SHARDING_MIGRATION.md](./docs/SHARDING_MIGRATION.md) | 数据库分表指南（创建、使用和修改分表） |
-| [BUILD.md](./docs/BUILD.md) | 编译打包与部署 |
-| [TESTING.md](./docs/TESTING.md) | 测试指南（单元测试 & 集成测试） |
-| [OPENSOURCE.md](./docs/OPENSOURCE.md) | 开源定位、核心/进阶模块、最小与进阶生产配置 |
-| [QUICKSTART_DOCKER.md](./docs/QUICKSTART_DOCKER.md) | Docker Compose 本地三分钟跑通 |
-| [CONTRIBUTING.md](./docs/CONTRIBUTING.md) | 贡献指南 |
-| [CHANGELOG.md](./docs/CHANGELOG.md) | 版本变更记录 |
-| [前端开发指南（Vue）](./html/DEVELOPMENT.md) | Vue 前端开发文档 |
-| [前端说明（React）](./html-react/README.md) | React 前端概览与启动说明 |
+| [文档站说明](./website/README.md) | 本地预览 / 构建 |
+| [开源定位](./website/docs/guide/opensource.md) | 开源定位、核心/进阶模块 |
+| [快速开始](./website/docs/guide/getting-started.md) | Docker 三分钟跑通 |
+| [系统架构](./website/docs/guide/architecture.md) | 系统架构 |
+| [开发指南](./website/docs/guide/development.md) | 二次开发指南 |
+| [生产清单](./website/docs/deploy/production.md) | 生产上线清单 |
+| [前端开发指南（Vue）](./html/DEVELOPMENT.md) | Vue 前端 |
+| [前端说明（React）](./html-react/README.md) | React 前端 |
+
+> 根目录 `docs/` 仅保留 Swagger 产物（`docs.go` / `swagger.json` / `swagger.yaml`），项目说明文档不在此维护。
 
 ### Goravel 框架文档
 

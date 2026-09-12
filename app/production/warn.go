@@ -7,7 +7,7 @@ import (
 )
 
 // WarnInsecureDefaults logs warnings when APP_ENV=production has unsafe settings.
-// Does not abort startup — operators must decide; see docs/PRODUCTION.md.
+// Does not abort startup — operators must decide; see website/docs/deploy/production.md.
 func WarnInsecureDefaults() {
 	env := strings.ToLower(strings.TrimSpace(facades.Config().GetString("app.env", "production")))
 	if env != "production" {

@@ -115,7 +115,7 @@ cd /www/goravel-admin
 # ./main artisan db:seed --seeder=GeneratedModulesSeeder
 ```
 
-详见 [CODE_GENERATOR.md](./CODE_GENERATOR.md)。
+详见 [CODE_GENERATOR.md](/guide/code-generator)。
 
 ### 步骤 5：启动和管理服务
 
@@ -321,7 +321,7 @@ cd /www/goravel-admin/v1
 # ./main artisan db:seed --seeder=GeneratedModulesSeeder
 ```
 
-详见 [CODE_GENERATOR.md](./CODE_GENERATOR.md)。
+详见 [CODE_GENERATOR.md](/guide/code-generator)。
 
 ```bash
 # 试运行
@@ -579,7 +579,7 @@ git checkout <previous-commit>
 
 ### 健康检查
 
-# 应用已配置 `/health`（存活）与 `/ready`（就绪，含 DB/Redis 探测），见 docs/PRODUCTION.md。
+# 应用已配置 `/health`（存活）与 `/ready`（就绪，含 DB/Redis 探测），见 [生产清单](/deploy/production)。
 
 ### 故障处理
 

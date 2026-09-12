@@ -7,7 +7,7 @@
 # App:   http://localhost:3000
 # Login: admin / admin123  (change after first login)
 #
-# Production blue/green: see docs/DOCKER_DEPLOY.md (docker-compose.blue.yml / green.yml)
+# Production blue/green: see website/docs/deploy/docker.md (docker-compose.blue.yml / green.yml)
 
 services:
   mysql:

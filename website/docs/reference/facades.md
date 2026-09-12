@@ -269,4 +269,4 @@ go test ./...
 ## 相关文档
 
 - [Goravel Facades 文档](https://www.goravel.dev/zh_CN/architecture-concepts/facades.html)
-- [代码结构简化指南](./MIGRATION_STRATEGY.md)
+- [代码结构简化指南](/advanced/migration-strategy)

@@ -1,7 +1,11 @@
-# 中小 SaaS 上线评分清单
+# SaaS checklist
+
+> This page mirrors the Chinese documentation for accuracy. Switch language to **简体中文**, or open the [Chinese version](/advanced/saas).
+
+---
 
 面向**公网可服务的中小 SaaS / 运营后台**（一户一库可选、非金融收单）。  
-对照维度目标：**各项 ≥ 8.5 / 10**。详细运维步骤见 [PRODUCTION.md](./PRODUCTION.md)。
+对照维度目标：**各项 ≥ 8.5 / 10**。详细运维步骤见 [PRODUCTION.md](/deploy/production)。
 
 ## 1. 范围约定（功能完整度）
 
@@ -13,7 +17,7 @@
 | 搜索扩展点（ES / Meili，订单索引可选） | 业务全文检索开箱即用 |
 | 订单+支付 mock：`ApplyPaidResult` 幂等落库 | 生产收单 / 清算 |
 
-支付边界见 [OPENSOURCE.md](./OPENSOURCE.md) §1.1、[PAYMENTS_REFERENCE.md](./PAYMENTS_REFERENCE.md)。
+支付边界见 [OPENSOURCE.md](/guide/opensource) §1.1、[PAYMENTS_REFERENCE.md](/advanced/payments)。
 
 ## 2. 上线前核对
 
@@ -43,7 +47,7 @@
 | 维度 | 主要证据 |
 |------|----------|
 | 安全 | `app/http/middleware/security_headers.go`、`tenant.go`、`app/production/warn.go` |
-| 运维 | `app/health/`、`docs/PRODUCTION.md`、本文件 |
-| 多租户 | `docs/TENANT_RESERVED.md`、`tests/feature/tenant_*` |
-| 扩展 | `docs/SEARCH.md`、代码生成器、模块开关 |
+| 运维 | `app/health/`、[生产清单](/deploy/production)、本文件 |
+| 多租户 | [多租户](/advanced/tenancy)、`tests/feature/tenant_*` |
+| 扩展 | [搜索](/advanced/search)、代码生成器、模块开关 |
 | 测试 | `tests/feature/`、`app/tenancy/tenancy_test.go`、`app/health/ready_test.go` |

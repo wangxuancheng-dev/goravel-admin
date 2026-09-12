@@ -805,7 +805,7 @@
     "cfg_notify_url_ph": "一般可留空，系统使用默认回调",
     "cfg_shared_secret": "Mock 共享密钥",
     "cfg_shared_secret_ph": "可选；填写后回调需带 HMAC 签名",
-    "tip_mock_shared_secret": "签名规则：HMAC-SHA256(out_trade_no|SUCCESS|amount, secret)，见 docs/PAYMENTS_REFERENCE.md",
+    "tip_mock_shared_secret": "签名规则：HMAC-SHA256(out_trade_no|SUCCESS|amount, secret)，见 website/docs/advanced/payments.md",
     "cfg_private_key": "应用私钥",
     "cfg_private_key_ph": "粘贴完整私钥内容",
     "cfg_alipay_public_key": "支付宝公钥",

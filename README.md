@@ -29,7 +29,7 @@ password: demo123
 
 **Not a drop-in fit:** financial trading cores or large-scale commercial SaaS platforms out of the box. Sharding / Elasticsearch / multi-queue drivers are **optional** and need extra ops.
 
-See module tiers and production configs: [docs/OPENSOURCE.md](./docs/OPENSOURCE.md).
+See module tiers and production configs: [opensource guide](./website/docs/guide/opensource.md) (`cd website && npm run dev`).
 
 ### Screenshots
 
@@ -113,13 +113,13 @@ See module tiers and production configs: [docs/OPENSOURCE.md](./docs/OPENSOURCE.
 
 #### Optional Advanced Modules
 
-Enable only when needed (see [OPENSOURCE.md](./docs/OPENSOURCE.md)):
+Enable only when needed (see [opensource](./website/docs/guide/opensource.md)):
 
 - Monthly order/payment sharding and balance-log hash sharding
 - Elasticsearch order sync / search
 - Redis async queues, long-running export jobs, extra queue drivers
 - OpenTelemetry export to Jaeger / Grafana
-- Payment admin sample (**not a full acquiring stack**: no production notify/refund — see [OPENSOURCE.md](./docs/OPENSOURCE.md))
+- Payment admin sample (**not a full acquiring stack**: no production notify/refund — see [opensource](./website/docs/guide/opensource.md))
 
 ### Tech Stack
 
@@ -201,7 +201,7 @@ For UI development, run Vite separately (Vue `html/` → `:3007`, React `html-re
 
 ### Build & Deployment
 
-For detailed build and deployment instructions, including cross-platform compilation, Docker deployment, and systemd service setup, please refer to [BUILD.md](./docs/BUILD.md).
+For detailed build and deployment instructions, including cross-platform compilation, Docker deployment, and systemd service setup, please refer to [build guide](./website/docs/deploy/build.md).
 
 ### API Documentation
 
@@ -213,7 +213,7 @@ For detailed API documentation, see [routes/admin.go](./routes/admin.go)
 
 The project includes Swagger API documentation for interactive API exploration.
 
-Error code overview for frontend integration: [docs/ERROR_CODES.md](./docs/ERROR_CODES.md)
+Error code overview for frontend integration: [error codes](./website/docs/reference/error-codes.md)
 
 **Access Swagger Documentation:**
 
@@ -275,12 +275,12 @@ This will regenerate the `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.
 ### Database Sharding (Advanced)
 
 Monthly sharding (orders, etc.) is supported. **New users can skip this** until data volume requires it.  
-See [docs/SHARDING_MIGRATION.md](./docs/SHARDING_MIGRATION.md) and [docs/OPENSOURCE.md](./docs/OPENSOURCE.md).
+See [sharding migration](./website/docs/advanced/sharding-migration.md) and [opensource](./website/docs/guide/opensource.md).
 
 ### Production Config
 
-- **Minimal production** (admin-focused, no sharding / ES): [docs/OPENSOURCE.md](./docs/OPENSOURCE.md#3-最小生产配置) · template [`.env.production.example`](./.env.production.example)
-- **Full advanced stack** (queues, sharding, ES, OTEL): [docs/OPENSOURCE.md](./docs/OPENSOURCE.md#4-完整进阶配置可选)
+- **Minimal production** (admin-focused, no sharding / ES): [opensource](./website/docs/guide/opensource.md) · template [`.env.production.example`](./.env.production.example)
+- **Full advanced stack** (queues, sharding, ES, OTEL): [opensource](./website/docs/guide/opensource.md)
 
 ### Security Features
 
@@ -374,22 +374,24 @@ upx -9 main
 
 ### Project Documentation
 
+**Preferred:** [VitePress docs site](./website/README.md) — **only maintain** `website/docs/` (+ `website/docs/en/`)
+
+```bash
+cd website && npm install && npm run dev
+```
+
 | Document | Description |
 |----------|-------------|
-| [API.md](./docs/API.md) | Complete API reference with examples |
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System architecture and design |
-| [TENANT_RESERVED.md](./docs/TENANT_RESERVED.md) | Multi-tenancy (database-per-tenant / PG schema) |
-| [DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) | Development guide: Complete CRUD module development example (using guestbook module as example, includes backend APIs and frontend pages) |
-| [SHARDING_MIGRATION.md](./docs/SHARDING_MIGRATION.md) | Database sharding guide (creating, using, and modifying sharding tables) |
-| [BUILD.md](./docs/BUILD.md) | Build and deployment |
-| [TESTING.md](./docs/TESTING.md) | Testing guide (unit & integration) |
-| [FRONTEND_PARITY.md](./docs/FRONTEND_PARITY.md) | Vue (primary) vs React parity checklist |
-| [OPENSOURCE.md](./docs/OPENSOURCE.md) | Open-source positioning, core vs advanced modules, production configs |
-| [QUICKSTART_DOCKER.md](./docs/QUICKSTART_DOCKER.md) | Docker Compose local setup in three commands |
-| [CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Contribution guide |
-| [CHANGELOG.md](./docs/CHANGELOG.md) | Changelog |
-| [Frontend Guide (Vue)](./html/DEVELOPMENT.md) | Vue frontend development guide |
-| [Frontend Guide (React)](./html-react/README.md) | React frontend overview & setup |
+| [Docs site](./website/README.md) | Local preview / build |
+| [opensource](./website/docs/guide/opensource.md) | Scope, core vs advanced modules |
+| [getting-started](./website/docs/guide/getting-started.md) | Docker Compose in three commands |
+| [architecture](./website/docs/guide/architecture.md) | System architecture |
+| [development](./website/docs/guide/development.md) | Secondary development guide |
+| [production](./website/docs/deploy/production.md) | Production checklist |
+| [Frontend Guide (Vue)](./html/DEVELOPMENT.md) | Vue frontend |
+| [Frontend Guide (React)](./html-react/README.md) | React frontend |
+
+> Root `docs/` now only holds Swagger artifacts (`docs.go` / `swagger.json` / `swagger.yaml`), not project guides.
 
 ### Goravel Framework
 

@@ -97,7 +97,7 @@ These admin modules follow the code generator pattern end-to-end:
 
 **Do not migrate** (edit in place only): `auth` (login flow), `monitor` (ops sysinfo), `notification_ws`, `code_generator`, `form_demo`, payment/order/user export queue orchestration internals, attachment Download/Preview streaming, …
 
-**Sharding queries:** order/payment/balance_log already share `ShardingQueryService` (`docs/SHARDING_QUERY_SERVICE.md`). Do not invent a parallel UNION layer unless a third pattern diverges.
+**Sharding queries:** order/payment/balance_log already share `ShardingQueryService` (`website/docs/advanced/sharding-query.md`). Do not invent a parallel UNION layer unless a third pattern diverges.
 
 ### Generated controller structure
 ```go
@@ -147,7 +147,7 @@ When implementing changes, include:
 - Test plan (targeted `go test` + manual requests)
 
 ## References
-- `docs/TENANT_RESERVED.md` — multi-tenant (off vs database-per-tenant); prefer `OrmQuery(ctx)` / `tenancy.CacheKey`
+- `website/docs/advanced/tenancy.md` — multi-tenant (off vs database-per-tenant); prefer `OrmQuery(ctx)` / `tenancy.CacheKey`
 - `app/services/templates/controller.tpl` — generator template (canonical)
 - `app/http/controllers/admin/generated_helpers.go` — shared Validate/HandleGeneratedServiceError
 - `app/http/controllers/admin/article_controller.go` — latest generated example

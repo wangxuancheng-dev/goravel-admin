@@ -35,7 +35,7 @@ func (r *PlatformInstall) Extend() command.Extend {
 
 func (r *PlatformInstall) Handle(ctx console.Context) error {
 	if !tenancy.Enabled() {
-		ctx.Error("需要 TENANCY_DRIVER=database（见 .env / docs/TENANT_RESERVED.md）")
+		ctx.Error("需要 TENANCY_DRIVER=database（见 .env / website/docs/advanced/tenancy.md）")
 		return nil
 	}
 

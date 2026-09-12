@@ -1,5 +1,8 @@
-# 开发指南：留言板模块 CRUD 完整示例
+# Development guide
 
+> This page mirrors the Chinese documentation for accuracy. Switch language to **简体中文**, or open the [Chinese version](/guide/development).
+
+---
 本文档以**留言板模块**为例，详细说明如何开发一个完整的增删改查功能，包括后端接口和前端页面。
 
 ## 目录
@@ -41,7 +44,7 @@
 
 ## 新增模块硬编码检查清单
 
-新增后台模块前后，请按 `docs/HARDCODED_CHECKLIST.md` 逐项检查，重点关注：
+新增后台模块前后，请按 [硬编码检查清单](/guide/hardcoded-checklist) 逐项检查，重点关注：
 
 - 权限种子与 slug 一致性
 - 操作日志标题映射与下拉可检索

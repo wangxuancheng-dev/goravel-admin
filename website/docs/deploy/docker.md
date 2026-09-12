@@ -182,7 +182,7 @@ export RUN_SEED=false
 # docker exec <container> /www/main artisan db:seed --seeder=GeneratedModulesSeeder
 ```
 
-详见 [CODE_GENERATOR.md](./CODE_GENERATOR.md)。
+详见 [CODE_GENERATOR.md](/guide/code-generator)。
 
 ## 🔍 查看状态
 
@@ -270,7 +270,7 @@ git checkout <previous-commit>
 
 ## 🔗 相关文档
 
-- 详细部署文档：`docs/BUILD.md`
+- 详细部署文档：[编译与部署](/deploy/build)
 - 脚本说明：`scripts/deploy/README.md`
 
 ## 💡 提示

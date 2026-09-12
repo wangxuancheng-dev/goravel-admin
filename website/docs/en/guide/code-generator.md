@@ -1,4 +1,8 @@
-# 代码生成器：菜单与权限安装
+# Code generator
+
+> This page mirrors the Chinese documentation for accuracy. Switch language to **简体中文**, or open the [Chinese version](/guide/code-generator).
+
+---
 
 代码生成器在生成 CRUD 代码后，可通过 **Install 服务** 自动注册菜单、权限，并写入可复现的 manifest 文件。
 
@@ -107,7 +111,7 @@ API 路径前缀：`/api/admin/{table_name}`（如 `/api/admin/articles`）。
 
 ## 仍需手动的项
 
-代码生成器**不会**自动完成以下工作，发布前请对照 [HARDCODED_CHECKLIST.md](./HARDCODED_CHECKLIST.md)：
+代码生成器**不会**自动完成以下工作，发布前请对照 [HARDCODED_CHECKLIST.md](/guide/hardcoded-checklist)：
 
 - `permission.*` / `menu.*` 中英文 i18n（角色树有 `description` 兜底，但建议补全）
 - `app/utils/operation_title.go` 非标准接口的操作日志标题

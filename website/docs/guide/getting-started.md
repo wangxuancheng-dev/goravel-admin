@@ -2,7 +2,7 @@
 
 面向新用户：用 Docker Compose 拉起 **MySQL + Redis + API**，约三条命令即可登录后台。
 
-生产蓝绿部署请看 [DOCKER_DEPLOY.md](./DOCKER_DEPLOY.md)。
+生产蓝绿部署请看 [DOCKER_DEPLOY.md](/deploy/docker)。
 
 ## 前置
 
