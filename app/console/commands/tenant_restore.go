@@ -59,9 +59,9 @@ func (r *TenantRestore) Handle(ctx console.Context) error {
 	var cleanup func()
 	switch strings.ToLower(tenant.Driver) {
 	case models.TenantDriverPostgres, "pgsql", "postgresql":
-		args := []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-f", file}
+		args, env := postgresRestoreArgs(host, port, user, pass, database, file, tenant)
 		cmd = exec.Command("psql", args...)
-		cmd.Env = append(os.Environ(), "PGPASSWORD="+pass)
+		cmd.Env = env
 	default:
 		defaultsFile, err := writeMySQLDefaultsFile(user, pass)
 		if err != nil {
@@ -96,3 +96,16 @@ func (r *TenantRestore) Handle(ctx console.Context) error {
 	ctx.Success(fmt.Sprintf("已恢复租户 %s ← %s", tenant.Code, file))
 	return nil
 }
+
+// postgresRestoreArgs builds psql argv/env; schema isolation sets search_path like backup -n.
+func postgresRestoreArgs(host string, port int, user, pass, database, file string, tenant *models.Tenant) (args []string, env []string) {
+	args = []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-v", "ON_ERROR_STOP=1", "-f", file}
+	env = append(os.Environ(), "PGPASSWORD="+pass)
+	if tenant != nil && tenant.Isolation == models.TenantIsolationSchema {
+		if schema := strings.TrimSpace(tenant.Schema); schema != "" {
+			env = append(env, "PGOPTIONS=--search_path="+schema)
+		}
+	}
+	return args, env
+}
+

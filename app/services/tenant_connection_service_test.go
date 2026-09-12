@@ -134,3 +134,16 @@ func TestTenantPostgresSSLMode(t *testing.T) {
 		t.Fatalf("default: got %q", got)
 	}
 }
+
+func TestFilterReadyTenants(t *testing.T) {
+	in := []models.Tenant{
+		{Code: "a", ProvisionStatus: models.TenantProvisionReady},
+		{Code: "b", ProvisionStatus: models.TenantProvisionPending},
+		{Code: "c", ProvisionStatus: models.TenantProvisionFailed},
+		{Code: "d", ProvisionStatus: ""},
+	}
+	out := filterReadyTenants(in)
+	if len(out) != 2 || out[0].Code != "a" || out[1].Code != "d" {
+		t.Fatalf("got %+v", out)
+	}
+}

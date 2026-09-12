@@ -29,7 +29,7 @@ func (c *HealthController) Index(ctx http.Context) http.Response {
 	}
 
 	databaseOK := true
-	if sqlDB, err := appfacades.Orm().DB(); err != nil {
+	if sqlDB, err := appfacades.Orm().Connection(appfacades.PlatformConnectionName()).DB(); err != nil {
 		databaseOK = false
 	} else {
 		pingCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

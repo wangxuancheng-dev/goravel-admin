@@ -18,6 +18,7 @@ import (
 	"goravel/app/http/trans"
 	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 )
 
 type RouteServiceProvider struct {
@@ -188,7 +189,7 @@ func resolveLoginIdentifier(ctx contractshttp.Context, fallbackIP string) string
 	return fallbackIP
 }
 
-// resolveLoginTenantHint 在 Tenant 中间件之前读取租户提示（body/query/header）。
+// resolveLoginTenantHint 在 Tenant 中间件之前读取租户提示（body/query/header/subdomain）。
 func resolveLoginTenantHint(ctx contractshttp.Context) string {
 	for _, field := range []string{"tenant_code", "tenant_id"} {
 		if v := strings.TrimSpace(ctx.Request().Input(field, "")); v != "" {
@@ -204,6 +205,11 @@ func resolveLoginTenantHint(ctx contractshttp.Context) string {
 	header := facades.Config().GetString("tenancy.header", "X-Tenant-ID")
 	if v := strings.TrimSpace(ctx.Request().Header(header, "")); v != "" {
 		return strings.ToLower(v)
+	}
+	if tenancy.Resolver() == "subdomain" {
+		if code := tenancy.SubdomainHint(ctx.Request().Host()); code != "" {
+			return strings.ToLower(code)
+		}
 	}
 	return ""
 }

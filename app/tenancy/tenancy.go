@@ -32,6 +32,7 @@ func Bound(ctx context.Context) bool {
 }
 
 // CacheKey prefixes cache keys with tenant id when tenancy is on and bound.
+// When tenancy is on but ctx is unbound, uses a dead-end namespace (never the shared root).
 func CacheKey(ctx context.Context, key string) string {
 	if !Enabled() {
 		return key
@@ -39,10 +40,11 @@ func CacheKey(ctx context.Context, key string) string {
 	if id, ok := tenancyctx.IDFrom(ctx); ok {
 		return fmt.Sprintf("t%d:%s", id, key)
 	}
-	return key
+	return "t_unbound:" + key
 }
 
 // StoragePrefix returns object-storage path prefix, e.g. tenants/acme/
+// When tenancy is on but ctx is unbound, returns tenants/_unbound_/ (never the shared root).
 func StoragePrefix(ctx context.Context) string {
 	if !Enabled() {
 		return ""
@@ -53,7 +55,7 @@ func StoragePrefix(ctx context.Context) string {
 	if id, ok := tenancyctx.IDFrom(ctx); ok {
 		return fmt.Sprintf("tenants/%d/", id)
 	}
-	return ""
+	return "tenants/_unbound_/"
 }
 
 // HTTPHint reads tenant id/code from subdomain and/or header/query.

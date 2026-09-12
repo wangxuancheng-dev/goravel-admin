@@ -16,7 +16,8 @@ import (
 // ctx carries tenant routing keys when tenancy is on.
 type TenantWork func(tenant *models.Tenant, ctx context.Context) error
 
-// ListActiveTenants returns platform tenants with status=active.
+// ListActiveTenants returns platform tenants with status=active (any provision_status).
+// Prefer ListReadyActiveTenants for maintenance that assumes a migrated schema.
 func (s *TenantConnectionService) ListActiveTenants() ([]models.Tenant, error) {
 	var tenants []models.Tenant
 	if err := appfacades.PlatformOrmQuery(nil).
@@ -28,8 +29,28 @@ func (s *TenantConnectionService) ListActiveTenants() ([]models.Tenant, error) {
 	return tenants, nil
 }
 
+// ListReadyActiveTenants returns enabled tenants that are provision_status=ready.
+func (s *TenantConnectionService) ListReadyActiveTenants() ([]models.Tenant, error) {
+	tenants, err := s.ListActiveTenants()
+	if err != nil {
+		return nil, err
+	}
+	return filterReadyTenants(tenants), nil
+}
+
+func filterReadyTenants(tenants []models.Tenant) []models.Tenant {
+	out := make([]models.Tenant, 0, len(tenants))
+	for i := range tenants {
+		if tenants[i].IsProvisionReady() {
+			out = append(out, tenants[i])
+		}
+	}
+	return out
+}
+
 // RunTenantScope runs work once on the default DB when tenancy is off.
-// When tenancy is on: --tenant hint runs one active tenant; empty hint iterates all active tenants.
+// When tenancy is on: --tenant hint runs one active+ready tenant; empty hint iterates ready active tenants.
+// (migrate-all / seed-all do not use this helper — they may target pending tenants.)
 func (s *TenantConnectionService) RunTenantScope(hint string, work TenantWork) error {
 	if work == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant work is nil")
@@ -47,13 +68,16 @@ func (s *TenantConnectionService) RunTenantScope(hint string, work TenantWork) e
 		if tenant.Status != models.TenantStatusActive {
 			return apperrors.ErrTenantDisabled
 		}
+		if !tenant.IsProvisionReady() {
+			return apperrors.ErrTenantNotReady
+		}
 		return s.WithTenantConnection(tenant, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tenant.ID, tenant.ConnectionName, tenant.Code)
 			return work(tenant, bound)
 		})
 	}
 
-	tenants, err := s.ListActiveTenants()
+	tenants, err := s.ListReadyActiveTenants()
 	if err != nil {
 		return err
 	}

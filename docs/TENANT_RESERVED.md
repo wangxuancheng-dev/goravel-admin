@@ -64,10 +64,12 @@ PLATFORM_ADMIN_NAME=平台管理员
 1. **Landlord 迁移跳过**：平台表迁移（`tenants` / `platform_admins` / `jobs` / provision/migrate meta）在 `tenant_*` 连接上 `SkipOnTenantConnection` 空跑，避免污染租户库。
 2. **Migrate 可见性**：`last_migrate_error` / `migrated_at`；失败写 `provision_status=failed`。
 3. **连接探测**：`POST /api/platform/tenants/{id}/ping`。
-4. **登录限流**：`login` limiter 键含 `tenant_code`/`tenant_id`/Header，避免跨租户互相锁号。
+4. **登录限流**：`login` limiter 键含 body/query/header/`subdomain` 租户提示，避免跨租户互相锁号。
 5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
 6. **PG sslmode**：`TENANCY_POSTGRES_SSLMODE` 或 `DB_SSLMODE`。
-7. **备份保留**：`tenant:backup [--keep=N]`、`tenant:backup-all`；默认 `TENANCY_BACKUP_KEEP`；PG schema 隔离用 `pg_dump -n`。
+7. **备份/恢复**：`tenant:backup [--keep=N]`、`tenant:backup-all`；PG schema 隔离备份用 `pg_dump -n`，恢复用 `PGOPTIONS=--search_path`。
+8. **CLI 范围**：`RunTenantScope` 仅遍历 **active + ready**；`tenant:migrate-all` 仍可覆盖 pending（单独查询）。
+9. **未绑定隔离**：tenancy 开启但 ctx 未绑定时，`CacheKey` → `t_unbound:*`，`StoragePrefix` → `tenants/_unbound_/`（不与共享根冲突）。
 
 ## 首启（推荐）
 
@@ -174,3 +176,4 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 11. 仅 `provision_status=ready` 的租户可绑定业务；HTTP 开户禁止 migrate，须 CLI `tenant:migrate`。
 12. 远程租户库禁止空账号回落平台 root；生产建议 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`。
 13. 平台表迁移不得落在租户库（`SkipOnTenantConnection`）；migrate 失败须可在平台侧看到 `last_migrate_error`。
+14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。

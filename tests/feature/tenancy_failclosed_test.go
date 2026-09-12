@@ -73,3 +73,10 @@ func TestOrdersIndexShortNameFailClosedUnbound(t *testing.T) {
 	require.True(t, tenancy.Enabled())
 	assert.Equal(t, "", search.OrdersIndexShortNameFor(context.Background()))
 }
+
+func TestCacheAndStorageUnboundDoNotShareRoot(t *testing.T) {
+	withTenancyDriver(t, "database")
+	require.True(t, tenancy.Enabled())
+	assert.Equal(t, "t_unbound:lock:x", tenancy.CacheKey(context.Background(), "lock:x"))
+	assert.Equal(t, "tenants/_unbound_/", tenancy.StoragePrefix(context.Background()))
+}
