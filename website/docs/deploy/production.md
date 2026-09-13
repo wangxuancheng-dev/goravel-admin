@@ -106,7 +106,7 @@ curl -sf http://127.0.0.1:3000/ready
 
 ## 6. 管理端 SPA（React）与 Docker
 
-默认 **React（`html-react/`）是主发货 UI**；Vue（`html/`）为对等参考实现。镜像默认不构建前端（`BUILD_FRONTEND=0`，加快纯 API 镜像）；需要同镜像托管 SPA 时设 `BUILD_FRONTEND=1`，**优先构建 `html-react/`** 并复制到 `public/admin`。
+默认 **React（`html-react/`）是推荐前端**；Vue（`html/`）为对等实现。镜像默认不构建前端（`BUILD_FRONTEND=0`，加快纯 API 镜像）；需要同镜像托管 SPA 时设 `BUILD_FRONTEND=1`，**优先构建 `html-react/`** 并复制到 `public/admin`。
 
 本地 / CI 单独构建前端：
 

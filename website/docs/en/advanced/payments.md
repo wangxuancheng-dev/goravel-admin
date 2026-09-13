@@ -150,7 +150,7 @@ Shared rules:
 | Item | Why |
 |------|-----|
 | Dozens of drivers under `app/services` | Clutters CRUD; drivers live in `app/payment/gateways` |
-| Per-vendor `app/<vendor>` package | Against [service packages](/en/guide/service-packages) |
+| Per-vendor `app/<vendor>` package | Against [service code layout](/en/guide/service-packages); use a go.mod dependency or hand-written driver |
 | Revive PaymentStore / OrderStore ports | Orchestration stays in services |
 | New routes / notify controllers per channel | `{type}` already dispatches |
 | Move entire `OrderService` / `PaymentService` | Outside frozen split |

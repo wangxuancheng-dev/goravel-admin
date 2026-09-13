@@ -22,7 +22,7 @@ features:
   - title: 双前端
     details: Vue 与 React 共用同一套 Admin API；新功能两端同发。
   - title: 核心与进阶
-    details: RBAC、日志、导出、代码生成器默认可跑；分表 / ES / 多租户 / 支付网关按模块开启。
+    details: RBAC、日志、导出、代码生成开箱可用；分表 / ES / 多租户 / 支付网关按模块开启。
 ---
 
 ## 文档导航

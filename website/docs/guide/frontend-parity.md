@@ -2,12 +2,12 @@
 
 本仓库提供两套管理端前端，对接**同一** `/api/admin`（及平台 `/api/platform`）契约。
 
-## 主从约定
+## 两端约定
 
 | 角色 | 目录 | 说明 |
 |------|------|------|
-| **主发货 UI（shipping）** | `html-react/`（React 19） | **默认上线前端**；文档截图、生产 Docker `BUILD_FRONTEND=1`（构建产物进 `public/admin`）、新功能优先落此端 |
-| **对等参考实现（peer reference）** | `html/`（Vue 3） | 与 React 同仓库维护的 Vue 参考端；CI 独立 type-check / test / build，契约与权限对齐 |
+| **默认前端** | `html-react/`（React 19） | 文档截图、生产 Docker `BUILD_FRONTEND=1`（产物进 `public/admin`）、新功能优先落此端 |
+| **对等前端** | `html/`（Vue 3） | 同仓库维护的 Vue 端；CI 独立 type-check / test / build，契约与权限对齐 |
 
 新功能、修 Bug、改请求约定时：**先 React（`html-react/`），再跟进 Vue（`html/`）**。理想情况两端同 PR；若短期只能改一端，在 PR 中注明另一端跟进项。
 

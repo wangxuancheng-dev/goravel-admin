@@ -62,7 +62,7 @@ Ready failure webhook: `READY_ALERT_WEBHOOK_URL` (5 min debounce on `/ready` non
 
 ## Admin SPA (React) & Docker
 
-**React (`html-react/`) is the primary shipping UI**; Vue (`html/`) is the peer reference. Images default to `BUILD_FRONTEND=0` (API-only). Set `BUILD_FRONTEND=1` to build **React** into `public/admin`.
+**React (`html-react/`) is the primary UI**; Vue (`html/`) is the peer implementation. Images default to `BUILD_FRONTEND=0` (API-only). Set `BUILD_FRONTEND=1` to build **React** into `public/admin`.
 
 ```bash
 cd html-react && npm ci && npm run build

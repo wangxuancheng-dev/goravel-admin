@@ -22,7 +22,7 @@ features:
   - title: Dual frontend
     details: Vue and React share the same Admin API; ship new features on both sides.
   - title: Core and advanced
-    details: RBAC, logs, export, and the code generator work out of the box. Sharding, ES, multi-tenancy, and payment gateways are module switches.
+    details: RBAC, logs, export, and code generation are ready to use. Sharding, ES, multi-tenancy, and payment gateways are optional modules.
 ---
 
 ## Docs navigation

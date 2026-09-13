@@ -11,7 +11,7 @@ Goravel Admin 后台管理系统的整体架构。
 │                         客户端 (Browser)                         │
 ├───────────────────────────────┬─────────────────────────────────┤
 │   React 19 SPA (html-react/)  │   Vue 3 SPA (html/)             │
-│   Ant Design 6（主发货）       │   Element Plus + vxe-table      │
+│   Ant Design 6（默认）       │   Element Plus + vxe-table      │
 ├───────────────────────────────┴─────────────────────────────────┤
 │                         Nginx / CDN                              │
 ├─────────────────────────────────────────────────────────────────┤
@@ -22,7 +22,7 @@ Goravel Admin 后台管理系统的整体架构。
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-两套前端**对接同一 Admin API**。**React（`html-react/`）是主发货 UI**；Vue（`html/`）为对等参考实现，**新功能优先落 React**。对齐清单见 [双前端对齐](/guide/frontend-parity)。架构上后端一份，前端双实现。
+两套前端**对接同一 Admin API**。**React（`html-react/`）是默认前端**；Vue（`html/`）为对等参考实现，**新功能优先落 React**。对齐清单见 [双前端对齐](/guide/frontend-parity)。架构上后端一份，前端双实现。
 
 可选多租户（默认 `TENANCY_DRIVER=off`）：设为 `database` 后为**一户一库/Schema**（连接级隔离，非行级 `tenant_id`）；`platform:install` 首启；平台控制台 `/api/platform`，租户业务在租户库。权威说明见 [多租户](/advanced/tenancy)。
 
@@ -36,7 +36,7 @@ Goravel Admin 后台管理系统的整体架构。
 |------|------|-------------|
 | **后端框架** | Goravel | v1.18（以 `go.mod` 为准） |
 | **编程语言** | Go | 1.25+（以 `go.mod` 为准） |
-| **前端（React，主发货）** | React 19 + Ant Design 6 + Zustand + React Router 7 | 目录 `html-react/` |
+| **前端（React，默认）** | React 19 + Ant Design 6 + Zustand + React Router 7 | 目录 `html-react/` |
 | **前端（Vue，参考）** | Vue 3 + Element Plus + VXE-Table + Pinia | 目录 `html/` |
 | **数据库** | MySQL / PostgreSQL | 8.0+ / 15+ |
 | **缓存 / 队列** | Redis（可选 sync 队列本地跑） | 7.0+ |
@@ -176,7 +176,7 @@ admin, resp := response.FindByID[models.Admin](ctx, id, nil)
 
 两套 SPA **共用后端契约**（`code` / `message` / `error_code` / `data.list`），目录与栈不同，业务模块应对齐。
 
-| | React (`html-react/`，主发货) | Vue (`html/`，参考) |
+| | React (`html-react/`，默认) | Vue (`html/`，参考) |
 |---|---|---|
 | UI | Ant Design 6 | Element Plus + vxe-table |
 | 状态 | Zustand | Pinia |

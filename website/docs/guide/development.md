@@ -11,8 +11,8 @@
 | [代码生成器](/guide/code-generator) | 菜单/权限 Install、导出导入、生产 seed |
 | **本文后半 · 留言板** | 手写 CRUD 长文（理解分层） |
 | [硬编码检查清单](/guide/hardcoded-checklist) | 生成后仍需人工核对的项 |
-| [Service 包拆分](/guide/service-packages) | 新代码默认放哪 |
-| [双前端对齐](/guide/frontend-parity) | React 主发货 / Vue 参考 |
+| [服务代码组织](/guide/service-packages) | 新代码默认放哪 |
+| [双前端对齐](/guide/frontend-parity) | React 默认推荐 / Vue 对等 |
 | 仓内 `article` | 生成器风格参考实现 |
 
 ---
@@ -85,7 +85,7 @@ Install、导出导入选项、生产 seed 细节见 [代码生成器](/guide/co
 2. 非超管角色授权
 3. 非标准路由才改 `operation_title.go`
 4. 业务规则写在 Service，Controller 保持薄
-5. 新 CRUD 留在 `app/services`，不要新建 `app/notice`（见 [Service 包拆分](/guide/service-packages)）
+5. 新 CRUD 留在 `app/services`，不要新建 `app/notice`（见 [服务代码组织](/guide/service-packages)）
 
 完整清单：[硬编码检查清单](/guide/hardcoded-checklist)。
 
@@ -98,7 +98,7 @@ Install、导出导入选项、生产 seed 细节见 [代码生成器](/guide/co
 | Controller | `ValidateGeneratedRequest` + `HandleGeneratedServiceError` |
 | Service | `NewXxxService(ctx)` + `appfacades.OrmQuery` |
 | Response | `response.Success` / BusinessError + 稳定 `error_code` |
-| React | List + FormModal + config（主发货） |
+| React | List + FormModal + config（默认推荐） |
 | 权限 slug | `{module}.index\|show\|store\|update\|destroy\|export\|import` |
 
 优先改 Service 与校验；少改全站模板，除非在演进 CRUD 范式。

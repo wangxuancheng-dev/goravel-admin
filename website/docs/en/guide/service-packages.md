@@ -1,37 +1,27 @@
-# Service package split roadmap
+# Service code layout
 
-`app/services` stays **one package with domain-oriented files**. Only extract small, pure, testable helpers into `app/*` domain packages when they do not need HTTP/facades orchestration.
+Put business logic in `app/services` by default (one package, domain-oriented files). Extract into `app/*` domain packages only for small, pure, testable helpers that do not need HTTP/Facades orchestration.
 
-## Principles (frozen)
+## Conventions
 
-1. **CRUD / code-generator modules** stay in `app/services` to match templates.
-2. **Cross-domain orchestration** (`ApplyPaidResult`, tenant connection, export/import enqueue) **stays in services** — do not add more `app` packages or ports layers just for orchestration.
-3. **Stop here** for domain packages: keep `payment` / `rbac` (and existing `tenancy`). Do **not** move entire OrderService / PaymentService / TenantConnection into new directories; **do not add** new `app/<domain>` packages by default.
-4. **No import cycles**: `services` may import `rbac` / `payment` / `tenancy`; domain packages must **not** import `services`.
-5. Default new code to `app/services`; only add a domain package for pure logic, strong reuse, or breaking an import cycle.
+1. **CRUD / code-generator modules** live in `app/services` to match templates.
+2. **Cross-domain orchestration** (payment apply, tenant connection, export/import enqueue) stays in `app/services` — do not add a ports layer just for orchestration.
+3. **Existing domain packages**: `app/payment`, `app/rbac`, `app/tenancy`. Do not create `app/<domain>` by default (e.g. no `app/notice` for a generated Notice module).
+4. **Import direction**: `services` may import domain packages; domain packages must **not** import `services`.
+5. Prefer `app/services` for new code; add a domain package only for pure logic, strong reuse, or to break an import cycle.
 
-## Kept splits (worthwhile)
+## Domain packages
 
-| Capability | Package / file | Notes |
-|------------|----------------|-------|
-| Payment paid status gate | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate` (pure) |
-| Payment gateway drivers | `app/payment/gateways/` | one file per channel; `payment.RegisterGateway`; SDK or hand-written; `Notify` returns `PaidResult` only. See [Payments](/en/advanced/payments) §6 |
-| Payment DB apply | `app/services/payment_apply.go` | orchestration in services; takes `payment.PaidResult` |
-| Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy`; services call `rbac` directly |
-| Order filters + JSON | `app/services/order_filters.go` / `order_json.go` | same package as CRUD — no separate `app/orders` |
-| Tenancy parsing helpers | `app/tenancy` | hints / CacheKey / StoragePrefix (already separate) |
-| Import task center | services + controllers | no separate `app/imports` package |
-
-## Explicitly not split / reverted
-
-| Item | Decision |
-|------|----------|
-| Full `ApplyPaidResult` + `PaymentStore`/`OrderStore` ports | **Do not split**; unfinished `app/payment/store.go` removed |
-| Per-vendor `app/<vendor>` payment packages | **Do not split**; drivers live in `app/payment/gateways` |
-| `app/orders` (filters/JSON) | **Merged back** into `app/services` |
-| `tenant_connection_service` / `tenant_ops_service` | **Stay in services** |
-| Entire `OrderServiceImpl` / `PaymentService` | **Stay in services** |
+| Capability | Location | Notes |
+|------------|----------|-------|
+| Payment status gate | `app/payment` | `PaidResult`, `ApplyPaidResultStatusGate` |
+| Payment gateway drivers | `app/payment/gateways/` | one file per channel; `payment.RegisterGateway`; see [Payments](/en/advanced/payments) |
+| Payment DB apply | `app/services/payment_apply.go` | orchestration in services; uses `payment.PaidResult` |
+| Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy` |
+| Order filters + JSON | `app/services/order_filters.go`, `order_json.go` | same package as CRUD |
+| Tenancy helpers | `app/tenancy` | hints / CacheKey / StoragePrefix |
+| Import task center | services + controllers | no separate `app/imports` |
 
 ## Dual frontend
 
-React (`html-react/`) is the **primary shipping UI**; Vue is the parity reference. See [Frontend parity](/en/guide/frontend-parity).
+React (`html-react/`) is the primary UI; Vue (`html/`) is the parity implementation. See [Frontend parity](/en/guide/frontend-parity).

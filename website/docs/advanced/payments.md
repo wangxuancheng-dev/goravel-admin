@@ -148,10 +148,10 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 | 项 | 原因 |
 |----|------|
 | 把几十个驱动平铺进 `app/services` | 与 CRUD 搅在一起；驱动已迁至 `app/payment/gateways` |
-| 每渠道一个 `app/<vendor>` 包 | 违背 [Service 包拆分](/guide/service-packages)；第三方用 **go.mod 依赖** 或驱动内手写即可 |
+| 每渠道一个 `app/<vendor>` 包 | 与 [服务代码组织](/guide/service-packages) 约定不符；第三方用 **go.mod 依赖** 或驱动内手写即可 |
 | 再引入 PaymentStore / OrderStore ports | 已删除未完成稿；编排留 services |
 | 为新渠道改 routes / 复制 notify controller | 路由已按 `{type}` 分发 |
-| 把 `OrderService` / `PaymentService` 整包迁出 | 冻结范围外 |
+| 把 `OrderService` / `PaymentService` 整包迁出 | 订单/支付编排应留在 `app/services` |
 | 强制所有渠道必须用同一 SDK | 不要求；SDK 与手写可并存 |
 | 驱动内直接 `ApplyPaidResult` / 改订单 | 落库只在 services；Notify 只返回 `PaidResult` |
 

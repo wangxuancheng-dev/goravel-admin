@@ -22,7 +22,7 @@
 
 ### 1. 配置（代码生成器页面）
 
-React（`html-react/`，主发货）与 Vue（`html/`，参考）页面能力一致。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标。勾选 **树形列表** 时：
+React（`html-react/`，默认）与 Vue（`html/`，对等）页面能力一致。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标。勾选 **树形列表** 时：
 
 - React 生成树形 `Table`（展开/收起、无分页、`page_size: 1000`）+ `FormModal`（`parent_id` 使用 `TreeSelect`）
 - Vue 生成 `TreeListPage` 树表 + 表单页
@@ -128,7 +128,7 @@ API 路径前缀：`/api/admin/{table_name}`（如 `/api/admin/articles`）。�
 | 路由 | `POST /{modules}/import`；共享 `imports/{id}`、`imports/{id}/error-file` |
 | `app/jobs/import_{table}.go` | 仅 `import_async=true` |
 | Queue 注册 | 异步时注入 `QueueServiceProvider`（与导出 job 同类） |
-| 前端 | React / Vue 列表页导入按钮 + API `import*`；**默认主发货 UI 为 React（`html-react/`）**，Vue（`html/`）为对等参考。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标 |
+| 前端 | React / Vue 列表页导入按钮 + API `import*`；**默认前端为 React（`html-react/`）**，Vue（`html/`）为对等实现。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标 |
 
 ## 实现位置（维护参考）
 

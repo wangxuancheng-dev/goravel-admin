@@ -26,7 +26,7 @@ End-to-end module flow: [Development guide](/guide/development) (Chinese, genera
 
 ### 1. 配置（代码生成器页面）
 
-React（`html-react/`，primary shipping）与 Vue（`html/`，peer reference）页面能力一致。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标。勾选 **树形列表** 时：
+React (`html-react/`, primary) and Vue (`html/`, peer)页面能力一致。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标。勾选 **树形列表** 时：
 
 - React 生成树形 `Table`（展开/收起、无分页、`page_size: 1000`）+ `FormModal`（`parent_id` 使用 `TreeSelect`）
 - Vue 生成 `TreeListPage` 树表 + 表单页
@@ -132,7 +132,7 @@ Async import needs a queue worker and seeded/assigned `import.*` Task Center per
 | Routes | `POST /{modules}/import`; shared `imports/{id}`, `imports/{id}/error-file` |
 | `app/jobs/import_{table}.go` | Only when `import_async=true` |
 | Queue register | Async jobs injected into `QueueServiceProvider` (same pattern as export) |
-| Frontend | React / Vue list import button + `import*` API; **React (`html-react/`) is the primary shipping UI**; Vue (`html/`) is the peer reference. `CODE_GENERATOR_FRONTEND` (recommend `react,vue`) selects targets |
+| Frontend | React / Vue list import button + `import*` API; **React (`html-react/`) is the primary UI**; Vue (`html/`) is the peer implementation. `CODE_GENERATOR_FRONTEND` (recommend `react,vue`) selects targets |
 
 ## 实现位置（维护参考）
 

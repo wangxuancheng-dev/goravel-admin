@@ -35,7 +35,7 @@ Demo UI: `MODULE_PAYMENTS_ENABLED=true`. Keep off or mock-only on public product
 
 ## Core vs advanced
 
-**Core (default):** JWT + RBAC, system management, operation/login/system logs, list export, code generator (dev). Minimal dependency: MySQL-compatible DB + Go process.
+**Core:** JWT + RBAC, system management, operation/login/system logs, list export, code generator (dev). Minimal dependency: MySQL-compatible DB + Go process.
 
 **Advanced (opt-in):** Redis cache/queue, order/payment sharding, Elasticsearch/Meilisearch, multi-queue drivers, OpenTelemetry, AI / pprof / Swagger, database-per-tenant (`TENANCY_DRIVER=database`).
 
