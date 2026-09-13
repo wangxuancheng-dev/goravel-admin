@@ -11,6 +11,7 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
+	"goravel/app/rbac"
 )
 
 type LoginLogService interface {
@@ -61,7 +62,7 @@ func (s *LoginLogServiceImpl) GetByID(id uint, withAdmin bool) (*models.LoginLog
 	if err := query.FirstOrFail(&log); err != nil {
 		return nil, apperrors.ErrLogNotFound.WithError(err)
 	}
-	if !CanAccessOwnedBy(s.ctx, log.AdminID) {
+	if !rbac.CanAccessOwnedBy(s.ctx, log.AdminID) {
 		return nil, apperrors.ErrForbidden
 	}
 	return &log, nil
@@ -89,7 +90,7 @@ func (s *LoginLogServiceImpl) GetList(filters LoginLogFilters, page, pageSize in
 		query = query.Where("created_at <= ?", filters.EndTime)
 	}
 
-	query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "admin_id"})
+	query = rbac.ApplyDataScope(s.ctx, query, rbac.DataScopeApplyOpts{Mode: rbac.DataScopeModeAdmin, AdminColumn: "admin_id"})
 
 	orderBy := filters.OrderBy
 	if orderBy == "" {

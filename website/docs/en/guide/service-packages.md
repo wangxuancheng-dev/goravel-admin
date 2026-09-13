@@ -16,8 +16,8 @@
 |------------|----------------|-------|
 | Payment paid status gate | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate` (pure) |
 | Payment DB apply | `app/services/payment_apply.go` | orchestration in services; calls gate; alias `services.PaidResult` |
-| Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy`; thin `services` wrappers for generators |
-| Order filters + JSON | `app/orders` | Filters / ToJSON; `OrderServiceImpl` remains in services |
+| Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy`; services call `rbac` directly |
+| Order filters + JSON | `app/orders` | Filters / ToJSON; services / controllers call `orders` directly; `OrderServiceImpl` remains in services |
 | Tenancy parsing helpers | `app/tenancy` | hints / CacheKey / StoragePrefix (already separate) |
 | Import task center | services + controllers | no separate `app/imports` package |
 

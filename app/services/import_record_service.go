@@ -10,6 +10,7 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
+	"goravel/app/rbac"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
@@ -56,7 +57,7 @@ func (s *ImportRecordServiceImpl) GetByID(id uint) (*models.Import, error) {
 	if err := appfacades.OrmQuery(s.ctx).Where("id", id).FirstOrFail(&item); err != nil {
 		return nil, apperrors.ErrRecordNotFound.WithError(err)
 	}
-	if !CanAccessOwnedBy(s.ctx, item.AdminID) {
+	if !rbac.CanAccessOwnedBy(s.ctx, item.AdminID) {
 		return nil, apperrors.ErrForbidden
 	}
 	return &item, nil
@@ -81,7 +82,7 @@ func (s *ImportRecordServiceImpl) GetList(filters ImportRecordFilters, page, pag
 		query = query.Where("created_at <= ?", filters.EndTime)
 	}
 
-	query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "admin_id"})
+	query = rbac.ApplyDataScope(s.ctx, query, rbac.DataScopeApplyOpts{Mode: rbac.DataScopeModeAdmin, AdminColumn: "admin_id"})
 
 	orderBy := filters.OrderBy
 	if orderBy == "" {

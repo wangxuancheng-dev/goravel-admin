@@ -13,6 +13,7 @@ import (
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
+	"goravel/app/rbac"
 	"goravel/app/tenancyctx"
 	"goravel/app/utils"
 	wsnotifications "goravel/app/websocket/notifications"
@@ -164,7 +165,7 @@ func (s *NotificationServiceImpl) buildNotificationQuery(adminID uint, notifType
 	// Scope by receiver_id for announcement-style lists. Skip for message threads so
 	// "sent by me" rows remain visible when the receiver is outside the actor's dept scope.
 	if notifType != "message" {
-		query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "receiver_id"})
+		query = rbac.ApplyDataScope(s.ctx, query, rbac.DataScopeApplyOpts{Mode: rbac.DataScopeModeAdmin, AdminColumn: "receiver_id"})
 	}
 	return query
 }

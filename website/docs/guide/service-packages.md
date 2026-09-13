@@ -16,8 +16,8 @@
 |------|-----------|------|
 | 支付成功态闸门 | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate`（纯逻辑） |
 | 支付落库编排 | `app/services/payment_apply.go` | 编排留 services；调用闸门；别名 `services.PaidResult` |
-| 数据权限 | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy` 等；`services` 薄封装兼容生成器 |
-| 订单筛选与 JSON | `app/orders` | Filters / ToJSON；`OrderServiceImpl` 仍在 services |
+| 数据权限 | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy` 等；services 直接调用 `rbac` |
+| 订单筛选与 JSON | `app/orders` | Filters / ToJSON；services / controllers 直接调用 `orders`；`OrderServiceImpl` 仍在 services |
 | 租户解析类 | `app/tenancy` | Hint / CacheKey / StoragePrefix 等（原本即独立） |
 | 导入任务中心 | services + controllers | 不必再拆独立 `app/imports` |
 

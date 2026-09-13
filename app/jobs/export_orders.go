@@ -12,7 +12,7 @@ import (
 
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
-	"goravel/app/services"
+	"goravel/app/orders"
 	"goravel/app/utils"
 )
 
@@ -105,7 +105,7 @@ func (r *ExportOrders) Handle(args ...any) (retErr error) {
 // writeOrdersToCSV ??????? CSV
 func (r *ExportOrders) writeOrdersToCSV(ctx context.Context, w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
 	// ??????????????????????
-	var orderFilters services.OrderFilters
+	var orderFilters orders.Filters
 	utils.FillFiltersFromMap(filters, &orderFilters)
 
 	// ????????????????
@@ -139,7 +139,7 @@ func (r *ExportOrders) writeOrdersToCSV(ctx context.Context, w *csv.Writer, filt
 }
 
 // exportTable ??????
-func (r *ExportOrders) exportTable(ctx context.Context, w *csv.Writer, tableName string, filters services.OrderFilters, lang, timezone, direction string, chunkSize int, shouldStop func() bool) error {
+func (r *ExportOrders) exportTable(ctx context.Context, w *csv.Writer, tableName string, filters orders.Filters, lang, timezone, direction string, chunkSize int, shouldStop func() bool) error {
 	suffix := strings.TrimPrefix(tableName, "orders_")
 	detailTableName := "order_details_" + suffix
 
@@ -151,7 +151,7 @@ func (r *ExportOrders) exportTable(ctx context.Context, w *csv.Writer, tableName
 			return ErrExportRecordMissing
 		}
 
-		query := services.BuildOrderQuery(ctx, tableName, filters)
+		query := orders.BuildQuery(ctx, tableName, filters)
 
 		if lastTimeStr != "" {
 			if direction == "desc" {

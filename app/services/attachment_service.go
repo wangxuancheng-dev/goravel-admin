@@ -18,6 +18,7 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
+	"goravel/app/rbac"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
@@ -660,7 +661,7 @@ func (s *AttachmentServiceImpl) GetByID(id uint) (*models.Attachment, error) {
 		return nil, apperrors.ErrAttachmentNotFound.WithError(err)
 	}
 	// Public attachments are readable across scope; private ones require data-scope access.
-	if attachment.IsPublic != 1 && !CanAccessOwnedBy(s.ctx, attachment.AdminID) {
+	if attachment.IsPublic != 1 && !rbac.CanAccessOwnedBy(s.ctx, attachment.AdminID) {
 		return nil, apperrors.ErrForbidden
 	}
 	return &attachment, nil
@@ -670,7 +671,7 @@ func (s *AttachmentServiceImpl) ensureCanMutate(attachment *models.Attachment) e
 	if attachment == nil {
 		return apperrors.ErrAttachmentNotFound
 	}
-	if !CanAccessOwnedBy(s.ctx, attachment.AdminID) {
+	if !rbac.CanAccessOwnedBy(s.ctx, attachment.AdminID) {
 		return apperrors.ErrForbidden
 	}
 	return nil
@@ -728,7 +729,7 @@ func (s *AttachmentServiceImpl) GetList(filters AttachmentFilters, page, pageSiz
 		query = query.Where("created_at <= ?", filters.EndTime)
 	}
 
-	query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "admin_id"})
+	query = rbac.ApplyDataScope(s.ctx, query, rbac.DataScopeApplyOpts{Mode: rbac.DataScopeModeAdmin, AdminColumn: "admin_id"})
 
 	// 应用排序
 	orderBy := filters.OrderBy

@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cast"
 
 	"goravel/app/models"
+	"goravel/app/orders"
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
 	"goravel/app/services"
@@ -77,7 +78,7 @@ func (r *SyncOrdersSearch) Handle(ctx console.Context) error {
 			return nil
 		}
 
-		var filters services.OrderFilters
+		var filters orders.Filters
 		fromStr := ctx.Option("from")
 		toStr := ctx.Option("to")
 		if fromStr != "" && toStr != "" {

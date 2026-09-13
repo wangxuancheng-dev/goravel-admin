@@ -166,7 +166,7 @@ func MustGetValue[T any](m map[string]any, key string) T {
 // 支持 string, uint, float64 类型，使用字段名的 snake_case 作为 map 的 key
 // 示例：
 //
-//	filters := services.OrderFilters{}
+//	filters := orders.Filters{}
 //	utils.FillFiltersFromMap(m, &filters)
 func FillFiltersFromMap(m map[string]any, filtersPtr any) {
 	v := reflect.ValueOf(filtersPtr)

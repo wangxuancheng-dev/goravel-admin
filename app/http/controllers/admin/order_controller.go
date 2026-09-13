@@ -12,6 +12,7 @@ import (
 	"goravel/app/http/trans"
 	"goravel/app/jobs"
 	"goravel/app/models"
+	"goravel/app/orders"
 	"goravel/app/services"
 	"goravel/app/utils"
 )
@@ -40,13 +41,13 @@ func (r *OrderController) resolveOrderNo(ctx http.Context) string {
 }
 
 // buildFilters builds filters shared by list/export endpoints.
-func (r *OrderController) buildFilters(ctx http.Context) (services.OrderFilters, http.Response) {
-	filters, err := services.BuildOrderFiltersFromHTTP(ctx)
+func (r *OrderController) buildFilters(ctx http.Context) (orders.Filters, http.Response) {
+	filters, err := orders.BuildFiltersFromHTTP(ctx)
 	if err != nil {
-		return services.OrderFilters{}, response.Error(ctx, http.StatusBadRequest, err.Error())
+		return orders.Filters{}, response.Error(ctx, http.StatusBadRequest, err.Error())
 	}
 	if resp := validateTimeRangeResponse(ctx, filters.StartTime, filters.EndTime, 3); resp != nil {
-		return services.OrderFilters{}, resp
+		return orders.Filters{}, resp
 	}
 	return filters, nil
 }

@@ -11,6 +11,7 @@ import (
 	"goravel/app/http/helpers"
 	"goravel/app/http/requests/admin"
 	"goravel/app/models"
+	"goravel/app/rbac"
 )
 
 type ArticleService interface {
@@ -102,7 +103,7 @@ func BuildArticleQuery(ctx context.Context, filters ArticleFilters) orm.Query {
 		query = query.Where("updated_at = ?", filters.UpdatedAt)
 	}
 
-	query = ApplyDataScope(ctx, query, DataScopeApplyOpts{Mode: DataScopeModeAdmin, AdminColumn: "admin_id"})
+	query = rbac.ApplyDataScope(ctx, query, rbac.DataScopeApplyOpts{Mode: rbac.DataScopeModeAdmin, AdminColumn: "admin_id"})
 	return query
 }
 
@@ -112,7 +113,7 @@ func (s *ArticleServiceImpl) GetByID(id uint) (*models.Article, error) {
 	if err := query.FirstOrFail(&item); err != nil {
 		return nil, apperrors.ErrRecordNotFound.WithError(err)
 	}
-	if !CanAccessOwnedBy(s.ctx, item.AdminId) {
+	if !rbac.CanAccessOwnedBy(s.ctx, item.AdminId) {
 		return nil, apperrors.ErrForbidden
 	}
 	return &item, nil

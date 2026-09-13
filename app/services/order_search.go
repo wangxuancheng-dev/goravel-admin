@@ -8,6 +8,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
+	"goravel/app/orders"
 	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
@@ -15,7 +16,7 @@ import (
 	"goravel/app/utils/errorlog"
 )
 
-func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
+func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters orders.Filters, page, pageSize int) ([]orders.WithDetails, int64, error) {
 	valid, err := utils.ValidateTimeRange(filters.StartTime, filters.EndTime)
 	if !valid {
 		return nil, 0, err
@@ -68,10 +69,10 @@ func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, 
 		return nil, 0, err
 	}
 	if len(items) == 0 {
-		return []OrderWithDetails{}, total, nil
+		return []orders.WithDetails{}, total, nil
 	}
 
-	result := make([]OrderWithDetails, 0, len(items))
+	result := make([]orders.WithDetails, 0, len(items))
 	missed := 0
 	for _, item := range items {
 		order, details, err := orderrepo.FindOrderWithDetails(s.ctx, item.ID, item.OrderNo)
@@ -79,7 +80,7 @@ func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, 
 			missed++
 			continue
 		}
-		result = append(result, OrderWithDetails{
+		result = append(result, orders.WithDetails{
 			Order:   *order,
 			Details: details,
 		})
@@ -97,7 +98,7 @@ func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, 
 	return result, total, nil
 }
 
-func orderWithDetailsToSearchListItem(o OrderWithDetails) searchorders.ListItem {
+func orderWithDetailsToSearchListItem(o orders.WithDetails) searchorders.ListItem {
 	names := make([]string, 0, len(o.Details))
 	for _, d := range o.Details {
 		names = append(names, d.ProductName)
@@ -120,7 +121,7 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 		return nil, 0, err
 	}
 
-	filters := OrderFilters{
+	filters := orders.Filters{
 		UserID:    userID,
 		StartTime: tr.DBStart,
 		EndTime:   tr.DBEnd,

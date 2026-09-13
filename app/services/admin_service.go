@@ -16,6 +16,7 @@ import (
 	"goravel/app/http/helpers"
 	admin "goravel/app/http/requests/admin"
 	"goravel/app/models"
+	"goravel/app/rbac"
 	"goravel/app/utils"
 )
 
@@ -210,7 +211,7 @@ func (s *AdminServiceImpl) buildQuery(filters AdminFilters) orm.Query {
 		query = query.Where("created_at <= ?", filters.EndTime)
 	}
 
-	query = ApplyDataScope(s.ctx, query, DataScopeApplyOpts{Mode: DataScopeModeDept})
+	query = rbac.ApplyDataScope(s.ctx, query, rbac.DataScopeApplyOpts{Mode: rbac.DataScopeModeDept})
 	return query
 }
 
@@ -537,7 +538,7 @@ func (s *AdminServiceImpl) parseProtectedIDs(idsStr string) []uint {
 
 // GetDepartmentAndChildrenIDs 获取部门及其子部门ID
 func (s *AdminServiceImpl) GetDepartmentAndChildrenIDs(departmentID uint) []uint {
-	return GetDepartmentSubtreeIDs(s.ctx, departmentID)
+	return rbac.GetDepartmentSubtreeIDs(s.ctx, departmentID)
 }
 
 // LoadRelations 加载管理员的关联数据（部门、角色）

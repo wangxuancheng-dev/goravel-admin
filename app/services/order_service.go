@@ -15,6 +15,7 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
+	"goravel/app/orders"
 	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
@@ -40,19 +41,19 @@ type OrderService interface {
 	// GetOrderByOrderNo 根据订单号查询订单（直接定位分表，更高效）
 	GetOrderByOrderNo(orderNo string) (*models.Order, []models.OrderDetail, error)
 	// GetOrders 查询订单列表（限制不超过3个月）
-	GetOrders(filters OrderFilters, page, pageSize int) ([]models.Order, int64, error)
+	GetOrders(filters orders.Filters, page, pageSize int) ([]models.Order, int64, error)
 	// GetOrdersWithDetails 查询订单列表（包含详情，限制不超过3个月）
-	GetOrdersWithDetails(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error)
+	GetOrdersWithDetails(filters orders.Filters, page, pageSize int) ([]orders.WithDetails, int64, error)
 	// OrderToJSON 订单基础展示字段
 	OrderToJSON(order models.Order) map[string]any
 	// OrderDetailToJSON 订单明细展示字段
 	OrderDetailToJSON(detail models.OrderDetail) map[string]any
 	// OrderWithDetailsToJSON 订单列表项（含详情）
-	OrderWithDetailsToJSON(item *OrderWithDetails) map[string]any
+	OrderWithDetailsToJSON(item *orders.WithDetails) map[string]any
 	// GetAllOrdersForExport 获取所有订单用于导出（限制不超过3个月，不分页）
-	GetAllOrdersForExport(filters OrderFilters) ([]models.Order, error)
+	GetAllOrdersForExport(filters orders.Filters) ([]models.Order, error)
 	// GetAllOrdersWithDetailsForExport 获取所有订单及详情用于导出（限制不超过3个月，不分页）
-	GetAllOrdersWithDetailsForExport(filters OrderFilters) ([]OrderWithDetails, error)
+	GetAllOrdersWithDetailsForExport(filters orders.Filters) ([]orders.WithDetails, error)
 	// UpdateOrder 更新订单（必须提供 order_no 以定位分表）
 	UpdateOrder(orderID uint, orderTime time.Time, status string, remark string, orderNo ...string) error
 	// UpdateOrderByOrderNo 根据订单号更新订单（状态和备注）
@@ -247,7 +248,7 @@ func (s *OrderServiceImpl) GetOrderByOrderNo(orderNo string) (*models.Order, []m
 }
 
 // GetOrders 查询订单列表（限制时间跨度；深分页受 max_union_limit_per_table 约束）
-func (s *OrderServiceImpl) GetOrders(filters OrderFilters, page, pageSize int) ([]models.Order, int64, error) {
+func (s *OrderServiceImpl) GetOrders(filters orders.Filters, page, pageSize int) ([]models.Order, int64, error) {
 	// 验证时间范围不超过配置月数
 	valid, err := utils.ValidateTimeRange(filters.StartTime, filters.EndTime)
 	if !valid {
@@ -277,13 +278,13 @@ func (s *OrderServiceImpl) GetOrders(filters OrderFilters, page, pageSize int) (
 }
 
 // buildShardingQuery 构建分表查询条件（辅助函数，减少重复代码）
-func (s *OrderServiceImpl) buildShardingQuery(tableName string, filters OrderFilters) orm.Query {
-	return BuildOrderQuery(s.ctx, tableName, filters)
+func (s *OrderServiceImpl) buildShardingQuery(tableName string, filters orders.Filters) orm.Query {
+	return orders.BuildQuery(s.ctx, tableName, filters)
 }
 
 // buildOrderWhereClause 构建订单查询的 WHERE 条件（用于通用分表查询服务）
 func (s *OrderServiceImpl) buildOrderWhereClause(filters any) (string, []any) {
-	orderFilters, ok := filters.(OrderFilters)
+	orderFilters, ok := filters.(orders.Filters)
 	if !ok {
 		return "", nil
 	}
@@ -367,7 +368,7 @@ func (s *OrderServiceImpl) getOrderTableColumns() string {
 // queryMultipleTablesWithUnion 使用 UNION ALL 查询多个分表
 // 在数据库层面合并多个分表，统一排序和分页，性能更优
 // 使用通用分表查询服务
-func (s *OrderServiceImpl) queryMultipleTablesWithUnion(tableNames []string, filters OrderFilters, page, pageSize int) ([]models.Order, int64, error) {
+func (s *OrderServiceImpl) queryMultipleTablesWithUnion(tableNames []string, filters orders.Filters, page, pageSize int) ([]models.Order, int64, error) {
 	var orders []models.Order
 	total, err := s.shardingQueryService.QueryMultipleTables(tableNames, filters, page, pageSize, &orders)
 	if err != nil {
@@ -379,7 +380,7 @@ func (s *OrderServiceImpl) queryMultipleTablesWithUnion(tableNames []string, fil
 // queryMultipleTablesWithUnionForExport 使用 UNION ALL 查询多个分表（用于导出，不分页）
 // 在数据库层面合并多个分表，统一排序，性能更优
 // 使用通用分表查询服务
-func (s *OrderServiceImpl) queryMultipleTablesWithUnionForExport(tableNames []string, filters OrderFilters) ([]models.Order, error) {
+func (s *OrderServiceImpl) queryMultipleTablesWithUnionForExport(tableNames []string, filters orders.Filters) ([]models.Order, error) {
 	var orders []models.Order
 	err := s.shardingQueryService.QueryMultipleTablesForExport(tableNames, filters, &orders)
 	if err != nil {
@@ -421,7 +422,7 @@ func (s *OrderServiceImpl) sortOrders(orders []models.Order, orderBy string) {
 }
 
 // querySingleTable 查询单个分表
-func (s *OrderServiceImpl) querySingleTable(tableName string, filters OrderFilters, page, pageSize int) ([]models.Order, int64, error) {
+func (s *OrderServiceImpl) querySingleTable(tableName string, filters orders.Filters, page, pageSize int) ([]models.Order, int64, error) {
 	// 友好处理：目标分表不存在时返回空结果，而不是抛出 SQL 1146 错误。
 	if !utils.ShardingTableExistsCtx(s.ctx, tableName) {
 		return []models.Order{}, 0, nil
@@ -462,7 +463,7 @@ func (s *OrderServiceImpl) querySingleTable(tableName string, filters OrderFilte
 
 // GetOrdersWithDetails 查询订单列表（包含详情）。
 // 当当前搜索驱动检索可用时优先走引擎，再按 order_no 回源 DB 加载明细；失败则回退分表查询。
-func (s *OrderServiceImpl) GetOrdersWithDetails(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
+func (s *OrderServiceImpl) GetOrdersWithDetails(filters orders.Filters, page, pageSize int) ([]orders.WithDetails, int64, error) {
 	if searchorders.QueryEnabled() {
 		rows, total, err := s.getOrdersWithDetailsFromSearch(filters, page, pageSize)
 		if err == nil {
@@ -478,26 +479,26 @@ func (s *OrderServiceImpl) GetOrdersWithDetails(filters OrderFilters, page, page
 	return s.getOrdersWithDetailsFromDB(filters, page, pageSize)
 }
 
-func (s *OrderServiceImpl) getOrdersWithDetailsFromDB(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
+func (s *OrderServiceImpl) getOrdersWithDetailsFromDB(filters orders.Filters, page, pageSize int) ([]orders.WithDetails, int64, error) {
 	// 先查询订单列表
-	orders, total, err := s.GetOrders(filters, page, pageSize)
+	orderList, total, err := s.GetOrders(filters, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	if len(orders) == 0 {
-		return []OrderWithDetails{}, total, nil
+	if len(orderList) == 0 {
+		return []orders.WithDetails{}, total, nil
 	}
 
-	result := make([]OrderWithDetails, len(orders))
+	result := make([]orders.WithDetails, len(orderList))
 
 	// 按分表分组订单ID
 	orderIDsByTable := make(map[string][]uint)
 	orderIndexByID := make(map[uint]int)
 
-	for i, order := range orders {
-		// 将订单转换为 OrderWithDetails
-		result[i] = OrderWithDetails{
+	for i, order := range orderList {
+		// 将订单转换为 orders.WithDetails
+		result[i] = orders.WithDetails{
 			Order:   order,
 			Details: []models.OrderDetail{},
 		}
@@ -580,7 +581,7 @@ func (s *OrderServiceImpl) applyOrderBy(query orm.Query, orderBy string) orm.Que
 
 // GetAllOrdersForExport 获取所有订单用于导出（限制不超过3个月，不分页）
 // 使用 UNION ALL 优化，在数据库层面合并和排序
-func (s *OrderServiceImpl) GetAllOrdersForExport(filters OrderFilters) ([]models.Order, error) {
+func (s *OrderServiceImpl) GetAllOrdersForExport(filters orders.Filters) ([]models.Order, error) {
 	// 验证时间范围不超过3个月
 	valid, err := utils.ValidateTimeRange(filters.StartTime, filters.EndTime)
 	if !valid {
@@ -621,7 +622,7 @@ func (s *OrderServiceImpl) GetAllOrdersForExport(filters OrderFilters) ([]models
 // GetAllOrdersWithDetailsForExport 获取所有订单及详情用于导出（限制不超过3个月，不分页）
 // 使用 UNION ALL 优化，在数据库层面合并和排序
 // 优化：使用批量查询避免 N+1 查询问题
-func (s *OrderServiceImpl) GetAllOrdersWithDetailsForExport(filters OrderFilters) ([]OrderWithDetails, error) {
+func (s *OrderServiceImpl) GetAllOrdersWithDetailsForExport(filters orders.Filters) ([]orders.WithDetails, error) {
 	// 先获取所有订单（使用优化的 UNION ALL 方法）
 	allOrders, err := s.GetAllOrdersForExport(filters)
 	if err != nil {
@@ -629,18 +630,18 @@ func (s *OrderServiceImpl) GetAllOrdersWithDetailsForExport(filters OrderFilters
 	}
 
 	if len(allOrders) == 0 {
-		return []OrderWithDetails{}, nil
+		return []orders.WithDetails{}, nil
 	}
 
 	// 初始化结果
-	result := make([]OrderWithDetails, len(allOrders))
+	result := make([]orders.WithDetails, len(allOrders))
 
 	// 按分表分组订单ID，避免 N+1 查询
 	orderIDsByTable := make(map[string][]uint)
 	orderIndexByID := make(map[uint]int)
 
 	for i, order := range allOrders {
-		result[i] = OrderWithDetails{
+		result[i] = orders.WithDetails{
 			Order:   order,
 			Details: []models.OrderDetail{},
 		}
@@ -878,4 +879,16 @@ func (s *OrderServiceImpl) GetOrdersCountInYear() (int64, error) {
 	}
 
 	return total, nil
+}
+
+func (s *OrderServiceImpl) OrderToJSON(order models.Order) map[string]any {
+	return orders.ToJSON(order)
+}
+
+func (s *OrderServiceImpl) OrderDetailToJSON(detail models.OrderDetail) map[string]any {
+	return orders.DetailToJSON(detail)
+}
+
+func (s *OrderServiceImpl) OrderWithDetailsToJSON(item *orders.WithDetails) map[string]any {
+	return orders.WithDetailsToJSON(item)
 }
