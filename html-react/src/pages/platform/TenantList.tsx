@@ -318,7 +318,6 @@ export default function PlatformTenantList() {
     onSearchFormChange,
     loadData,
     handleSearch,
-    handleReset,
     handleSortChange,
     refresh,
   } = useListPage<TenantRow>({
