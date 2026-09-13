@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cast"
 
 	"goravel/app/models"
-	"goravel/app/queuejobs"
+	"goravel/app/jobs"
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
 	"goravel/app/tenancyctx"
@@ -90,7 +90,7 @@ func (r *RetrySearchOutbox) Handle(ctx console.Context) error {
 					continue
 				}
 				qargs := []queue.Arg{{Type: "string", Value: string(jsonBytes)}}
-				if err := facades.Queue().Job(&queuejobs.SyncOrderSearch{}, qargs).OnQueue(search.SyncQueue()).Dispatch(); err != nil {
+				if err := facades.Queue().Job(&jobs.SyncOrderSearch{}, qargs).OnQueue(search.SyncQueue()).Dispatch(); err != nil {
 					search.MarkOutboxFailedByIDCtx(bound, record.ID, err.Error())
 					failCount++
 					continue

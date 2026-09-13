@@ -10,7 +10,7 @@ import (
 
 	"goravel/app/errors"
 	"goravel/app/events"
-	"goravel/app/queuejobs"
+	"goravel/app/jobs"
 	"goravel/app/search"
 	"goravel/app/services"
 	"goravel/app/tenancy"
@@ -92,7 +92,7 @@ func (receiver *SyncOrderSearch) Handle(args ...any) error {
 		return nil
 	}
 	qargs := []queue.Arg{{Type: "string", Value: string(jsonBytes)}}
-	if err := facades.Queue().Job(&queuejobs.SyncOrderSearch{}, qargs).OnQueue(search.SyncQueue()).Dispatch(); err != nil {
+	if err := facades.Queue().Job(&jobs.SyncOrderSearch{}, qargs).OnQueue(search.SyncQueue()).Dispatch(); err != nil {
 		facades.Log().Errorf("order search sync dispatch failed: order_id=%d op=%s err=%v", syncArgs.OrderID, syncArgs.Op, err)
 	}
 	return nil

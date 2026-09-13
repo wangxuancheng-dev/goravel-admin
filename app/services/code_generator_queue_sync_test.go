@@ -13,7 +13,7 @@ func TestInjectExportJobRegistration(t *testing.T) {
 		&jobs.ExportOrders{},
 		&jobs.ExportArticles{},
 		// 搜索引擎同步任务（可切换 driver）
-		&queuejobs.SyncOrderSearch{},
+		&jobs.SyncOrderSearch{},
 	}
 }
 `
@@ -34,7 +34,7 @@ func TestInjectImportJobRegistration(t *testing.T) {
 		&jobs.ImportOrders{},
 		&jobs.ExportArticles{},
 		// 搜索引擎同步任务（可切换 driver）
-		&queuejobs.SyncOrderSearch{},
+		&jobs.SyncOrderSearch{},
 	}
 }
 `

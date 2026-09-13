@@ -10,7 +10,6 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/jobs"
-	"goravel/app/queuejobs"
 	"goravel/app/search"
 	"goravel/app/tenancy"
 )
@@ -58,7 +57,7 @@ func TestSyncOrderSearchFailClosedWithoutTenant(t *testing.T) {
 	require.True(t, tenancy.Enabled())
 	require.True(t, search.OrdersSyncEnabled())
 
-	job := &queuejobs.SyncOrderSearch{}
+	job := &jobs.SyncOrderSearch{}
 	err := job.Handle(map[string]any{
 		"order_id": uint(1),
 		"op":       "index",

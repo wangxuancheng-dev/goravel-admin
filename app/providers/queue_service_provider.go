@@ -6,7 +6,6 @@ import (
 
 	"goravel/app/facades"
 	"goravel/app/jobs"
-	"goravel/app/queuejobs"
 	"goravel/app/services"
 )
 
@@ -45,7 +44,7 @@ func (receiver *QueueServiceProvider) Jobs() []queue.Job {
 		&jobs.ExportArticles{},
 		&jobs.ImportOrders{},
 		&jobs.TenantOps{},
-		// 搜索引擎同步任务（可切换 driver）
-		&queuejobs.SyncOrderSearch{},
+		// 搜索引擎同步任务（订单；文章等后续同目录加 sync_*_search.go）
+		&jobs.SyncOrderSearch{},
 	}
 }

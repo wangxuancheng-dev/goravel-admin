@@ -1,4 +1,4 @@
-package queuejobs
+package jobs
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 )
 
 // SyncOrderSearch 订单搜索同步队列任务。
+// 以后文章等模块可同目录新增 sync_article_search.go，不必再拆 app/queuejobs。
 type SyncOrderSearch struct{}
 
 func (r *SyncOrderSearch) Signature() string {
