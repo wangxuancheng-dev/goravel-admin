@@ -19,16 +19,27 @@ func Orm() orm.Orm {
 // OrmQuery returns an ORM query scoped to ctx.
 // When tenancy is enabled and ctx carries tenant_connection, uses that connection.
 // Business code should prefer OrmQuery(ctx) over Orm().Query().
+//
+// May return nil when Orm is unavailable or the tenant connection failed to init
+// (framework Connection returns an Orm with a nil query on BuildQuery error).
 func OrmQuery(ctx context.Context) orm.Query {
+	o := Orm()
+	if o == nil {
+		return nil
+	}
 	if ctx == nil {
-		return Orm().Query()
+		return o.Query()
 	}
 	if tenancy.Enabled() {
 		if conn, ok := tenancyctx.ConnectionFrom(ctx); ok {
-			return Orm().Connection(conn).WithContext(ctx).Query()
+			to := o.Connection(conn)
+			if to == nil {
+				return nil
+			}
+			return to.WithContext(ctx).Query()
 		}
 	}
-	return Orm().WithContext(ctx).Query()
+	return o.WithContext(ctx).Query()
 }
 
 // OrmTransaction runs fn inside a DB transaction on the same connection OrmQuery(ctx) would use.
@@ -77,9 +88,16 @@ func PlatformConnectionName() string {
 // PlatformOrmQuery always uses the pinned platform (landlord) connection — tenants metadata / DDL only.
 // Safe to call while WithTenantConnection temporarily flips database.default for Artisan migrate/seed.
 func PlatformOrmQuery(ctx context.Context) orm.Query {
-	o := Orm().Connection(PlatformConnectionName())
-	if ctx == nil {
-		return o.Query()
+	o := Orm()
+	if o == nil {
+		return nil
 	}
-	return o.WithContext(ctx).Query()
+	po := o.Connection(PlatformConnectionName())
+	if po == nil {
+		return nil
+	}
+	if ctx == nil {
+		return po.Query()
+	}
+	return po.WithContext(ctx).Query()
 }

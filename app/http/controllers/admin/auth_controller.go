@@ -216,7 +216,11 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	}
 
 	// 验证用户名是否存在
-	exists, err := appfacades.OrmQuery(ctx).Model(&models.Admin{}).Where("username", loginRequest.Username).Exists()
+	q := appfacades.OrmQuery(ctx)
+	if q == nil {
+		return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrTenantConnectionFailed.Code)
+	}
+	exists, err := q.Model(&models.Admin{}).Where("username", loginRequest.Username).Exists()
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"username": loginRequest.Username,
@@ -230,7 +234,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 
 	// 获取管理员信息
 	var admin models.Admin
-	if err := appfacades.OrmQuery(ctx).Where("username", loginRequest.Username).FirstOrFail(&admin); err != nil {
+	if err := q.Where("username", loginRequest.Username).FirstOrFail(&admin); err != nil {
 		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"username": loginRequest.Username,
 		})

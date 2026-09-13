@@ -124,12 +124,36 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 		return err
 	}
 	facades.Config().Add("database.connections."+tenant.ConnectionName, cfg)
-	registeredConns.Store(tenant.ConnectionName, struct{}{})
 
-	// Do not warm Orm().Connection here: framework cache-hit reuses parent
-	// dbConfig (wrong DatabaseName). Pool limits are applied after SetConnection
-	// in WithTenantConnection / after a fresh Connection in Ping.
+	// Verify before marking registered. Framework Connection() returns an Orm with
+	// a nil query on BuildQuery failure (e.g. Access denied); without this check
+	// BindHTTP succeeds and the next OrmQuery(ctx) nil-dereferences.
+	if err := s.warmConnection(tenant.ConnectionName); err != nil {
+		appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
+		return apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+	registeredConns.Store(tenant.ConnectionName, struct{}{})
 	return nil
+}
+
+// warmConnection opens the pool and pings; safe when BuildQuery left query nil.
+func (s *TenantConnectionService) warmConnection(connectionName string) error {
+	o := appfacades.Orm()
+	if o == nil {
+		return fmt.Errorf("orm unavailable")
+	}
+	to := o.Connection(connectionName)
+	if to == nil || to.Query() == nil {
+		return fmt.Errorf("init %s connection failed", connectionName)
+	}
+	db, err := to.DB()
+	if err != nil {
+		return err
+	}
+	applyTenantPoolLimits(db)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return db.PingContext(ctx)
 }
 
 func applyTenantPoolLimits(db interface {
@@ -815,21 +839,31 @@ func (s *TenantConnectionService) Ping(tenant *models.Tenant, timeout time.Durat
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
 	if err := s.EnsureRegistered(tenant); err != nil {
-		return apperrors.ErrTenantConnectionFailed.WithError(err)
+		return err
 	}
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	// Ping only needs Query/DB; do not Evict (would drop shared pools under load).
-	o := appfacades.Orm().Connection(tenant.ConnectionName)
-	db, err := o.DB()
+	o := appfacades.Orm()
+	if o == nil {
+		return apperrors.ErrTenantConnectionFailed.WithMessage("orm unavailable")
+	}
+	to := o.Connection(tenant.ConnectionName)
+	// Failed BuildQuery yields Orm with nil query; DB() would nil-deref.
+	if to == nil || to.Query() == nil {
+		s.Forget(tenant.ConnectionName)
+		return apperrors.ErrTenantConnectionFailed.WithMessage("tenant orm query is nil")
+	}
+	db, err := to.DB()
 	if err != nil {
+		s.Forget(tenant.ConnectionName)
 		return apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
 	applyTenantPoolLimits(db)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
+		s.Forget(tenant.ConnectionName)
 		return apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
 	return nil

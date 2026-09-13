@@ -64,11 +64,15 @@ var (
 )
 
 func (s *SystemLogServiceImpl) hasTraceIDColumn() bool {
-	key := appfacades.SchemaConnectionKeyFrom(s.ctx)
+	return s.hasTraceIDColumnCtx(s.ctx)
+}
+
+func (s *SystemLogServiceImpl) hasTraceIDColumnCtx(ctx context.Context) bool {
+	key := appfacades.SchemaConnectionKeyFrom(ctx)
 	if v, ok := systemLogsTraceIDCache.Load(key); ok {
 		return v.(bool)
 	}
-	has := appfacades.SchemaHasTable(s.ctx, "system_logs") && appfacades.SchemaHasColumn(s.ctx, "system_logs", "trace_id")
+	has := appfacades.SchemaHasTable(ctx, "system_logs") && appfacades.SchemaHasColumn(ctx, "system_logs", "trace_id")
 	systemLogsTraceIDCache.Store(key, has)
 	return has
 }
@@ -187,14 +191,21 @@ func (s *SystemLogServiceImpl) GetModuleOptions() []string {
 }
 
 // RecordHTTP 记录系统日志（HTTP context）
-func (s *SystemLogServiceImpl) RecordHTTP(ctx http.Context, level, module, message string, attributes map[string]any) error {
+func (s *SystemLogServiceImpl) RecordHTTP(ctx http.Context, level, module, message string, attributes map[string]any) (err error) {
+	// Must not panic: used from Route Recover where a secondary panic becomes http.Server crash.
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = nil
+		}
+	}()
+
 	if appfacades.Orm() == nil {
 		return nil
 	}
 
 	var contextJSON string
 	if len(attributes) > 0 {
-		if data, err := json.Marshal(attributes); err == nil {
+		if data, marshalErr := json.Marshal(attributes); marshalErr == nil {
 			contextJSON = string(data)
 		}
 	}
@@ -204,35 +215,54 @@ func (s *SystemLogServiceImpl) RecordHTTP(ctx http.Context, level, module, messa
 		traceID = traceid.EnsureHTTPContext(ctx, "")
 	}
 
+	ip, userAgent := "", ""
+	if ctx != nil && ctx.Request() != nil {
+		ip = ctx.Request().Ip()
+		userAgent = ctx.Request().Header("User-Agent", "")
+	}
+
 	payload := map[string]any{
 		"level":      level,
 		"module":     module,
 		"message":    message,
 		"context":    contextJSON,
-		"ip":         ctx.Request().Ip(),
-		"user_agent": ctx.Request().Header("User-Agent", ""),
+		"ip":         ip,
+		"user_agent": userAgent,
 		"created_at": time.Now(),
 		"updated_at": time.Now(),
 	}
-	if s.hasTraceIDColumn() {
+
+	q := appfacades.OrmQuery(ctx)
+	schemaCtx := s.ctx
+	if q == nil {
+		// Tenant connection may be broken; fall back to platform and skip tenant Schema.
+		q = appfacades.PlatformOrmQuery(nil)
+		schemaCtx = nil
+	}
+	if q == nil {
+		return nil
+	}
+	if s.hasTraceIDColumnCtx(schemaCtx) {
 		payload["trace_id"] = traceID
 	}
-
-	if err := appfacades.OrmQuery(ctx).Table("system_logs").Create(payload); err != nil {
-		return err
-	}
-	return nil
+	return q.Table("system_logs").Create(payload)
 }
 
 // Record 记录系统日志（标准 context）
-func (s *SystemLogServiceImpl) Record(ctx context.Context, level, module, message string, attributes map[string]any) error {
+func (s *SystemLogServiceImpl) Record(ctx context.Context, level, module, message string, attributes map[string]any) (err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = nil
+		}
+	}()
+
 	if appfacades.Orm() == nil {
 		return nil
 	}
 
 	var contextJSON string
 	if len(attributes) > 0 {
-		if data, err := json.Marshal(attributes); err == nil {
+		if data, marshalErr := json.Marshal(attributes); marshalErr == nil {
 			contextJSON = string(data)
 		}
 	}
@@ -252,12 +282,18 @@ func (s *SystemLogServiceImpl) Record(ctx context.Context, level, module, messag
 		"created_at": time.Now(),
 		"updated_at": time.Now(),
 	}
-	if s.hasTraceIDColumn() {
+
+	q := appfacades.OrmQuery(ctx)
+	schemaCtx := ctx
+	if q == nil {
+		q = appfacades.PlatformOrmQuery(nil)
+		schemaCtx = nil
+	}
+	if q == nil {
+		return nil
+	}
+	if s.hasTraceIDColumnCtx(schemaCtx) {
 		payload["trace_id"] = traceID
 	}
-
-	if err := appfacades.OrmQuery(ctx).Table("system_logs").Create(payload); err != nil {
-		return err
-	}
-	return nil
+	return q.Table("system_logs").Create(payload)
 }

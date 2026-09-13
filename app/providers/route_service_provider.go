@@ -32,21 +32,42 @@ func (receiver *RouteServiceProvider) Boot(app foundation.Application) {
 	// Add HTTP middleware
 	facades.Route().GlobalMiddleware(http.Kernel{}.Middleware()...)
 	facades.Route().Recover(func(ctx contractshttp.Context, err any) {
+		// Nested recover: logging / Abort must never escape as http.Server panic.
+		// gin-contrib/timeout re-throws panics; a secondary nil deref here used to
+		// surface as "http: panic serving".
+		defer func() {
+			if rec := recover(); rec != nil {
+				facades.Log().Errorf("recover callback panicked: %v (original: %v)\n%s", rec, err, debug.Stack())
+				safeAbort(ctx, contractshttp.StatusInternalServerError, "operation_failed")
+			}
+		}()
+
 		msg := fmt.Sprintf("%v", err)
 		// Malformed client bodies / scanners (goravel/gin getHttpBody): do not flood system_logs.
 		if isBadRequestBodyPanic(err) {
 			facades.Log().Warning(msg)
-			response.Abort(ctx, contractshttp.StatusBadRequest, "params_error")
+			safeAbort(ctx, contractshttp.StatusBadRequest, "params_error")
 			return
 		}
 
 		systemLogService := services.NewSystemLogService(ctx)
-		_ = systemLogService.RecordHTTP(ctx, "error", "recover", msg, nil)
-		facades.Log().Error(err)
-		response.Abort(ctx, contractshttp.StatusInternalServerError, "operation_failed")
+		_ = systemLogService.RecordHTTP(ctx, "error", "recover", msg, map[string]any{
+			"stack": string(debug.Stack()),
+		})
+		facades.Log().Errorf("request panic recovered: %v\n%s", err, debug.Stack())
+		safeAbort(ctx, contractshttp.StatusInternalServerError, "operation_failed")
 	})
 
 	receiver.configureRateLimiting()
+}
+
+// safeAbort calls response.Abort and swallows panics (e.g. broken Writer after timeout).
+func safeAbort(ctx contractshttp.Context, code int, messageOrErr any) {
+	defer func() { _ = recover() }()
+	if ctx == nil {
+		return
+	}
+	response.Abort(ctx, code, messageOrErr)
 }
 
 // isBadRequestBodyPanic reports recover payloads that typically come from
