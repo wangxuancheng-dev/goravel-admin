@@ -16,10 +16,10 @@ import (
 	"goravel/app/utils"
 )
 
-// ExportPaymentsArgs ????????????????????????
+// Export payments job args (ExportArgs alias)
 type ExportPaymentsArgs = ExportArgs
 
-// ExportPayments ????????
+// Payments export job
 type ExportPayments struct{}
 
 func (r *ExportPayments) Signature() string {
@@ -102,25 +102,25 @@ func (r *ExportPayments) Handle(args ...any) (retErr error) {
 	return nil
 }
 
-// writePaymentsToCSV ??????? CSV????????
+// Write payments to CSV
 func (r *ExportPayments) writePaymentsToCSV(ctx context.Context, w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
-	// ??????????????????????
+	// helper
 	var paymentFilters services.PaymentFilters
 	utils.FillFiltersFromMap(filters, &paymentFilters)
 
-	// ????????????????
+	// helper
 	paymentFilters.StartTime, paymentFilters.EndTime = GetDefaultTimeRange(filters)
 
-	// ?????????????
+	// helper
 	timezone, _ := utils.GetString(filters, "_timezone")
 
-	// ??????
+	// helper
 	tableNames := r.getTableNames(paymentFilters)
 	if len(tableNames) == 0 {
 		return nil
 	}
 
-	// ????
+	// helper
 	_, direction := ParseOrderBy(paymentFilters.OrderBy)
 	if direction == "desc" {
 		for i, j := 0, len(tableNames)-1; i < j; i, j = i+1, j-1 {
@@ -128,7 +128,7 @@ func (r *ExportPayments) writePaymentsToCSV(ctx context.Context, w *csv.Writer, 
 		}
 	}
 
-	// ???????
+	// helper
 	paymentMethodMap := r.loadPaymentMethods(ctx)
 
 	const chunkSize = 2000
@@ -142,9 +142,9 @@ func (r *ExportPayments) writePaymentsToCSV(ctx context.Context, w *csv.Writer, 
 	return nil
 }
 
-// getTableNames ??????
+// getTableNames
 func (r *ExportPayments) getTableNames(filters services.PaymentFilters) []string {
-	// ??????? payment_no???????
+	// helper
 	if filters.PaymentNo != "" && len(filters.PaymentNo) >= 11 {
 		dateStr := filters.PaymentNo[3:11]
 		if t, err := time.Parse("20060102", dateStr); err == nil {
@@ -154,7 +154,7 @@ func (r *ExportPayments) getTableNames(filters services.PaymentFilters) []string
 	return utils.GetShardingTableNames("payments", filters.StartTime, filters.EndTime)
 }
 
-// exportTable ??????
+// Export one sharding table
 func (r *ExportPayments) exportTable(ctx context.Context, w *csv.Writer, tableName string, filters services.PaymentFilters, paymentMethodMap map[uint]models.PaymentMethod, lang, timezone, direction string, chunkSize int, shouldStop func() bool) error {
 	lastTimeStr := ""
 	var lastID uint = 0
@@ -209,7 +209,7 @@ func (r *ExportPayments) exportTable(ctx context.Context, w *csv.Writer, tableNa
 			}
 		}
 
-		// ????
+		// helper
 		lastPayment := payments[len(payments)-1]
 		prevID := lastID
 		if lastPayment.CreatedAt != nil && !lastPayment.CreatedAt.IsZero() {
@@ -231,7 +231,7 @@ func (r *ExportPayments) exportTable(ctx context.Context, w *csv.Writer, tableNa
 	return nil
 }
 
-// formatPaymentRow ???????
+// formatPaymentRow
 func (r *ExportPayments) formatPaymentRow(payment models.Payment, paymentMethodMap map[uint]models.PaymentMethod, lang, timezone string) []string {
 	paymentMethodName := ""
 	if pm, ok := paymentMethodMap[payment.PaymentMethodID]; ok {
@@ -263,7 +263,7 @@ func (r *ExportPayments) formatPaymentRow(payment models.Payment, paymentMethodM
 	}
 }
 
-// loadPaymentMethods ????????
+// loadPaymentMethods
 func (r *ExportPayments) loadPaymentMethods(ctx context.Context) map[uint]models.PaymentMethod {
 	var methods []models.PaymentMethod
 	appfacades.OrmQuery(ctx).Model(&models.PaymentMethod{}).Get(&methods)

@@ -14,10 +14,10 @@ import (
 	"goravel/app/utils"
 )
 
-// ExportUsersArgs ???????????????
+// Export users job args (ExportArgs alias)
 type ExportUsersArgs = ExportArgs
 
-// ExportUsers ??????
+// Users export job
 type ExportUsers struct{}
 
 func (r *ExportUsers) Signature() string {
@@ -96,16 +96,16 @@ func (r *ExportUsers) Handle(args ...any) (retErr error) {
 	return nil
 }
 
-// writeUsersToCSV ??????? CSV????????
+// Write users to CSV
 func (r *ExportUsers) writeUsersToCSV(ctx context.Context, w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
-	// ??????????????????????
+	// helper
 	var userFilters services.UserFilters
 	utils.FillFiltersFromMap(filters, &userFilters)
 
 	orderBy, _ := utils.GetString(filters, "order_by")
 	_, direction := ParseOrderBy(orderBy)
 
-	// ?????????????
+	// helper
 	timezone, _ := utils.GetString(filters, "_timezone")
 
 	const chunkSize = 2000
@@ -116,7 +116,7 @@ func (r *ExportUsers) writeUsersToCSV(ctx context.Context, w *csv.Writer, filter
 			return ErrExportRecordMissing
 		}
 
-		// ??????????? UserService ????
+		// helper
 		query := services.BuildUserQuery(ctx, userFilters).With("Currency")
 
 		// Keyset ??
@@ -136,7 +136,7 @@ func (r *ExportUsers) writeUsersToCSV(ctx context.Context, w *csv.Writer, filter
 
 		var users []models.User
 		if err := query.Limit(chunkSize).Get(&users); err != nil {
-			return fmt.Errorf("??????: %v", err)
+			return fmt.Errorf("failed: %v", err)
 		}
 
 		if len(users) == 0 {
@@ -151,7 +151,7 @@ func (r *ExportUsers) writeUsersToCSV(ctx context.Context, w *csv.Writer, filter
 			}
 		}
 
-		// ????
+		// helper
 		lastID = users[len(users)-1].ID
 
 		if len(users) < chunkSize {
@@ -162,28 +162,28 @@ func (r *ExportUsers) writeUsersToCSV(ctx context.Context, w *csv.Writer, filter
 	return nil
 }
 
-// formatUserRow ????????
+// formatUserRow
 func (r *ExportUsers) formatUserRow(user models.User, lang, timezone string) []string {
-	// ????
+	// helper
 	statusKey := "disabled"
 	if user.Status == 1 {
 		statusKey = "enabled"
 	}
 	statusText := utils.TranslateKey(statusKey, lang, cast.ToString(user.Status))
 
-	// ????
+	// helper
 	currencyName := ""
 	if user.Currency != nil {
 		currencyName = user.Currency.Name
 	}
 
-	// ??????
+	// helper
 	lastLoginAt := ""
 	if user.LastLoginAt != nil {
 		lastLoginAt = FormatTimeWithTimezone(*user.LastLoginAt, timezone)
 	}
 
-	// ????
+	// helper
 	createdAt := FormatCarbonWithTimezone(user.CreatedAt, timezone)
 
 	return []string{
