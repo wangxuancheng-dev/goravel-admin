@@ -33,7 +33,7 @@
 
 - [ ] LB：`GET /health` 存活、`GET /ready` 就绪（含 DB；按需 Redis/Search）
 - [ ] `/health` 可带 `app` / `env` / `version`（`APP_VERSION`）
-- [ ] Web + Queue Worker 分离；`CACHE_STORE=redis`、`QUEUE_CONNECTION=redis`
+- [ ] Separate web + queue workers (API: `APP_DISABLED_RUNNERS=queue-*`; Worker: do not disable); `CACHE_STORE=redis`, `QUEUE_CONNECTION=redis` (see [Production](/en/deploy/production))
 - [ ] 平台库 + 租户库备份（`tenant:backup-all`）并有**异地**副本
 - [ ] 对照 `app/production/warn.go` 启动 Warning 清零或已接受风险
 

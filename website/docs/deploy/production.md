@@ -87,9 +87,50 @@ readinessProbe:
 ## 4. 进程与备份
 
 - Web：`go run .` / 编译产物常驻  
-- Queue Worker：与 Web 分离，消费 `default` + 长任务队列（见 `bootstrap` runners）  
-- 定时：`schedule:run` 或框架 schedule runner  
+- Queue Worker：与 Web 分离，消费 `default` + `long-running`（及可选 `search`）队列（见 `bootstrap/runners.go`）  
+- 定时：`schedule:run` 或框架 `goravel:schedule` runner（多机时只留一台）  
 - 备份：平台库 + 各租户库（`tenant:backup` / `tenant:backup-all`）；公网务必异地副本，不要只留本机 `storage/backups`
+
+### 4.1 多机：API 与 Queue Worker 分角色
+
+同一二进制、同一套云 Redis / 云库；按角色改 `.env`，不要每台都跑 HTTP + 全量队列。
+
+```
+用户 → LB → API ×N（只接 HTTP）
+              ↓ Dispatch
+           Redis 队列
+              ↓
+           Worker ×M（只消费）
+```
+
+| 角色 | 做什么 | `APP_DISABLED_RUNNERS` | 说明 |
+|------|--------|--------------------------|------|
+| **API** | 对外 HTTP，入队 | `queue-*` | 关闭 `queue-default` / `queue-long-running` / `queue-search`，避免与 Worker 抢任务、占连接 |
+| **Worker** | 消费队列 | 留空（勿禁用 `queue-*`） | `QUEUE_CONNECTION=redis`；导入/导出/租户运维依赖 `long-running` |
+| **定时（可选）** | 只跑 schedule | API 副本可加 `goravel:schedule` | 多机时 schedule **只开一台**，防止重复执行 |
+
+**API 机示例：**
+
+```ini
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+APP_DISABLED_RUNNERS=queue-*
+# 若本机也不跑定时：APP_DISABLED_RUNNERS=queue-*,goravel:schedule
+```
+
+**Worker 机示例：**
+
+```ini
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+# 不要设置 APP_DISABLED_RUNNERS=queue-*
+QUEUE_CONCURRENT=2
+QUEUE_LONG_RUNNING_CONCURRENT=1
+```
+
+两端都启动同一编译产物（如 `./main`）。`QUEUE_CONNECTION=sync` 时任务不入 Redis，多机无法分担，生产勿用。
+
+Runner 名是连字符 `queue-*`（见 `bootstrap/runners.go`），不是 `queue:*`。`queue:*` 用于生产 Artisan 命令白名单过滤，不能用来关队列 Runner。
 
 ## 5. 上线最短路径
 

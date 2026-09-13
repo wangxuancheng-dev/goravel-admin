@@ -54,6 +54,36 @@ Do **not** put queue backlog scans on `/ready` (latency). Use the scheduled comm
 
 Ready failure webhook: `READY_ALERT_WEBHOOK_URL` (5 min debounce on `/ready` non-200).
 
+## Processes: API vs Queue Worker
+
+Same binary and shared Redis/DB. Split roles via `.env` — do not run full HTTP + all queue runners on every node.
+
+| Role | Purpose | `APP_DISABLED_RUNNERS` |
+|------|---------|--------------------------|
+| **API** | HTTP only; dispatch jobs | `queue-*` (disables `queue-default`, `queue-long-running`, `queue-search`) |
+| **Worker** | Consume queues | leave empty (do **not** disable `queue-*`) |
+| **Schedule** | Optional | on API replicas add `goravel:schedule`; run schedule on **one** node only |
+
+**API node:**
+
+```ini
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+APP_DISABLED_RUNNERS=queue-*
+# APP_DISABLED_RUNNERS=queue-*,goravel:schedule
+```
+
+**Worker node:**
+
+```ini
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+QUEUE_CONCURRENT=2
+QUEUE_LONG_RUNNING_CONCURRENT=1
+```
+
+Use `queue-*` (hyphen), not `queue:*`. The latter is for production Artisan command filters, not queue runners. See Chinese [生产清单](/deploy/production) §4.1.
+
 ## Resource ownership (admin)
 
 - **Exports:** download / SSE progress / delete — owner or configured `admin.super_admin_id`  

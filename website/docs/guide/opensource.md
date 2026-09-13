@@ -116,13 +116,13 @@ QUEUE_TRIES=5
 
 # 生产默认关闭
 SWAGGER_ENABLED=false
-# APP_DISABLED_RUNNERS=  # 不要误关 queue:*
+# APP_DISABLED_RUNNERS=  # Worker 机勿设 queue-*；API 多机见生产清单 §4.1
 ```
 
 **上线检查（最小）：**
 
 1. `migrate` 成功，`db:seed` 后修改默认 `admin` 密码  
-2. Redis 可用，Web 进程与 Queue Worker 常驻  
+2. Redis 可用；Web 与 Queue Worker 常驻（多机分角色配置见 [生产清单](/deploy/production) §4.1）  
 3. HTTPS + 反向代理  
 4. 关闭或限权：Swagger、pprof、代码生成器  
 5. 日志磁盘与备份策略就绪  
