@@ -1,17 +1,22 @@
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import axios from 'axios'
 import Storage from '@/utils/storage'
 import { isPrivateAttachmentPreviewPath, isPublicAttachmentPath } from '@/utils/attachmentUrl'
 
+function isPreviewableMedia(fileType) {
+  return fileType === 'image' || fileType === 'video'
+}
+
 /**
- * Lazy-load attachment thumbnails as blob URLs when preview requires auth.
+ * Lazy-load attachment image/video thumbnails as blob URLs when preview requires auth.
  */
 export function useAttachmentImagePreview() {
   const imageUrlMap = ref(new Map())
   const imageLoadingMap = ref(new Map())
+  const blobUrls = []
 
   const loadImageAsBlob = async (row) => {
-    if (!row || row.file_type !== 'image') {
+    if (!row || !isPreviewableMedia(row.file_type)) {
       return
     }
 
@@ -71,6 +76,7 @@ export function useAttachmentImagePreview() {
         headers
       })
       const blobUrl = URL.createObjectURL(new Blob([response.data]))
+      blobUrls.push(blobUrl)
       imageUrlMap.value.set(attachmentId, blobUrl)
       imageLoadingMap.value.set(attachmentId, 'loaded')
     } catch {
@@ -120,6 +126,11 @@ export function useAttachmentImagePreview() {
       imageLoadingMap.value.set(row.id, 'error')
     }
   }
+
+  onBeforeUnmount(() => {
+    blobUrls.forEach((url) => URL.revokeObjectURL(url))
+    blobUrls.length = 0
+  })
 
   return {
     loadImageAsBlob,

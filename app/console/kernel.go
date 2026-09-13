@@ -25,6 +25,7 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		ScheduleTracked("order:create-sharding-tables").Monthly().OnOneServer(),
 		ScheduleTracked("payment:create-sharding-tables").Monthly().OnOneServer(),
 		ScheduleTracked("search:retry-outbox").Hourly().OnOneServer(),
+		ScheduleTracked("queue:alert-backlog").Hourly().OnOneServer(),
 	}
 }
 
@@ -37,6 +38,7 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.QueueStats{},
 		&commands.QueueClear{},
 		&commands.QueuePeek{},
+		&commands.QueueAlertBacklog{},
 		&commands.ScheduleTestLog{},
 		commands.NewCreateOrderShardingTables(),
 		commands.NewCreatePaymentShardingTables(),

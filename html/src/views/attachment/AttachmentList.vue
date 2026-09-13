@@ -104,14 +104,23 @@
                 </div>
               </template>
             </el-image>
+            <video
+              v-else-if="row.file_type === 'video' && getImageUrl(row)"
+              class="filename-thumbnail filename-video-thumbnail"
+              :src="getImageUrl(row)"
+              muted
+              playsinline
+              preload="metadata"
+              @click.stop="handlePreview(row)"
+            />
             <div
-              v-else-if="row.file_type === 'image' && getImageLoadingState(row) === 'loading'"
+              v-else-if="(row.file_type === 'image' || row.file_type === 'video') && getImageLoadingState(row) === 'loading'"
               class="image-placeholder"
             >
               <el-icon class="is-loading"><Loading /></el-icon>
             </div>
             <div
-              v-else-if="row.file_type === 'image' && getImageLoadingState(row) === 'error'"
+              v-else-if="(row.file_type === 'image' || row.file_type === 'video') && getImageLoadingState(row) === 'error'"
               class="image-error"
             >
               <el-icon><Picture /></el-icon>
@@ -419,6 +428,9 @@ const handleUpdateVisibility = async (row) => {
     const res = await updateVisibility(attachmentId, Number(row.is_public) === 1)
     if (res?.data?.file_url) {
       row.file_url = res.data.file_url
+      if (row.file_type === 'image' || row.file_type === 'video') {
+        nextTick(() => loadImageAsBlob(row))
+      }
     }
     ElMessage.success(t('attachment.update_success'))
   } catch (error) {
@@ -578,7 +590,7 @@ const {
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),
   onLoadSuccess: () => {
     tableData.value.forEach((row) => {
-      if (row.file_type === 'image') {
+      if (row.file_type === 'image' || row.file_type === 'video') {
         nextTick(() => loadImageAsBlob(row))
       }
     })
@@ -918,6 +930,11 @@ onBeforeUnmount(() => {
   border-radius: var(--border-radius-sm);
   flex-shrink: 0;
   border: 1px solid var(--border-color-light);
+}
+
+.filename-video-thumbnail {
+  object-fit: cover;
+  background: var(--bg-color-tertiary);
 }
 
 .image-placeholder {

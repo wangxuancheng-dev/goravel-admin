@@ -74,4 +74,4 @@ QUEUE_CONNECTION=redis
 SWAGGER_ENABLED=false
 ```
 
-See [Production checklist](/en/deploy/production), [Build](/en/deploy/build), [Docker deploy](/en/deploy/docker).
+See [Production checklist](/en/deploy/production) (health `/health` `/ready`, Task Center / import permissions, queue backlog alert), [Build](/en/deploy/build), [Docker deploy](/en/deploy/docker). After upgrades that ship Task Center, re-check menu `export/TaskCenter` and `import.*` slugs per that checklist.

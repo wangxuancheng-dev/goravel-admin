@@ -82,7 +82,7 @@ Docker 部署可参考 `scripts/deploy/seed.sh`（默认跑**完整** `db:seed`�
 
 ## 自动生成的权限
 
-根据生成器选项（增/删/改/导出）推导，与前端 `PermissionButton` 使用的 slug 一致：
+根据生成器选项（增/删/改/导出/导入）推导，与前端 `PermissionButton` 使用的 slug 一致：
 
 | 能力 | slug 示例（模块 `article`） |
 |------|---------------------------|
@@ -92,8 +92,40 @@ Docker 部署可参考 `scripts/deploy/seed.sh`（默认跑**完整** `db:seed`�
 | 更新 | `article.update` |
 | 删除 | `article.destroy` |
 | 导出 | `article.export` |
+| 导入 | `article.import` |
 
-API 路径前缀：`/api/admin/{table_name}`（如 `/api/admin/articles`）。
+API 路径前缀：`/api/admin/{table_name}`（如 `/api/admin/articles`）。共享导入任务中心权限见 [生产清单 §1.1](/deploy/production#11-任务中心与导入权限升级后必查)：`import.index|show|download_error|destroy`。
+
+## 导出与导入选项
+
+代码生成器页面上的导出 / 导入模式对应布尔选项（与 `export_async` / `import_async` 对称）：
+
+| 选项 | 含义 |
+|------|------|
+| `has_export` | 启用导出（列表页导出按钮 + 后端 Export） |
+| `export_async` | 异步导出（需 `has_export`）；生成 `export_job` 并注册队列 |
+| `has_import` | 启用 CSV 导入（列表页导入按钮 + `POST …/import`） |
+| `import_async` | 异步导入（需 `has_import`）；生成 `import_job` 并注册队列 |
+
+### 同步 vs 异步
+
+| 模式 | 适用 | 行为 |
+|------|------|------|
+| 同步（`*_async=false`） | 小文件、少行、可接受请求阻塞 | HTTP 内直接处理；不生成 `*_job` |
+| 异步（`*_async=true`） | 大 CSV、长时间导入/导出 | 入队；进度在 **任务中心**（`export/TaskCenter`）查看 |
+
+异步导入还依赖 Worker 消费对应队列，并确保已 seed / 分配 `import.*` 任务中心权限。
+
+### `has_import` 时生成 / 改写的内容
+
+| 产物 | 说明 |
+|------|------|
+| Controller `Import` | 同步直接调 service，或异步 `enqueue*Import` |
+| Service `ImportFromCSV` | 解析 CSV 写库 |
+| 路由 | `POST /{modules}/import`；共享 `imports/{id}`、`imports/{id}/error-file` |
+| `app/jobs/import_{table}.go` | 仅 `import_async=true` |
+| Queue 注册 | 异步时注入 `QueueServiceProvider`（与导出 job 同类） |
+| 前端 | React / Vue 列表页导入按钮 + API `import*`；**默认主发货 UI 为 React（`html-react/`）**，Vue（`html/`）为对等参考。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标 |
 
 ## 实现位置（维护参考）
 

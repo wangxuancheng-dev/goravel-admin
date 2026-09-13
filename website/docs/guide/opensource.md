@@ -128,7 +128,7 @@ SWAGGER_ENABLED=false
 5. 日志磁盘与备份策略就绪  
 6. 使用 `.env.production.example` 起步，**勿**直接用 `docker-compose.yml` 默认口令上生产  
 
-部署细节见 [生产清单](/deploy/production)（健康检查 `/health` `/ready`、告警与上线清单）、[编译与部署](/deploy/build)、[Docker 生产部署](/deploy/docker)。
+部署细节见 [生产清单](/deploy/production)（健康检查 `/health` `/ready`、任务中心/导入权限、队列积压告警、上线清单）、[编译与部署](/deploy/build)、[Docker 生产部署](/deploy/docker)。升级含任务中心时务必按生产清单 **§1.1** 核对 `export/TaskCenter` 菜单与 `import.*` 权限。
 
 ### 资源归属（管理端）
 

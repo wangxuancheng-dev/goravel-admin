@@ -113,6 +113,7 @@ const enSidebar = {
         { text: '4. Development guide', link: '/en/guide/development' },
         { text: '5. Code generator', link: '/en/guide/code-generator' },
         { text: '6. Frontend parity', link: '/en/guide/frontend-parity' },
+        { text: '7. Service package split', link: '/en/guide/service-packages' },
         { text: '7. Permission buttons', link: '/en/guide/permission-button' },
         { text: 'Hardcoded checklist', link: '/en/guide/hardcoded-checklist' },
       ],

@@ -1,4 +1,4 @@
-package services
+package rbac
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"goravel/app/models"
 )
 
-// Wrapper smoke tests: domain logic lives in app/rbac.
 func TestResolveAdminDataScopeWidestAndSuperAdmin(t *testing.T) {
 	admin := models.Admin{
 		DepartmentID: 3,
@@ -37,6 +36,24 @@ func TestResolveAdminDataScopeWidestAndSuperAdmin(t *testing.T) {
 	assert.Equal(t, models.DataScopeAll, resolved2.Scope)
 }
 
+func TestResolveAdminDataScopeDeptWithoutDepartmentFallsBackToSelf(t *testing.T) {
+	admin := models.Admin{
+		DepartmentID: 0,
+		Roles: []models.Role{
+			{Slug: "ops", Status: 1, DataScope: models.DataScopeDeptAndChild},
+		},
+	}
+	admin.ID = 9
+	ctx := context.WithValue(context.Background(), "admin", admin)
+	resolved := ResolveAdminDataScope(ctx)
+	assert.Equal(t, models.DataScopeSelf, resolved.Scope)
+}
+
+func TestResolveAdminDataScopeNoAdminIsAll(t *testing.T) {
+	resolved := ResolveAdminDataScope(context.Background())
+	assert.Equal(t, models.DataScopeAll, resolved.Scope)
+}
+
 func TestCanAccessOwnedBySelf(t *testing.T) {
 	admin := models.Admin{
 		Roles: []models.Role{{Slug: "ops", Status: 1, DataScope: models.DataScopeSelf}},
@@ -45,4 +62,21 @@ func TestCanAccessOwnedBySelf(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "admin", admin)
 	assert.True(t, CanAccessOwnedBy(ctx, 7))
 	assert.False(t, CanAccessOwnedBy(ctx, 8))
+}
+
+func TestAdminFromContext(t *testing.T) {
+	assert.Nil(t, AdminFromContext(nil))
+	assert.Nil(t, AdminFromContext(context.Background()))
+
+	admin := models.Admin{}
+	admin.ID = 3
+	ctx := context.WithValue(context.Background(), "admin", admin)
+	got := AdminFromContext(ctx)
+	assert.NotNil(t, got)
+	assert.Equal(t, uint(3), got.ID)
+
+	ptr := &admin
+	ctx2 := context.WithValue(context.Background(), "admin", ptr)
+	got2 := AdminFromContext(ctx2)
+	assert.Same(t, ptr, got2)
 }

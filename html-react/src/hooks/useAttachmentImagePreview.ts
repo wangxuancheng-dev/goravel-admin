@@ -6,11 +6,15 @@ import { isPrivateAttachmentPreviewPath, isPublicAttachmentPath } from '@/utils/
 
 type LoadingState = 'loading' | 'loaded' | 'error' | ''
 
-interface ImageRow {
+interface MediaRow {
   id?: string | number
   file_type?: string
   file_url?: string
   is_public?: number
+}
+
+function isPreviewableMedia(fileType?: string): boolean {
+  return fileType === 'image' || fileType === 'video'
 }
 
 export function useAttachmentImagePreview() {
@@ -37,8 +41,8 @@ export function useAttachmentImagePreview() {
   }, [])
 
   const loadImageAsBlob = useCallback(
-    async (row: ImageRow) => {
-      if (!row || row.file_type !== 'image' || !row.id) return
+    async (row: MediaRow) => {
+      if (!row || !isPreviewableMedia(row.file_type) || !row.id) return
 
       const attachmentId = row.id
       const currentState = loadingRef.current.get(attachmentId)
@@ -103,7 +107,7 @@ export function useAttachmentImagePreview() {
   )
 
   const getImageUrl = useCallback(
-    (row: ImageRow) => {
+    (row: MediaRow) => {
       if (!row?.id) return ''
       return urlMap.get(row.id) || ''
     },
@@ -111,7 +115,7 @@ export function useAttachmentImagePreview() {
   )
 
   const getImageLoadingState = useCallback(
-    (row: ImageRow): LoadingState => {
+    (row: MediaRow): LoadingState => {
       if (!row?.id) return ''
       const state = loadingMap.get(row.id)
       const url = urlMap.get(row.id)

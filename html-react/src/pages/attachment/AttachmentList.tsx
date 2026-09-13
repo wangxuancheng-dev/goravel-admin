@@ -107,7 +107,7 @@ export default function AttachmentList() {
     transformData: (row) => transformAttachmentRow(row as unknown as Record<string, unknown>),
     onLoadSuccess: (rows) => {
       rows.forEach((row) => {
-        if (row.file_type === 'image') {
+        if (row.file_type === 'image' || row.file_type === 'video') {
           void loadImageAsBlob(row)
         }
       })
@@ -197,7 +197,7 @@ export default function AttachmentList() {
       const data = res?.data as { file_url?: string } | undefined
       if (data?.file_url) {
         row.file_url = data.file_url
-        if (row.file_type === 'image') {
+        if (row.file_type === 'image' || row.file_type === 'video') {
           void loadImageAsBlob(row)
         }
       }
@@ -381,6 +381,23 @@ export default function AttachmentList() {
       render: (_, row) => {
         const previewUrl = getImageUrl(row)
         const loadingState = getImageLoadingState(row)
+        const mediaPlaceholder = (error: boolean) => (
+          <div
+            style={{
+              width: 50,
+              height: 50,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: error ? '#fef0f0' : '#fafafa',
+              borderRadius: 4,
+              border: error ? '1px solid #fde2e2' : '1px solid #f0f0f0',
+              color: error ? '#f56c6c' : '#999',
+            }}
+          >
+            {error ? <PictureOutlined /> : '...'}
+          </div>
+        )
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {row.file_type === 'image' ? (
@@ -393,37 +410,36 @@ export default function AttachmentList() {
                   preview={{ src: previewUrl }}
                 />
               ) : loadingState === 'error' ? (
-                <div
-                  style={{
-                    width: 50,
-                    height: 50,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#fef0f0',
-                    borderRadius: 4,
-                    border: '1px solid #fde2e2',
-                    color: '#f56c6c',
-                  }}
-                >
-                  <PictureOutlined />
-                </div>
+                mediaPlaceholder(true)
               ) : (
-                <div
+                mediaPlaceholder(false)
+              )
+            ) : null}
+            {row.file_type === 'video' ? (
+              previewUrl ? (
+                <video
+                  src={previewUrl}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  width={50}
+                  height={50}
                   style={{
-                    width: 50,
-                    height: 50,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#fafafa',
+                    objectFit: 'cover',
                     borderRadius: 4,
                     border: '1px solid #f0f0f0',
-                    color: '#999',
+                    cursor: 'pointer',
+                    background: '#fafafa',
                   }}
-                >
-                  ...
-                </div>
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void handlePreview(row)
+                  }}
+                />
+              ) : loadingState === 'error' ? (
+                mediaPlaceholder(true)
+              ) : (
+                mediaPlaceholder(false)
               )
             ) : null}
             <span style={{ wordBreak: 'break-all' }}>{row.filename}</span>

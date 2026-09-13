@@ -15,6 +15,32 @@
 
 应用在 `APP_ENV=production` 时会对不安全默认项打 **Warning** 日志（不阻断启动），见 `app/production/warn.go`。
 
+## 1.1 任务中心与导入权限（升级后必查）
+
+升级含「导入导出 / 任务中心」的版本后，确认菜单与权限已落库，否则侧边栏无入口或导入相关按钮 403。
+
+| 项 | 说明 |
+|----|------|
+| 菜单 | 系统管理 →「导入导出」，组件路径必须为 `export/TaskCenter`（React / Vue 同路径约定） |
+| 导入权限 slug | `import.index`、`import.show`、`import.download_error`、`import.destroy` |
+| 模块导入按钮 | 生成器模块另有 `{module}.import`（如 `article.import`），需在角色中勾选 |
+
+**推荐（增量、幂等）：** 重新跑权限 / 菜单 seeder，或只在角色 UI 里勾选上述 slug：
+
+```bash
+# 开发
+go run . artisan db:seed --seeder=MenuSeeder
+go run . artisan db:seed --seeder=PermissionSeeder
+
+# 生产二进制
+./main artisan db:seed --seeder=MenuSeeder
+./main artisan db:seed --seeder=PermissionSeeder
+```
+
+`PermissionSeeder` 会按 slug 幂等写入导入相关权限并挂到「导入导出」菜单；`MenuSeeder` 确保 `Component: export/TaskCenter`。完整 `db:seed` 仅适合首次初始化。非超管角色需在 **角色管理** 中手动勾选新权限。
+
+开源边界与上线总览见 [开源定位](/guide/opensource)。
+
 ## 2. 健康检查端点
 
 | 路径 | 用途 | 成功 | 失败 |
@@ -51,7 +77,7 @@ readinessProbe:
 |------|------|
 | `/ready` 连续 503 | 页面告警；查 DB/Redis |
 | 5xx 比例升高 | 网关/日志告警 |
-| 队列堆积 / failed_jobs 增长 | Worker 存活、Redis、导出任务 |
+| 队列堆积 / failed_jobs 增长 | Worker 存活、Redis、导出/导入任务；可选 `queue:alert-backlog`（见下） |
 | 磁盘（日志、`storage/backups`） | 备份与日志轮转 |
 | MySQL `Threads_connected` 接近 `max_connections` | 下调 `TENANCY_POOL_*` 或扩容 |
 | 证书到期 | HTTPS |
@@ -103,3 +129,17 @@ docker build --build-arg BUILD_FRONTEND=1 -t goravel-admin .
 健康检查使用 **`GET /ready`**（就绪，含 DB/Redis），Dockerfile `HEALTHCHECK` 与 blue/green compose 已对齐；存活仍可用 `GET /health`。
 
 通知渠道（邮件 / Webhook）见环境变量：`NOTIFICATION_MAIL_ENABLED`、`NOTIFICATION_WEBHOOK_ENABLED`、`NOTIFICATION_WEBHOOK_URL`；类型白名单 `NOTIFICATION_MAIL_TYPES` / `NOTIFICATION_WEBHOOK_TYPES`（逗号分隔，空=全部）。就绪失败告警：`READY_ALERT_WEBHOOK_URL`（`/ready` 非 200 时 POST JSON，缓存防抖 5 分钟）。
+
+### 队列积压告警（离线，不进 `/ready`）
+
+定时命令 `queue:alert-backlog`（默认每小时，见 `app/console/kernel.go`）在默认队列连接为 Redis 时汇总 pending；超过阈值则 POST Webhook（缓存防抖 1 小时）。**不**挂在 `/ready` 请求路径上，避免拉高探针延迟。
+
+| 变量 | 说明 |
+|------|------|
+| `QUEUE_ALERT_WEBHOOK_URL` | 积压告警 URL；空则回退 `READY_ALERT_WEBHOOK_URL`；皆空则关闭 |
+| `QUEUE_ALERT_BACKLOG_THRESHOLD` | pending 合计阈值，默认 `100` |
+
+```bash
+./main artisan queue:alert-backlog
+# 或手动：go run . artisan queue:alert-backlog
+```

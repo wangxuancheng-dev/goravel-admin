@@ -86,7 +86,7 @@ Docker 部署可参考 `scripts/deploy/seed.sh`（默认跑**完整** `db:seed`�
 
 ## 自动生成的权限
 
-根据生成器选项（增/删/改/导出）推导，与前端 `PermissionButton` 使用的 slug 一致：
+根据生成器选项（增/删/改/导出/导入）推导，与前端 `PermissionButton` 使用的 slug 一致：
 
 | 能力 | slug 示例（模块 `article`） |
 |------|---------------------------|
@@ -96,8 +96,40 @@ Docker 部署可参考 `scripts/deploy/seed.sh`（默认跑**完整** `db:seed`�
 | 更新 | `article.update` |
 | 删除 | `article.destroy` |
 | 导出 | `article.export` |
+| 导入 | `article.import` |
 
-API 路径前缀：`/api/admin/{table_name}`（如 `/api/admin/articles`）。
+API 路径前缀：`/api/admin/{table_name}`（如 `/api/admin/articles`）。Shared Task Center import slugs: see [Production checklist](/en/deploy/production#task-center--import-permissions) — `import.index|show|download_error|destroy`.
+
+## Export and import options
+
+UI export/import modes map to booleans (mirrors `export_async` / `import_async`):
+
+| Option | Meaning |
+|--------|---------|
+| `has_export` | Enable export (list button + backend Export) |
+| `export_async` | Async export (requires `has_export`); generates `export_job` + queue register |
+| `has_import` | Enable CSV import (list button + `POST …/import`) |
+| `import_async` | Async import (requires `has_import`); generates `import_job` + queue register |
+
+### Sync vs async
+
+| Mode | When | Behavior |
+|------|------|----------|
+| Sync (`*_async=false`) | Small files / few rows | Handled in the HTTP request; no `*_job` file |
+| Async (`*_async=true`) | Large CSV / long jobs | Enqueued; progress in **Task Center** (`export/TaskCenter`) |
+
+Async import needs a queue worker and seeded/assigned `import.*` Task Center permissions.
+
+### What `has_import` generates / patches
+
+| Artifact | Notes |
+|----------|-------|
+| Controller `Import` | Sync calls service; async uses `enqueue*Import` |
+| Service `ImportFromCSV` | Parse CSV and persist |
+| Routes | `POST /{modules}/import`; shared `imports/{id}`, `imports/{id}/error-file` |
+| `app/jobs/import_{table}.go` | Only when `import_async=true` |
+| Queue register | Async jobs injected into `QueueServiceProvider` (same pattern as export) |
+| Frontend | React / Vue list import button + `import*` API; **React (`html-react/`) is the primary shipping UI**; Vue (`html/`) is the peer reference. `CODE_GENERATOR_FRONTEND` (recommend `react,vue`) selects targets |
 
 ## 实现位置（维护参考）
 
