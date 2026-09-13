@@ -8,7 +8,8 @@ import (
 )
 
 // PaidResult is the normalized outcome after a gateway verifies a successful payment.
-// Gateways should only verify + map fields; business writes go through services.ApplyPaidResult.
+// Gateways should only verify + map fields; business writes go through services.ApplyPaidResult
+// (status gate lives here as ApplyPaidResultStatusGate).
 type PaidResult struct {
 	PaymentNo    string
 	ThirdPartyNo string

@@ -1,37 +1,33 @@
 # Service package split roadmap
 
-`app/services` is still one package with domain-oriented files. Newer security/notification helpers already live in dedicated files (`password_policy.go`, `login_anomaly.go`, `notification_channel.go`) to avoid growing god services.
+`app/services` stays **one package with domain-oriented files**. Only extract small, pure, testable helpers into `app/*` domain packages when they do not need HTTP/facades orchestration.
 
-## Principles
+## Principles (frozen)
 
 1. **CRUD / code-generator modules** stay in `app/services` to match templates.
-2. **Cross-domain orchestration** (paid apply, tenant connection, export/import enqueue) stays as small interfaces + separate files.
-3. **Next phase** moves domains into subpackages (`orders`, `payment`, `tenancy`, `rbac`) with thin facades so controller imports stay stable.
-4. Prefer splitting **high-coupling / high-LOC** files: `code_generator_service`, `order_service`, `payment_service`, `tenant_connection_service`.
-5. **No import cycles**: `services` may import `rbac` / `orders` / `payment` / `tenancy`; those domain packages must **not** import `services`.
+2. **Cross-domain orchestration** (`ApplyPaidResult`, tenant connection, export/import enqueue) **stays in services** — do not add more `app` packages or ports layers just for orchestration.
+3. **Stop here** for domain packages: keep `payment` / `rbac` / `orders` only. Do **not** move entire OrderService / PaymentService / TenantConnection into new directories.
+4. **No import cycles**: `services` may import `rbac` / `orders` / `payment` / `tenancy`; domain packages must **not** import `services`.
+5. Default new code to `app/services`; only add a domain package for pure logic, strong reuse, or breaking an import cycle.
 
-## Moved (starter)
+## Kept splits (worthwhile)
 
 | Capability | Package / file | Notes |
 |------------|----------------|-------|
-| Payment paid status gate | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate` (pure logic) |
-| Payment DB apply | `app/services/payment_apply.go` | `ApplyPaidResult` stays in services; calls `app/payment` gate; alias `services.PaidResult` for compat |
-| Data scope / RBAC filters | `app/rbac` | `DataScopeResolved` / `ApplyDataScope` / `CanAccessOwnedBy` / `ResolveAdminDataScope`; `services` keeps same-name thin wrappers |
-| Order filters + JSON | `app/orders` | `Filters`, time parsing, shard table mapping, `ToJSON` / `DetailToJSON`; `OrderServiceImpl` stays in services and delegates |
-| Import task center | `ImportRecordService` + `ImportController` | list/detail/delete/error download; frontend `export/TaskCenter` |
+| Payment paid status gate | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate` (pure) |
+| Payment DB apply | `app/services/payment_apply.go` | orchestration in services; calls gate; alias `services.PaidResult` |
+| Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy`; thin `services` wrappers for generators |
+| Order filters + JSON | `app/orders` | Filters / ToJSON; `OrderServiceImpl` remains in services |
+| Tenancy parsing helpers | `app/tenancy` | hints / CacheKey / StoragePrefix (already separate) |
+| Import task center | services + controllers | no separate `app/imports` package |
 
-Next: move gateway drivers + full `ApplyPaidResult` into `app/payment`; moving entire `OrderServiceImpl` (~700 LOC) is deferred.
+## Explicitly not split / reverted
 
-## Tenancy checklist
-
-Connection-agnostic helpers already live in `app/tenancy` (`MergeTenantHints`, `SubdomainHint`, `CacheKey`, `StoragePrefix`, `PaymentNotifyPath`).
-
-| Still in services | Why |
-|-------------------|-----|
-| `tenant_connection_service.go` | ORM connection register/migrate/bind; needs facades + DB |
-| `tenant_ops_service.go` / `tenant_admin_service.go` / `tenant_scope.go` | Ops CRUD and scoped queries at the generator-style service layer |
-
-When extracting connection later: keep `app/tenancy` free of `services` imports; move connection into e.g. `app/tenancy/connection` and leave thin facades in services.
+| Item | Decision |
+|------|----------|
+| Full `ApplyPaidResult` + `PaymentStore`/`OrderStore` ports | **Do not split**; unfinished `app/payment/store.go` removed |
+| `tenant_connection_service` / `tenant_ops_service` | **Stay in services** |
+| Entire `OrderServiceImpl` / `PaymentService` | **Stay in services** |
 
 ## Dual frontend
 
