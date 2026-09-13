@@ -191,10 +191,10 @@ func (r *ExportPayments) exportTable(ctx context.Context, w *csv.Writer, tableNa
 		var payments []models.Payment
 		if err := query.Limit(chunkSize).Get(&payments); err != nil {
 			if IsTableNotExistsError(err) {
-				facades.Log().Warningf("????????????: table=%s", tableName)
+				facades.Log().Warningf("payments sharding table missing, skip: table=%s", tableName)
 				return nil
 			}
-			return fmt.Errorf("????????: %v", err)
+			return fmt.Errorf("query payments failed: %v", err)
 		}
 
 		if len(payments) == 0 {
@@ -220,7 +220,7 @@ func (r *ExportPayments) exportTable(ctx context.Context, w *csv.Writer, tableNa
 		lastID = lastPayment.ID
 
 		if lastID == prevID {
-			return fmt.Errorf("???????: table=%s, last_id=%d", tableName, lastID)
+			return fmt.Errorf("write payments csv failed: table=%s, last_id=%d", tableName, lastID)
 		}
 
 		if len(payments) < chunkSize {
