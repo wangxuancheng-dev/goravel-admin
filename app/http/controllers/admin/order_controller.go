@@ -26,7 +26,7 @@ func (r *OrderController) orderService(ctx http.Context) services.OrderService {
 	return services.NewOrderService(ctx)
 }
 
-// resolveOrderNo ????? order_no ???????? query/body??? Resource ?? {id}?
+// resolveOrderNo 分表场景以 order_no 为业务主键：优先 query/body，其次 Resource 路由 {id}。
 func (r *OrderController) resolveOrderNo(ctx http.Context) string {
 	orderNo := strings.TrimSpace(ctx.Request().Input("order_no", ctx.Request().Query("order_no", "")))
 	if orderNo != "" {

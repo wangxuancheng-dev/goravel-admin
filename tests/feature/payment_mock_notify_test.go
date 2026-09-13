@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apppayment "goravel/app/payment"
 	"goravel/app/services"
 	"goravel/tests"
 )
@@ -104,7 +105,7 @@ func TestApplyPaidResultIdempotentFeature(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
-	paid, err := services.ApplyPaidResult(ctx, services.PaidResult{
+	paid, err := services.ApplyPaidResult(ctx, apppayment.PaidResult{
 		PaymentNo:    payment.PaymentNo,
 		ThirdPartyNo: "MOCK-UT-1",
 		PayTime:      &now,
@@ -112,7 +113,7 @@ func TestApplyPaidResultIdempotentFeature(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "paid", paid.Status)
 
-	again, err := services.ApplyPaidResult(ctx, services.PaidResult{PaymentNo: payment.PaymentNo})
+	again, err := services.ApplyPaidResult(ctx, apppayment.PaidResult{PaymentNo: payment.PaymentNo})
 	require.NoError(t, err)
 	assert.Equal(t, "paid", again.Status)
 

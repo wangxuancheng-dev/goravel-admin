@@ -16,7 +16,7 @@
 |------|-----------|------|
 | 支付成功态闸门 | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate`（纯逻辑） |
 | 支付网关驱动 | `app/payment/gateways/` | 每渠道一文件；`payment.RegisterGateway`；SDK 或手写均可；`Notify` 只返回 `PaidResult`。详见 [支付参考](/advanced/payments) §6 |
-| 支付落库编排 | `app/services/payment_apply.go` | 编排留 services；调用闸门；别名 `services.PaidResult` |
+| 支付落库编排 | `app/services/payment_apply.go` | 编排留 services；参数类型用 `payment.PaidResult` |
 | 数据权限 | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy` 等；services 直接调用 `rbac` |
 | 订单筛选与 JSON | `app/services/order_filters.go` / `order_json.go` | 与 CRUD 同包，避免为订单再开 `app/orders` |
 | 租户解析类 | `app/tenancy` | Hint / CacheKey / StoragePrefix 等（原本即独立） |

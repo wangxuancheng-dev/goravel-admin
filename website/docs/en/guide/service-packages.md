@@ -16,7 +16,7 @@
 |------------|----------------|-------|
 | Payment paid status gate | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate` (pure) |
 | Payment gateway drivers | `app/payment/gateways/` | one file per channel; `payment.RegisterGateway`; SDK or hand-written; `Notify` returns `PaidResult` only. See [Payments](/en/advanced/payments) §6 |
-| Payment DB apply | `app/services/payment_apply.go` | orchestration in services; calls gate; alias `services.PaidResult` |
+| Payment DB apply | `app/services/payment_apply.go` | orchestration in services; takes `payment.PaidResult` |
 | Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy`; services call `rbac` directly |
 | Order filters + JSON | `app/services/order_filters.go` / `order_json.go` | same package as CRUD — no separate `app/orders` |
 | Tenancy parsing helpers | `app/tenancy` | hints / CacheKey / StoragePrefix (already separate) |

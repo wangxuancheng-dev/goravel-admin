@@ -11,16 +11,13 @@ import (
 	apppayment "goravel/app/payment"
 )
 
-// PaidResult re-exports the domain type for backward-compatible imports in services/gateways/tests.
-type PaidResult = apppayment.PaidResult
-
 // ApplyPaidResult marks a payment paid (idempotent) and syncs the related order when still pending.
 //
 // Sharding: payment is located by payment_no (PAY+YYYYMMDD → payments_YYYYMM);
 // order is located by payment.OrderNo (ORD+YYYYMM → orders_YYYYMM). Cross-month
 // pay is fine — each no encodes its own create month.
 // Status gate lives in goravel/app/payment (ApplyPaidResultStatusGate).
-func ApplyPaidResult(ctx context.Context, result PaidResult) (*models.Payment, error) {
+func ApplyPaidResult(ctx context.Context, result apppayment.PaidResult) (*models.Payment, error) {
 	paymentNo := strings.TrimSpace(result.PaymentNo)
 	if paymentNo == "" {
 		return nil, apperrors.ErrPaymentNoRequired

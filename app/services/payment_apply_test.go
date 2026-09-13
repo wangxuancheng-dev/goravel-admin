@@ -23,7 +23,7 @@ func TestMockNotifyRequiresOutTradeNo(t *testing.T) {
 }
 
 func TestPaidResultRequiresPaymentNo(t *testing.T) {
-	_, err := ApplyPaidResult(context.Background(), PaidResult{})
+	_, err := ApplyPaidResult(context.Background(), apppayment.PaidResult{})
 	require.Error(t, err)
 	be, ok := apperrors.GetBusinessError(err)
 	require.True(t, ok)

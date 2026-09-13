@@ -16,10 +16,10 @@ import (
 	"goravel/app/utils"
 )
 
-// ExportOrdersArgs ???????????????
+// ExportOrdersArgs 导出订单任务参数（ExportArgs 别名）
 type ExportOrdersArgs = ExportArgs
 
-// ExportOrders ??????
+// ExportOrders 订单导出任务
 type ExportOrders struct{}
 
 func (r *ExportOrders) Signature() string {
@@ -102,19 +102,15 @@ func (r *ExportOrders) Handle(args ...any) (retErr error) {
 	return nil
 }
 
-// writeOrdersToCSV ??????? CSV
+// writeOrdersToCSV 将订单写入 CSV
 func (r *ExportOrders) writeOrdersToCSV(ctx context.Context, w *csv.Writer, filters map[string]any, lang string, shouldStop func() bool) error {
-	// ??????????????????????
 	var orderFilters services.OrderFilters
 	utils.FillFiltersFromMap(filters, &orderFilters)
 
-	// ????????????????
 	orderFilters.StartTime, orderFilters.EndTime = GetDefaultTimeRange(filters)
 
-	// ?????????????
 	timezone, _ := utils.GetString(filters, "_timezone")
 
-	// ??????
 	tableNames := utils.GetShardingTableNames("orders", orderFilters.StartTime, orderFilters.EndTime)
 	if len(tableNames) == 0 {
 		return nil
@@ -138,7 +134,7 @@ func (r *ExportOrders) writeOrdersToCSV(ctx context.Context, w *csv.Writer, filt
 	return nil
 }
 
-// exportTable ??????
+// exportTable 导出单个分表
 func (r *ExportOrders) exportTable(ctx context.Context, w *csv.Writer, tableName string, filters services.OrderFilters, lang, timezone, direction string, chunkSize int, shouldStop func() bool) error {
 	suffix := strings.TrimPrefix(tableName, "orders_")
 	detailTableName := "order_details_" + suffix
@@ -169,14 +165,13 @@ func (r *ExportOrders) exportTable(ctx context.Context, w *csv.Writer, tableName
 
 		var orders []models.Order
 		if err := query.Limit(chunkSize).Get(&orders); err != nil {
-			return fmt.Errorf("??????: table=%s, err=%v", tableName, err)
+			return fmt.Errorf("query orders failed: table=%s, err=%v", tableName, err)
 		}
 
 		if len(orders) == 0 {
 			break
 		}
 
-		// ?????
 		orderIDsAny := make([]any, 0, len(orders))
 		for _, o := range orders {
 			orderIDsAny = append(orderIDsAny, o.ID)
@@ -205,7 +200,6 @@ func (r *ExportOrders) exportTable(ctx context.Context, w *csv.Writer, tableName
 			return ErrExportRecordMissing
 		}
 
-		// ????
 		last := orders[len(orders)-1]
 		if last.CreatedAt != nil && !last.CreatedAt.IsZero() {
 			lastTimeStr = last.CreatedAt.ToDateTimeString()
@@ -222,7 +216,7 @@ func (r *ExportOrders) exportTable(ctx context.Context, w *csv.Writer, tableName
 	return nil
 }
 
-// writeOrderRows ???????????
+// writeOrderRows 写入订单行
 func (r *ExportOrders) writeOrderRows(w *csv.Writer, order models.Order, details []models.OrderDetail, lang, timezone string) error {
 	statusText := r.translateStatus(order.Status, lang)
 
@@ -267,7 +261,7 @@ func (r *ExportOrders) writeOrderRows(w *csv.Writer, order models.Order, details
 	return nil
 }
 
-// translateStatus ??????
+// translateStatus 翻译订单状态
 func (r *ExportOrders) translateStatus(status, lang string) string {
 	switch status {
 	case models.OrderStatusPending:

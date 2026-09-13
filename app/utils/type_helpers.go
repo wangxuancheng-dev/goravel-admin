@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// GetValue ? map[string]any ????????????
-// ???????????????????? false
+// GetValue 从 map[string]any 中安全地获取指定类型的值
+// 支持多种类型转换，如果转换失败返回零值和 false
 func GetValue[T any](m map[string]any, key string) (T, bool) {
 	var zero T
 	val, ok := m[key]
@@ -15,26 +15,26 @@ func GetValue[T any](m map[string]any, key string) (T, bool) {
 		return zero, false
 	}
 
-	// ????????
+	// 尝试直接类型断言
 	if v, ok := val.(T); ok {
 		return v, true
 	}
 
-	// ??????????????????
+	// 对于数字类型，尝试从其他数字类型转换
 	return convertNumeric[T](val)
 }
 
-// GetUint ? map[string]any ??? uint ?????????????
+// GetUint 从 map[string]any 中获取 uint 值（支持多种数字类型转换）
 func GetUint(m map[string]any, key string) (uint, bool) {
 	return GetValue[uint](m, key)
 }
 
-// GetFloat64 ? map[string]any ??? float64 ?????????????
+// GetFloat64 从 map[string]any 中获取 float64 值（支持多种数字类型转换）
 func GetFloat64(m map[string]any, key string) (float64, bool) {
 	return GetValue[float64](m, key)
 }
 
-// GetString ? map[string]any ??? string ?
+// GetString 从 map[string]any 中获取 string 值
 func GetString(m map[string]any, key string) (string, bool) {
 	val, ok := m[key]
 	if !ok {
@@ -46,7 +46,7 @@ func GetString(m map[string]any, key string) (string, bool) {
 	return "", false
 }
 
-// GetMap ? map[string]any ??? map[string]any ?
+// GetMap 从 map[string]any 中获取 map[string]any 值
 func GetMap(m map[string]any, key string) (map[string]any, bool) {
 	val, ok := m[key]
 	if !ok {
@@ -58,7 +58,7 @@ func GetMap(m map[string]any, key string) (map[string]any, bool) {
 	return nil, false
 }
 
-// convertNumeric ???????????????????
+// convertNumeric 将值转换为数字类型（支持多种数字类型）
 func convertNumeric[T any](val any) (T, bool) {
 	var zero T
 	switch v := val.(type) {
@@ -77,7 +77,7 @@ func convertNumeric[T any](val any) (T, bool) {
 	}
 }
 
-// convertFromFloat64 ? float64 ??
+// convertFromFloat64 从 float64 转换
 func convertFromFloat64[T any](v float64) (T, bool) {
 	var zero T
 	switch any(zero).(type) {
@@ -92,7 +92,7 @@ func convertFromFloat64[T any](v float64) (T, bool) {
 	}
 }
 
-// convertFromInt ? int ??
+// convertFromInt 从 int 转换
 func convertFromInt[T any](v int) (T, bool) {
 	var zero T
 	switch any(zero).(type) {
@@ -107,7 +107,7 @@ func convertFromInt[T any](v int) (T, bool) {
 	}
 }
 
-// convertFromUint ? uint ??
+// convertFromUint 从 uint 转换
 func convertFromUint[T any](v uint) (T, bool) {
 	var zero T
 	switch any(zero).(type) {
@@ -122,7 +122,7 @@ func convertFromUint[T any](v uint) (T, bool) {
 	}
 }
 
-// convertFromInt64 ? int64 ??
+// convertFromInt64 从 int64 转换
 func convertFromInt64[T any](v int64) (T, bool) {
 	var zero T
 	switch any(zero).(type) {
@@ -137,7 +137,7 @@ func convertFromInt64[T any](v int64) (T, bool) {
 	}
 }
 
-// convertFromUint64 ? uint64 ??
+// convertFromUint64 从 uint64 转换
 func convertFromUint64[T any](v uint64) (T, bool) {
 	var zero T
 	switch any(zero).(type) {
@@ -152,8 +152,8 @@ func convertFromUint64[T any](v uint64) (T, bool) {
 	}
 }
 
-// MustGetValue ? map[string]any ????????????????? panic
-// ???????????????
+// MustGetValue 从 map[string]any 中获取值，如果不存在或类型不匹配则 panic
+// 仅在确定值存在且类型正确时使用
 func MustGetValue[T any](m map[string]any, key string) T {
 	val, ok := GetValue[T](m, key)
 	if !ok {
@@ -162,9 +162,9 @@ func MustGetValue[T any](m map[string]any, key string) T {
 	return val
 }
 
-// FillFiltersFromMap ? map[string]any ?? Filters ???
-// ?? string, uint, float64 ????????? snake_case ?? map ? key
-// ???
+// FillFiltersFromMap 从 map[string]any 填充 Filters 结构体
+// 支持 string, uint, float64 类型，使用字段名的 snake_case 作为 map 的 key
+// 示例：
 //
 //	filters := SomeFilters{}
 //	utils.FillFiltersFromMap(m, &filters)
@@ -187,7 +187,7 @@ func FillFiltersFromMap(m map[string]any, filtersPtr any) {
 
 		structField := t.Field(i)
 
-		// ?? json tag ??? snake_case ???
+		// 获取 json tag 或使用 snake_case 字段名
 		key := structField.Tag.Get("json")
 		if key == "" || key == "-" {
 			key = toSnakeCase(structField.Name)
@@ -210,8 +210,8 @@ func FillFiltersFromMap(m map[string]any, filtersPtr any) {
 	}
 }
 
-// ExportFiltersToMap ???????? map???????????????? FillFiltersFromMap ???
-// ????/?????? Filters ?????? ExportFiltersToMap(filters) ???Job ? FillFiltersFromMap ???? BuildXxxQuery?
+// ExportFiltersToMap 将筛选结构体转为 map（仅包含“有效条件”），键规则与 FillFiltersFromMap 一致，
+// 便于列表/导出共用同一 Filters 类型：控制器 ExportFiltersToMap(filters) 入队，Job 内 FillFiltersFromMap 还原后走 BuildXxxQuery。
 func ExportFiltersToMap(filters any) map[string]any {
 	v := reflect.ValueOf(filters)
 	if v.Kind() == reflect.Ptr {
@@ -247,7 +247,7 @@ func ExportFiltersToMap(filters any) map[string]any {
 				out[key] = s
 			}
 		case reflect.Bool:
-			// ??? true?false ???????
+			// 仅导出 true；false 视为“未筛选”
 			if field.Bool() {
 				out[key] = true
 			}
@@ -264,14 +264,14 @@ func ExportFiltersToMap(filters any) map[string]any {
 				out[key] = field.Float()
 			}
 		default:
-			// ?????? time.Time??????????????????
+			// 其他类型（如 time.Time）在生成筛选器中少见；需要时可再扩展
 		}
 	}
 
 	return out
 }
 
-// toSnakeCase ? PascalCase/camelCase ??? snake_case
+// toSnakeCase 将 PascalCase/camelCase 转换为 snake_case
 func toSnakeCase(s string) string {
 	var buf []byte
 	for i := 0; i < len(s); i++ {

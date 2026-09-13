@@ -10,11 +10,10 @@ import (
 	apppayment "goravel/app/payment"
 )
 
-// PaymentGatewayDriver is the gateway adapter interface (implemented in app/payment/gateways).
+// PaymentGatewayDriver is an alias of payment.GatewayDriver used by this package's allowlist helpers.
 type PaymentGatewayDriver = apppayment.GatewayDriver
 
-// RegisterPaymentGateway registers a driver by Type() (lowercase). Prefer payment.RegisterGateway
-// from app/payment/gateways; this alias remains for tests and docs.
+// RegisterPaymentGateway registers a driver (thin facade over payment.RegisterGateway).
 func RegisterPaymentGateway(driver PaymentGatewayDriver) {
 	apppayment.RegisterGateway(driver)
 }

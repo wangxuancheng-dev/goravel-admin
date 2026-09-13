@@ -84,15 +84,15 @@ func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, 
 			Details: details,
 		})
 	}
-	// ????????????? DB ??????????????+?? total
+	// 整页都回源失败：视为搜索与 DB 不一致，回退分表以免返回空页+错误 total
 	if len(result) == 0 && len(items) > 0 {
 		return nil, 0, fmt.Errorf("order search hydrate failed: %d hits, all missing in db", len(items))
 	}
 	if missed > 0 {
-		errorlog.Record(s.ctx, "order", "??????????", map[string]any{
+		errorlog.Record(s.ctx, "order", "搜索结果回源部分失败", map[string]any{
 			"missed": missed,
 			"hits":   len(items),
-		}, "??????????: missed=%d hits=%d", missed, len(items))
+		}, "订单搜索回源部分失败: missed=%d hits=%d", missed, len(items))
 	}
 	return result, total, nil
 }
@@ -113,7 +113,7 @@ func orderWithDetailsToSearchListItem(o OrderWithDetails) searchorders.ListItem 
 	}
 }
 
-// searchMyOrdersFromDB C ?????????????? + ??? LIKE??
+// searchMyOrdersFromDB C 端订单检索的数据库路径（分表 + 关键词 LIKE）。
 func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error) {
 	valid, err := utils.ValidateTimeRange(tr.DBStart, tr.DBEnd)
 	if !valid {
@@ -127,7 +127,7 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 		Keyword:   strings.TrimSpace(keyword),
 		OrderBy:   "created_at:desc",
 	}
-	// ???? DB????????????? GetOrdersWithDetails ????????
+	// 已确定走 DB：直接分表查询，避免再进入 GetOrdersWithDetails 的引擎优先路径。
 	rows, total, err := s.getOrdersWithDetailsFromDB(filters, page, pageSize)
 	if err != nil {
 		return nil, 0, err
@@ -139,7 +139,7 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 	return out, total, nil
 }
 
-// SearchMyOrdersForUser C ???????????????????????????????????????????????????? 3 ????????????
+// SearchMyOrdersForUser C 端「我的订单」检索：当前驱动检索可用时走索引；否则走分表数据库（关键词仅订单号、备注；时间无参数时默认近 3 个月，与列表接口一致）。
 func (s *OrderServiceImpl) SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error) {
 	if searchorders.QueryEnabled() {
 		total, items, err := searchorders.SearchMyOrders(ctx, userID, keyword, page, pageSize, tr.IndexGTE, tr.IndexLTE)

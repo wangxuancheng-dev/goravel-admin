@@ -52,11 +52,6 @@ func NewDepartmentService(ctx context.Context) DepartmentService {
 	return &DepartmentServiceImpl{ctx: ctx}
 }
 
-// NewDepartmentServiceImpl keeps the previous constructor name for compatibility.
-func NewDepartmentServiceImpl(ctx context.Context, _ TreeService) DepartmentService {
-	return NewDepartmentService(ctx)
-}
-
 func (s *DepartmentServiceImpl) treeService() TreeService {
 	return NewTreeServiceImpl(s.ctx)
 }
