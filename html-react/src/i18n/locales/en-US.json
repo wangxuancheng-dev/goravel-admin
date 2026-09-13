@@ -1131,7 +1131,10 @@
     "health_tenants": "Tenants {{active}}/{{total}} active",
     "cli_ops_title": "Tenant ops",
     "cli_ops_hint": "Per-tenant migrate/seed/backup/restore/delete and CSV export in the list (async queue); backup retention and queue depth in the banner",
-    "health_backup_keep": "Backup keep {{n}}"
+    "health_backup_keep": "Backup keep {{n}}",
+    "role_viewer": "Viewer",
+    "role_owner": "Owner",
+    "readonly_hint": "Read-only account: view only"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

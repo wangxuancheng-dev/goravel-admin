@@ -74,11 +74,7 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 
 	return response.Success(ctx, map[string]any{
 		"token": plainToken,
-		"admin": map[string]any{
-			"id":       adminUser.ID,
-			"username": adminUser.Username,
-			"name":     adminUser.Name,
-		},
+		"admin": services.PlatformAdminToJSON(&adminUser),
 	})
 }
 
@@ -89,12 +85,7 @@ func (c *AuthController) Info(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrNotLoggedIn.Code)
 	}
 	return response.Success(ctx, map[string]any{
-		"admin": map[string]any{
-			"id":       adminUser.ID,
-			"username": adminUser.Username,
-			"name":     adminUser.Name,
-			"status":   adminUser.Status,
-		},
+		"admin": services.PlatformAdminToJSON(&adminUser),
 	})
 }
 

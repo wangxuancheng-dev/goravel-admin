@@ -42,6 +42,12 @@ export function setPlatformAdmin(admin) {
   }
 }
 
+/** Owner has full platform ops; viewer is read-only (empty role => owner). */
+export function isPlatformOwner() {
+  const admin = getPlatformAdmin()
+  return !admin || admin.role !== 'viewer'
+}
+
 const getBaseURL = () => {
   const apiBaseURL = import.meta.env.VITE_API_BASE_URL
   const apiPrefix = import.meta.env.VITE_PLATFORM_API_PREFIX || '/api/platform'

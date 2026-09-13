@@ -81,7 +81,7 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusForbidden
 	case strings.Contains(code, "_has_"):
 		return http.StatusBadRequest
-	case code == "account_disabled" || code == "forbidden" || code == "tenant_disabled":
+	case code == "account_disabled" || code == "forbidden" || code == "tenant_disabled" || code == "platform_readonly":
 		return http.StatusForbidden
 	case code == "tenant_required" || code == "tenancy_disabled" || code == "tenant_hint_conflict":
 		return http.StatusBadRequest

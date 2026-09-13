@@ -1233,7 +1233,10 @@
     "health_db_bad": "数据库异常",
     "health_tenants": "租户 {active}/{total} 启用",
     "cli_ops_title": "租户运维",
-    "cli_ops_hint": "单户迁移/种子/备份/恢复可在列表操作（异步队列）；可查看备份、库概览与运维时间线；migrate-all 等仍可用 CLI"
+    "cli_ops_hint": "单户迁移/种子/备份/恢复可在列表操作（异步队列）；可查看备份、库概览与运维时间线；migrate-all 等仍可用 CLI",
+    "role_viewer": "只读",
+    "role_owner": "管理员",
+    "readonly_hint": "当前为只读账号，仅可查看"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",

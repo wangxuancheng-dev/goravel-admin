@@ -59,6 +59,7 @@ import PageContainer from '@/components/PageContainer'
 import ColumnSettingDialog from '@/components/ColumnSettingDialog'
 import SearchForm from '@/components/SearchForm'
 import { entityField } from '@/utils/normalize'
+import { isPlatformOwner } from '@/utils/platformRequest'
 
 interface TenantRow {
   id: number | string
@@ -192,6 +193,7 @@ export default function PlatformTenantList() {
   const { t } = useTranslation()
   const { message, modal } = App.useApp()
   const showError = useUnhandledError()
+  const isOwner = isPlatformOwner()
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<TenantRow | null>(null)
   const [migrateTarget, setMigrateTarget] = useState<TenantRow | null>(null)
@@ -811,6 +813,7 @@ export default function PlatformTenantList() {
         render: (status, row) => (
           <Switch
             checked={Number(status) === 1}
+            disabled={!isOwner}
             onChange={async (checked) => {
               try {
                 await updatePlatformTenantStatus(row.id, checked ? 1 : 0)
@@ -827,44 +830,50 @@ export default function PlatformTenantList() {
       {
         title: t('common.operation'),
         key: 'actions',
-        width: 460,
+        width: isOwner ? 460 : 220,
         fixed: 'right',
         render: (_, row) => {
           const busy = isTenantBusy(row)
           if (isRecycleView) {
             return (
               <Space size={0} wrap>
-                <Button type="link" size="small" disabled={busy} onClick={() => onUndelete(row)}>
-                  {t('tenant.op_undelete')}
-                </Button>
-                <Button
-                  type="link"
-                  size="small"
-                  danger
-                  disabled={busy}
-                  onClick={() => {
-                    setForceDeleteConfirm('')
-                    setForcePurgeObjects(true)
-                    setForcePurgeBackups(true)
-                    setForceDeleteTarget(row)
-                  }}
-                >
-                  {t('tenant.op_force_delete_short')}
-                </Button>
-                {row.last_op === 'purge' && row.last_op_status === 'failed' ? (
-                  <Button
-                    type="link"
-                    size="small"
-                    disabled={busy}
-                    onClick={() => {
-                      setPurgeObjects(true)
-                      setPurgeBackups(true)
-                      setPurgeTarget(row)
-                    }}
-                  >
-                    {t('tenant.op_purge_retry')}
-                  </Button>
-                ) : null}
+                {isOwner ? (
+                  <>
+                    <Button type="link" size="small" disabled={busy} onClick={() => onUndelete(row)}>
+                      {t('tenant.op_undelete')}
+                    </Button>
+                    <Button
+                      type="link"
+                      size="small"
+                      danger
+                      disabled={busy}
+                      onClick={() => {
+                        setForceDeleteConfirm('')
+                        setForcePurgeObjects(true)
+                        setForcePurgeBackups(true)
+                        setForceDeleteTarget(row)
+                      }}
+                    >
+                      {t('tenant.op_force_delete_short')}
+                    </Button>
+                    {row.last_op === 'purge' && row.last_op_status === 'failed' ? (
+                      <Button
+                        type="link"
+                        size="small"
+                        disabled={busy}
+                        onClick={() => {
+                          setPurgeObjects(true)
+                          setPurgeBackups(true)
+                          setPurgeTarget(row)
+                        }}
+                      >
+                        {t('tenant.op_purge_retry')}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : (
+                  <Typography.Text type="secondary">—</Typography.Text>
+                )}
               </Space>
             )
           }
@@ -873,66 +882,72 @@ export default function PlatformTenantList() {
               <Button type="link" size="small" onClick={() => openDetail(row)}>
                 {t('tenant.op_detail')}
               </Button>
-              <Button
-                type="link"
-                size="small"
-                disabled={busy}
-                onClick={() => {
-                  setEditing(row)
-                  form.setFieldsValue({
-                    name: row.name,
-                    host: row.host,
-                    port: row.port || 0,
-                    username: row.username,
-                    password: '',
-                    database: row.database,
-                    schema: row.schema,
-                    storage_limit_mb: bytesToMb(row.storage_limit_bytes),
-                  })
-                }}
-              >
-                {t('common.edit')}
-              </Button>
+              {isOwner ? (
+                <Button
+                  type="link"
+                  size="small"
+                  disabled={busy}
+                  onClick={() => {
+                    setEditing(row)
+                    form.setFieldsValue({
+                      name: row.name,
+                      host: row.host,
+                      port: row.port || 0,
+                      username: row.username,
+                      password: '',
+                      database: row.database,
+                      schema: row.schema,
+                      storage_limit_mb: bytesToMb(row.storage_limit_bytes),
+                    })
+                  }}
+                >
+                  {t('common.edit')}
+                </Button>
+              ) : null}
               <Button type="link" size="small" onClick={() => void onPingRow(row)}>
                 {t('tenant.op_ping')}
               </Button>
-              <Button
-                type="link"
-                size="small"
-                disabled={busy}
-                onClick={() => {
-                  setWithSeed(true)
-                  setMigrateTarget(row)
-                }}
-              >
-                {t('tenant.op_migrate')}
-              </Button>
-              <Button
-                type="link"
-                size="small"
-                disabled={busy}
-                onClick={() => {
-                  modal.confirm({
-                    title: t('tenant.op_seed_confirm'),
-                    onOk: () => runQueued(() => seedPlatformTenant(row.id)),
-                  })
-                }}
-              >
-                {t('tenant.op_seed')}
-              </Button>
-              <Button
-                type="link"
-                size="small"
-                disabled={busy}
-                onClick={() => {
-                  modal.confirm({
-                    title: t('tenant.op_backup_confirm'),
-                    onOk: () => runQueued(() => backupPlatformTenant(row.id)),
-                  })
-                }}
-              >
-                {t('tenant.op_backup')}
-              </Button>
+              {isOwner ? (
+                <>
+                  <Button
+                    type="link"
+                    size="small"
+                    disabled={busy}
+                    onClick={() => {
+                      setWithSeed(true)
+                      setMigrateTarget(row)
+                    }}
+                  >
+                    {t('tenant.op_migrate')}
+                  </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    disabled={busy}
+                    onClick={() => {
+                      modal.confirm({
+                        title: t('tenant.op_seed_confirm'),
+                        onOk: () => runQueued(() => seedPlatformTenant(row.id)),
+                      })
+                    }}
+                  >
+                    {t('tenant.op_seed')}
+                  </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    disabled={busy}
+                    onClick={() => {
+                      modal.confirm({
+                        title: t('tenant.op_backup_confirm'),
+                        onOk: () => runQueued(() => backupPlatformTenant(row.id)),
+                      })
+                    }}
+                  >
+                    {t('tenant.op_backup')}
+                  </Button>
+                </>
+              ) : null}
               <Button type="link" size="small" onClick={() => void openBackups(row)}>
                 {t('tenant.op_backups')}
               </Button>
@@ -941,7 +956,7 @@ export default function PlatformTenantList() {
         },
       },
     ],
-    [t, message, modal, refresh, showError, form, copyText, openBackups, runQueued, openDetail, onPingRow, isRecycleView],
+    [t, message, modal, refresh, showError, form, copyText, openBackups, runQueued, openDetail, onPingRow, isRecycleView, isOwner],
   )
 
   const {
@@ -1012,57 +1027,61 @@ export default function PlatformTenantList() {
               <Button loading={exportLoading} onClick={() => void exportCsv()}>
                 {t('tenant.export_csv')}
               </Button>
-              <Button
-                loading={batchLoading}
-                disabled={selectedRowKeys.length < 1}
-                onClick={() =>
-                  runBatchOps(
-                    'seed',
-                    { ids: selectedRowKeys.map((id) => Number(id)) },
-                    t('tenant.batch_seed'),
-                    t('tenant.batch_seed_confirm', { n: selectedRowKeys.length }),
-                  )
-                }
-              >
-                {t('tenant.batch_seed')}
-              </Button>
-              <Button
-                loading={batchLoading}
-                disabled={selectedRowKeys.length < 1}
-                onClick={() =>
-                  runBatchOps(
-                    'backup',
-                    { ids: selectedRowKeys.map((id) => Number(id)) },
-                    t('tenant.batch_backup'),
-                    t('tenant.batch_backup_confirm', { n: selectedRowKeys.length }),
-                  )
-                }
-              >
-                {t('tenant.batch_backup')}
-              </Button>
-              <Button
-                loading={batchLoading}
-                disabled={(opsSummary?.failed_provision ?? 0) < 1}
-                onClick={retryFailedMigrates}
-              >
-                {t('tenant.retry_failed_migrate')}
-              </Button>
-              <Button
-                type="primary"
-                onClick={() => {
-                  form.resetFields()
-                  form.setFieldsValue({
-                    driver: 'mysql',
-                    isolation: 'database',
-                    skip_create: false,
-                    port: 0,
-                    storage_limit_mb: 0,
-                  })
-                  setCreateOpen(true)
-                }}
-              >
-                {t('tenant.add')}
-              </Button>
+              {isOwner ? (
+                <>
+                  <Button
+                    loading={batchLoading}
+                    disabled={selectedRowKeys.length < 1}
+                    onClick={() =>
+                      runBatchOps(
+                        'seed',
+                        { ids: selectedRowKeys.map((id) => Number(id)) },
+                        t('tenant.batch_seed'),
+                        t('tenant.batch_seed_confirm', { n: selectedRowKeys.length }),
+                      )
+                    }
+                  >
+                    {t('tenant.batch_seed')}
+                  </Button>
+                  <Button
+                    loading={batchLoading}
+                    disabled={selectedRowKeys.length < 1}
+                    onClick={() =>
+                      runBatchOps(
+                        'backup',
+                        { ids: selectedRowKeys.map((id) => Number(id)) },
+                        t('tenant.batch_backup'),
+                        t('tenant.batch_backup_confirm', { n: selectedRowKeys.length }),
+                      )
+                    }
+                  >
+                    {t('tenant.batch_backup')}
+                  </Button>
+                  <Button
+                    loading={batchLoading}
+                    disabled={(opsSummary?.failed_provision ?? 0) < 1}
+                    onClick={retryFailedMigrates}
+                  >
+                    {t('tenant.retry_failed_migrate')}
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={() => {
+                      form.resetFields()
+                      form.setFieldsValue({
+                        driver: 'mysql',
+                        isolation: 'database',
+                        skip_create: false,
+                        port: 0,
+                        storage_limit_mb: 0,
+                      })
+                      setCreateOpen(true)
+                    }}
+                  >
+                    {t('tenant.add')}
+                  </Button>
+                </>
+              ) : null}
             </>
           ) : null}
           <Button icon={<SettingOutlined />} onClick={openColumnSetting}>
@@ -1346,17 +1365,19 @@ export default function PlatformTenantList() {
               <Button type="primary" onClick={() => void openBackups(detailRow)}>
                 {t('tenant.op_backups')}
               </Button>
-              <Button
-                danger
-                disabled={isTenantBusy(detailRow)}
-                onClick={() => {
-                  setDeleteTarget(detailRow)
-                  setDeleteConfirmCode('')
-                  setDeleteDropDb(false)
-                }}
-              >
-                {t('tenant.op_delete')}
-              </Button>
+              {isOwner ? (
+                <Button
+                  danger
+                  disabled={isTenantBusy(detailRow)}
+                  onClick={() => {
+                    setDeleteTarget(detailRow)
+                    setDeleteConfirmCode('')
+                    setDeleteDropDb(false)
+                  }}
+                >
+                  {t('tenant.op_delete')}
+                </Button>
+              ) : null}
             </Space>
           </>
         ) : null}
@@ -1385,10 +1406,14 @@ export default function PlatformTenantList() {
           <Typography.Text type="secondary">
             {t('tenant.backup_keep')}: {backupKeep}
           </Typography.Text>
-          <InputNumber min={0} max={500} value={pruneKeep} onChange={(v) => setPruneKeep(Number(v) || 0)} />
-          <Button loading={pruneLoading} onClick={() => void pruneBackups()}>
-            {t('tenant.prune_backups')}
-          </Button>
+          {isOwner ? (
+            <>
+              <InputNumber min={0} max={500} value={pruneKeep} onChange={(v) => setPruneKeep(Number(v) || 0)} />
+              <Button loading={pruneLoading} onClick={() => void pruneBackups()}>
+                {t('tenant.prune_backups')}
+              </Button>
+            </>
+          ) : null}
         </Space>
         <Table
           rowKey="name"
@@ -1424,15 +1449,17 @@ export default function PlatformTenantList() {
                   >
                     {t('tenant.backup_download')}
                   </Button>
-                  <Button
-                    type="link"
-                    size="small"
-                    disabled={!!backupsRow && isTenantBusy(backupsRow)}
-                    loading={restoringName === file.name}
-                    onClick={() => restoreBackup(file)}
-                  >
-                    {t('tenant.op_restore')}
-                  </Button>
+                  {isOwner ? (
+                    <Button
+                      type="link"
+                      size="small"
+                      disabled={!!backupsRow && isTenantBusy(backupsRow)}
+                      loading={restoringName === file.name}
+                      onClick={() => restoreBackup(file)}
+                    >
+                      {t('tenant.op_restore')}
+                    </Button>
+                  ) : null}
                 </Space>
               ),
             },

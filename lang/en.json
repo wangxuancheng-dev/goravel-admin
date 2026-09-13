@@ -365,6 +365,7 @@
     },
     "username_unavailable": "This username is not available. Please choose another.",
     "queue_alert_test_sent": "Test alert sent",
-    "queue_alert_webhook_not_configured": "Queue alert webhook is not configured (QUEUE_ALERT_WEBHOOK_URL or READY_ALERT_WEBHOOK_URL)"
+    "queue_alert_webhook_not_configured": "Queue alert webhook is not configured (QUEUE_ALERT_WEBHOOK_URL or READY_ALERT_WEBHOOK_URL)",
+    "platform_readonly": "Platform read-only account cannot perform this action"
   }
 }

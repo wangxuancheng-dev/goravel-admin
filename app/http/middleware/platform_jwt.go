@@ -84,6 +84,22 @@ func PlatformJwt() http.Middleware {
 	})
 }
 
+// PlatformOwner requires an owner-role platform admin (blocks viewers from write ops).
+func PlatformOwner() http.Middleware {
+	return newMiddleware("platform_owner", func(ctx http.Context) {
+		admin, ok := ctx.Value("platform_admin").(models.PlatformAdmin)
+		if !ok || admin.ID == 0 {
+			response.Abort(ctx, http.StatusUnauthorized, "not_logged_in")
+			return
+		}
+		if !admin.IsOwner() {
+			response.Abort(ctx, http.StatusForbidden, apperrors.ErrPlatformReadonly.Code)
+			return
+		}
+		ctx.Request().Next()
+	})
+}
+
 // RequireTenancy aborts when TENANCY_DRIVER is not database (for public platform login probe).
 func RequireTenancy() http.Middleware {
 	return newMiddleware("require_tenancy", func(ctx http.Context) {

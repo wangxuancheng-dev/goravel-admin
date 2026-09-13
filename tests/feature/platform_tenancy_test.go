@@ -35,7 +35,7 @@ func withTenancyDriver(t *testing.T, driver string) {
 
 func ensurePlatformSmokeAdmin(t *testing.T) {
 	t.Helper()
-	_, err := services.UpsertPlatformAdmin(platformSmokeUser, platformSmokePass, "Smoke Platform")
+	_, err := services.UpsertPlatformAdmin(platformSmokeUser, platformSmokePass, "Smoke Platform", "owner")
 	require.NoError(t, err)
 }
 
@@ -160,7 +160,7 @@ func TestPlatformChangePassword(t *testing.T) {
 	resp.AssertOk()
 
 	// restore for other tests
-	_, err = services.UpsertPlatformAdmin(platformSmokeUser, platformSmokePass, "Smoke Platform")
+	_, err = services.UpsertPlatformAdmin(platformSmokeUser, platformSmokePass, "Smoke Platform", "owner")
 	require.NoError(t, err)
 }
 

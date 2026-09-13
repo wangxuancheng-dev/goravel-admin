@@ -1224,7 +1224,10 @@
     "health_db_bad": "Database unreachable",
     "health_tenants": "Tenants {active}/{total} active",
     "cli_ops_title": "Tenant ops",
-    "cli_ops_hint": "Per-tenant migrate/seed/backup/restore run from the list (async queue); backups, overview and timeline available; migrate-all still via CLI"
+    "cli_ops_hint": "Per-tenant migrate/seed/backup/restore run from the list (async queue); backups, overview and timeline available; migrate-all still via CLI",
+    "role_viewer": "Viewer",
+    "role_owner": "Owner",
+    "readonly_hint": "Read-only account: view only"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

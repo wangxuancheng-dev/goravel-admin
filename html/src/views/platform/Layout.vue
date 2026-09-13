@@ -4,6 +4,7 @@
       <div class="brand">{{ $t('platform.title') }}</div>
       <div class="actions">
         <span class="admin-name">{{ adminName }}</span>
+        <el-tag v-if="isViewer" size="small" type="info" effect="plain" class="role-tag">{{ $t('platform.role_viewer') }}</el-tag>
         <el-button link type="primary" @click="pwdVisible = true">{{ $t('platform.change_password') }}</el-button>
         <el-button link type="primary" @click="onLogout">{{ $t('header.logout') }}</el-button>
       </div>
@@ -52,10 +53,9 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const active = computed(() => route.path)
-const adminName = computed(() => {
-  const admin = getPlatformAdmin()
-  return admin?.name || admin?.username || ''
-})
+const platformAdmin = computed(() => getPlatformAdmin())
+const adminName = computed(() => platformAdmin.value?.name || platformAdmin.value?.username || '')
+const isViewer = computed(() => platformAdmin.value?.role === 'viewer')
 
 const pwdVisible = ref(false)
 const pwdSaving = ref(false)
@@ -137,6 +137,11 @@ const onLogout = async () => {
 .admin-name {
   opacity: 0.85;
   font-size: 13px;
+}
+.role-tag {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #e2e8f0;
+  background: transparent;
 }
 .platform-body {
   flex: 1;

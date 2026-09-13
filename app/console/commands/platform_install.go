@@ -29,6 +29,7 @@ func (r *PlatformInstall) Extend() command.Extend {
 			&command.StringFlag{Name: "username", Aliases: []string{"u"}, Usage: "平台管理员用户名（或 PLATFORM_ADMIN_USERNAME）"},
 			&command.StringFlag{Name: "password", Aliases: []string{"p"}, Usage: "平台管理员密码（或 PLATFORM_ADMIN_PASSWORD）"},
 			&command.StringFlag{Name: "name", Usage: "显示名（或 PLATFORM_ADMIN_NAME）"},
+			&command.StringFlag{Name: "role", Value: "owner", Usage: "owner|viewer（默认 owner）"},
 		},
 	}
 }
@@ -65,12 +66,12 @@ func (r *PlatformInstall) Handle(ctx console.Context) error {
 		return nil
 	}
 
-	admin, err := services.UpsertPlatformAdmin(username, password, name)
+	admin, err := services.UpsertPlatformAdmin(username, password, name, ctx.Option("role"))
 	if err != nil {
 		ctx.Error(err.Error())
 		return err
 	}
-	ctx.Success(fmt.Sprintf("平台管理员就绪 username=%s id=%d", admin.Username, admin.ID))
+	ctx.Success(fmt.Sprintf("平台管理员就绪 username=%s id=%d role=%s", admin.Username, admin.ID, admin.Role))
 	ctx.Info("下一步:")
 	ctx.Info("  1) 前端打开 /platform/login")
 	ctx.Info("  2) 开户: go run . artisan tenant:create {code} {name} --migrate")

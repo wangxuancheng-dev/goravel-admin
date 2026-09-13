@@ -50,3 +50,46 @@ func TestIsBadRequestBodyPanicWithStack(t *testing.T) {
 		})
 	}
 }
+
+func TestLoginScopeFromPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"/api/platform/login", "platform"},
+		{"/api/admin/login", "admin"},
+		{"/api/user/login", "user"},
+		{"/api/user/register", "user"},
+		{"/other", "other"},
+		{"", "other"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+			if got := loginScopeFromPath(tt.path); got != tt.want {
+				t.Fatalf("loginScopeFromPath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildLoginRateLimitKey(t *testing.T) {
+	t.Parallel()
+
+	platformKey := buildLoginRateLimitKey("1.2.3.4", "platform", "", "admin")
+	tenantKey := buildLoginRateLimitKey("1.2.3.4", "admin", "acme", "admin")
+	tenantNoHint := buildLoginRateLimitKey("1.2.3.4", "admin", "", "admin")
+
+	if platformKey != "1.2.3.4:login:platform:admin" {
+		t.Fatalf("platform key = %q", platformKey)
+	}
+	if tenantKey != "1.2.3.4:login:admin:acme:admin" {
+		t.Fatalf("tenant key = %q", tenantKey)
+	}
+	if platformKey == tenantNoHint {
+		t.Fatal("platform and tenant-admin login must not share the same rate-limit bucket for the same username")
+	}
+}

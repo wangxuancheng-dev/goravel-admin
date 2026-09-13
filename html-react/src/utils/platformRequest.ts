@@ -16,7 +16,12 @@ export function setPlatformToken(token: string) {
   else Storage.removeItem(PLATFORM_TOKEN_KEY)
 }
 
-export function getPlatformAdmin(): { id?: number; username?: string; name?: string } | null {
+export function getPlatformAdmin(): {
+  id?: number
+  username?: string
+  name?: string
+  role?: string
+} | null {
   try {
     const raw = Storage.getItem(PLATFORM_ADMIN_KEY, '')
     return raw ? JSON.parse(String(raw)) : null
@@ -28,6 +33,12 @@ export function getPlatformAdmin(): { id?: number; username?: string; name?: str
 export function setPlatformAdmin(admin: unknown) {
   if (admin) Storage.setItem(PLATFORM_ADMIN_KEY, JSON.stringify(admin))
   else Storage.removeItem(PLATFORM_ADMIN_KEY)
+}
+
+/** Owner has full platform ops; viewer is read-only (empty role => owner). */
+export function isPlatformOwner(): boolean {
+  const admin = getPlatformAdmin()
+  return !admin || admin.role !== 'viewer'
 }
 
 export function clearPlatformSession() {

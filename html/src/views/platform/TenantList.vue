@@ -22,7 +22,7 @@
           · {{ $t('tenant.failed_purge_count', { n: opsSummary.failed_purge }) }}
         </template>
       </span>
-      <template v-if="!isRecycleView">
+      <template v-if="!isRecycleView && isOwner">
         <el-button
           size="small"
           :loading="batchLoading"
@@ -47,6 +47,8 @@
         >
           {{ $t('tenant.batch_backup') }}
         </el-button>
+      </template>
+      <template v-if="!isRecycleView">
         <el-button size="small" @click="exportCsv">{{ $t('tenant.export_csv') }}</el-button>
       </template>
       <span v-if="queueInfo" class="queue-meta">{{ $t('tenant.queue_status', { conn: queueInfo.connection || '-', pending: queueInfo.pending ?? '-', msg: queueInfo.message || '' }) }}</span>
@@ -67,7 +69,7 @@
     page-class="platform-tenant"
     :title="isRecycleView ? $t('tenant.recycle_bin') : $t('menu.tenant')"
     :add-button-text="$t('tenant.add')"
-    :show-add-button="!isRecycleView"
+    :show-add-button="!isRecycleView && isOwner"
     :search-form="searchForm"
     :search-fields="searchFields"
     :initial-search-values="initialSearchForm"
@@ -112,20 +114,23 @@
     <template #status="{ row }">
       <el-switch
         :model-value="Number(row.status) === 1"
+        :disabled="!isOwner"
         @change="(val) => onToggleStatus(row, val)"
       />
     </template>
     <template #actions="{ row }">
       <template v-if="isRecycleView">
-        <el-button type="primary" link :disabled="isBusy(row)" @click="onUndelete(row)">{{ $t('tenant.op_undelete') }}</el-button>
-        <el-button type="danger" link :disabled="isBusy(row)" @click="openForceDelete(row)">{{ $t('tenant.op_force_delete_short') }}</el-button>
+        <template v-if="isOwner">
+          <el-button type="primary" link :disabled="isBusy(row)" @click="onUndelete(row)">{{ $t('tenant.op_undelete') }}</el-button>
+          <el-button type="danger" link :disabled="isBusy(row)" @click="openForceDelete(row)">{{ $t('tenant.op_force_delete_short') }}</el-button>
+        </template>
         <el-dropdown trigger="click" @command="(cmd) => onRecycleMore(cmd, row)">
           <el-button link type="primary">{{ $t('tenant.op_more') }}</el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="timeline">{{ $t('tenant.op_timeline') }}</el-dropdown-item>
               <el-dropdown-item
-                v-if="row.last_op === 'purge' && row.last_op_status === 'failed'"
+                v-if="isOwner && row.last_op === 'purge' && row.last_op_status === 'failed'"
                 command="purge"
                 :disabled="isBusy(row)"
               >
@@ -137,20 +142,20 @@
       </template>
       <template v-else>
         <el-button link type="primary" @click="openDetail(row)">{{ $t('tenant.op_detail') }}</el-button>
-        <el-button link type="primary" :disabled="isBusy(row)" @click="openEdit(row)">{{ $t('common.edit') }}</el-button>
+        <el-button v-if="isOwner" link type="primary" :disabled="isBusy(row)" @click="openEdit(row)">{{ $t('common.edit') }}</el-button>
         <el-button link type="primary" @click="onPing(row)">{{ $t('tenant.op_ping') }}</el-button>
-        <el-button link type="primary" :disabled="isBusy(row)" @click="openMigrate(row)">{{ $t('tenant.op_migrate') }}</el-button>
+        <el-button v-if="isOwner" link type="primary" :disabled="isBusy(row)" @click="openMigrate(row)">{{ $t('tenant.op_migrate') }}</el-button>
         <el-dropdown trigger="click" @command="(cmd) => onMoreCommand(cmd, row)">
           <el-button link type="primary">{{ $t('tenant.op_more') }}</el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="seed" :disabled="isBusy(row)">{{ $t('tenant.op_seed') }}</el-dropdown-item>
-              <el-dropdown-item command="backup" :disabled="isBusy(row)">{{ $t('tenant.op_backup') }}</el-dropdown-item>
+              <el-dropdown-item v-if="isOwner" command="seed" :disabled="isBusy(row)">{{ $t('tenant.op_seed') }}</el-dropdown-item>
+              <el-dropdown-item v-if="isOwner" command="backup" :disabled="isBusy(row)">{{ $t('tenant.op_backup') }}</el-dropdown-item>
               <el-dropdown-item command="backups">{{ $t('tenant.op_backups') }}</el-dropdown-item>
               <el-dropdown-item command="overview">{{ $t('tenant.op_overview') }}</el-dropdown-item>
               <el-dropdown-item command="timeline">{{ $t('tenant.op_timeline') }}</el-dropdown-item>
               <el-dropdown-item command="login">{{ $t('tenant.op_login_link') }}</el-dropdown-item>
-              <el-dropdown-item command="delete" divided>{{ $t('tenant.op_delete') }}</el-dropdown-item>
+              <el-dropdown-item v-if="isOwner" command="delete" divided>{{ $t('tenant.op_delete') }}</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -307,7 +312,7 @@
       <span>{{ $t('tenant.backup_dir') }}: {{ backupsMeta.dir }}</span>
       <el-button link type="primary" @click="copyText(backupsMeta.dir)">{{ $t('tenant.backup_copy_path') }}</el-button>
       <span class="queue-meta">{{ $t('tenant.backup_keep_label', { n: backupsMeta.keep || settingsKeep || '-' }) }}</span>
-      <el-button link type="warning" :loading="pruneLoading" @click="pruneBackups">{{ $t('tenant.backup_prune') }}</el-button>
+      <el-button v-if="isOwner" link type="warning" :loading="pruneLoading" @click="pruneBackups">{{ $t('tenant.backup_prune') }}</el-button>
     </div>
     <el-table v-loading="backupsLoading" :data="backupsList" size="small" empty-text="">
       <el-table-column prop="name" :label="$t('tenant.backup_name')" min-width="180" />
@@ -319,7 +324,7 @@
         <template #default="{ row }">
           <el-button link type="primary" @click="copyText(row.path)">{{ $t('tenant.backup_copy_path') }}</el-button>
           <el-button link type="primary" :loading="downloadingName === row.name" @click="downloadBackup(row)">{{ $t('tenant.backup_download') }}</el-button>
-          <el-button link type="danger" :disabled="isBusy(backupsRow)" @click="restoreBackup(row)">{{ $t('tenant.op_restore') }}</el-button>
+          <el-button v-if="isOwner" link type="danger" :disabled="isBusy(backupsRow)" @click="restoreBackup(row)">{{ $t('tenant.op_restore') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -449,8 +454,10 @@ import {
   updatePlatformTenant,
   updatePlatformTenantStatus
 } from '@/api/platform'
+import { isPlatformOwner } from '@/utils/platformRequest'
 
 const { t } = useI18n()
+const isOwner = computed(() => isPlatformOwner())
 const listPageRef = ref(null)
 const formRef = ref(null)
 const saving = ref(false)

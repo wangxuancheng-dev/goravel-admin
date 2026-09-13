@@ -13,6 +13,7 @@ export default function PlatformLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const admin = getPlatformAdmin()
+  const isViewer = admin?.role === 'viewer'
   const showError = useUnhandledError()
   const [pwdOpen, setPwdOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -57,6 +58,11 @@ export default function PlatformLayout() {
           <Typography.Text style={{ color: 'rgba(255,255,255,0.85)' }}>
             {admin?.name || admin?.username || ''}
           </Typography.Text>
+          {isViewer ? (
+            <Typography.Text style={{ color: '#cbd5e1', fontSize: 12 }}>
+              {t('platform.role_viewer')}
+            </Typography.Text>
+          ) : null}
           <Button type="link" onClick={() => setPwdOpen(true)} style={{ color: '#93c5fd' }}>
             {t('platform.change_password')}
           </Button>

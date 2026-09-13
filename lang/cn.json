@@ -365,6 +365,7 @@
     },
     "username_unavailable": "该用户名不可使用，请更换后重试",
     "queue_alert_test_sent": "测试告警已发送",
-    "queue_alert_webhook_not_configured": "未配置队列告警 Webhook（QUEUE_ALERT_WEBHOOK_URL 或 READY_ALERT_WEBHOOK_URL）"
+    "queue_alert_webhook_not_configured": "未配置队列告警 Webhook（QUEUE_ALERT_WEBHOOK_URL 或 READY_ALERT_WEBHOOK_URL）",
+    "platform_readonly": "平台只读账号无权执行此操作"
   }
 }

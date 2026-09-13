@@ -202,6 +202,7 @@ var (
 	ErrTenantStorageDiskLocked   = NewBusinessError("tenant_storage_disk_locked", "多租户模式下文件存储驱动由平台统一配置，租户不可修改")
 	ErrTenantNotTrashed          = NewBusinessError("tenant_not_trashed", "仅回收站中的已删除租户可执行此操作")
 	ErrTenantCodeInRecycle       = NewBusinessError("tenant_code_in_recycle", "租户编码仍在回收站中，请先恢复或永久删除后再创建")
+	ErrPlatformReadonly          = NewBusinessError("platform_readonly", "平台只读账号无权执行此操作")
 	ErrTokenRefreshFailed        = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound              = NewBusinessError("user_not_found", "用户不存在")
 

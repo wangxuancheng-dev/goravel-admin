@@ -207,7 +207,9 @@ go run . artisan tenant:create remote "Remote" \
 
 ```bash
 go run . artisan platform:install [-u] [-p] [--name=]
-go run . artisan platform:admin {username} {password} [--name=]
+go run . artisan platform:admin {username} {password} [--name=] [--role=owner|viewer]
+
+# role=owner default (full write); viewer = read-only (list/detail/logs/backup download/change own password)
 
 go run . artisan tenant:create {code} {name} \
   [--driver=mysql|postgres] [--isolation=database|schema] \

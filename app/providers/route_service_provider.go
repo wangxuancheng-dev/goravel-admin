@@ -87,10 +87,12 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 		}
 	})
 
-	// 登录速率限制器（IP + 租户提示 + 账号，避免跨租户互相锁号）
+	// Login rate limiter: IP + scope (platform/admin/user) + tenant hint + account.
+	// Platform and tenant admins often share usernames; scopes must not share buckets.
 	facades.RateLimiter().For("login", func(ctx contractshttp.Context) contractshttp.Limit {
 		ip := helpers.GetRealIP(ctx)
 		username := resolveLoginIdentifier(ctx, ip)
+		scope := resolveLoginScope(ctx)
 		tenantHint := resolveLoginTenantHint(ctx)
 		perMinute := 6
 		// Feature / unit HTTP tests issue many logins from one IP.
@@ -98,10 +100,7 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 			perMinute = 1000
 		}
 
-		key := ip + ":login:" + username
-		if tenantHint != "" {
-			key = ip + ":login:" + tenantHint + ":" + username
-		}
+		key := buildLoginRateLimitKey(ip, scope, tenantHint, username)
 		return limit.PerMinute(perMinute).Response(func(ctx contractshttp.Context) {
 			response.Abort(ctx, contractshttp.StatusTooManyRequests, "too_many_requests")
 		}).By(key)
@@ -114,7 +113,7 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 		})
 	})
 
-	// pprof token 验证限流（按管理员 + IP）
+	// pprof token verify (per tenant + admin + IP)
 	facades.RateLimiter().For("pprofVerify", func(ctx contractshttp.Context) contractshttp.Limit {
 		ip := helpers.GetRealIP(ctx)
 		identifier := resolvePprofVerifyIdentifier(ctx, ip)
@@ -124,10 +123,10 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 				"message":    trans.Get(ctx, "too_many_requests"),
 				"error_code": "pprof_verify_rate_limited",
 			}).Abort()
-		}).By(ip + ":pprof_verify:" + identifier)
+		}).By(tenantRateKeyPrefix(ctx) + ip + ":pprof_verify:" + identifier)
 	})
 
-	// pprof CPU 采样限流（按管理员 + IP）
+	// pprof CPU sample (per tenant + admin + IP)
 	facades.RateLimiter().For("pprofCPU", func(ctx contractshttp.Context) contractshttp.Limit {
 		ip := helpers.GetRealIP(ctx)
 		identifier := resolvePprofVerifyIdentifier(ctx, ip)
@@ -137,10 +136,10 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 				"message":    trans.Get(ctx, "too_many_requests"),
 				"error_code": "pprof_cpu_rate_limited",
 			}).Abort()
-		}).By(ip + ":pprof_cpu:" + identifier)
+		}).By(tenantRateKeyPrefix(ctx) + ip + ":pprof_cpu:" + identifier)
 	})
 
-	// pprof 内存采样限流（按管理员 + IP）
+	// pprof memory sample (per tenant + admin + IP)
 	facades.RateLimiter().For("pprofMemory", func(ctx contractshttp.Context) contractshttp.Limit {
 		ip := helpers.GetRealIP(ctx)
 		identifier := resolvePprofVerifyIdentifier(ctx, ip)
@@ -150,7 +149,7 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 				"message":    trans.Get(ctx, "too_many_requests"),
 				"error_code": "pprof_memory_rate_limited",
 			}).Abort()
-		}).By(ip + ":pprof_memory:" + identifier)
+		}).By(tenantRateKeyPrefix(ctx) + ip + ":pprof_memory:" + identifier)
 	})
 
 	// AI 实验室限流（按管理员账号：分钟 + 日配额）
@@ -272,7 +271,42 @@ func resolveLoginIdentifier(ctx contractshttp.Context, fallbackIP string) string
 	return fallbackIP
 }
 
-// resolveLoginTenantHint 在限流键中纳入租户（subdomain 优先，可与 body 一并解析）。
+// resolveLoginScope isolates platform / tenant-admin / C-end user login buckets by path.
+func resolveLoginScope(ctx contractshttp.Context) string {
+	return loginScopeFromPath(ctx.Request().Path())
+}
+
+func loginScopeFromPath(path string) string {
+	path = strings.ToLower(strings.TrimSpace(path))
+	switch {
+	case strings.HasPrefix(path, "/api/platform"):
+		return "platform"
+	case strings.HasPrefix(path, "/api/admin"):
+		return "admin"
+	case strings.HasPrefix(path, "/api/user"):
+		return "user"
+	default:
+		return "other"
+	}
+}
+
+// buildLoginRateLimitKey builds the throttle bucket key for login endpoints.
+func buildLoginRateLimitKey(ip, scope, tenantHint, username string) string {
+	ip = strings.TrimSpace(ip)
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		scope = "other"
+	}
+	username = strings.TrimSpace(username)
+	tenantHint = strings.ToLower(strings.TrimSpace(tenantHint))
+	if tenantHint != "" {
+		return ip + ":login:" + scope + ":" + tenantHint + ":" + username
+	}
+	return ip + ":login:" + scope + ":" + username
+}
+
+// resolveLoginTenantHint includes tenant in the rate-limit key (subdomain / ResolveHint first).
+// When ResolveHint strips client hints on apex hosts, fall back to body/header so tenants still isolate.
 func resolveLoginTenantHint(ctx contractshttp.Context) string {
 	body := ""
 	for _, field := range []string{"tenant_code", "tenant_id"} {
@@ -282,7 +316,16 @@ func resolveLoginTenantHint(ctx contractshttp.Context) string {
 		}
 	}
 	hint, _ := tenancy.ResolveHint(ctx, body)
-	return strings.ToLower(strings.TrimSpace(hint))
+	if hint = strings.ToLower(strings.TrimSpace(hint)); hint != "" {
+		return hint
+	}
+	if body != "" {
+		return strings.ToLower(body)
+	}
+	if h := strings.ToLower(strings.TrimSpace(tenancy.ClientHint(ctx))); h != "" {
+		return h
+	}
+	return ""
 }
 
 // resolvePprofVerifyIdentifier 从上下文提取管理员 ID，找不到则回退到 IP

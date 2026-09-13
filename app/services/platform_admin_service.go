@@ -12,7 +12,8 @@ import (
 )
 
 // UpsertPlatformAdmin creates or resets a platform console admin on the platform DB.
-func UpsertPlatformAdmin(username, password, name string) (*models.PlatformAdmin, error) {
+// role is owner|viewer (empty => owner).
+func UpsertPlatformAdmin(username, password, name, role string) (*models.PlatformAdmin, error) {
 	if !tenancy.Enabled() {
 		return nil, apperrors.ErrTenancyDisabled
 	}
@@ -24,6 +25,7 @@ func UpsertPlatformAdmin(username, password, name string) (*models.PlatformAdmin
 	if name == "" {
 		name = username
 	}
+	role = models.NormalizePlatformAdminRole(role)
 	hashed, err := facades.Hash().Make(password)
 	if err != nil {
 		return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
@@ -35,12 +37,14 @@ func UpsertPlatformAdmin(username, password, name string) (*models.PlatformAdmin
 		if _, err := q.Model(&existing).Update(map[string]any{
 			"password": hashed,
 			"name":     name,
+			"role":     role,
 			"status":   models.PlatformAdminStatusActive,
 		}); err != nil {
 			return nil, err
 		}
 		existing.Password = hashed
 		existing.Name = name
+		existing.Role = role
 		existing.Status = models.PlatformAdminStatusActive
 		return &existing, nil
 	}
@@ -49,6 +53,7 @@ func UpsertPlatformAdmin(username, password, name string) (*models.PlatformAdmin
 		Username: username,
 		Password: hashed,
 		Name:     name,
+		Role:     role,
 		Status:   models.PlatformAdminStatusActive,
 	}
 	if err := q.Create(&admin); err != nil {
@@ -81,4 +86,19 @@ func ChangePlatformAdminPassword(adminID uint, oldPassword, newPassword string) 
 		return err
 	}
 	return nil
+}
+
+// PlatformAdminToJSON hides password.
+func PlatformAdminToJSON(a *models.PlatformAdmin) map[string]any {
+	if a == nil {
+		return nil
+	}
+	role := models.NormalizePlatformAdminRole(a.Role)
+	return map[string]any{
+		"id":       a.ID,
+		"username": a.Username,
+		"name":     a.Name,
+		"role":     role,
+		"status":   a.Status,
+	}
 }
