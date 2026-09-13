@@ -843,32 +843,6 @@ export default function PlatformTenantList() {
           </Button>
           <Button
             loading={batchLoading}
-            onClick={() =>
-              runBatchOps(
-                'seed',
-                { status: 1, limit: 50 },
-                t('tenant.batch_seed'),
-                t('tenant.batch_seed_active_confirm'),
-              )
-            }
-          >
-            {t('tenant.batch_seed_all')}
-          </Button>
-          <Button
-            loading={batchLoading}
-            onClick={() =>
-              runBatchOps(
-                'backup',
-                { status: 1, limit: 50 },
-                t('tenant.batch_backup'),
-                t('tenant.batch_backup_active_confirm'),
-              )
-            }
-          >
-            {t('tenant.batch_backup_all')}
-          </Button>
-          <Button
-            loading={batchLoading}
             disabled={(opsSummary?.failed_provision ?? 0) < 1}
             onClick={retryFailedMigrates}
           >
