@@ -18,7 +18,8 @@ Goravel 是一个功能完整、可扩展性良好的 Web 应用框架。作为�
 git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ```
 
-> 演示站 https://admin.xuancheng888.top
+> 文档：https://docs.xuancheng888.top/  
+> 演示站：https://admin.xuancheng888.top
 
 账号: demo  
 密码: demo123
@@ -29,7 +30,7 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 
 **不适合：** 直接当金融交易核心、超大规模商业 SaaS 中台；分表 / ES / 多队列需额外运维，请按需开启。
 
-模块分层、最小生产配置与进阶配置说明见：[开源定位](./website/docs/guide/opensource.md)（`cd website && npm run dev`）。
+模块分层、最小生产配置与进阶配置说明见：[开源定位与模块](https://docs.xuancheng888.top/guide/opensource)。本地预览文档：`cd website && npm run dev`。
 
 ### 截图展示
 

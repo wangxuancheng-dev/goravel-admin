@@ -18,7 +18,8 @@ This project includes a complete admin management system built with Goravel fram
 git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ```
 
-> Demo https://admin.xuancheng888.top 
+> Docs: https://docs.xuancheng888.top/  
+> Demo: https://admin.xuancheng888.top
 
 username: demo  
 password: demo123
@@ -29,7 +30,7 @@ password: demo123
 
 **Not a drop-in fit:** financial trading cores or large-scale commercial SaaS platforms out of the box. Sharding / Elasticsearch / multi-queue drivers are **optional** and need extra ops.
 
-See module tiers and production configs: [opensource guide](./website/docs/guide/opensource.md) (`cd website && npm run dev`).
+See module tiers and production configs: [Open-source scope](https://docs.xuancheng888.top/en/guide/opensource). Local docs preview: `cd website && npm run dev`.
 
 ### Screenshots
 
