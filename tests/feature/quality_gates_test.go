@@ -127,6 +127,26 @@ func TestDictionaryIndexAllowedWithPermission(t *testing.T) {
 
 func TestPaymentNotifyStubReturnsNotImplemented(t *testing.T) {
 	withTenancyDriver(t, "off")
+
+	prevOrders := facades.Config().GetBool("module.orders_enabled", true)
+	prevPayments := facades.Config().GetBool("module.payments_enabled", false)
+	prevGateways := facades.Config().GetString("module.payment_gateways_enabled", "")
+	prevFrontend := facades.Config().GetString("module.code_generator_frontend", "vue,react")
+	facades.Config().Add("module", map[string]any{
+		"orders_enabled":           prevOrders,
+		"payments_enabled":         prevPayments,
+		"payment_gateways_enabled": "wechat,alipay,mock",
+		"code_generator_frontend":  prevFrontend,
+	})
+	t.Cleanup(func() {
+		facades.Config().Add("module", map[string]any{
+			"orders_enabled":           prevOrders,
+			"payments_enabled":         prevPayments,
+			"payment_gateways_enabled": prevGateways,
+			"code_generator_frontend":  prevFrontend,
+		})
+	})
+
 	testCase := tests.TestCase{}
 	resp, err := testCase.Http(t).
 		WithHeader("Content-Type", "application/json").

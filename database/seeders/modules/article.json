@@ -12,6 +12,7 @@
   "has_edit": true,
   "has_delete": true,
   "has_export": true,
+  "has_import": false,
   "permissions": [
     {
       "name": "article列表",

@@ -165,8 +165,18 @@ func (s *DepartmentServiceImpl) Create(req *admin.DepartmentCreate) (*models.Dep
 	if err := appfacades.OrmQuery(s.ctx).Model(department).Create(createData); err != nil {
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
-
-	return department, nil
+	// map Create may not populate primary key — reload by unique code or name.
+	var created models.Department
+	q := appfacades.OrmQuery(s.ctx)
+	if req.Code != "" {
+		q = q.Where("code", req.Code)
+	} else {
+		q = q.Where("name", req.Name)
+	}
+	if err := q.OrderByDesc("id").First(&created); err != nil || created.ID == 0 {
+		return nil, apperrors.ErrCreateFailed.WithError(err)
+	}
+	return &created, nil
 }
 
 func (s *DepartmentServiceImpl) Update(id uint, req *admin.DepartmentUpdate) (*models.Department, error) {

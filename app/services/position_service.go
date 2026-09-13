@@ -107,7 +107,18 @@ func (s *PositionServiceImpl) Create(req *admin.PositionCreate) (*models.Positio
 	if err := appfacades.OrmQuery(s.ctx).Model(position).Create(createData); err != nil {
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
-	return position, nil
+	// map Create may not populate primary key — reload by unique code or name.
+	var created models.Position
+	q := appfacades.OrmQuery(s.ctx)
+	if req.Code != "" {
+		q = q.Where("code", req.Code)
+	} else {
+		q = q.Where("name", req.Name)
+	}
+	if err := q.OrderByDesc("id").First(&created); err != nil || created.ID == 0 {
+		return nil, apperrors.ErrCreateFailed.WithError(err)
+	}
+	return &created, nil
 }
 
 func (s *PositionServiceImpl) Update(id uint, req *admin.PositionUpdate) (*models.Position, error) {

@@ -119,7 +119,12 @@ func (s *BlacklistServiceImpl) Create(req *admin.BlacklistCreate) (*models.Black
 	}
 	InvalidateBlacklistCache(s.ctx)
 
-	return blacklist, nil
+	// map Create may not populate primary key — reload by IP.
+	var created models.Blacklist
+	if err := appfacades.OrmQuery(s.ctx).Where("ip", req.IP).OrderByDesc("id").First(&created); err != nil || created.ID == 0 {
+		return nil, apperrors.ErrCreateFailed.WithError(err)
+	}
+	return &created, nil
 }
 
 func (s *BlacklistServiceImpl) Update(id uint, req *admin.BlacklistUpdate) (*models.Blacklist, error) {

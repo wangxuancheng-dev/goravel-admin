@@ -129,8 +129,12 @@ func (s *DictionaryServiceImpl) Create(req *admin.DictionaryCreate) (*models.Dic
 	if err := appfacades.OrmQuery(s.ctx).Model(dictionary).Create(createData); err != nil {
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
-
-	return dictionary, nil
+	// map Create may not populate primary key — reload by type+value.
+	var created models.Dictionary
+	if err := appfacades.OrmQuery(s.ctx).Where("type", req.Type).Where("value", req.Value).OrderByDesc("id").First(&created); err != nil || created.ID == 0 {
+		return nil, apperrors.ErrCreateFailed.WithError(err)
+	}
+	return &created, nil
 }
 
 func (s *DictionaryServiceImpl) Update(id uint, req *admin.DictionaryUpdate) (*models.Dictionary, error) {
