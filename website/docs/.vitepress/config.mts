@@ -177,6 +177,9 @@ const enSidebar = {
 export default defineConfig({
   title: 'Goravel Admin',
   description: 'Goravel admin starter — Vue / React dual frontend',
+  head: [
+    ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+  ],
   lastUpdated: true,
   cleanUrls: true,
   ignoreDeadLinks: true,
