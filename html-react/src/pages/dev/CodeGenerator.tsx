@@ -76,7 +76,7 @@ export default function CodeGenerator() {
         <Select
           style={{ width: '100%' }}
           value={row.form_type}
-          options={cg.formTypes}
+          options={cg.formTypesForField(row.type)}
           onChange={(value) => cg.updateField(index, { form_type: value })}
         />
       ),
@@ -100,14 +100,7 @@ export default function CodeGenerator() {
         <Select
           style={{ width: '100%' }}
           value={row.search_ui_type}
-          options={[
-            { value: 'input', label: t('code_generator.search_ui_types.input') },
-            { value: 'select', label: t('code_generator.search_ui_types.select') },
-            { value: 'date', label: t('code_generator.search_ui_types.date') },
-            { value: 'datetime', label: t('code_generator.search_ui_types.datetime') },
-            { value: 'daterange', label: t('code_generator.search_ui_types.daterange') },
-            { value: 'datetimerange', label: t('code_generator.search_ui_types.datetimerange') },
-          ]}
+          options={cg.searchUiTypesForField(row.type)}
           onChange={(value) => cg.updateField(index, { search_ui_type: value })}
         />
       ),

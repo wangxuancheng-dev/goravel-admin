@@ -32,7 +32,7 @@ features:
 | [快速开始](/guide/getting-started) | 本机或 Docker 第一次跑起来 |
 | [开源定位与模块](/guide/opensource) | 模块边界与生产配置 |
 | [系统架构](/guide/architecture) | 二次开发前摸清结构 |
-| [开发指南](/guide/development) / [代码生成器](/guide/code-generator) | 加业务 CRUD |
+| [开发指南](/guide/development) / [代码生成器](/guide/code-generator) | 加业务 CRUD（生成器优先） |
 | [生产清单](/deploy/production) | 上线前核对 |
 | [进阶](/advanced/tenancy) / [参考](/reference/api) | 租户、支付、分表、数据库等 |
 

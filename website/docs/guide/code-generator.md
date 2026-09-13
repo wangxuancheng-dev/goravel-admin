@@ -1,3 +1,6 @@
+::: tip
+从 0 加模块的完整步骤见 [开发指南](/guide/development)（生成器优先 + Notice 示例）。本文专注菜单/权限 Install、导出导入与生产 seed。
+:::
 # 代码生成器：菜单与权限安装
 
 代码生成器在生成 CRUD 代码后，可通过 **Install 服务** 自动注册菜单、权限，并写入可复现的 manifest 文件。

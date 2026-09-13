@@ -8,6 +8,12 @@ import { getMenuTree } from '../../../api/menu'
 import { isDev } from '../../../utils/env'
 import { useUserStore } from '../../../store/user'
 import logger from '../../../utils/logger'
+import {
+  ALL_FORM_TYPE_VALUES,
+  allowedFormTypes,
+  allowedSearchUiTypes,
+  normalizeFieldControls,
+} from './fieldFormOptions'
 
 export function useCodeGenerator() {
   const { t } = useI18n()
@@ -205,7 +211,7 @@ export function useCodeGenerator() {
   const buildSavePayload = (force = false) => ({
     module_name: form.module_name,
     table_name: form.table_name,
-    fields: form.fields,
+    fields: form.fields.map((field) => normalizeFieldControls(field)),
     files: form.files,
     force,
     options: buildGeneratorOptions(),
@@ -280,20 +286,28 @@ export function useCodeGenerator() {
     return types
   })
 
-  const formTypes = [
-    { value: 'input', label: t('code_generator.form_types.input') },
-    { value: 'textarea', label: t('code_generator.form_types.textarea') },
-    { value: 'editor', label: t('code_generator.form_types.editor') },
-    { value: 'markdown', label: t('code_generator.form_types.markdown') },
-    { value: 'image-upload', label: t('code_generator.form_types.image_upload') },
-    { value: 'select', label: t('code_generator.form_types.select') },
-    { value: 'radio', label: t('code_generator.form_types.radio') },
-    { value: 'checkbox', label: t('code_generator.form_types.checkbox') },
-    { value: 'switch', label: t('code_generator.form_types.switch') },
-    { value: 'number', label: t('code_generator.form_types.number') },
-    { value: 'date-picker', label: t('code_generator.form_types.date_picker') },
-    { value: 'datetime-picker', label: t('code_generator.form_types.datetime_picker') },
-  ]
+  const formTypeLabel = (value) => t(`code_generator.form_types.${String(value).replace(/-/g, '_')}`, value)
+
+  const formTypes = ALL_FORM_TYPE_VALUES.map((value) => ({
+    value,
+    label: formTypeLabel(value),
+  }))
+
+  const formTypesForField = (dbType) =>
+    allowedFormTypes(dbType || 'string').map((value) => ({
+      value,
+      label: formTypeLabel(value),
+    }))
+
+  const searchUiTypesForField = (dbType) =>
+    allowedSearchUiTypes(dbType || 'string').map((value) => ({
+      value,
+      label: t(`code_generator.search_ui_types.${value}`, value),
+    }))
+
+  const applyFieldTypeChange = (row) => {
+    Object.assign(row, normalizeFieldControls(row))
+  }
 
   const loadFieldTypes = async () => {
     try {
@@ -359,7 +373,7 @@ export function useCodeGenerator() {
           else if (field.db_type.includes('json')) field.type = 'json'
           else field.type = 'string'
         }
-        return field
+        return normalizeFieldControls(field)
       })
       ElMessage.success(t('code_generator.fields_loaded'))
     } catch (error) {
@@ -492,7 +506,7 @@ export function useCodeGenerator() {
       const response = await previewCodeApi({
         module_name: form.module_name,
         table_name: form.table_name,
-        fields: form.fields,
+        fields: form.fields.map((field) => normalizeFieldControls(field)),
         file_type: fileType,
         options: buildGeneratorOptions()
       })
@@ -715,7 +729,7 @@ export function useCodeGenerator() {
         scale: scale
       }
 
-      return mappedField
+      return normalizeFieldControls(mappedField)
     })
 
     form.fields = fields
@@ -759,6 +773,9 @@ export function useCodeGenerator() {
     rules,
     fileTypes,
     formTypes,
+    formTypesForField,
+    searchUiTypesForField,
+    applyFieldTypeChange,
     handleTableChange,
     handleAddField,
     handleRemoveField,

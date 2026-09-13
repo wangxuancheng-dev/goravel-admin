@@ -1,3 +1,6 @@
+::: tip
+End-to-end module flow: [Development guide](/guide/development) (Chinese, generator-first). This page covers install / import-export / production seed.
+:::
 # Code generator
 
 > This page mirrors the Chinese documentation for accuracy. Switch language to **简体中文**, or open the [Chinese version](/guide/code-generator).

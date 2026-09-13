@@ -1,8 +1,10 @@
 # Development guide
 
-> This page mirrors the Chinese documentation for accuracy. Switch language to **简体中文**, or open the [Chinese version](/guide/development).
+> Prefer the [Chinese development guide](/guide/development): it now leads with the **code-generator** path (Notice walkthrough), then keeps the hand-written guestbook as reference.
 
----
+::: tip
+Secondary development default = code generator into this repo + checklist. Do not add a separate docs section for it.
+:::
 以留言板为例，说明完整 CRUD（后端接口 + 前端页面）。
 
 ## 目录

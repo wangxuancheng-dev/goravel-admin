@@ -17,6 +17,12 @@ import { getDictionaryTypes } from '@/api/dictionary'
 import { getMenuTree } from '@/api/menu'
 import { useUserStore } from '@/stores/user'
 import logger from '@/utils/logger'
+import {
+  ALL_FORM_TYPE_VALUES,
+  allowedFormTypes,
+  allowedSearchUiTypes,
+  normalizeFieldControls,
+} from './fieldFormOptions'
 
 const backendFileTypes = [
   { value: 'model', labelKey: 'file_model' },
@@ -195,21 +201,35 @@ export function useCodeGenerator() {
     [t],
   )
 
-  const formTypes = useMemo(
-    () => [
-      { value: 'input', label: t('code_generator.form_types.input') },
-      { value: 'textarea', label: t('code_generator.form_types.textarea') },
-      { value: 'editor', label: t('code_generator.form_types.editor') },
-      { value: 'markdown', label: t('code_generator.form_types.markdown') },
-      { value: 'image-upload', label: t('code_generator.form_types.image_upload') },
-      { value: 'select', label: t('code_generator.form_types.select') },
-      { value: 'radio', label: t('code_generator.form_types.radio') },
-      { value: 'checkbox', label: t('code_generator.form_types.checkbox') },
-      { value: 'switch', label: t('code_generator.form_types.switch') },
-      { value: 'number', label: t('code_generator.form_types.number') },
-      { value: 'date-picker', label: t('code_generator.form_types.date_picker') },
-      { value: 'datetime-picker', label: t('code_generator.form_types.datetime_picker') },
-    ],
+  const formTypeLabel = useCallback(
+    (value: string) => t(`code_generator.form_types.${value.replace(/-/g, '_')}`, value),
+    [t],
+  )
+
+  const allFormTypes = useMemo(
+    () =>
+      ALL_FORM_TYPE_VALUES.map((value) => ({
+        value,
+        label: formTypeLabel(value),
+      })),
+    [formTypeLabel],
+  )
+
+  const formTypesForField = useCallback(
+    (dbType: string) =>
+      allowedFormTypes(dbType || 'string').map((value) => ({
+        value,
+        label: formTypeLabel(value),
+      })),
+    [formTypeLabel],
+  )
+
+  const searchUiTypesForField = useCallback(
+    (dbType: string) =>
+      allowedSearchUiTypes(dbType || 'string').map((value) => ({
+        value,
+        label: t(`code_generator.search_ui_types.${value}`, value),
+      })),
     [t],
   )
 
@@ -348,7 +368,7 @@ export function useCodeGenerator() {
         else if (field.db_type?.includes('bool')) field.type = 'boolean'
         else if (field.db_type?.includes('json')) field.type = 'json'
         else field.type = 'string'
-        return field
+        return normalizeFieldControls(field)
       })
       setFields(nextFields)
       message.success(t('code_generator.fields_loaded'))
@@ -387,7 +407,19 @@ export function useCodeGenerator() {
   }
 
   const updateField = (index: number, patch: Partial<CodeGeneratorField>) => {
-    setFields((prev) => prev.map((field, i) => (i === index ? { ...field, ...patch } : field)))
+    setFields((prev) =>
+      prev.map((field, i) => {
+        if (i !== index) return field
+        const merged = { ...field, ...patch }
+        if (patch.type !== undefined && patch.type !== field.type) {
+          return normalizeFieldControls(merged)
+        }
+        if (patch.form_type || patch.search_ui_type || patch.search_type) {
+          return normalizeFieldControls(merged)
+        }
+        return merged
+      }),
+    )
   }
 
   const handleEditRelation = (index: number) => {
@@ -510,6 +542,8 @@ export function useCodeGenerator() {
     message.success(t('code_generator.field_config_saved'))
   }
 
+  const getNormalizedFields = useCallback(() => fields.map((field) => normalizeFieldControls(field)), [fields])
+
   const handlePreview = async (fileType: string) => {
     setPreviewing(fileType)
     try {
@@ -517,7 +551,7 @@ export function useCodeGenerator() {
       const response = await previewCode({
         module_name: values.module_name,
         table_name: values.table_name,
-        fields,
+        fields: getNormalizedFields(),
         file_type: fileType,
         options: buildGeneratorOptions(),
       })
@@ -535,7 +569,7 @@ export function useCodeGenerator() {
     const response = await saveCode({
       module_name: values.module_name,
       table_name: values.table_name,
-      fields,
+      fields: getNormalizedFields(),
       files,
       force,
       options: buildGeneratorOptions(),
@@ -692,14 +726,14 @@ export function useCodeGenerator() {
         else formType = 'input'
       }
 
-      return {
+      return normalizeFieldControls({
         ...field,
         type,
         label: field.label || field.name || '',
         form_type: formType,
         dictionary: field.dictionary || '',
         api_url: field.api_url || '',
-      } as CodeGeneratorField
+      } as CodeGeneratorField)
     })
 
     setFields(mappedFields)
@@ -758,7 +792,9 @@ export function useCodeGenerator() {
     installing,
     handleInstallModule,
     fileTypes,
-    formTypes,
+    formTypes: allFormTypes,
+    formTypesForField,
+    searchUiTypesForField,
     handleTableChange,
     handleAddField,
     handleRemoveField,

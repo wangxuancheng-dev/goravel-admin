@@ -139,7 +139,7 @@
               </el-table-column>
               <el-table-column prop="type" :label="$t('code_generator.field_type')" width="150">
                 <template #default="{ row }">
-                  <el-select v-model="row.type" :placeholder="$t('common.select')">
+                  <el-select v-model="row.type" :placeholder="$t('common.select')" @change="applyFieldTypeChange(row)">
                     <el-option
                       v-for="type in fieldTypes"
                       :key="type.value"
@@ -158,7 +158,7 @@
                 <template #default="{ row }">
                   <el-select v-model="row.form_type" :placeholder="$t('common.select')">
                     <el-option
-                      v-for="type in formTypes"
+                      v-for="type in formTypesForField(row.type)"
                       :key="type.value"
                       :label="type.label"
                       :value="type.value"
@@ -183,12 +183,12 @@
               <el-table-column prop="search_ui_type" :label="$t('code_generator.search_ui_type')" width="150">
                 <template #default="{ row }">
                   <el-select v-model="row.search_ui_type" :placeholder="$t('common.select')">
-                    <el-option :label="$t('code_generator.search_ui_types.input')" value="input" />
-                    <el-option :label="$t('code_generator.search_ui_types.select')" value="select" />
-                    <el-option :label="$t('code_generator.search_ui_types.date')" value="date" />
-                    <el-option :label="$t('code_generator.search_ui_types.datetime')" value="datetime" />
-                    <el-option :label="$t('code_generator.search_ui_types.daterange')" value="daterange" />
-                    <el-option :label="$t('code_generator.search_ui_types.datetimerange')" value="datetimerange" />
+                    <el-option
+                      v-for="type in searchUiTypesForField(row.type)"
+                      :key="type.value"
+                      :label="type.label"
+                      :value="type.value"
+                    />
                   </el-select>
                 </template>
               </el-table-column>
@@ -496,6 +496,9 @@ const {
   rules,
   fileTypes,
   formTypes,
+  formTypesForField,
+  searchUiTypesForField,
+  applyFieldTypeChange,
   handleTableChange,
   handleAddField,
   handleRemoveField,

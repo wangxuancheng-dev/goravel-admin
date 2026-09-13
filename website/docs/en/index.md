@@ -32,7 +32,7 @@ features:
 | [Quick start](/en/guide/getting-started) | Local or Docker first run |
 | [Open-source scope](/en/guide/opensource) | Module boundaries and production config |
 | [Architecture](/en/guide/architecture) | Before secondary development |
-| [Development](/en/guide/development) / [Code generator](/en/guide/code-generator) | Adding CRUD |
+| [Development](/en/guide/development) / [Code generator](/en/guide/code-generator) | Adding CRUD (generator-first) |
 | [Production](/en/deploy/production) | Before go-live |
 | [Advanced](/en/advanced/tenancy) / [Reference](/en/reference/api) | Tenancy, payments, sharding, DB notes |
 

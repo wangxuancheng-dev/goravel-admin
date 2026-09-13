@@ -1,4 +1,122 @@
-# 开发指南：留言板模块 CRUD
+# 开发指南（二次开发）
+
+本仓库加业务模块的默认路径：**代码生成器产出 CRUD → 按需改业务 → [硬编码检查清单](/guide/hardcoded-checklist) 收尾**。  
+手写全套 Model/Service/Controller 仍可用（见文末留言板），但应作为例外。
+
+## 文档怎么读
+
+| 文档 | 定位 |
+|------|------|
+| **本文前半** | 从 0 用生成器加一个模块 |
+| [代码生成器](/guide/code-generator) | 菜单/权限 Install、导出导入、生产 seed |
+| **本文后半 · 留言板** | 手写 CRUD 长文（理解分层） |
+| [硬编码检查清单](/guide/hardcoded-checklist) | 生成后仍需人工核对的项 |
+| [Service 包拆分](/guide/service-packages) | 新代码默认放哪 |
+| [双前端对齐](/guide/frontend-parity) | React 主发货 / Vue 参考 |
+| 仓内 `article` | 生成器风格参考实现 |
+
+---
+
+## 1. 先选路径
+
+```text
+简单后台 CRUD（列表/表单/权限/菜单）
+  → 开发工具 · 代码生成器（推荐）
+
+强业务编排（支付回调、租户、复杂权限）
+  → 生成骨架后改 Service；或对照 article / payment
+
+纯策略扩展（支付渠道、搜索索引、options）
+  → Register* 扩展点；不是再做一个「文章级」热插拔包
+```
+
+业务模块应 **生成进主仓并提交 Git**，不要做成外部热插拔模块。
+
+---
+
+## 2. 端到端：用生成器做一个 Notice
+
+模块名 `notice`，表名 `notices`（可按业务改名）。
+
+### 2.1 前置
+
+1. API + 管理端已跑通（[快速开始](/guide/getting-started)）
+2. `APP_ENV=local|development` 或 `APP_ENABLE_DEV_TOOL=true`，可见 **开发工具 → 代码生成器**
+3. 建议 `CODE_GENERATOR_FRONTEND=react,vue`
+4. 使用有权限的管理员（超管最省事）
+
+### 2.2 页面填写示例
+
+| 项 | 示例 |
+|----|------|
+| 模块名 | `notice`（权限 slug 前缀） |
+| 表名 | `notices`（路由 `/api/admin/notices`） |
+| 菜单标题 | 公告管理 |
+| 父级菜单 | 留空=顶级 |
+| 增删改 | 按需勾选；导出/导入仅必要时开启 |
+| 树形 | 仅有 `parent_id` 且要树表时勾选 |
+
+建议字段：`title`（列表/表单/搜索）、`content`（表单）、`status`（列表/表单/搜索）、`sort`（列表/表单）。
+
+### 2.3 生成、安装、验证
+
+1. 预览后 **生成代码**；勾选保存时安装菜单权限，或单独点安装
+2. 确认 `database/seeders/modules/notice.json`，以及 `routes/admin.go` 已注入 Resource
+3. 执行：
+
+```bash
+go run . artisan migrate
+go run . artisan db:seed --seeder=GeneratedModulesSeeder
+```
+
+4. 刷新管理端做增删改；再给非超管角色分配 `notice.*` 测一遍
+
+### 2.4 建议提交的文件
+
+migration / model / service / controller / requests、`routes/admin.go`、`seeders/modules/notice.json`、`html-react`（及若生成了的 `html`）相关页面与 API；异步导出导入时还有 `app/jobs/*`。
+
+Install、导出导入选项、生产 seed 细节见 [代码生成器](/guide/code-generator)。
+
+---
+
+## 3. 生成后必须自己做的事
+
+1. i18n：`permission.notice.*`、`menu.notice`（双端 locales 若都发货）
+2. 非超管角色授权
+3. 非标准路由才改 `operation_title.go`
+4. 业务规则写在 Service，Controller 保持薄
+5. 新 CRUD 留在 `app/services`，不要新建 `app/notice`（见 [Service 包拆分](/guide/service-packages)）
+
+完整清单：[硬编码检查清单](/guide/hardcoded-checklist)。
+
+---
+
+## 4. 生成物约定（改业务时对照 article）
+
+| 层 | 约定 |
+|----|------|
+| Controller | `ValidateGeneratedRequest` + `HandleGeneratedServiceError` |
+| Service | `NewXxxService(ctx)` + `appfacades.OrmQuery` |
+| Response | `response.Success` / BusinessError + 稳定 `error_code` |
+| React | List + FormModal + config（主发货） |
+| 权限 slug | `{module}.index\|show\|store\|update\|destroy\|export\|import` |
+
+优先改 Service 与校验；少改全站模板，除非在演进 CRUD 范式。
+
+---
+
+## 5. 代码生成器能力边界（简要）
+
+已具备：双端 CRUD（含树）、菜单权限 manifest、可选导入导出/job、路由注入、AI 填字段。
+
+相对常见 Gin 脚手架「点得更爽」的差距主要在：表单设计器/插件市场密度、选表一键心智、生成后 i18n/角色仍需人工、不做热插拔业务模块。  
+本仓库取舍是 **契约与可维护性**；二次开发用生成器进主仓即可，不必对标插件数量。
+
+---
+
+## 手写 CRUD 参考：留言板模块
+
+> 下面是完整手写示例，便于理解分层。**默认二次开发请用上文代码生成器路径**，不必先抄本节。
 
 以留言板为例，说明完整 CRUD（后端接口 + 前端页面）。
 
