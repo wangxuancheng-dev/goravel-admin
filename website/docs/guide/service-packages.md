@@ -15,7 +15,7 @@
 | 能力 | 包 / 文件 | 说明 |
 |------|-----------|------|
 | 支付成功态闸门 | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate`（纯逻辑） |
-| 支付网关驱动 | `app/services/payment_gateway_*.go` | 每渠道一文件 + `RegisterPaymentGateway`；实现可用 **go.mod 外部包** 或 **按文档手写**（见 [支付参考](/advanced/payments) §6.1.1）。`Notify` 只走 `ApplyPaidResult`。文件过多（约 8～10+）时**仅搬家驱动**到 `app/payment/gateways/`，注册表与编排仍留 services |
+| 支付网关驱动 | `app/payment/gateways/` | 每渠道一文件；`payment.RegisterGateway`；SDK 或手写均可；`Notify` 只返回 `PaidResult`。详见 [支付参考](/advanced/payments) §6 |
 | 支付落库编排 | `app/services/payment_apply.go` | 编排留 services；调用闸门；别名 `services.PaidResult` |
 | 数据权限 | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy` 等；services 直接调用 `rbac` |
 | 订单筛选与 JSON | `app/orders` | Filters / ToJSON；services / controllers 直接调用 `orders`；`OrderServiceImpl` 仍在 services |

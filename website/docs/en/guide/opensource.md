@@ -28,7 +28,7 @@ Demo accounts are for exploration only. Change default admin password and secret
 | **Mock** gateway pay / query / notify → `ApplyPaidResult` | Runnable locally |
 | WeChat / Alipay client calls (gopay) | Sample; needs your merchant config |
 | WeChat / Alipay query & notify verify | `payment_gateway_not_implemented` (501) |
-| New channels | `RegisterPaymentGateway` + `notify/{type}` |
+| New channels | `app/payment/gateways` + `RegisterGateway` + `notify/{type}` |
 | Refund / original-path refund | Not provided |
 
 Demo UI: `MODULE_PAYMENTS_ENABLED=true`. Keep off or mock-only on public production until you own the gateway.

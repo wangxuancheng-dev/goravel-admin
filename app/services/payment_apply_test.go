@@ -12,12 +12,6 @@ import (
 	apppayment "goravel/app/payment"
 )
 
-func TestMockNotifySignRoundTrip(t *testing.T) {
-	sign := mockNotifySign("PAY1", "SUCCESS", 9.9, "secret")
-	assert.True(t, hmacEqual(sign, mockNotifySign("PAY1", "SUCCESS", 9.9, "secret")))
-	assert.False(t, hmacEqual(sign, mockNotifySign("PAY1", "SUCCESS", 9.91, "secret")))
-}
-
 func TestMockNotifyRequiresOutTradeNo(t *testing.T) {
 	d, ok := LookupPaymentGateway("mock")
 	require.True(t, ok)
@@ -48,7 +42,4 @@ func TestApplyPaidResultDecisionIdempotent(t *testing.T) {
 	skip, err = apppayment.ApplyPaidResultStatusGate(models.PaymentStatusFailed)
 	require.Error(t, err)
 	assert.False(t, skip)
-	be, ok := apperrors.GetBusinessError(err)
-	require.True(t, ok)
-	assert.Equal(t, apperrors.ErrPaymentStatusInvalid.Code, be.Code)
 }

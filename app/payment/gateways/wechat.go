@@ -1,4 +1,4 @@
-package services
+package gateways
 
 import (
 	"context"
@@ -9,20 +9,20 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
+	"goravel/app/payment"
 )
 
 func init() {
-	RegisterPaymentGateway(&wechatPaymentDriver{})
+	payment.RegisterGateway(&wechatDriver{})
 }
 
-// wechatPaymentDriver: example using an external Go module (github.com/go-pay/gopay).
-// Prefer this style when a maintained SDK/module exists — require it in go.mod, keep only the
-// PaymentGatewayDriver adapter in services. Query/notify return NotImplemented until verify is wired.
-type wechatPaymentDriver struct{}
+// wechatDriver: external Go module example (github.com/go-pay/gopay).
+// Query/notify return NotImplemented until verify is wired.
+type wechatDriver struct{}
 
-func (d *wechatPaymentDriver) Type() string { return "wechat" }
+func (d *wechatDriver) Type() string { return "wechat" }
 
-func (d *wechatPaymentDriver) Create(ctx context.Context, payment *models.Payment, _ *models.PaymentMethod, config map[string]any, _ string) (map[string]any, error) {
+func (d *wechatDriver) Create(ctx context.Context, pay *models.Payment, _ *models.PaymentMethod, config map[string]any, _ string) (map[string]any, error) {
 	appID, _ := config["app_id"].(string)
 	mchID, _ := config["mch_id"].(string)
 	apiV3Key, _ := config["api_v3_key"].(string)
@@ -44,14 +44,14 @@ func (d *wechatPaymentDriver) Create(ctx context.Context, payment *models.Paymen
 
 	notifyURL, _ := config["notify_url"].(string)
 	if notifyURL == "" {
-		notifyURL = defaultPaymentNotifyURL(ctx, "wechat")
+		notifyURL = payment.DefaultNotifyURL(ctx, "wechat")
 	}
 
 	bm := make(gopay.BodyMap)
-	bm.Set("out_trade_no", payment.PaymentNo)
-	bm.Set("description", payment.Remark)
+	bm.Set("out_trade_no", pay.PaymentNo)
+	bm.Set("description", pay.Remark)
 	bm.Set("amount", map[string]any{
-		"total":    int(math.Round(payment.Amount * 100)),
+		"total":    int(math.Round(pay.Amount * 100)),
 		"currency": "CNY",
 	})
 	bm.Set("notify_url", notifyURL)
@@ -67,17 +67,16 @@ func (d *wechatPaymentDriver) Create(ctx context.Context, payment *models.Paymen
 		return nil, apperrors.ErrCreatePaymentFailed.WithMessage(wxRsp.Error)
 	}
 	return map[string]any{
-		"payment_no": payment.PaymentNo,
+		"payment_no": pay.PaymentNo,
 		"prepay_id":  wxRsp.Response.PrepayId,
 	}, nil
 }
 
-func (d *wechatPaymentDriver) Query(_ context.Context, _ *models.Payment, _ *models.PaymentMethod, _ map[string]any) (map[string]any, error) {
-	// TODO: gopay query → optional ApplyPaidResult for reconcile
+func (d *wechatDriver) Query(_ context.Context, _ *models.Payment, _ *models.PaymentMethod, _ map[string]any) (map[string]any, error) {
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
-func (d *wechatPaymentDriver) Notify(_ context.Context, _ *models.PaymentMethod, _ map[string]any) (*models.Payment, error) {
-	// TODO: gopay verify → PaidResult → return ApplyPaidResult(ctx, result)
+func (d *wechatDriver) Notify(_ context.Context, _ *models.PaymentMethod, _ map[string]any) (*payment.PaidResult, error) {
+	// TODO: gopay verify → return &payment.PaidResult{...} (services applies)
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }

@@ -15,7 +15,7 @@
  */
 
 /** Backend-registered drivers only (mock/wechat/alipay). Source of truth: RegisterPaymentGateway.
- * New channel: payment_gateway_<type>.go → PAYMENT_GATEWAYS_ENABLED → extend this list + PAYMENT_TYPE_CONFIG_FIELDS + i18n `payment_method.type_<type>`.
+ * New channel: app/payment/gateways/<type>.go → PAYMENT_GATEWAYS_ENABLED → extend this list + PAYMENT_TYPE_CONFIG_FIELDS + i18n `payment_method.type_<type>`.
  * Unknown enabled types still appear via resolvePaymentMethodTypes (empty config fields).
  */
 export const PAYMENT_METHOD_TYPES = [

@@ -10,6 +10,7 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
+	apppayment "goravel/app/payment"
 	"goravel/app/tenancyctx"
 )
 
@@ -95,9 +96,7 @@ func TestRegisterPaymentGatewayCustomType(t *testing.T) {
 	const typ = "demo_ext_channel"
 	RegisterPaymentGateway(&stubPaymentDriver{typ: typ})
 	t.Cleanup(func() {
-		paymentGatewayMu.Lock()
-		delete(paymentGatewayDrivers, typ)
-		paymentGatewayMu.Unlock()
+		apppayment.UnregisterGateway(typ)
 	})
 
 	d, ok := LookupPaymentGateway(typ)
@@ -123,7 +122,7 @@ func (d *stubPaymentDriver) Create(context.Context, *models.Payment, *models.Pay
 func (d *stubPaymentDriver) Query(context.Context, *models.Payment, *models.PaymentMethod, map[string]any) (map[string]any, error) {
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
-func (d *stubPaymentDriver) Notify(context.Context, *models.PaymentMethod, map[string]any) (*models.Payment, error) {
+func (d *stubPaymentDriver) Notify(context.Context, *models.PaymentMethod, map[string]any) (*apppayment.PaidResult, error) {
 	return nil, apperrors.ErrPaymentGatewayNotImplemented
 }
 
@@ -138,6 +137,6 @@ func TestDefaultPaymentNotifyURLIncludesTenant(t *testing.T) {
 	})
 
 	ctx := tenancyctx.WithTenant(context.Background(), 1, "tenant_1", "acme")
-	assert.Equal(t, "https://example.com/api/payment/notify/wechat/acme", defaultPaymentNotifyURL(ctx, "wechat"))
-	assert.Equal(t, "https://example.com/api/payment/notify/mock/acme", defaultPaymentNotifyURL(ctx, "mock"))
+	assert.Equal(t, "https://example.com/api/payment/notify/wechat/acme", apppayment.DefaultNotifyURL(ctx, "wechat"))
+	assert.Equal(t, "https://example.com/api/payment/notify/mock/acme", apppayment.DefaultNotifyURL(ctx, "mock"))
 }

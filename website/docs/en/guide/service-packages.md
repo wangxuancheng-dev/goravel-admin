@@ -15,7 +15,7 @@
 | Capability | Package / file | Notes |
 |------------|----------------|-------|
 | Payment paid status gate | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate` (pure) |
-| Payment gateway drivers | `app/services/payment_gateway_*.go` | one file per channel + `RegisterPaymentGateway`; implement via **external go.mod module** or **hand-written from docs** (see [Payments](/en/advanced/payments) §6.1.1). `Notify` only via `ApplyPaidResult`. If files exceed ~8–10, **move drivers only** to `app/payment/gateways/`; registry + apply stay in services |
+| Payment gateway drivers | `app/payment/gateways/` | one file per channel; `payment.RegisterGateway`; SDK or hand-written; `Notify` returns `PaidResult` only. See [Payments](/en/advanced/payments) §6 |
 | Payment DB apply | `app/services/payment_apply.go` | orchestration in services; calls gate; alias `services.PaidResult` |
 | Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy`; services call `rbac` directly |
 | Order filters + JSON | `app/orders` | Filters / ToJSON; services / controllers call `orders` directly; `OrderServiceImpl` remains in services |

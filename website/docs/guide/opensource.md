@@ -28,7 +28,7 @@
 | **Mock 网关** 下单 / 查询 / 回调 → `ApplyPaidResult`（支付+订单幂等已支付） | ✅ 本地可跑通，见 [支付参考](/advanced/payments) |
 | 微信 / 支付宝下单客户端调用（gopay） | ⚠️ 示例代码，需自备商户配置 |
 | 微信 / 支付宝查询与回调验签 | ⚠️ 返回 `payment_gateway_not_implemented`（501）；验签后复用 `ApplyPaidResult` |
-| 新渠道扩展 | ✅ `RegisterPaymentGateway` + 通用 `notify/{type}`，见 [支付参考](/advanced/payments) §6 |
+| 新渠道扩展 | ✅ `app/payment/gateways` + `RegisterGateway` + 通用 `notify/{type}`，见 [支付参考](/advanced/payments) §6 |
 | 退款 API / 原路退 | ❌ 未提供（余额日志里的 refund 类型仅统计用） |
 
 演示可开 `MODULE_PAYMENTS_ENABLED=true`；公网未自研网关时保持关闭或仅用 mock。

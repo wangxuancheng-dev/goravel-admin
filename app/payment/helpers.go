@@ -1,15 +1,21 @@
-package services
+package payment
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
 	"strings"
 
+	"github.com/goravel/framework/facades"
+
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
+	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 )
 
-func parsePaymentMethodConfig(pm *models.PaymentMethod) (map[string]any, error) {
+// ParseMethodConfig unmarshals payment_methods.config JSON.
+func ParseMethodConfig(pm *models.PaymentMethod) (map[string]any, error) {
 	if pm == nil || strings.TrimSpace(pm.Config) == "" {
 		return map[string]any{}, nil
 	}
@@ -23,7 +29,8 @@ func parsePaymentMethodConfig(pm *models.PaymentMethod) (map[string]any, error) 
 	return config, nil
 }
 
-func stringFromConfig(config map[string]any, key string) string {
+// StringFromConfig returns a string config value.
+func StringFromConfig(config map[string]any, key string) string {
 	if config == nil {
 		return ""
 	}
@@ -31,7 +38,8 @@ func stringFromConfig(config map[string]any, key string) string {
 	return v
 }
 
-func firstString(data map[string]any, keys ...string) string {
+// FirstString returns the first non-empty string among keys in data.
+func FirstString(data map[string]any, keys ...string) string {
 	if data == nil {
 		return ""
 	}
@@ -56,7 +64,8 @@ func firstString(data map[string]any, keys ...string) string {
 	return ""
 }
 
-func optionalFloat(data map[string]any, keys ...string) *float64 {
+// OptionalFloat returns the first parseable float among keys in data.
+func OptionalFloat(data map[string]any, keys ...string) *float64 {
 	if data == nil {
 		return nil
 	}
@@ -90,4 +99,14 @@ func optionalFloat(data map[string]any, keys ...string) *float64 {
 		}
 	}
 	return nil
+}
+
+// DefaultNotifyURL builds APP_URL + /api/payment/notify/{type}[/{tenant}].
+func DefaultNotifyURL(ctx context.Context, notifyType string) string {
+	base := strings.TrimRight(facades.Config().GetString("app.url"), "/")
+	code := ""
+	if ctx != nil {
+		code, _ = tenancyctx.CodeFrom(ctx)
+	}
+	return base + tenancy.PaymentNotifyPath(code, notifyType)
 }

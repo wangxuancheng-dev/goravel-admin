@@ -2,18 +2,14 @@ package services
 
 import (
 	"context"
-	"strings"
-
-	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
-	"goravel/app/tenancy"
-	"goravel/app/tenancyctx"
+	apppayment "goravel/app/payment"
 )
 
 // PaymentGatewayService 第三方支付下单/查询/回调（与后台支付记录 CRUD 解耦）。
-// 渠道通过 RegisterPaymentGateway 注册（见 payment_gateway_*.go）；落库统一 ApplyPaidResult。
+// 渠道实现在 app/payment/gateways；注册表在 app/payment；落库统一 ApplyPaidResult。
 // 文档：website/docs/advanced/payments.md
 type PaymentGatewayService interface {
 	CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error)
@@ -39,7 +35,7 @@ func (s *PaymentGatewayServiceImpl) CreatePaymentOrder(payment *models.Payment, 
 	if err != nil {
 		return nil, err
 	}
-	config, err := parsePaymentMethodConfig(paymentMethod)
+	config, err := apppayment.ParseMethodConfig(paymentMethod)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +52,7 @@ func (s *PaymentGatewayServiceImpl) QueryPaymentOrder(payment *models.Payment) (
 	if err != nil {
 		return nil, err
 	}
-	config, err := parsePaymentMethodConfig(paymentMethod)
+	config, err := apppayment.ParseMethodConfig(paymentMethod)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +63,7 @@ func (s *PaymentGatewayServiceImpl) QueryPaymentOrder(payment *models.Payment) (
 	return driver.Query(s.ctx, payment, paymentMethod, config)
 }
 
-// HandlePaymentNotify 处理支付回调通知
+// HandlePaymentNotify 处理支付回调：驱动验签映射 PaidResult，本层 ApplyPaidResult 落库。
 func (s *PaymentGatewayServiceImpl) HandlePaymentNotify(paymentMethod *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
 	if paymentMethod == nil {
 		return nil, apperrors.ErrInvalidPaymentType
@@ -76,14 +72,12 @@ func (s *PaymentGatewayServiceImpl) HandlePaymentNotify(paymentMethod *models.Pa
 	if err != nil {
 		return nil, err
 	}
-	return driver.Notify(s.ctx, paymentMethod, notifyData)
-}
-
-func defaultPaymentNotifyURL(ctx context.Context, notifyType string) string {
-	base := strings.TrimRight(facades.Config().GetString("app.url"), "/")
-	code := ""
-	if ctx != nil {
-		code, _ = tenancyctx.CodeFrom(ctx)
+	result, err := driver.Notify(s.ctx, paymentMethod, notifyData)
+	if err != nil {
+		return nil, err
 	}
-	return base + tenancy.PaymentNotifyPath(code, notifyType)
+	if result == nil {
+		return nil, apperrors.ErrPaymentNotifyInvalid
+	}
+	return ApplyPaidResult(s.ctx, *result)
 }
