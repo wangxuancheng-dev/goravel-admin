@@ -26,6 +26,7 @@ const (
 	TenantOpMigrate = "migrate"
 	TenantOpSeed    = "seed"
 	TenantOpBackup  = "backup"
+	TenantOpRestore = "restore"
 
 	TenantOpStatusIdle    = "idle"
 	TenantOpStatusQueued  = "queued"

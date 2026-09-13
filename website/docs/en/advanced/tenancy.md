@@ -118,7 +118,7 @@ PLATFORM_ADMIN_NAME=平台管理员
 3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试。
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
-6. **异步运维**：单户 migrate / seed / backup 走 `tenant_ops`（`long-running`）；生产需 Redis + long-running worker。`migrate-all` / `backup-all` / `restore` 仍仅 CLI。
+6. **异步运维**：单户 migrate / seed / backup / restore 走 `tenant_ops`（`long-running`）；生产需 Redis + long-running worker。`migrate-all` / `backup-all` 仍可用 CLI。
 
 ## 公网部署（推荐）
 
@@ -222,8 +222,18 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/tenants/{id}/backup` | Async backup |
 | GET | `/api/platform/tenants/{id}/backups` | List backup files under `storage/backups/tenants/{code}/` |
 | GET | `/api/platform/tenants/{id}/backups/download?name=` | Download a `.sql` backup |
+| POST | `/api/platform/tenants/{id}/restore` | Async restore (`backup_name`) |
+| POST | `/api/platform/tenants/{id}/backups/prune` | Keep newest N backups (`keep`) |
+| DELETE | `/api/platform/tenants/{id}` | Remove tenant row (`confirm_code`=code, optional `drop_database`) |
+| GET | `/api/platform/tenants/{id}/overview` | DB snapshot stats |
+| GET | `/api/platform/tenants/{id}/op-logs` | Ops timeline |
+| GET | `/api/platform/tenants/{id}/login-links` | How to open tenant admin |
+| GET | `/api/platform/tenants/settings` | Console settings (`backup_keep`, queue) |
+| GET | `/api/platform/tenants/queue-status` | `long-running` queue depth |
+| GET | `/api/platform/tenants/export` | Filtered CSV export |
+| POST | `/api/platform/tenants/ops-batch` | Batch migrate/seed/backup |
 
-Platform console list supports per-tenant **Ping / Migrate / Seed / Backup** (queue job `tenant_ops` on `long-running`). `migrate-all` / `restore` / `backup-all` stay CLI-only.
+Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, batch seed/backup, and CSV export. Heavy `migrate-all` remains CLI-friendly.
 
 公开支付回调（非 platform）：
 

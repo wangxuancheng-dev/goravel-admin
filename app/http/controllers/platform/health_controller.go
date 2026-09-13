@@ -49,11 +49,14 @@ func (c *HealthController) Index(ctx http.Context) http.Response {
 			"total":  total,
 			"active": active,
 		},
+		"queue": services.BuildPlatformQueueStatus(),
+		"backup_keep": facades.Config().GetInt("tenancy.backup_keep", 10),
 		"cli_tips": []string{
 			"go run . artisan platform:install -u <user> -p <pass>",
 			"go run . artisan tenant:create --code=<code> --name=<name> --migrate",
 			"go run . artisan tenant:migrate <code>",
 			"go run . artisan tenant:seed <code>",
+			"go run . artisan tenant:restore <code> storage/backups/tenants/<code>/<file>.sql",
 		},
 	})
 }

@@ -59,8 +59,28 @@ export function seedPlatformTenant(id) {
   return platformRequest.post(`/tenants/${id}/seed`)
 }
 
-export function backupPlatformTenant(id) {
-  return platformRequest.post(`/tenants/${id}/backup`)
+export function backupPlatformTenant(id, data = {}) {
+  return platformRequest.post(`/tenants/${id}/backup`, data)
+}
+
+export function restorePlatformTenant(id, data) {
+  return platformRequest.post(`/tenants/${id}/restore`, data)
+}
+
+export function deletePlatformTenant(id, data) {
+  return platformRequest.delete(`/tenants/${id}`, { data })
+}
+
+export function getPlatformTenantOverview(id) {
+  return platformRequest.get(`/tenants/${id}/overview`)
+}
+
+export function getPlatformTenantOpLogs(id, params = {}) {
+  return platformRequest.get(`/tenants/${id}/op-logs`, { params })
+}
+
+export function getPlatformTenantLoginLinks(id) {
+  return platformRequest.get(`/tenants/${id}/login-links`)
 }
 
 export function listPlatformTenantBackups(id) {
@@ -74,12 +94,35 @@ export function downloadPlatformTenantBackup(id, name) {
   })
 }
 
+export function prunePlatformTenantBackups(id, data = {}) {
+  return platformRequest.post(`/tenants/${id}/backups/prune`, data)
+}
+
 export function getPlatformTenantOpsSummary() {
   return platformRequest.get('/tenants/ops-summary')
 }
 
+export function getPlatformTenantSettings() {
+  return platformRequest.get('/tenants/settings')
+}
+
+export function getPlatformTenantQueueStatus() {
+  return platformRequest.get('/tenants/queue-status')
+}
+
 export function migratePlatformTenantBatch(data) {
   return platformRequest.post('/tenants/migrate-batch', data || { provision_status: 'failed' })
+}
+
+export function opsPlatformTenantBatch(data) {
+  return platformRequest.post('/tenants/ops-batch', data || {})
+}
+
+export function exportPlatformTenants(params = {}) {
+  return platformRequest.get('/tenants/export', {
+    params,
+    responseType: 'blob'
+  })
 }
 
 export async function completePlatformLogin(res) {

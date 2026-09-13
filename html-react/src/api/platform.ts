@@ -61,12 +61,39 @@ export function seedPlatformTenant(id: string | number) {
   return platformRequest.post(`/tenants/${id}/seed`)
 }
 
-export function backupPlatformTenant(id: string | number) {
-  return platformRequest.post(`/tenants/${id}/backup`)
+export function backupPlatformTenant(id: string | number, data?: { keep?: number }) {
+  return platformRequest.post(`/tenants/${id}/backup`, data || {})
+}
+
+export function restorePlatformTenant(id: string | number, data: { backup_name: string }) {
+  return platformRequest.post(`/tenants/${id}/restore`, data)
+}
+
+export function deletePlatformTenant(
+  id: string | number,
+  data: { confirm_code: string; drop_database?: boolean },
+) {
+  return platformRequest.delete(`/tenants/${id}`, { data })
+}
+
+export function getPlatformTenantOverview(id: string | number) {
+  return platformRequest.get(`/tenants/${id}/overview`)
+}
+
+export function getPlatformTenantOpLogs(id: string | number, params?: { limit?: number }) {
+  return platformRequest.get(`/tenants/${id}/op-logs`, { params })
+}
+
+export function getPlatformTenantLoginLinks(id: string | number) {
+  return platformRequest.get(`/tenants/${id}/login-links`)
 }
 
 export function listPlatformTenantBackups(id: string | number) {
   return platformRequest.get(`/tenants/${id}/backups`)
+}
+
+export function prunePlatformTenantBackups(id: string | number, data?: { keep?: number }) {
+  return platformRequest.post(`/tenants/${id}/backups/prune`, data || {})
 }
 
 export function downloadPlatformTenantBackup(id: string | number, name: string) {
@@ -87,6 +114,33 @@ export function migratePlatformTenantBatch(data?: {
   limit?: number
 }) {
   return platformRequest.post('/tenants/migrate-batch', data || { provision_status: 'failed' })
+}
+
+export function getPlatformTenantSettings() {
+  return platformRequest.get('/tenants/settings')
+}
+
+export function getPlatformTenantQueueStatus() {
+  return platformRequest.get('/tenants/queue-status')
+}
+
+export function opsPlatformTenantBatch(data?: {
+  op?: 'migrate' | 'seed' | 'backup'
+  ids?: Array<string | number>
+  provision_status?: string
+  status?: number
+  with_seed?: boolean
+  keep?: number
+  limit?: number
+}) {
+  return platformRequest.post('/tenants/ops-batch', data || {})
+}
+
+export function exportPlatformTenants(params?: Record<string, unknown>) {
+  return platformRequest.get('/tenants/export', {
+    params,
+    responseType: 'blob',
+  })
 }
 
 export function completePlatformLogin(res: { data?: { token?: string; admin?: unknown } }) {

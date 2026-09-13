@@ -55,6 +55,8 @@ func parseTenantOpsArgs(args ...any) (services.TenantOpsArgs, error) {
 		out.TenantID = cast.ToUint(v["tenant_id"])
 		out.Op = cast.ToString(v["op"])
 		out.WithSeed = cast.ToBool(v["with_seed"])
+		out.BackupName = cast.ToString(v["backup_name"])
+		out.Keep = cast.ToInt(v["keep"])
 		return out, nil
 	default:
 		return out, fmt.Errorf("invalid tenant ops args type: %T", args[0])

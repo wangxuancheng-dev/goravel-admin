@@ -10,6 +10,7 @@
     />
     <div v-if="opsSummary" class="ops-summary-row">
       <span>{{ $t('tenant.ops_summary', { failed: opsSummary.failed_provision || 0, busy: opsSummary.busy || 0, total: opsSummary.total || 0 }) }}</span>
+      <span v-if="queueInfo" class="queue-meta">{{ $t('tenant.queue_status', { conn: queueInfo.connection || '-', pending: queueInfo.pending ?? '-', msg: queueInfo.message || '' }) }}</span>
       <el-button
         size="small"
         :loading="batchLoading"
@@ -18,6 +19,9 @@
       >
         {{ $t('tenant.retry_failed_migrate') }}
       </el-button>
+      <el-button size="small" :loading="batchLoading" @click="batchSeedActive">{{ $t('tenant.batch_seed') }}</el-button>
+      <el-button size="small" :loading="batchLoading" @click="batchBackupActive">{{ $t('tenant.batch_backup') }}</el-button>
+      <el-button size="small" @click="exportCsv">{{ $t('tenant.export_csv') }}</el-button>
     </div>
     <ListPage
     ref="listPageRef"
@@ -72,9 +76,20 @@
       <el-button link type="primary" :disabled="isBusy(row)" @click="openEdit(row)">{{ $t('common.edit') }}</el-button>
       <el-button link type="primary" @click="onPing(row)">{{ $t('tenant.op_ping') }}</el-button>
       <el-button link type="primary" :disabled="isBusy(row)" @click="openMigrate(row)">{{ $t('tenant.op_migrate') }}</el-button>
-      <el-button link type="primary" :disabled="isBusy(row)" @click="onSeed(row)">{{ $t('tenant.op_seed') }}</el-button>
-      <el-button link type="primary" :disabled="isBusy(row)" @click="onBackup(row)">{{ $t('tenant.op_backup') }}</el-button>
-      <el-button link type="primary" @click="openBackups(row)">{{ $t('tenant.op_backups') }}</el-button>
+      <el-dropdown trigger="click" @command="(cmd) => onMoreCommand(cmd, row)">
+        <el-button link type="primary">{{ $t('tenant.op_more') }}</el-button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="seed" :disabled="isBusy(row)">{{ $t('tenant.op_seed') }}</el-dropdown-item>
+            <el-dropdown-item command="backup" :disabled="isBusy(row)">{{ $t('tenant.op_backup') }}</el-dropdown-item>
+            <el-dropdown-item command="backups">{{ $t('tenant.op_backups') }}</el-dropdown-item>
+            <el-dropdown-item command="overview">{{ $t('tenant.op_overview') }}</el-dropdown-item>
+            <el-dropdown-item command="timeline">{{ $t('tenant.op_timeline') }}</el-dropdown-item>
+            <el-dropdown-item command="login">{{ $t('tenant.op_login_link') }}</el-dropdown-item>
+            <el-dropdown-item command="delete" divided>{{ $t('tenant.op_delete') }}</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </template>
 
     <template #form>
@@ -209,15 +224,20 @@
       </el-descriptions>
       <div class="drawer-actions">
         <el-button type="primary" @click="openBackups(detailRow)">{{ $t('tenant.op_backups') }}</el-button>
+        <el-button @click="openOverview(detailRow)">{{ $t('tenant.op_overview') }}</el-button>
+        <el-button @click="openTimeline(detailRow)">{{ $t('tenant.op_timeline') }}</el-button>
+        <el-button @click="copyLoginLink(detailRow)">{{ $t('tenant.op_login_link') }}</el-button>
       </div>
     </template>
   </el-drawer>
 
-  <el-dialog v-model="backupsVisible" :title="$t('tenant.backup_list_title')" width="720px" destroy-on-close>
+  <el-dialog v-model="backupsVisible" :title="$t('tenant.backup_list_title')" width="780px" destroy-on-close>
     <el-alert type="info" :closable="false" show-icon class="migrate-tip" :title="$t('tenant.backup_hint')" />
     <div v-if="backupsMeta.dir" class="backup-dir-row">
       <span>{{ $t('tenant.backup_dir') }}: {{ backupsMeta.dir }}</span>
       <el-button link type="primary" @click="copyText(backupsMeta.dir)">{{ $t('tenant.backup_copy_path') }}</el-button>
+      <span class="queue-meta">{{ $t('tenant.backup_keep_label', { n: backupsMeta.keep || settingsKeep || '-' }) }}</span>
+      <el-button link type="warning" :loading="pruneLoading" @click="pruneBackups">{{ $t('tenant.backup_prune') }}</el-button>
     </div>
     <el-table v-loading="backupsLoading" :data="backupsList" size="small" empty-text="">
       <el-table-column prop="name" :label="$t('tenant.backup_name')" min-width="180" />
@@ -225,14 +245,54 @@
         <template #default="{ row }">{{ formatSize(row.size) }}</template>
       </el-table-column>
       <el-table-column prop="mod_time" :label="$t('tenant.backup_time')" width="170" />
-      <el-table-column :label="$t('common.operation')" width="160" fixed="right">
+      <el-table-column :label="$t('common.operation')" width="220" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="copyText(row.path)">{{ $t('tenant.backup_copy_path') }}</el-button>
           <el-button link type="primary" :loading="downloadingName === row.name" @click="downloadBackup(row)">{{ $t('tenant.backup_download') }}</el-button>
+          <el-button link type="danger" :disabled="isBusy(backupsRow)" @click="restoreBackup(row)">{{ $t('tenant.op_restore') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
     <el-empty v-if="!backupsLoading && backupsList.length === 0" :description="$t('tenant.backup_empty')" />
+  </el-dialog>
+
+  <el-drawer v-model="overviewVisible" :title="$t('tenant.overview_title')" size="420px" destroy-on-close>
+    <el-descriptions v-if="overviewData" :column="1" border size="small">
+      <el-descriptions-item :label="$t('tenant.database')">{{ overviewData.database }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.driver')">{{ overviewData.driver }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.overview_ping')">{{ overviewData.ping_ok ? 'OK' : 'FAIL' }} / {{ overviewData.ping_ms }}ms</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.overview_tables')">{{ overviewData.table_count }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.overview_size')">{{ formatSize(overviewData.database_bytes) }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.overview_admins')">{{ overviewData.admins_count }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.overview_migrations')">{{ overviewData.migrations_count }}</el-descriptions-item>
+      <el-descriptions-item v-if="overviewData.error" :label="$t('tenant.op_message')">{{ overviewData.error }}</el-descriptions-item>
+    </el-descriptions>
+  </el-drawer>
+
+  <el-drawer v-model="timelineVisible" :title="$t('tenant.timeline_title')" size="520px" destroy-on-close>
+    <el-timeline v-if="opLogs.length">
+      <el-timeline-item v-for="item in opLogs" :key="item.id" :timestamp="item.finished_at || item.started_at || item.created_at" placement="top">
+        <div>{{ item.op }} / {{ item.status }}</div>
+        <div class="op-meta">{{ item.message || '—' }}</div>
+      </el-timeline-item>
+    </el-timeline>
+    <el-empty v-else :description="$t('tenant.timeline_empty')" />
+  </el-drawer>
+
+  <el-dialog v-model="deleteVisible" :title="$t('tenant.op_delete')" width="480px" destroy-on-close>
+    <p>{{ $t('tenant.delete_confirm_hint', { code: deleteRow?.code || '' }) }}</p>
+    <el-form label-width="120px">
+      <el-form-item :label="$t('tenant.confirm_code')">
+        <el-input v-model="deleteConfirm" :placeholder="deleteRow?.code || ''" />
+      </el-form-item>
+      <el-form-item :label="$t('tenant.drop_database')">
+        <el-switch v-model="deleteDropDb" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="deleteVisible = false">{{ $t('common.cancel') }}</el-button>
+      <el-button type="danger" :loading="deleteLoading" @click="submitDelete">{{ $t('common.confirm') }}</el-button>
+    </template>
   </el-dialog>
   </div>
 </template>
@@ -246,14 +306,23 @@ import { useStandardListPage } from '@/composables/useStandardListPage'
 import {
   backupPlatformTenant,
   createPlatformTenant,
+  deletePlatformTenant,
   downloadPlatformTenantBackup,
+  exportPlatformTenants,
   getPlatformTenantList,
+  getPlatformTenantLoginLinks,
+  getPlatformTenantOpLogs,
   getPlatformTenantOpsSummary,
+  getPlatformTenantOverview,
+  getPlatformTenantSettings,
   listPlatformTenantBackups,
   migratePlatformTenant,
   migratePlatformTenantBatch,
+  opsPlatformTenantBatch,
   pingPlatformTenant,
   platformHealth,
+  prunePlatformTenantBackups,
+  restorePlatformTenant,
   seedPlatformTenant,
   updatePlatformTenant,
   updatePlatformTenantStatus
@@ -275,9 +344,21 @@ const detailRow = ref(null)
 const backupsVisible = ref(false)
 const backupsRow = ref(null)
 const backupsList = ref([])
-const backupsMeta = reactive({ dir: '', last: '' })
+const backupsMeta = reactive({ dir: '', last: '', keep: 0 })
 const backupsLoading = ref(false)
 const downloadingName = ref('')
+const pruneLoading = ref(false)
+const queueInfo = ref(null)
+const settingsKeep = ref(0)
+const overviewVisible = ref(false)
+const overviewData = ref(null)
+const timelineVisible = ref(false)
+const opLogs = ref([])
+const deleteVisible = ref(false)
+const deleteRow = ref(null)
+const deleteConfirm = ref('')
+const deleteDropDb = ref(false)
+const deleteLoading = ref(false)
 let pollTimer = null
 
 const healthDesc = computed(() => {
@@ -289,7 +370,8 @@ const healthDesc = computed(() => {
     active: h.tenants?.active ?? 0,
     total: h.tenants?.total ?? 0
   })
-  return `${t('platform.health_driver')}: ${h.driver} · ${db} · ${tenants} · ${cli}`
+  const q = h.queue?.connection ? ` · queue=${h.queue.connection}` : ''
+  return `${t('platform.health_driver')}: ${h.driver} · ${db} · ${tenants}${q} · ${cli}`
 })
 
 const refreshOpsSummary = async () => {
@@ -301,14 +383,27 @@ const refreshOpsSummary = async () => {
   }
 }
 
+const refreshSettings = async () => {
+  try {
+    const res = await getPlatformTenantSettings()
+    settingsKeep.value = res?.data?.backup_keep || 0
+    queueInfo.value = res?.data?.queue || null
+  } catch {
+    // ignore
+  }
+}
+
 onMounted(async () => {
   try {
     const res = await platformHealth()
     health.value = res?.data || null
+    if (res?.data?.queue) queueInfo.value = res.data.queue
+    if (res?.data?.backup_keep) settingsKeep.value = res.data.backup_keep
   } catch {
     // ignore — list still usable
   }
   await refreshOpsSummary()
+  await refreshSettings()
 })
 
 const initialSearchForm = { code: '', name: '', status: '', provision_status: '' }
@@ -441,7 +536,7 @@ const tableColumns = computed(() => [
   { field: 'last_backup_path', title: t('tenant.backup_path'), minWidth: 180, slot: 'last_backup_path', key: 'last_backup_path' },
   { field: 'status', title: t('common.status'), width: 90, slot: 'status', key: 'status' },
   { field: 'created_at', title: t('table.created_at'), key: 'created_at' },
-  { field: 'actions', title: t('common.operation'), width: 420, slot: 'actions', key: 'actions' }
+  { field: 'actions', title: t('common.operation'), width: 320, slot: 'actions', key: 'actions' }
 ])
 
 const form = reactive({
@@ -571,12 +666,204 @@ const onToggleStatus = async (row, enabled) => {
 
 const onPing = async (row) => {
   try {
-    await pingPlatformTenant(row.id)
-    ElMessage.success(t('tenant.ping_ok'))
+    const res = await pingPlatformTenant(row.id)
+    const ping = res?.data?.ping
+    if (ping?.ok) {
+      ElMessage.success(t('tenant.ping_ok_detail', { ms: ping.latency_ms ?? '-', host: ping.host || '-', db: ping.database || '-' }))
+    } else {
+      ElMessage.error(ping?.error || t('tenant.ping_fail'))
+    }
   } catch (error) {
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
     }
+  }
+}
+
+const onMoreCommand = (cmd, row) => {
+  switch (cmd) {
+    case 'seed':
+      onSeed(row)
+      break
+    case 'backup':
+      onBackup(row)
+      break
+    case 'backups':
+      openBackups(row)
+      break
+    case 'overview':
+      openOverview(row)
+      break
+    case 'timeline':
+      openTimeline(row)
+      break
+    case 'login':
+      copyLoginLink(row)
+      break
+    case 'delete':
+      openDelete(row)
+      break
+    default:
+      break
+  }
+}
+
+const batchSeedActive = async () => {
+  try {
+    await ElMessageBox.confirm(t('tenant.batch_seed_confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  batchLoading.value = true
+  try {
+    const res = await opsPlatformTenantBatch({ op: 'seed', status: 1 })
+    ElMessage.success(t('tenant.batch_queued', { n: res?.data?.queued_count ?? 0 }))
+    await loadData()
+    await refreshOpsSummary()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+const batchBackupActive = async () => {
+  try {
+    await ElMessageBox.confirm(t('tenant.batch_backup_confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  batchLoading.value = true
+  try {
+    const res = await opsPlatformTenantBatch({ op: 'backup', status: 1 })
+    ElMessage.success(t('tenant.batch_queued', { n: res?.data?.queued_count ?? 0 }))
+    await loadData()
+    await refreshOpsSummary()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+const exportCsv = async () => {
+  try {
+    const blob = await exportPlatformTenants({ ...searchForm })
+    const url = window.URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tenants_${Date.now()}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  }
+}
+
+const openOverview = async (row) => {
+  overviewVisible.value = true
+  overviewData.value = null
+  try {
+    const res = await getPlatformTenantOverview(row.id)
+    overviewData.value = res?.data?.overview || null
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  }
+}
+
+const openTimeline = async (row) => {
+  timelineVisible.value = true
+  opLogs.value = []
+  try {
+    const res = await getPlatformTenantOpLogs(row.id, { limit: 40 })
+    opLogs.value = res?.data?.list || []
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  }
+}
+
+const copyLoginLink = async (row) => {
+  try {
+    const res = await getPlatformTenantLoginLinks(row.id)
+    const links = res?.data?.links
+    const text = links?.query_url || `/?tenant_code=${row.code}`
+    await navigator.clipboard.writeText(text)
+    ElMessage.success(t('tenant.login_link_copied', { hint: links?.hint || '' }))
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  }
+}
+
+const openDelete = (row) => {
+  deleteRow.value = row
+  deleteConfirm.value = ''
+  deleteDropDb.value = false
+  deleteVisible.value = true
+}
+
+const submitDelete = async () => {
+  if (!deleteRow.value) return
+  deleteLoading.value = true
+  try {
+    await deletePlatformTenant(deleteRow.value.id, {
+      confirm_code: deleteConfirm.value,
+      drop_database: deleteDropDb.value
+    })
+    ElMessage.success(t('common.delete_success'))
+    deleteVisible.value = false
+    loadData()
+    refreshOpsSummary()
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    deleteLoading.value = false
+  }
+}
+
+const restoreBackup = async (file) => {
+  if (!backupsRow.value || !file?.name) return
+  try {
+    await ElMessageBox.confirm(t('tenant.op_restore_confirm', { name: file.name }), { type: 'warning' })
+    await restorePlatformTenant(backupsRow.value.id, { backup_name: file.name })
+    ElMessage.success(t('tenant.op_queued'))
+    loadData()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  }
+}
+
+const pruneBackups = async () => {
+  if (!backupsRow.value) return
+  const keep = backupsMeta.keep || settingsKeep.value || 10
+  try {
+    await ElMessageBox.confirm(t('tenant.backup_prune_confirm', { n: keep }), { type: 'warning' })
+  } catch {
+    return
+  }
+  pruneLoading.value = true
+  try {
+    const res = await prunePlatformTenantBackups(backupsRow.value.id, { keep })
+    ElMessage.success(t('tenant.backup_prune_done', { n: res?.data?.removed ?? 0 }))
+    await openBackups(backupsRow.value)
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    pruneLoading.value = false
   }
 }
 
@@ -669,6 +956,7 @@ const openBackups = async (row) => {
     backupsList.value = res?.data?.list || []
     backupsMeta.dir = res?.data?.backup_dir || backupsMeta.dir
     backupsMeta.last = res?.data?.last_backup_path || backupsMeta.last
+    backupsMeta.keep = res?.data?.backup_keep || settingsKeep.value || 0
   } catch (error) {
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
@@ -745,5 +1033,21 @@ const downloadBackup = async (file) => {
 }
 .drawer-actions {
   margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ops-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #475569;
+}
+.queue-meta {
+  font-size: 12px;
+  color: #64748b;
 }
 </style>

@@ -15,6 +15,7 @@ import {
   Switch,
   Table,
   Tag,
+  Timeline,
   Tooltip,
   Typography,
 } from 'antd'
@@ -24,14 +25,23 @@ import { SettingOutlined } from '@ant-design/icons'
 import {
   backupPlatformTenant,
   createPlatformTenant,
+  deletePlatformTenant,
   downloadPlatformTenantBackup,
+  exportPlatformTenants,
   getPlatformTenantList,
+  getPlatformTenantLoginLinks,
+  getPlatformTenantOpLogs,
   getPlatformTenantOpsSummary,
+  getPlatformTenantOverview,
+  getPlatformTenantSettings,
   listPlatformTenantBackups,
   migratePlatformTenant,
   migratePlatformTenantBatch,
+  opsPlatformTenantBatch,
   pingPlatformTenant,
   platformHealth,
+  prunePlatformTenantBackups,
+  restorePlatformTenant,
   seedPlatformTenant,
   updatePlatformTenant,
   updatePlatformTenantStatus,
@@ -95,6 +105,56 @@ function backupDirOf(row: TenantRow) {
   return ''
 }
 
+interface TenantPingDetail {
+  ok?: boolean
+  latency_ms?: number
+  host?: string
+  port?: number
+  database?: string
+  error?: string
+  last_op?: string
+  last_op_status?: string
+  last_op_message?: string
+  last_migrate_error?: string
+}
+
+interface TenantOverviewData {
+  database?: string
+  table_count?: number
+  database_bytes?: number
+  admins_count?: number
+  migrations_count?: number
+  ping_ok?: boolean
+  ping_ms?: number
+  error?: string
+}
+
+interface TenantOpLogRow {
+  id?: number
+  op?: string
+  status?: string
+  message?: string
+  started_at?: string
+  finished_at?: string
+  created_at?: string
+}
+
+interface TenantLoginLinksData {
+  query_url?: string
+  hint?: string
+  header?: string
+  resolver?: string
+  tenant_code?: string
+}
+
+interface PlatformQueueStatus {
+  connection?: string
+  queue?: string
+  pending?: number
+  available?: boolean
+  message?: string
+}
+
 export default function PlatformTenantList() {
   const { t } = useTranslation()
   const { message, modal } = App.useApp()
@@ -120,6 +180,33 @@ export default function PlatformTenantList() {
   >([])
   const [backupsDir, setBackupsDir] = useState('')
   const [downloadingName, setDownloadingName] = useState('')
+  const [backupKeep, setBackupKeep] = useState(10)
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Array<string | number>>([])
+  const [exportLoading, setExportLoading] = useState(false)
+  const [pingDetail, setPingDetail] = useState<TenantPingDetail | null>(null)
+  const [pingRow, setPingRow] = useState<TenantRow | null>(null)
+  const [detailExtraLoading, setDetailExtraLoading] = useState(false)
+  const [detailOverview, setDetailOverview] = useState<TenantOverviewData | null>(null)
+  const [detailOpLogs, setDetailOpLogs] = useState<TenantOpLogRow[]>([])
+  const [detailLoginLinks, setDetailLoginLinks] = useState<TenantLoginLinksData | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<TenantRow | null>(null)
+  const [deleteConfirmCode, setDeleteConfirmCode] = useState('')
+  const [deleteDropDb, setDeleteDropDb] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [pruneKeep, setPruneKeep] = useState(10)
+  const [pruneLoading, setPruneLoading] = useState(false)
+  const [restoringName, setRestoringName] = useState('')
+
+  const formatQueueHint = (q: PlatformQueueStatus | null, keep: number) => {
+    if (!q) return ''
+    const pending = Number(q.pending ?? 0)
+    const parts = [t('platform.health_backup_keep', { n: keep })]
+    if (q.available) {
+      parts.push(t('tenant.queue_pending', { n: pending, queue: q.queue || 'long-running' }))
+    }
+    if (q.message) parts.push(String(q.message))
+    return parts.join(' · ')
+  }
 
   const refreshOpsSummary = async () => {
     try {
@@ -137,22 +224,39 @@ export default function PlatformTenantList() {
     }
   }
 
+  const refreshHealthBanner = async () => {
+    try {
+      const res = await platformHealth()
+      const h = (res as { data?: Record<string, unknown> })?.data
+      if (!h) return
+      const tenants = (h.tenants || {}) as { active?: number; total?: number }
+      const db = h.database_ok ? t('platform.health_db_ok') : t('platform.health_db_bad')
+      const keep = Number(h.backup_keep ?? backupKeep)
+      if (h.backup_keep != null) setBackupKeep(keep)
+      const q = (h.queue || null) as PlatformQueueStatus | null
+      setHealthDesc(
+        `${t('platform.health_driver')}: ${String(h.driver)} · ${db} · ${t('platform.health_tenants', {
+          active: tenants.active ?? 0,
+          total: tenants.total ?? 0,
+        })} · ${formatQueueHint(q, keep)} · ${t('platform.cli_ops_hint')}`,
+      )
+    } catch {
+      /* list still usable */
+    }
+  }
+
   useEffect(() => {
-    void platformHealth()
+    void refreshHealthBanner()
+    void getPlatformTenantSettings()
       .then((res) => {
-        const h = (res as { data?: Record<string, unknown> })?.data
-        if (!h) return
-        const tenants = (h.tenants || {}) as { active?: number; total?: number }
-        const db = h.database_ok ? t('platform.health_db_ok') : t('platform.health_db_bad')
-        setHealthDesc(
-          `${t('platform.health_driver')}: ${String(h.driver)} · ${db} · ${t('platform.health_tenants', {
-            active: tenants.active ?? 0,
-            total: tenants.total ?? 0,
-          })} · ${t('platform.cli_ops_hint')}`,
-        )
+        const data = (res as { data?: { backup_keep?: number; queue?: PlatformQueueStatus } })?.data
+        if (data?.backup_keep != null) {
+          setBackupKeep(Number(data.backup_keep))
+          setPruneKeep(Number(data.backup_keep))
+        }
       })
       .catch(() => {
-        /* list still usable */
+        /* optional */
       })
     void refreshOpsSummary()
   }, [t])
@@ -221,9 +325,15 @@ export default function PlatformTenantList() {
     setBackupsLoading(true)
     try {
       const res = await listPlatformTenantBackups(row.id)
-      const data = (res as { data?: { list?: typeof backupsList; backup_dir?: string } })?.data
+      const data = (res as {
+        data?: { list?: typeof backupsList; backup_dir?: string; backup_keep?: number }
+      })?.data
       setBackupsList(data?.list || [])
       setBackupsDir(data?.backup_dir || row.backup_dir || backupDirOf(row))
+      if (data?.backup_keep != null) {
+        setBackupKeep(Number(data.backup_keep))
+        setPruneKeep(Number(data.backup_keep))
+      }
     } catch (error) {
       showError(error, t('common.operation_failed'))
     } finally {
@@ -235,7 +345,7 @@ export default function PlatformTenantList() {
     if (!backupsRow) return
     setDownloadingName(file.name)
     try {
-      const blob = (await downloadPlatformTenantBackup(backupsRow.id, file.name)) as Blob
+      const blob = (await downloadPlatformTenantBackup(backupsRow.id, file.name)) as unknown as Blob
       const url = window.URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob as unknown as BlobPart]))
       const a = document.createElement('a')
       a.href = url
@@ -249,12 +359,182 @@ export default function PlatformTenantList() {
     }
   }
 
+  const loadDetailExtra = async (row: TenantRow) => {
+    setDetailExtraLoading(true)
+    setDetailOverview(null)
+    setDetailOpLogs([])
+    setDetailLoginLinks(null)
+    try {
+      const [overviewRes, logsRes, linksRes] = await Promise.all([
+        getPlatformTenantOverview(row.id),
+        getPlatformTenantOpLogs(row.id, { limit: 40 }),
+        getPlatformTenantLoginLinks(row.id),
+      ])
+      setDetailOverview(
+        (overviewRes as { data?: { overview?: TenantOverviewData } })?.data?.overview || null,
+      )
+      setDetailOpLogs((logsRes as { data?: { list?: TenantOpLogRow[] } })?.data?.list || [])
+      setDetailLoginLinks(
+        (linksRes as { data?: { links?: TenantLoginLinksData } })?.data?.links || null,
+      )
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setDetailExtraLoading(false)
+    }
+  }
+
+  const openDetail = (row: TenantRow) => {
+    setDetailRow(row)
+    void loadDetailExtra(row)
+  }
+
+  const closeDetail = () => {
+    setDetailRow(null)
+    setDetailOverview(null)
+    setDetailOpLogs([])
+    setDetailLoginLinks(null)
+  }
+
+  const onPingRow = async (row: TenantRow) => {
+    try {
+      const res = await pingPlatformTenant(row.id)
+      const data = (res as { data?: { ping?: TenantPingDetail } })?.data
+      const ping = data?.ping || null
+      setPingRow(row)
+      setPingDetail(ping)
+      if (ping?.ok) {
+        message.success(t('tenant.ping_ok'))
+      } else {
+        message.warning(t('tenant.ping_failed'))
+      }
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    }
+  }
+
+  const runBatchOps = (
+    op: 'migrate' | 'seed' | 'backup',
+    payload: {
+      ids?: Array<string | number>
+      provision_status?: string
+      status?: number
+      with_seed?: boolean
+      limit?: number
+    },
+    confirmTitle: string,
+    confirmContent: string,
+  ) => {
+    modal.confirm({
+      title: confirmTitle,
+      content: confirmContent,
+      onOk: async () => {
+        setBatchLoading(true)
+        try {
+          const res = await opsPlatformTenantBatch({ op, ...payload })
+          const n = Number((res as { data?: { queued_count?: number } })?.data?.queued_count ?? 0)
+          message.success(t('tenant.batch_queued', { n }))
+          await refresh()
+          await refreshOpsSummary()
+          await refreshHealthBanner()
+        } catch (error) {
+          showError(error, t('common.operation_failed'))
+        } finally {
+          setBatchLoading(false)
+        }
+      },
+    })
+  }
+
+  const exportCsv = async () => {
+    setExportLoading(true)
+    try {
+      const blob = (await exportPlatformTenants(searchForm as Record<string, unknown>)) as unknown as Blob
+      const url = window.URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob as unknown as BlobPart]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `tenants_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '')}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+      message.success(t('tenant.export_success'))
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  const restoreBackup = (file: { name: string }) => {
+    if (!backupsRow) return
+    modal.confirm({
+      title: t('tenant.op_restore'),
+      content: t('tenant.op_restore_confirm', { name: file.name }),
+      onOk: async () => {
+        setRestoringName(file.name)
+        try {
+          await restorePlatformTenant(backupsRow.id, { backup_name: file.name })
+          message.success(t('tenant.op_queued'))
+          setBackupsRow(null)
+          await refresh()
+        } catch (error) {
+          showError(error, t('common.operation_failed'))
+        } finally {
+          setRestoringName('')
+        }
+      },
+    })
+  }
+
+  const pruneBackups = async () => {
+    if (!backupsRow) return
+    modal.confirm({
+      title: t('tenant.prune_backups'),
+      content: t('tenant.prune_confirm', { keep: pruneKeep }),
+      onOk: async () => {
+        setPruneLoading(true)
+        try {
+          const res = await prunePlatformTenantBackups(backupsRow.id, { keep: pruneKeep })
+          const removed = Number((res as { data?: { removed?: number } })?.data?.removed ?? 0)
+          message.success(t('tenant.prune_success', { n: removed }))
+          await openBackups(backupsRow)
+        } catch (error) {
+          showError(error, t('common.operation_failed'))
+        } finally {
+          setPruneLoading(false)
+        }
+      },
+    })
+  }
+
+  const submitDelete = async () => {
+    if (!deleteTarget) return
+    setDeleteLoading(true)
+    try {
+      await deletePlatformTenant(deleteTarget.id, {
+        confirm_code: deleteConfirmCode.trim(),
+        drop_database: deleteDropDb,
+      })
+      message.success(t('tenant.delete_success'))
+      setDeleteTarget(null)
+      setDeleteConfirmCode('')
+      setDeleteDropDb(false)
+      closeDetail()
+      await refresh()
+      await refreshOpsSummary()
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
   const hasBusy = tableData.some(isTenantBusy)
   useEffect(() => {
     if (!hasBusy) return
     const timer = window.setInterval(() => {
       void refresh()
       void refreshOpsSummary()
+      void refreshHealthBanner()
     }, 3000)
     return () => window.clearInterval(timer)
   }, [hasBusy, refresh])
@@ -392,13 +672,13 @@ export default function PlatformTenantList() {
       {
         title: t('common.operation'),
         key: 'actions',
-        width: 420,
+        width: 460,
         fixed: 'right',
         render: (_, row) => {
           const busy = isTenantBusy(row)
           return (
             <Space size={0} wrap>
-              <Button type="link" size="small" onClick={() => setDetailRow(row)}>
+              <Button type="link" size="small" onClick={() => openDetail(row)}>
                 {t('tenant.op_detail')}
               </Button>
               <Button
@@ -420,18 +700,7 @@ export default function PlatformTenantList() {
               >
                 {t('common.edit')}
               </Button>
-              <Button
-                type="link"
-                size="small"
-                onClick={async () => {
-                  try {
-                    await pingPlatformTenant(row.id)
-                    message.success(t('tenant.ping_ok'))
-                  } catch (error) {
-                    showError(error, t('common.operation_failed'))
-                  }
-                }}
-              >
+              <Button type="link" size="small" onClick={() => void onPingRow(row)}>
                 {t('tenant.op_ping')}
               </Button>
               <Button
@@ -479,7 +748,7 @@ export default function PlatformTenantList() {
         },
       },
     ],
-    [t, message, modal, refresh, showError, form, copyText, openBackups, runQueued],
+    [t, message, modal, refresh, showError, form, copyText, openBackups, runQueued, openDetail, onPingRow],
   )
 
   const {
@@ -541,6 +810,63 @@ export default function PlatformTenantList() {
       title={t('menu.tenant')}
       extra={
         <Space wrap>
+          <Button loading={exportLoading} onClick={() => void exportCsv()}>
+            {t('tenant.export_csv')}
+          </Button>
+          <Button
+            loading={batchLoading}
+            disabled={selectedRowKeys.length < 1}
+            onClick={() =>
+              runBatchOps(
+                'seed',
+                { ids: selectedRowKeys.map((id) => Number(id)) },
+                t('tenant.batch_seed'),
+                t('tenant.batch_seed_confirm', { n: selectedRowKeys.length }),
+              )
+            }
+          >
+            {t('tenant.batch_seed')}
+          </Button>
+          <Button
+            loading={batchLoading}
+            disabled={selectedRowKeys.length < 1}
+            onClick={() =>
+              runBatchOps(
+                'backup',
+                { ids: selectedRowKeys.map((id) => Number(id)) },
+                t('tenant.batch_backup'),
+                t('tenant.batch_backup_confirm', { n: selectedRowKeys.length }),
+              )
+            }
+          >
+            {t('tenant.batch_backup')}
+          </Button>
+          <Button
+            loading={batchLoading}
+            onClick={() =>
+              runBatchOps(
+                'seed',
+                { status: 1, limit: 50 },
+                t('tenant.batch_seed'),
+                t('tenant.batch_seed_active_confirm'),
+              )
+            }
+          >
+            {t('tenant.batch_seed_all')}
+          </Button>
+          <Button
+            loading={batchLoading}
+            onClick={() =>
+              runBatchOps(
+                'backup',
+                { status: 1, limit: 50 },
+                t('tenant.batch_backup'),
+                t('tenant.batch_backup_active_confirm'),
+              )
+            }
+          >
+            {t('tenant.batch_backup_all')}
+          </Button>
           <Button
             loading={batchLoading}
             disabled={(opsSummary?.failed_provision ?? 0) < 1}
@@ -626,6 +952,10 @@ export default function PlatformTenantList() {
         dataSource={tableData}
         columns={filteredColumns}
         scroll={{ x: 1500 }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys.map((k) => (typeof k === 'bigint' ? String(k) : k))),
+        }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.pageSize,
@@ -640,8 +970,8 @@ export default function PlatformTenantList() {
       <Drawer
         title={t('tenant.detail_title')}
         open={!!detailRow}
-        onClose={() => setDetailRow(null)}
-        width={440}
+        onClose={closeDetail}
+        width={520}
         destroyOnHidden
       >
         {detailRow ? (
@@ -696,9 +1026,95 @@ export default function PlatformTenantList() {
                 )}
               </Descriptions.Item>
             </Descriptions>
-            <Button type="primary" style={{ marginTop: 16 }} onClick={() => void openBackups(detailRow)}>
-              {t('tenant.op_backups')}
-            </Button>
+            <Divider>{t('tenant.overview_title')}</Divider>
+            {detailExtraLoading ? (
+              <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+            ) : detailOverview ? (
+              <Descriptions column={1} size="small" bordered>
+                <Descriptions.Item label={t('tenant.overview_tables')}>
+                  {detailOverview.table_count ?? '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.overview_db_size')}>
+                  {formatSize(detailOverview.database_bytes)}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.overview_admins')}>
+                  {detailOverview.admins_count ?? '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.overview_migrations')}>
+                  {detailOverview.migrations_count ?? '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.ping_detail')}>
+                  {detailOverview.ping_ok
+                    ? t('tenant.ping_latency', { ms: detailOverview.ping_ms ?? 0 })
+                    : detailOverview.error || '—'}
+                </Descriptions.Item>
+              </Descriptions>
+            ) : (
+              <Typography.Text type="secondary">—</Typography.Text>
+            )}
+            <Divider>{t('tenant.login_links')}</Divider>
+            {detailLoginLinks ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text type="secondary">{detailLoginLinks.hint}</Typography.Text>
+                <Space wrap>
+                  <Typography.Text code>{detailLoginLinks.query_url}</Typography.Text>
+                  <Button type="link" size="small" onClick={() => void copyText(detailLoginLinks.query_url)}>
+                    {t('tenant.login_copy_url')}
+                  </Button>
+                </Space>
+                {detailLoginLinks.header ? (
+                  <Typography.Text type="secondary">
+                    {t('tenant.login_header')}: {detailLoginLinks.header}
+                  </Typography.Text>
+                ) : null}
+              </Space>
+            ) : (
+              <Typography.Text type="secondary">—</Typography.Text>
+            )}
+            <Divider>{t('tenant.op_timeline')}</Divider>
+            {detailOpLogs.length > 0 ? (
+              <Timeline
+                items={detailOpLogs.map((log) => ({
+                  color:
+                    log.status === 'success' ? 'green' : log.status === 'failed' ? 'red' : 'blue',
+                  children: (
+                    <div>
+                      <Typography.Text strong>
+                        {log.op} / {log.status}
+                      </Typography.Text>
+                      <div>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {log.finished_at || log.started_at || log.created_at || '—'}
+                        </Typography.Text>
+                      </div>
+                      {log.message ? (
+                        <Typography.Paragraph style={{ marginBottom: 0, fontSize: 12 }}>
+                          {log.message}
+                        </Typography.Paragraph>
+                      ) : null}
+                    </div>
+                  ),
+                }))}
+              />
+            ) : (
+              <Typography.Text type="secondary">—</Typography.Text>
+            )}
+            <Space style={{ marginTop: 16 }} wrap>
+              <Button type="primary" onClick={() => void openBackups(detailRow)}>
+                {t('tenant.op_backups')}
+              </Button>
+              <Button
+                danger
+                disabled={isTenantBusy(detailRow)}
+                onClick={() => {
+                  setDeleteTarget(detailRow)
+                  setDeleteConfirmCode('')
+                  setDeleteDropDb(false)
+                }}
+              >
+                {t('tenant.op_delete')}
+              </Button>
+            </Space>
           </>
         ) : null}
       </Drawer>
@@ -722,6 +1138,15 @@ export default function PlatformTenantList() {
             </Button>
           </Space>
         ) : null}
+        <Space style={{ marginBottom: 12 }} wrap>
+          <Typography.Text type="secondary">
+            {t('tenant.backup_keep')}: {backupKeep}
+          </Typography.Text>
+          <InputNumber min={0} max={500} value={pruneKeep} onChange={(v) => setPruneKeep(Number(v) || 0)} />
+          <Button loading={pruneLoading} onClick={() => void pruneBackups()}>
+            {t('tenant.prune_backups')}
+          </Button>
+        </Space>
         <Table
           rowKey="name"
           size="small"
@@ -742,9 +1167,9 @@ export default function PlatformTenantList() {
             {
               title: t('common.operation'),
               key: 'actions',
-              width: 180,
+              width: 260,
               render: (_, file) => (
-                <Space size={0}>
+                <Space size={0} wrap>
                   <Button type="link" size="small" onClick={() => void copyText(file.path)}>
                     {t('tenant.backup_copy_path')}
                   </Button>
@@ -756,11 +1181,84 @@ export default function PlatformTenantList() {
                   >
                     {t('tenant.backup_download')}
                   </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    disabled={!!backupsRow && isTenantBusy(backupsRow)}
+                    loading={restoringName === file.name}
+                    onClick={() => restoreBackup(file)}
+                  >
+                    {t('tenant.op_restore')}
+                  </Button>
                 </Space>
               ),
             },
           ]}
         />
+      </Modal>
+
+      <Modal
+        title={t('tenant.ping_detail')}
+        open={!!pingDetail}
+        onCancel={() => {
+          setPingDetail(null)
+          setPingRow(null)
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setPingDetail(null)
+              setPingRow(null)
+            }}
+          >
+            {t('common.close')}
+          </Button>,
+        ]}
+        destroyOnHidden
+      >
+        {pingDetail ? (
+          <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label={t('tenant.code')}>{pingRow?.code}</Descriptions.Item>
+            <Descriptions.Item label={t('common.status')}>
+              {pingDetail.ok ? t('tenant.ping_ok') : t('tenant.ping_failed')}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('tenant.ping_latency')}>
+              {pingDetail.latency_ms ?? '—'} ms
+            </Descriptions.Item>
+            <Descriptions.Item label={t('tenant.host')}>
+              {pingDetail.host || '—'}:{pingDetail.port ?? '—'}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('tenant.database')}>{pingDetail.database || '—'}</Descriptions.Item>
+            {pingDetail.error ? (
+              <Descriptions.Item label={t('tenant.op_message')}>{pingDetail.error}</Descriptions.Item>
+            ) : null}
+          </Descriptions>
+        ) : null}
+      </Modal>
+
+      <Modal
+        title={t('tenant.op_delete')}
+        open={!!deleteTarget}
+        onCancel={() => {
+          setDeleteTarget(null)
+          setDeleteConfirmCode('')
+          setDeleteDropDb(false)
+        }}
+        onOk={() => void submitDelete()}
+        confirmLoading={deleteLoading}
+        okButtonProps={{ danger: true }}
+        destroyOnHidden
+      >
+        <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={t('tenant.op_delete_confirm')} />
+        <Form layout="vertical">
+          <Form.Item label={t('tenant.delete_confirm_code', { code: deleteTarget?.code || '' })}>
+            <Input value={deleteConfirmCode} onChange={(e) => setDeleteConfirmCode(e.target.value)} />
+          </Form.Item>
+          <Form.Item label={t('tenant.delete_drop_database')}>
+            <Switch checked={deleteDropDb} onChange={setDeleteDropDb} />
+          </Form.Item>
+        </Form>
       </Modal>
 
       <ColumnSettingDialog

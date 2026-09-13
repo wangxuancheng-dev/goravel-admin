@@ -285,3 +285,78 @@ func ResolveTenantBackupAbsPath(tenant *models.Tenant, name string) (string, err
 	return absFile, nil
 }
 
+// PruneTenantBackups keeps the newest N .sql dumps for a tenant.
+func PruneTenantBackups(tenant *models.Tenant, keep int) (int, error) {
+	if tenant == nil || tenant.Code == "" {
+		return 0, apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	if keep <= 0 {
+		keep = facades.Config().GetInt("tenancy.backup_keep", 10)
+	}
+	if keep <= 0 {
+		return 0, nil
+	}
+	return pruneTenantBackups(TenantBackupDir(tenant.Code), keep)
+}
+
+
+// RestoreTenantFromFile restores a tenant database from an absolute SQL dump path.
+func RestoreTenantFromFile(tenant *models.Tenant, absFile string) error {
+	if tenant == nil || tenant.ID == 0 {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	absFile = strings.TrimSpace(absFile)
+	if absFile == "" {
+		return apperrors.ErrInvalidArgument.WithMessage("backup file required")
+	}
+	if _, err := os.Stat(absFile); err != nil {
+		return apperrors.ErrInvalidArgument.WithMessage("backup file not found")
+	}
+	host, port, user, pass, database, err := ResolveTenantDSN(tenant)
+	if err != nil {
+		return err
+	}
+	var cmd *exec.Cmd
+	var cleanup func()
+	switch strings.ToLower(tenant.Driver) {
+	case models.TenantDriverPostgres, "pgsql", "postgresql":
+		args := []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-v", "ON_ERROR_STOP=1", "-f", absFile}
+		cmd = exec.Command("psql", args...)
+		env := append(os.Environ(), "PGPASSWORD="+pass)
+		if tenant.Isolation == models.TenantIsolationSchema {
+			if schema := strings.TrimSpace(tenant.Schema); schema != "" {
+				env = append(env, "PGOPTIONS=--search_path="+schema)
+			}
+		}
+		cmd.Env = env
+	default:
+		defaultsFile, err := WriteMySQLDefaultsFile(user, pass)
+		if err != nil {
+			return err
+		}
+		cleanup = func() { _ = os.Remove(defaultsFile) }
+		f, err := os.Open(absFile)
+		if err != nil {
+			cleanup()
+			return err
+		}
+		defer f.Close()
+		cmd = exec.Command("mysql",
+			"--defaults-extra-file="+defaultsFile,
+			"-h", host,
+			"-P", strconv.Itoa(port),
+			database,
+		)
+		cmd.Stdin = f
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("restore failed: %w\n%s", err, string(out))
+	}
+	return nil
+}
+
+

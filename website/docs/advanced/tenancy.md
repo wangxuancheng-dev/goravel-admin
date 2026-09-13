@@ -115,7 +115,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试（防永久卡住）。
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
-6. **异步运维**：单户 migrate / seed / backup 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` / `restore` 仍仅 CLI。
+6. **异步运维**：单户 migrate / seed / backup / restore 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` 仍可用 CLI。
 
 ## 公网部署（推荐）
 
@@ -219,8 +219,18 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/tenants/{id}/backup` | 异步备份 |
 | GET | `/api/platform/tenants/{id}/backups` | 备份文件列表（`storage/backups/tenants/{code}/`） |
 | GET | `/api/platform/tenants/{id}/backups/download?name=` | 下载指定 `.sql` 备份 |
+| POST | `/api/platform/tenants/{id}/restore` | 异步从备份恢复（body `backup_name`） |
+| POST | `/api/platform/tenants/{id}/backups/prune` | 保留最新 N 份备份（body `keep`） |
+| DELETE | `/api/platform/tenants/{id}` | 删除租户元数据（body `confirm_code`=租户码，可选 `drop_database`） |
+| GET | `/api/platform/tenants/{id}/overview` | 库概览（表数、体积、管理员数等） |
+| GET | `/api/platform/tenants/{id}/op-logs` | 运维时间线 |
+| GET | `/api/platform/tenants/{id}/login-links` | 租户后台登录方式 |
+| GET | `/api/platform/tenants/settings` | 控制台可见配置（`backup_keep`、队列） |
+| GET | `/api/platform/tenants/queue-status` | `long-running` 队列深度 |
+| GET | `/api/platform/tenants/export` | 按筛选导出 CSV |
+| POST | `/api/platform/tenants/ops-batch` | 批量 migrate/seed/backup |
 
-平台控制台列表可操作单户 **Ping / 迁移 / 种子 / 备份**（入队 `tenant_ops`，`long-running` 队列）。`migrate-all` / `restore` / `backup-all` 仍仅 CLI。
+平台控制台列表可操作单户 **Ping / 迁移 / 种子 / 备份 / 恢复 / 删除**（入队 `tenant_ops`，`long-running` 队列），并支持批量 seed/backup、CSV 导出。`migrate-all` 等仍可用 CLI。
 
 公开支付回调（非 platform）：
 

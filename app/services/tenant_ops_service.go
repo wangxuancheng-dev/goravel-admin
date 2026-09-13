@@ -17,9 +17,11 @@ const tenantOpLockTTL = 30 * time.Minute
 
 // TenantOpsArgs is the queue payload for platform tenant maintenance jobs.
 type TenantOpsArgs struct {
-	TenantID uint   `json:"tenant_id"`
-	Op       string `json:"op"` // migrate|seed|backup
-	WithSeed bool   `json:"with_seed,omitempty"`
+	TenantID   uint   `json:"tenant_id"`
+	Op         string `json:"op"` // migrate|seed|backup|restore
+	WithSeed   bool   `json:"with_seed,omitempty"`
+	BackupName string `json:"backup_name,omitempty"` // restore only
+	Keep       int    `json:"keep,omitempty"`        // backup retention override; <0 = config default
 }
 
 type TenantOpsService struct {
@@ -44,14 +46,22 @@ func (s *TenantOpsService) requireEnabled() error {
 // BeginQueuedOp marks the tenant as queued for op. Caller must Dispatch the job;
 // on dispatch failure call MarkOpFailed (and restore provision for migrate).
 func (s *TenantOpsService) BeginQueuedOp(id uint, op string, withSeed bool) (*models.Tenant, TenantOpsArgs, error) {
+	return s.BeginQueuedOpWithBackup(id, op, withSeed, "")
+}
+
+// BeginQueuedOpWithBackup is BeginQueuedOp plus optional backup file name (restore).
+func (s *TenantOpsService) BeginQueuedOpWithBackup(id uint, op string, withSeed bool, backupName string) (*models.Tenant, TenantOpsArgs, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, TenantOpsArgs{}, err
 	}
 	op = strings.TrimSpace(op)
 	switch op {
-	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup:
+	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup, models.TenantOpRestore:
 	default:
 		return nil, TenantOpsArgs{}, apperrors.ErrInvalidArgument.WithMessage("unknown tenant op")
+	}
+	if op == models.TenantOpRestore && strings.TrimSpace(backupName) == "" {
+		return nil, TenantOpsArgs{}, apperrors.ErrInvalidArgument.WithMessage("backup_name required for restore")
 	}
 
 	tenant, err := s.admin.GetByID(id)
@@ -63,16 +73,12 @@ func (s *TenantOpsService) BeginQueuedOp(id uint, op string, withSeed bool) (*mo
 	}
 
 	lockKey := fmt.Sprintf("platform:tenant_op:%d", id)
-	// Short lock only to serialize BeginQueuedOp writers. Do NOT probe with a 1s Lock:
-	// under CACHE_STORE=memory a failed Get still schedules Forget and can delete an
-	// in-flight RunTenantOp lock. Busy state is enforced via last_op_*/provision_status.
 	lock := facades.Cache().Lock(lockKey, 15*time.Second)
 	if !lock.Get() {
 		return nil, TenantOpsArgs{}, apperrors.ErrTenantOpInProgress
 	}
 	defer lock.Release()
 
-	// Re-read under lock
 	tenant, err = s.admin.GetByID(id)
 	if err != nil {
 		return nil, TenantOpsArgs{}, err
@@ -103,8 +109,19 @@ func (s *TenantOpsService) BeginQueuedOp(id uint, op string, withSeed bool) (*mo
 		tenant.ProvisionStatus = models.TenantProvisionMigrating
 		tenant.LastMigrateError = ""
 	}
+	AppendTenantOpLog(tenant, op, models.TenantOpStatusQueued, "", &now, nil)
 
-	return tenant, TenantOpsArgs{TenantID: id, Op: op, WithSeed: withSeed}, nil
+	return tenant, TenantOpsArgs{TenantID: id, Op: op, WithSeed: withSeed, BackupName: strings.TrimSpace(backupName)}, nil
+}
+
+// BeginQueuedBackup enqueues backup with optional keep override (negative = config default).
+func (s *TenantOpsService) BeginQueuedBackup(id uint, keep int) (*models.Tenant, TenantOpsArgs, error) {
+	tenant, args, err := s.BeginQueuedOpWithBackup(id, models.TenantOpBackup, false, "")
+	if err != nil {
+		return nil, TenantOpsArgs{}, err
+	}
+	args.Keep = keep
+	return tenant, args, nil
 }
 
 func (s *TenantOpsService) MarkOpFailed(tenant *models.Tenant, msg string) error {
@@ -129,6 +146,7 @@ func (s *TenantOpsService) MarkOpFailed(tenant *models.Tenant, msg string) error
 		tenant.LastOpStatus = models.TenantOpStatusFailed
 		tenant.LastOpMessage = msg
 		tenant.LastOpAt = &now
+		AppendTenantOpLog(tenant, tenant.LastOp, models.TenantOpStatusFailed, msg, nil, &now)
 	}
 	return err
 }
@@ -145,14 +163,13 @@ func tenantOpBusy(t *models.Tenant) bool {
 	if !busyState {
 		return false
 	}
-	// Stale queued/running/migrating (worker crashed / no consumer) must not block forever.
 	if t.LastOpAt == nil || time.Since(*t.LastOpAt) > tenantOpLockTTL {
 		return false
 	}
 	return true
 }
 
-// RunTenantOp executes migrate/seed/backup for a queued platform job.
+// RunTenantOp executes migrate/seed/backup/restore for a queued platform job.
 func RunTenantOp(args TenantOpsArgs) error {
 	if args.TenantID == 0 {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant_id required")
@@ -167,8 +184,6 @@ func RunTenantOp(args TenantOpsArgs) error {
 	lockKey := fmt.Sprintf("platform:tenant_op:%d", args.TenantID)
 	lock := facades.Cache().Lock(lockKey, tenantOpLockTTL)
 	if !lock.Get() {
-		// Another worker still holds the op lock. Ack (nil) to avoid burning QUEUE_TRIES
-		// with immediate retries; the holder will write the final last_op_*/provision state.
 		facades.Log().Warningf("tenant_ops skip: lock held tenant_id=%d op=%s", args.TenantID, op)
 		return nil
 	}
@@ -184,6 +199,7 @@ func RunTenantOp(args TenantOpsArgs) error {
 	tenant.LastOp = op
 	tenant.LastOpStatus = models.TenantOpStatusRunning
 	tenant.LastOpAt = &now
+	AppendTenantOpLog(tenant, op, models.TenantOpStatusRunning, "", &now, nil)
 
 	var runErr error
 	var successMsg string
@@ -207,12 +223,22 @@ func RunTenantOp(args TenantOpsArgs) error {
 			successMsg = "seed ok"
 		}
 	case models.TenantOpBackup:
-		path, err := BackupTenant(tenant, -1)
+		path, err := BackupTenant(tenant, args.Keep)
 		if err != nil {
 			runErr = err
 		} else {
 			_ = MarkTenantBackupResult(tenant, path)
 			successMsg = "backup ok: " + path
+		}
+	case models.TenantOpRestore:
+		absPath, err := ResolveTenantBackupAbsPath(tenant, args.BackupName)
+		if err != nil {
+			runErr = err
+		} else {
+			runErr = RestoreTenantFromFile(tenant, absPath)
+			if runErr == nil {
+				successMsg = "restore ok: " + args.BackupName
+			}
 		}
 	default:
 		runErr = apperrors.ErrInvalidArgument.WithMessage("unknown tenant op: " + op)
@@ -230,7 +256,6 @@ func RunTenantOp(args TenantOpsArgs) error {
 			"last_op_message": msg,
 			"last_op_at":      failAt,
 		}
-		// Seed failure after a successful migrate must not demote ready → failed.
 		if op == models.TenantOpMigrate && !migrateSucceeded &&
 			tenant.ProvisionStatus == models.TenantProvisionMigrating {
 			updates["provision_status"] = models.TenantProvisionFailed
@@ -241,6 +266,7 @@ func RunTenantOp(args TenantOpsArgs) error {
 		tenant.LastOpStatus = models.TenantOpStatusFailed
 		tenant.LastOpMessage = msg
 		tenant.LastOpAt = &failAt
+		AppendTenantOpLog(tenant, op, models.TenantOpStatusFailed, msg, &now, &failAt)
 		return runErr
 	}
 
@@ -255,5 +281,46 @@ func RunTenantOp(args TenantOpsArgs) error {
 	tenant.LastOpStatus = models.TenantOpStatusSuccess
 	tenant.LastOpMessage = successMsg
 	tenant.LastOpAt = &okAt
+	AppendTenantOpLog(tenant, op, models.TenantOpStatusSuccess, successMsg, &now, &okAt)
 	return nil
+}
+
+// AppendTenantOpLog writes a landlord history row (best-effort).
+func AppendTenantOpLog(tenant *models.Tenant, op, status, message string, started, finished *time.Time) {
+	if tenant == nil || tenant.ID == 0 || op == "" {
+		return
+	}
+	if len(message) > 2000 {
+		message = message[:2000]
+	}
+	row := models.TenantOpLog{
+		TenantID:   tenant.ID,
+		Code:       tenant.Code,
+		Op:         op,
+		Status:     status,
+		Message:    message,
+		StartedAt:  started,
+		FinishedAt: finished,
+	}
+	_ = appfacades.PlatformOrmQuery(nil).Create(&row)
+}
+
+// ListTenantOpLogs returns recent op history for a tenant.
+func ListTenantOpLogs(tenantID uint, limit int) ([]models.TenantOpLog, error) {
+	if tenantID == 0 {
+		return nil, apperrors.ErrInvalidArgument.WithMessage("tenant_id required")
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	var rows []models.TenantOpLog
+	err := appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{}).
+		Where("tenant_id", tenantID).
+		Order("id desc").
+		Limit(limit).
+		Find(&rows)
+	return rows, err
 }
