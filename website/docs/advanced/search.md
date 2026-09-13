@@ -36,6 +36,18 @@ MEILISEARCH_INDEX_PREFIX=
 
 驱动已接官方 `meilisearch-go`：Ping / Index / Delete / Search / EnsureIndex（按 `IndexDefinition` 写 settings）。
 
+## 代码结构
+
+| 位置 | 职责 |
+|------|------|
+| `app/binding/search.go` | 仅 `search.engine` DI 键 |
+| `app/search` | `Engine` 抽象、Resolve、索引定义 |
+| `app/search/drivers/elasticsearch` | ES 客户端创建 + 驱动实现（自包含） |
+| `app/search/drivers/meilisearch` | Meili 客户端创建 + 驱动实现（自包含） |
+
+业务只依赖 `search.Engine` / `search.Resolve()`。新增引擎：在 `drivers/<name>` 实现接口，并在 `SearchServiceProvider` 增加分支；**不要**再往 `app/clients` 放搜索 SDK。
+
+
 ## 命令
 
 ```bash

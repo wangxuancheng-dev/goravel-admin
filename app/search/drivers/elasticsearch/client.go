@@ -1,4 +1,4 @@
-package clients
+package elasticsearch
 
 import (
 	"context"
@@ -12,8 +12,9 @@ import (
 	"github.com/goravel/framework/contracts/config"
 )
 
-// NewElasticsearchClient 使用框架配置创建 ES 客户端（按连接名）；创建后会 Ping 校验。
-func NewElasticsearchClient(cfg config.Config, connectionName string) (*elasticsearch.Client, error) {
+// NewClient builds an ES client from config (connection name empty = elasticsearch.default).
+// Pings once after create.
+func NewClient(cfg config.Config, connectionName string) (*elasticsearch.Client, error) {
 	if connectionName == "" {
 		connectionName = cfg.GetString("elasticsearch.default", "default")
 	}
@@ -22,11 +23,11 @@ func NewElasticsearchClient(cfg config.Config, connectionName string) (*elastics
 	urlsStr := cfg.GetString(base+".urls", "")
 	cloudID := cfg.GetString(base+".cloud_id", "")
 	if cloudID == "" && strings.TrimSpace(urlsStr) == "" {
-		return nil, fmt.Errorf("elasticsearch [%s]: urls 或 cloud_id 至少配置一项", connectionName)
+		return nil, fmt.Errorf("elasticsearch [%s]: configure urls or cloud_id", connectionName)
 	}
 
 	esCfg := elasticsearch.Config{
-		Addresses: splitElasticsearchURLs(urlsStr),
+		Addresses: splitURLs(urlsStr),
 		CloudID:   cloudID,
 		Username:  cfg.GetString(base+".username", ""),
 		Password:  cfg.GetString(base+".password", ""),
@@ -41,25 +42,25 @@ func NewElasticsearchClient(cfg config.Config, connectionName string) (*elastics
 
 	client, err := elasticsearch.NewClient(esCfg)
 	if err != nil {
-		return nil, fmt.Errorf("elasticsearch [%s] 创建客户端失败: %w", connectionName, err)
+		return nil, fmt.Errorf("elasticsearch [%s] new client: %w", connectionName, err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	res, err := client.Ping(client.Ping.WithContext(ctx))
 	if err != nil {
-		return nil, fmt.Errorf("elasticsearch [%s] Ping 失败: %w", connectionName, err)
+		return nil, fmt.Errorf("elasticsearch [%s] ping: %w", connectionName, err)
 	}
 	if res != nil {
 		_ = res.Body.Close()
 	}
 	if res != nil && res.IsError() {
-		return nil, fmt.Errorf("elasticsearch [%s] Ping 返回错误: %s", connectionName, res.Status())
+		return nil, fmt.Errorf("elasticsearch [%s] ping status: %s", connectionName, res.Status())
 	}
 	return client, nil
 }
 
-func splitElasticsearchURLs(s string) []string {
+func splitURLs(s string) []string {
 	var out []string
 	for _, p := range strings.Split(s, ",") {
 		u := strings.TrimSpace(p)
@@ -70,7 +71,7 @@ func splitElasticsearchURLs(s string) []string {
 	return out
 }
 
-// ElasticsearchIndexName 返回带 elasticsearch.index_prefix 的完整索引名。
-func ElasticsearchIndexName(cfg config.Config, name string) string {
+// FullIndexName applies elasticsearch.index_prefix.
+func FullIndexName(cfg config.Config, name string) string {
 	return cfg.GetString("elasticsearch.index_prefix", "") + name
 }

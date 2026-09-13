@@ -6,13 +6,13 @@ import (
 	"github.com/goravel/framework/contracts/foundation"
 
 	"goravel/app/binding"
-	"goravel/app/clients"
 	"goravel/app/search"
 	esdriver "goravel/app/search/drivers/elasticsearch"
 	meili "goravel/app/search/drivers/meilisearch"
 )
 
-// SearchServiceProvider 注册可切换的搜索 Engine（及 ES 客户端，当 driver=elasticsearch）。
+// SearchServiceProvider registers the switchable search.Engine (SEARCH_DRIVER).
+// Concrete SDK clients stay inside each driver package (no app/clients or ES DI binding).
 type SearchServiceProvider struct{}
 
 func (r *SearchServiceProvider) Register(app foundation.Application) {
@@ -23,12 +23,6 @@ func (r *SearchServiceProvider) Register(app foundation.Application) {
 	app.Singleton(binding.SearchEngine, func(app foundation.Application) (any, error) {
 		return buildEngine(app)
 	})
-
-	if search.Driver() == search.DriverElasticsearch && search.Enabled() {
-		app.Singleton(binding.ElasticsearchClient, func(app foundation.Application) (any, error) {
-			return clients.NewElasticsearchClient(app.MakeConfig(), "")
-		})
-	}
 }
 
 func (r *SearchServiceProvider) Boot(app foundation.Application) {}

@@ -10,12 +10,10 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/goravel/framework/contracts/config"
-	"github.com/goravel/framework/facades"
 
-	"goravel/app/binding"
-	"goravel/app/clients"
 	"goravel/app/search"
 )
+
 
 // Engine Elasticsearch 驱动。
 type Engine struct {
@@ -23,15 +21,9 @@ type Engine struct {
 	cfg    config.Config
 }
 
-// NewEngine 从容器取 ES 客户端；失败则尝试新建。
+// NewEngine creates a client from config (driver-owned; no separate DI binding).
 func NewEngine(cfg config.Config) (*Engine, error) {
-	raw, err := facades.App().Make(binding.ElasticsearchClient)
-	if err == nil {
-		if c, ok := raw.(*elasticsearch.Client); ok && c != nil {
-			return &Engine{client: c, cfg: cfg}, nil
-		}
-	}
-	c, err := clients.NewElasticsearchClient(cfg, "")
+	c, err := NewClient(cfg, "")
 	if err != nil {
 		return nil, err
 	}
@@ -58,15 +50,15 @@ func (e *Engine) Ping(ctx context.Context) error {
 }
 
 func (e *Engine) fullIndex(index string) string {
-	return clients.ElasticsearchIndexName(e.cfg, index)
+	return FullIndexName(e.cfg, index)
 }
 
 func (e *Engine) Index(ctx context.Context, index, documentID string, document map[string]any) error {
-	return clients.ElasticsearchIndexValue(ctx, e.client, e.fullIndex(index), documentID, document)
+	return indexValue(ctx, e.client, e.fullIndex(index), documentID, document)
 }
 
 func (e *Engine) Delete(ctx context.Context, index, documentID string) error {
-	return clients.ElasticsearchDeleteDocument(ctx, e.client, e.fullIndex(index), documentID)
+	return deleteDocument(ctx, e.client, e.fullIndex(index), documentID)
 }
 
 func (e *Engine) EnsureIndex(ctx context.Context, index string) error {

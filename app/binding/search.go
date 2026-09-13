@@ -1,4 +1,4 @@
 package binding
 
-// SearchEngine 服务容器中搜索引擎的绑定键（与 SearchServiceProvider 一致）。
+// SearchEngine is the DI key for search.Engine (see SearchServiceProvider).
 const SearchEngine = "search.engine"
