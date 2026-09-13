@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { login, getLoginCaptcha, getLoginBranding } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
-import { useAppStore, THEME_COLORS, type ThemeColorKey } from '@/stores/app'
+import { useAppStore, THEME_COLORS } from '@/stores/app'
 import { ERROR_CODES, type ApiError } from '@/types'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
@@ -62,10 +62,6 @@ export default function LoginPage() {
       const b = res.data?.branding
       const name = String(b?.site_name || '').trim()
       setBrandName(name)
-      const themeKey = String(b?.site_theme_color || '').trim()
-      if (themeKey && THEME_COLORS.some((c) => c.key === themeKey)) {
-        setThemeColor(themeKey as ThemeColorKey)
-      }
       const logoRaw = String(b?.site_logo || '').trim()
       if (!logoRaw) {
         setBrandLogoUrl('')

@@ -54,7 +54,7 @@ Do **not** put queue backlog scans on `/ready` (latency). Use the scheduled comm
 
 In **Observability → Queue**, check whether the webhook is configured and use **Send test alert** (`observability.queue_alert_test`). Configure the URL via `.env` (not the UI).
 
-White-label: System Config → Website (name / logo / theme). Login uses `GET /api/admin/login/branding`.
+White-label: System Config → Website (name / logo). Login uses `GET /api/admin/login/branding`.
 
 Platform tenant list: filter by provision status, **Retry all failed migrates**, summary at `GET /api/platform/tenants/ops-summary`.
 

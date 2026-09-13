@@ -187,7 +187,7 @@ docker build --build-arg BUILD_FRONTEND=1 -t goravel-admin .
 
 管理端 **日志与观测 → 队列** 可查看 Webhook 是否已配置，并点击「发送测试告警」（需权限 `observability.queue_alert_test`；URL 在 `.env`，页面不展示明文）。
 
-白标：系统配置 → 网站配置 中的站点名称 / Logo / 主题色；登录页通过 `GET /api/admin/login/branding` 拉取（多租户下按租户库配置）。
+白标：系统配置 → 网站配置 中的站点名称 / Logo；登录页通过 `GET /api/admin/login/branding` 拉取（多租户下按租户库配置）。
 
 平台租户列表支持按开通状态筛选、「重试全部失败迁移」批量入队；概览见 `GET /api/platform/tenants/ops-summary`。
 

@@ -224,10 +224,6 @@ const loadBranding = async () => {
     const res = await getLoginBranding()
     const b = res?.data?.branding || {}
     brandName.value = String(b.site_name || '').trim()
-    const themeKey = String(b.site_theme_color || '').trim()
-    if (themeKey && THEME_COLORS.some((c) => c.key === themeKey)) {
-      appStore.setThemeColor(themeKey)
-    }
     const logoRaw = String(b.site_logo || '').trim()
     if (!logoRaw) {
       brandLogoUrl.value = ''

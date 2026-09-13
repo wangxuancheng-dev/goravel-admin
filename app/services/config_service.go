@@ -88,11 +88,10 @@ func (s *ConfigServiceImpl) GetByGroup(group string) ([]models.Config, error) {
 // GetWebsiteBranding returns public-safe website branding for login/layout (no secrets).
 func (s *ConfigServiceImpl) GetWebsiteBranding() map[string]string {
 	out := map[string]string{
-		"site_enabled":     "1",
-		"site_name":        "",
-		"site_logo":        "",
-		"site_theme_color": "",
-		"site_copyright":   "",
+		"site_enabled":   "1",
+		"site_name":      "",
+		"site_logo":      "",
+		"site_copyright": "",
 	}
 	configs, err := s.GetByGroup("website")
 	if err != nil || len(configs) == 0 {
@@ -100,7 +99,7 @@ func (s *ConfigServiceImpl) GetWebsiteBranding() map[string]string {
 	}
 	for _, c := range configs {
 		switch c.Key {
-		case "site_enabled", "site_name", "site_logo", "site_theme_color", "site_copyright":
+		case "site_enabled", "site_name", "site_logo", "site_copyright":
 			out[c.Key] = c.Value
 		}
 	}

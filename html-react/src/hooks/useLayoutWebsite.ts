@@ -67,13 +67,6 @@ export function useLayoutWebsite() {
       const configs = res?.data?.configs
       setWebsiteSiteName(pickConfigValue(configs, 'site_name'))
       setWebsiteSiteLogo(pickConfigValue(configs, 'site_logo'))
-      const themeKey = pickConfigValue(configs, 'site_theme_color').trim()
-      if (themeKey) {
-        const { useAppStore, THEME_COLORS } = await import('@/stores/app')
-        if (THEME_COLORS.some((c) => c.key === themeKey)) {
-          useAppStore.getState().setThemeColor(themeKey as (typeof THEME_COLORS)[number]['key'])
-        }
-      }
     } catch {
       setWebsiteSiteName('')
       setWebsiteSiteLogo('')

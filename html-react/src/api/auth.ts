@@ -42,7 +42,6 @@ export function getLoginBranding() {
         site_enabled?: string
         site_name?: string
         site_logo?: string
-        site_theme_color?: string
         site_copyright?: string
       }
     }>

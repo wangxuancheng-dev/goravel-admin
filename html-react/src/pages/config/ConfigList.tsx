@@ -8,7 +8,6 @@ import { getConfigByGroup, saveConfig, testEmail } from '@/api/config'
 import { entityField } from '@/utils/normalize'
 import { notifyWebsiteConfigUpdated } from '@/utils/publicImage'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
-import { THEME_COLORS } from '@/stores/app'
 
 function configsToForm(
   configs: Array<Record<string, unknown>> | undefined,
@@ -48,14 +47,12 @@ function WebsiteConfigPanel() {
         'site_name',
         'site_url',
         'site_logo',
-        'site_theme_color',
         'site_icp',
         'site_keywords',
         'site_description',
         'site_copyright',
       ])
       if (values.site_enabled === '') values.site_enabled = '1'
-      if (!values.site_theme_color) values.site_theme_color = 'blue'
       form.setFieldsValue(values)
     } catch (error) {
       showError(error, t('common.query_failed'))
@@ -102,30 +99,6 @@ function WebsiteConfigPanel() {
       </Form.Item>
       <Form.Item name="site_logo" label={t('config.site_logo')}>
         <AttachmentImageField placeholder={t('config.site_logo_placeholder')} />
-      </Form.Item>
-      <Form.Item
-        name="site_theme_color"
-        label={t('config.site_theme_color')}
-        extra={t('config.site_theme_color_tip')}
-      >
-        <Select placeholder={t('config.site_theme_color_placeholder')} allowClear={false}>
-          {THEME_COLORS.map((item) => (
-            <Select.Option key={item.key} value={item.key}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <span
-                  style={{
-                    width: 14,
-                    height: 14,
-                    borderRadius: 4,
-                    background: item.color,
-                    display: 'inline-block',
-                  }}
-                />
-                {item.key}
-              </span>
-            </Select.Option>
-          ))}
-        </Select>
       </Form.Item>
       <Form.Item name="site_icp" label={t('config.site_icp')}>
         <Input placeholder={t('config.site_icp_placeholder')} />

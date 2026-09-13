@@ -64,13 +64,6 @@ export function useLayoutWebsite() {
         }
         websiteSiteName.value = pick('site_name')
         websiteSiteLogo.value = pick('site_logo')
-        const themeKey = pick('site_theme_color').trim()
-        if (themeKey) {
-          const { useAppStore, THEME_COLORS } = await import('@/store/app')
-          if (THEME_COLORS.some((c) => c.key === themeKey)) {
-            useAppStore().setThemeColor(themeKey)
-          }
-        }
       } else {
         websiteSiteName.value = ''
         websiteSiteLogo.value = ''
