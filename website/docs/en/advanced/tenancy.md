@@ -165,9 +165,9 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 ## Object storage and quotas
 
 - **Shared disk**: one `FILESYSTEM_DISK` for the whole platform; paths are isolated with `tenants/{code}/`. Tenant admin **cannot** change `file_disk` (save rejected); export format remains editable.
-- **Delete tenant**: landlord row is **soft-deleted**; `drop_database` drops DB/schema only; `purge_objects` / `purge_backups` enqueue async cleanup on `long-running` (needs Worker); legacy `purge_files` enables both.
+- **Delete tenant**: soft-delete into recycle bin; `drop_database` drops DB/schema only; **object storage is not purged here**.
+- **Recycle / force delete**: `GET /tenants?trashed=only`; `POST .../undelete`; `POST .../purge` optional retry; `DELETE .../force` defaults to async purge objects+backups then hard-delete (frees `code`). Retention `TENANCY_DELETED_RETENTION_DAYS`; schedule `tenant:cleanup-deleted`.
 - **Storage limit** `storage_limit_bytes` (0=unlimited): enforced from `SUM(attachments.size)` before upload.
-- **Monthly traffic limit** `traffic_limit_bytes` (0=unlimited): counts app uploads and app-proxied download/preview (including temporary URL issuance); **direct CDN downloads are not counted**. Counter key `t{id}:traffic:YYYYMM` (UTC month).
 
 ## 运维增强
 
@@ -266,6 +266,9 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/tenants/{id}/restore` | Async restore (`backup_name`) |
 | POST | `/api/platform/tenants/{id}/backups/prune` | Keep newest N backups (`keep`) |
 | DELETE | `/api/platform/tenants/{id}` | Soft-delete (`confirm_code`; optional `drop_database`; async `purge_objects` / `purge_backups`; legacy `purge_files` = both) |
+| POST | /api/platform/tenants/{id}/undelete | Restore soft-deleted metadata |
+| POST | /api/platform/tenants/{id}/purge | Retry async object/backup purge |
+| DELETE | /api/platform/tenants/{id}/force | Hard-delete recycle-bin row (confirm_code; frees code) |
 | GET | `/api/platform/tenants/{id}/overview` | DB snapshot stats |
 | GET | `/api/platform/tenant-op-logs` | Platform-wide ops execution logs (filter code/op/status/batch_id/operator) |
 | GET | `/api/platform/tenants/{id}/op-logs` | Ops timeline |

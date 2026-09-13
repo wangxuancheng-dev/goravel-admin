@@ -194,10 +194,6 @@ func (s *AttachmentServiceImpl) UploadChunk(chunkID string, chunkIndex int, chun
 	}
 	chunkPath := s.chunkObjectPath(chunkID, chunkIndex)
 
-	if err := RecordTenantTraffic(s.ctx, int64(len(chunkData))); err != nil {
-		return err
-	}
-
 	if err := storage.Put(chunkPath, string(chunkData)); err != nil {
 		if s.ctx != nil {
 			errorlog.RecordHTTP(s.ctx, "attachment", "保存分片失败", map[string]any{
@@ -515,9 +511,6 @@ func (s *AttachmentServiceImpl) UploadFile(fileData []byte, filename string, mim
 
 	fileSize := int64(len(fileData))
 	if err := EnsureTenantStorageQuota(s.ctx, fileSize); err != nil {
-		return nil, err
-	}
-	if err := RecordTenantTraffic(s.ctx, fileSize); err != nil {
 		return nil, err
 	}
 

@@ -87,8 +87,10 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusBadRequest
 	case code == "tenant_not_ready":
 		return http.StatusForbidden
-	case code == "tenant_storage_quota_exceeded" || code == "tenant_traffic_quota_exceeded" || code == "tenant_storage_disk_locked":
+	case code == "tenant_storage_quota_exceeded" || code == "tenant_storage_disk_locked":
 		return http.StatusForbidden
+	case code == "tenant_not_trashed" || code == "tenant_code_in_recycle":
+		return http.StatusBadRequest
 	case code == "tenant_credentials_required":
 		return http.StatusBadRequest
 	case code == "tenant_connection_failed":

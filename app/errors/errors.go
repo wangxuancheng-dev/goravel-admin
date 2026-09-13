@@ -199,8 +199,9 @@ var (
 	ErrTenantOpInProgress        = NewBusinessError("tenant_op_in_progress", "该租户已有运维任务进行中，请稍后再试")
 	ErrTenantOpQueueFailed       = NewBusinessError("tenant_op_queue_failed", "租户运维任务入队失败")
 	ErrTenantStorageQuotaExceeded = NewBusinessError("tenant_storage_quota_exceeded", "租户对象存储配额已用尽")
-	ErrTenantTrafficQuotaExceeded = NewBusinessError("tenant_traffic_quota_exceeded", "租户本月流量配额已用尽")
 	ErrTenantStorageDiskLocked   = NewBusinessError("tenant_storage_disk_locked", "多租户模式下文件存储驱动由平台统一配置，租户不可修改")
+	ErrTenantNotTrashed          = NewBusinessError("tenant_not_trashed", "仅回收站中的已删除租户可执行此操作")
+	ErrTenantCodeInRecycle       = NewBusinessError("tenant_code_in_recycle", "租户编码仍在回收站中，请先恢复或永久删除后再创建")
 	ErrTokenRefreshFailed        = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound              = NewBusinessError("user_not_found", "用户不存在")
 

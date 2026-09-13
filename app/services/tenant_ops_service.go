@@ -33,10 +33,11 @@ type TenantOpsArgs struct {
 	BatchID      string `json:"batch_id,omitempty"`
 	OperatorID   uint   `json:"operator_id,omitempty"`
 	OperatorName string `json:"operator_name,omitempty"`
-	// Purge (async after soft-delete): Code is required; flags select what to remove.
-	Code         string `json:"code,omitempty"`
-	PurgeObjects bool   `json:"purge_objects,omitempty"`
-	PurgeBackups bool   `json:"purge_backups,omitempty"`
+	// Purge (async after soft-delete / force-delete): Code is required; flags select what to remove.
+	Code             string `json:"code,omitempty"`
+	PurgeObjects     bool   `json:"purge_objects,omitempty"`
+	PurgeBackups     bool   `json:"purge_backups,omitempty"`
+	ForceDeleteAfter bool   `json:"force_delete_after,omitempty"`
 }
 
 type TenantOpsService struct {
@@ -396,11 +397,24 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 			"last_op_at":      okAt,
 		})
 	}
+	if args.ForceDeleteAfter && tenant.ID > 0 {
+		sconn := NewTenantConnectionService()
+		sconn.Forget(tenant.ConnectionName)
+		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
+			facades.Log().Errorf("tenant_ops purge force-delete failed id=%d: %v", tenant.ID, err)
+			return err
+		}
+	}
 	return nil
 }
 
 // BeginQueuedPurge records an op-log row for async file cleanup after tenant soft-delete.
 func (s *TenantOpsService) BeginQueuedPurge(tenantID uint, code string, purgeObjects, purgeBackups bool, actor TenantOpActor) (TenantOpsArgs, error) {
+	return s.BeginQueuedPurgeEx(tenantID, code, purgeObjects, purgeBackups, false, actor)
+}
+
+// BeginQueuedPurgeEx is BeginQueuedPurge with optional force-delete after successful purge.
+func (s *TenantOpsService) BeginQueuedPurgeEx(tenantID uint, code string, purgeObjects, purgeBackups, forceDeleteAfter bool, actor TenantOpActor) (TenantOpsArgs, error) {
 	if err := s.requireEnabled(); err != nil {
 		return TenantOpsArgs{}, err
 	}
@@ -416,19 +430,52 @@ func (s *TenantOpsService) BeginQueuedPurge(tenantID uint, code string, purgeObj
 	var row models.Tenant
 	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenantID).First(&row); err == nil {
 		tenant = &row
+		if code == "" {
+			code = row.Code
+		}
+	}
+	if tenantOpBusy(tenant) {
+		return TenantOpsArgs{}, apperrors.ErrTenantOpInProgress
 	}
 	now := time.Now()
-	logID := CreateTenantOpLog(tenant, models.TenantOpPurge, models.TenantOpStatusQueued, "", "", actor, &now, nil)
+	msg := ""
+	if forceDeleteAfter {
+		msg = "purge then force-delete"
+	}
+	_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Model(&models.Tenant{}).Where("id", tenantID).Update(map[string]any{
+		"last_op":         models.TenantOpPurge,
+		"last_op_status":  models.TenantOpStatusQueued,
+		"last_op_message": msg,
+		"last_op_at":      now,
+	})
+	logID := CreateTenantOpLog(tenant, models.TenantOpPurge, models.TenantOpStatusQueued, msg, "", actor, &now, nil)
 	return TenantOpsArgs{
-		TenantID:     tenantID,
-		Op:           models.TenantOpPurge,
-		Code:         code,
-		PurgeObjects: purgeObjects,
-		PurgeBackups: purgeBackups,
-		OpLogID:      logID,
-		OperatorID:   actor.ID,
-		OperatorName: actor.Name,
+		TenantID:         tenantID,
+		Op:               models.TenantOpPurge,
+		Code:             code,
+		PurgeObjects:     purgeObjects,
+		PurgeBackups:     purgeBackups,
+		ForceDeleteAfter: forceDeleteAfter,
+		OpLogID:          logID,
+		OperatorID:       actor.ID,
+		OperatorName:     actor.Name,
 	}, nil
+}
+
+// MarkTenantOpFailedIncludingTrashed updates last_op* on active or soft-deleted tenants.
+func MarkTenantOpFailedIncludingTrashed(id uint, op, message string, at time.Time) {
+	if id == 0 {
+		return
+	}
+	if len(message) > 2000 {
+		message = message[:2000]
+	}
+	_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Model(&models.Tenant{}).Where("id", id).Update(map[string]any{
+		"last_op":         op,
+		"last_op_status":  models.TenantOpStatusFailed,
+		"last_op_message": message,
+		"last_op_at":      at,
+	})
 }
 
 // CreateTenantOpLog inserts one landlord history row; returns id (0 on failure).

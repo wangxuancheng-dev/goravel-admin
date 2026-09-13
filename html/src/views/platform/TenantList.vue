@@ -8,40 +8,66 @@
       :title="$t('platform.cli_ops_title')"
       :description="healthDesc"
     />
-    <div v-if="opsSummary" class="ops-summary-row">
-      <span>{{ $t('tenant.ops_summary', { failed: opsSummary.failed_provision || 0, busy: opsSummary.busy || 0, total: opsSummary.total || 0 }) }}</span>
+    <div class="list-mode-bar">
+      <el-radio-group :model-value="isRecycleView ? 'recycle' : 'active'" size="default" @change="onListModeChange">
+        <el-radio-button label="active">{{ $t('tenant.list_active') }}</el-radio-button>
+        <el-radio-button label="recycle">
+          {{ $t('tenant.recycle_bin') }}
+          <el-badge v-if="(opsSummary?.deleted || 0) > 0" :value="opsSummary.deleted" class="recycle-badge" />
+        </el-radio-button>
+      </el-radio-group>
+      <span v-if="opsSummary" class="ops-inline">
+        {{ $t('tenant.ops_summary', { failed: opsSummary.failed_provision || 0, busy: opsSummary.busy || 0, total: opsSummary.total || 0 }) }}
+        <template v-if="(opsSummary.failed_purge || 0) > 0">
+          · {{ $t('tenant.failed_purge_count', { n: opsSummary.failed_purge }) }}
+        </template>
+      </span>
+      <template v-if="!isRecycleView">
+        <el-button
+          size="small"
+          :loading="batchLoading"
+          :disabled="!(opsSummary?.failed_provision > 0)"
+          @click="retryFailedMigrates"
+        >
+          {{ $t('tenant.retry_failed_migrate') }}
+        </el-button>
+        <el-button
+          size="small"
+          :loading="batchLoading"
+          :disabled="selectedRows.length < 1"
+          @click="batchSeedSelected"
+        >
+          {{ $t('tenant.batch_seed') }}
+        </el-button>
+        <el-button
+          size="small"
+          :loading="batchLoading"
+          :disabled="selectedRows.length < 1"
+          @click="batchBackupSelected"
+        >
+          {{ $t('tenant.batch_backup') }}
+        </el-button>
+        <el-button size="small" @click="exportCsv">{{ $t('tenant.export_csv') }}</el-button>
+      </template>
       <span v-if="queueInfo" class="queue-meta">{{ $t('tenant.queue_status', { conn: queueInfo.connection || '-', pending: queueInfo.pending ?? '-', msg: queueInfo.message || '' }) }}</span>
-      <el-button
-        size="small"
-        :loading="batchLoading"
-        :disabled="!(opsSummary.failed_provision > 0)"
-        @click="retryFailedMigrates"
-      >
-        {{ $t('tenant.retry_failed_migrate') }}
-      </el-button>
-      <el-button
-        size="small"
-        :loading="batchLoading"
-        :disabled="selectedRows.length < 1"
-        @click="batchSeedSelected"
-      >
-        {{ $t('tenant.batch_seed') }}
-      </el-button>
-      <el-button
-        size="small"
-        :loading="batchLoading"
-        :disabled="selectedRows.length < 1"
-        @click="batchBackupSelected"
-      >
-        {{ $t('tenant.batch_backup') }}
-      </el-button>
-      <el-button size="small" @click="exportCsv">{{ $t('tenant.export_csv') }}</el-button>
     </div>
+
+    <el-alert
+      v-if="isRecycleView"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="recycle-banner"
+      :title="$t('tenant.recycle_banner_title')"
+      :description="recycleBannerDesc"
+    />
+
     <ListPage
     ref="listPageRef"
     page-class="platform-tenant"
-    :title="$t('menu.tenant')"
+    :title="isRecycleView ? $t('tenant.recycle_bin') : $t('menu.tenant')"
     :add-button-text="$t('tenant.add')"
+    :show-add-button="!isRecycleView"
     :search-form="searchForm"
     :search-fields="searchFields"
     :initial-search-values="initialSearchForm"
@@ -53,7 +79,7 @@
     show-toolbar
     @add="openCreate"
     @search="handleSearch"
-    @reset="handleReset"
+    @reset="onListReset"
     @refresh="loadData"
     @page-change="loadData"
     @sort-change="handleSortChange"
@@ -68,7 +94,10 @@
     </template>
     <template #last_op="{ row }">
       <el-tooltip :content="row.last_op_message || row.last_op_at || ''" :disabled="!(row.last_op_message || row.last_op_at)">
-        <span class="op-meta">{{ row.last_op || '—' }} / {{ row.last_op_status || '—' }}</span>
+        <el-tag v-if="recycleOpTag(row)" :type="recycleOpTag(row).type" size="small" effect="plain">
+          {{ recycleOpTag(row).label }}
+        </el-tag>
+        <span v-else class="op-meta">{{ row.last_op || '—' }} / {{ row.last_op_status || '—' }}</span>
       </el-tooltip>
     </template>
     <template #last_backup_path="{ row }">
@@ -87,24 +116,45 @@
       />
     </template>
     <template #actions="{ row }">
-      <el-button link type="primary" @click="openDetail(row)">{{ $t('tenant.op_detail') }}</el-button>
-      <el-button link type="primary" :disabled="isBusy(row)" @click="openEdit(row)">{{ $t('common.edit') }}</el-button>
-      <el-button link type="primary" @click="onPing(row)">{{ $t('tenant.op_ping') }}</el-button>
-      <el-button link type="primary" :disabled="isBusy(row)" @click="openMigrate(row)">{{ $t('tenant.op_migrate') }}</el-button>
-      <el-dropdown trigger="click" @command="(cmd) => onMoreCommand(cmd, row)">
-        <el-button link type="primary">{{ $t('tenant.op_more') }}</el-button>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="seed" :disabled="isBusy(row)">{{ $t('tenant.op_seed') }}</el-dropdown-item>
-            <el-dropdown-item command="backup" :disabled="isBusy(row)">{{ $t('tenant.op_backup') }}</el-dropdown-item>
-            <el-dropdown-item command="backups">{{ $t('tenant.op_backups') }}</el-dropdown-item>
-            <el-dropdown-item command="overview">{{ $t('tenant.op_overview') }}</el-dropdown-item>
-            <el-dropdown-item command="timeline">{{ $t('tenant.op_timeline') }}</el-dropdown-item>
-            <el-dropdown-item command="login">{{ $t('tenant.op_login_link') }}</el-dropdown-item>
-            <el-dropdown-item command="delete" divided>{{ $t('tenant.op_delete') }}</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      <template v-if="isRecycleView">
+        <el-button type="primary" link :disabled="isBusy(row)" @click="onUndelete(row)">{{ $t('tenant.op_undelete') }}</el-button>
+        <el-button type="danger" link :disabled="isBusy(row)" @click="openForceDelete(row)">{{ $t('tenant.op_force_delete_short') }}</el-button>
+        <el-dropdown trigger="click" @command="(cmd) => onRecycleMore(cmd, row)">
+          <el-button link type="primary">{{ $t('tenant.op_more') }}</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="timeline">{{ $t('tenant.op_timeline') }}</el-dropdown-item>
+              <el-dropdown-item
+                v-if="row.last_op === 'purge' && row.last_op_status === 'failed'"
+                command="purge"
+                :disabled="isBusy(row)"
+              >
+                {{ $t('tenant.op_purge_retry') }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </template>
+      <template v-else>
+        <el-button link type="primary" @click="openDetail(row)">{{ $t('tenant.op_detail') }}</el-button>
+        <el-button link type="primary" :disabled="isBusy(row)" @click="openEdit(row)">{{ $t('common.edit') }}</el-button>
+        <el-button link type="primary" @click="onPing(row)">{{ $t('tenant.op_ping') }}</el-button>
+        <el-button link type="primary" :disabled="isBusy(row)" @click="openMigrate(row)">{{ $t('tenant.op_migrate') }}</el-button>
+        <el-dropdown trigger="click" @command="(cmd) => onMoreCommand(cmd, row)">
+          <el-button link type="primary">{{ $t('tenant.op_more') }}</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="seed" :disabled="isBusy(row)">{{ $t('tenant.op_seed') }}</el-dropdown-item>
+              <el-dropdown-item command="backup" :disabled="isBusy(row)">{{ $t('tenant.op_backup') }}</el-dropdown-item>
+              <el-dropdown-item command="backups">{{ $t('tenant.op_backups') }}</el-dropdown-item>
+              <el-dropdown-item command="overview">{{ $t('tenant.op_overview') }}</el-dropdown-item>
+              <el-dropdown-item command="timeline">{{ $t('tenant.op_timeline') }}</el-dropdown-item>
+              <el-dropdown-item command="login">{{ $t('tenant.op_login_link') }}</el-dropdown-item>
+              <el-dropdown-item command="delete" divided>{{ $t('tenant.op_delete') }}</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </template>
     </template>
 
     <template #form>
@@ -182,10 +232,6 @@
           <el-form-item :label="$t('tenant.storage_limit_mb')">
             <el-input-number v-model="form.storage_limit_mb" :min="0" :max="1048576" controls-position="right" style="width: 100%" />
             <div class="form-tip">{{ $t('tenant.quota_zero_unlimited') }}</div>
-          </el-form-item>
-          <el-form-item :label="$t('tenant.traffic_limit_mb')">
-            <el-input-number v-model="form.traffic_limit_mb" :min="0" :max="1048576" controls-position="right" style="width: 100%" />
-            <div class="form-tip">{{ $t('tenant.traffic_quota_tip') }}</div>
           </el-form-item>
         </el-form>
         <template #footer>
@@ -290,7 +336,6 @@
       <el-descriptions-item :label="$t('tenant.overview_admins')">{{ overviewData.admins_count }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.overview_migrations')">{{ overviewData.migrations_count }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.storage_used')">{{ formatQuota(quotaData?.storage_used_bytes, quotaData?.storage_limit_bytes) }}</el-descriptions-item>
-      <el-descriptions-item :label="$t('tenant.traffic_used')">{{ formatQuota(quotaData?.traffic_used_bytes, quotaData?.traffic_limit_bytes) }}{{ quotaData?.traffic_month ? ` (${quotaData.traffic_month})` : '' }}</el-descriptions-item>
       <el-descriptions-item v-if="overviewData.error" :label="$t('tenant.op_message')">{{ overviewData.error }}</el-descriptions-item>
     </el-descriptions>
   </el-drawer>
@@ -316,18 +361,56 @@
       <el-form-item :label="$t('tenant.drop_database')">
         <el-switch v-model="deleteDropDb" />
       </el-form-item>
-      <el-form-item :label="$t('tenant.purge_objects')">
-        <el-switch v-model="deletePurgeObjects" />
-        <div class="form-tip">{{ $t('tenant.purge_objects_tip') }}</div>
-      </el-form-item>
-      <el-form-item :label="$t('tenant.purge_backups')">
-        <el-switch v-model="deletePurgeBackups" />
-        <div class="form-tip">{{ $t('tenant.purge_backups_tip') }}</div>
-      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="deleteVisible = false">{{ $t('common.cancel') }}</el-button>
       <el-button type="danger" :loading="deleteLoading" @click="submitDelete">{{ $t('common.confirm') }}</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="purgeVisible" :title="$t('tenant.op_purge_retry')" width="480px" destroy-on-close>
+    <p>{{ $t('tenant.purge_retry_hint', { code: purgeRow?.code || '' }) }}</p>
+    <el-alert
+      v-if="purgeRow?.last_op === 'purge'"
+      :type="purgeRow.last_op_status === 'failed' ? 'error' : 'info'"
+      :closable="false"
+      show-icon
+      class="migrate-tip"
+      :title="`${purgeRow.last_op} / ${purgeRow.last_op_status || '—'}`"
+      :description="purgeRow.last_op_message || ''"
+    />
+    <el-form label-width="120px">
+      <el-form-item :label="$t('tenant.purge_objects')">
+        <el-switch v-model="purgeObjects" />
+      </el-form-item>
+      <el-form-item :label="$t('tenant.purge_backups')">
+        <el-switch v-model="purgeBackups" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="purgeVisible = false">{{ $t('common.cancel') }}</el-button>
+      <el-button type="primary" :loading="purgeLoading" @click="submitPurge">{{ $t('common.confirm') }}</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="forceDeleteVisible" :title="$t('tenant.op_force_delete')" width="480px" destroy-on-close>
+    <p>{{ $t('tenant.force_delete_hint', { code: forceDeleteRow?.code || '' }) }}</p>
+    <el-form label-width="120px">
+      <el-form-item :label="$t('tenant.confirm_code')">
+        <el-input v-model="forceDeleteConfirm" :placeholder="forceDeleteRow?.code || ''" />
+      </el-form-item>
+      <el-form-item :label="$t('tenant.purge_objects')">
+        <el-switch v-model="forcePurgeObjects" />
+        <div class="form-tip">{{ $t('tenant.purge_objects_tip') }}</div>
+      </el-form-item>
+      <el-form-item :label="$t('tenant.purge_backups')">
+        <el-switch v-model="forcePurgeBackups" />
+        <div class="form-tip">{{ $t('tenant.purge_backups_tip') }}</div>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="forceDeleteVisible = false">{{ $t('common.cancel') }}</el-button>
+      <el-button type="danger" :loading="forceDeleteLoading" @click="submitForceDelete">{{ $t('common.confirm') }}</el-button>
     </template>
   </el-dialog>
   </div>
@@ -343,6 +426,7 @@ import {
   backupPlatformTenant,
   createPlatformTenant,
   deletePlatformTenant,
+  forceDeletePlatformTenant,
   downloadPlatformTenantBackup,
   exportPlatformTenants,
   getPlatformTenantList,
@@ -358,8 +442,10 @@ import {
   pingPlatformTenant,
   platformHealth,
   prunePlatformTenantBackups,
+  purgePlatformTenant,
   restorePlatformTenant,
   seedPlatformTenant,
+  undeletePlatformTenant,
   updatePlatformTenant,
   updatePlatformTenantStatus
 } from '@/api/platform'
@@ -396,9 +482,19 @@ const deleteVisible = ref(false)
 const deleteRow = ref(null)
 const deleteConfirm = ref('')
 const deleteDropDb = ref(false)
-const deletePurgeObjects = ref(false)
-const deletePurgeBackups = ref(false)
 const deleteLoading = ref(false)
+const purgeVisible = ref(false)
+const purgeRow = ref(null)
+const purgeObjects = ref(true)
+const purgeBackups = ref(true)
+const purgeLoading = ref(false)
+const forceDeleteVisible = ref(false)
+const forceDeleteRow = ref(null)
+const forceDeleteConfirm = ref('')
+const forcePurgeObjects = ref(true)
+const forcePurgeBackups = ref(true)
+const forceDeleteLoading = ref(false)
+const retentionDays = ref(30)
 let pollTimer = null
 
 const healthDesc = computed(() => {
@@ -427,6 +523,7 @@ const refreshSettings = async () => {
   try {
     const res = await getPlatformTenantSettings()
     settingsKeep.value = res?.data?.backup_keep || 0
+    retentionDays.value = res?.data?.deleted_retention_days ?? 30
     queueInfo.value = res?.data?.queue || null
   } catch {
     // ignore
@@ -446,7 +543,7 @@ onMounted(async () => {
   await refreshSettings()
 })
 
-const initialSearchForm = { code: '', name: '', status: '', provision_status: '' }
+const initialSearchForm = { code: '', name: '', status: '', provision_status: '', trashed: '' }
 
 const {
   pagination,
@@ -463,6 +560,55 @@ const {
   initialSearchForm,
   defaultSort: 'id:desc'
 })
+
+const isRecycleView = computed(() => searchForm.trashed === 'only')
+
+const recycleBannerDesc = computed(() => {
+  const base = t('tenant.recycle_banner_desc')
+  if (retentionDays.value > 0) {
+    return `${base} ${t('tenant.retention_days', { n: retentionDays.value })}`
+  }
+  return base
+})
+
+const setListMode = (mode) => {
+  const next = mode === 'recycle' ? 'only' : ''
+  if (searchForm.trashed === next) {
+    loadData()
+    return
+  }
+  searchForm.trashed = next
+  handleSearch()
+}
+
+const onListModeChange = (mode) => {
+  setListMode(mode)
+}
+
+const onListReset = () => {
+  const keep = searchForm.trashed
+  handleReset()
+  searchForm.trashed = keep
+  handleSearch()
+}
+
+const recycleOpTag = (row) => {
+  if (!isRecycleView.value) return null
+  const op = row?.last_op
+  const st = row?.last_op_status
+  if (op === 'purge') {
+    if (st === 'queued' || st === 'running') return { type: 'warning', label: t('tenant.purge_status_running') }
+    if (st === 'failed') return { type: 'danger', label: t('tenant.purge_status_failed') }
+    if (st === 'success') return { type: 'success', label: t('tenant.purge_status_done') }
+  }
+  if (st === 'queued' || st === 'running') return { type: 'warning', label: t('tenant.op_busy') }
+  return null
+}
+
+const onRecycleMore = (cmd, row) => {
+  if (cmd === 'timeline') openTimeline(row)
+  if (cmd === 'purge') openPurge(row)
+}
 
 const isBusy = (row) => {
   if (row?.provision_status === 'migrating') return true
@@ -516,32 +662,38 @@ const provisionTagType = (status) => {
   }
 }
 
-const searchFields = computed(() => [
-  { prop: 'code', label: t('tenant.code'), type: 'input', width: '180px' },
-  { prop: 'name', label: t('tenant.name'), type: 'input', width: '180px' },
-  {
-    prop: 'provision_status',
-    label: t('tenant.provision_status_filter'),
-    type: 'select',
-    width: '160px',
-    options: [
-      { label: t('tenant.provision_pending'), value: 'pending' },
-      { label: t('tenant.provision_migrating'), value: 'migrating' },
-      { label: t('tenant.provision_ready'), value: 'ready' },
-      { label: t('tenant.provision_failed'), value: 'failed' }
-    ]
-  },
-  {
-    prop: 'status',
-    label: t('common.status'),
-    type: 'select',
-    width: '140px',
-    options: [
-      { label: t('common.enabled'), value: '1' },
-      { label: t('common.disabled'), value: '0' }
-    ]
-  }
-])
+const searchFields = computed(() => {
+  const base = [
+    { prop: 'code', label: t('tenant.code'), type: 'input', width: '180px' },
+    { prop: 'name', label: t('tenant.name'), type: 'input', width: '180px' }
+  ]
+  if (isRecycleView.value) return base
+  return [
+    ...base,
+    {
+      prop: 'provision_status',
+      label: t('tenant.provision_status_filter'),
+      type: 'select',
+      width: '160px',
+      options: [
+        { label: t('tenant.provision_pending'), value: 'pending' },
+        { label: t('tenant.provision_migrating'), value: 'migrating' },
+        { label: t('tenant.provision_ready'), value: 'ready' },
+        { label: t('tenant.provision_failed'), value: 'failed' }
+      ]
+    },
+    {
+      prop: 'status',
+      label: t('common.status'),
+      type: 'select',
+      width: '140px',
+      options: [
+        { label: t('common.enabled'), value: '1' },
+        { label: t('common.disabled'), value: '0' }
+      ]
+    }
+  ]
+})
 
 const retryFailedMigrates = async () => {
   try {
@@ -566,20 +718,32 @@ const retryFailedMigrates = async () => {
   }
 }
 
-const tableColumns = computed(() => [
-  { type: 'checkbox', width: 52, fixed: 'left', key: 'checkbox' },
-  { field: 'id', title: t('table.id'), width: 70, sortable: true, key: 'id' },
-  { field: 'code', title: t('tenant.code'), width: 110, key: 'code' },
-  { field: 'name', title: t('tenant.name'), width: 120, key: 'name' },
-  { field: 'driver', title: t('tenant.driver'), width: 90, key: 'driver' },
-  { field: 'database', title: t('tenant.database'), width: 140, key: 'database' },
-  { field: 'provision_status', title: t('tenant.provision_status'), width: 110, slot: 'provision_status', key: 'provision_status' },
-  { field: 'last_op', title: t('tenant.last_op'), width: 140, slot: 'last_op', key: 'last_op' },
-  { field: 'last_backup_path', title: t('tenant.backup_path'), minWidth: 180, slot: 'last_backup_path', key: 'last_backup_path' },
-  { field: 'status', title: t('common.status'), width: 90, slot: 'status', key: 'status' },
-  { field: 'created_at', title: t('table.created_at'), key: 'created_at' },
-  { field: 'actions', title: t('common.operation'), width: 320, slot: 'actions', key: 'actions' }
-])
+const tableColumns = computed(() => {
+  const cols = []
+  if (!isRecycleView.value) {
+    cols.push({ type: 'checkbox', width: 52, fixed: 'left', key: 'checkbox' })
+  }
+  cols.push(
+    { field: 'id', title: t('table.id'), width: 70, sortable: true, key: 'id' },
+    { field: 'code', title: t('tenant.code'), width: 110, key: 'code' },
+    { field: 'name', title: t('tenant.name'), width: 120, key: 'name' },
+    { field: 'driver', title: t('tenant.driver'), width: 90, key: 'driver' },
+    { field: 'database', title: t('tenant.database'), width: 140, key: 'database' },
+    { field: 'provision_status', title: t('tenant.provision_status'), width: 110, slot: 'provision_status', key: 'provision_status' },
+    { field: 'last_op', title: t('tenant.last_op'), width: 160, slot: 'last_op', key: 'last_op' }
+  )
+  if (isRecycleView.value) {
+    cols.push({ field: 'deleted_at', title: t('tenant.deleted_at'), width: 170, key: 'deleted_at' })
+  } else {
+    cols.push(
+      { field: 'last_backup_path', title: t('tenant.backup_path'), minWidth: 180, slot: 'last_backup_path', key: 'last_backup_path' },
+      { field: 'status', title: t('common.status'), width: 90, slot: 'status', key: 'status' },
+      { field: 'created_at', title: t('table.created_at'), key: 'created_at' }
+    )
+  }
+  cols.push({ field: 'actions', title: t('common.operation'), width: isRecycleView.value ? 240 : 320, slot: 'actions', key: 'actions' })
+  return cols
+})
 
 const handleSelectionChange = (rows) => {
   selectedRows.value = Array.isArray(rows) ? rows : []
@@ -598,8 +762,7 @@ const form = reactive({
   password: '',
   has_password: false,
   skip_create: false,
-  storage_limit_mb: 0,
-  traffic_limit_mb: 0
+  storage_limit_mb: 0
 })
 
 const MB = 1024 * 1024
@@ -642,7 +805,6 @@ const openEdit = (row) => {
   form.schema = row.schema || ''
   form.has_password = !!row.has_password
   form.storage_limit_mb = bytesToMb(row.storage_limit_bytes)
-  form.traffic_limit_mb = bytesToMb(row.traffic_limit_bytes)
   dialogVisible.value = true
 }
 
@@ -667,7 +829,6 @@ const resetForm = () => {
   form.has_password = false
   form.skip_create = false
   form.storage_limit_mb = 0
-  form.traffic_limit_mb = 0
 }
 
 const submitForm = async () => {
@@ -684,8 +845,7 @@ const submitForm = async () => {
           username: form.username,
           database: form.database,
           schema: form.schema,
-          storage_limit_bytes: mbToBytes(form.storage_limit_mb),
-          traffic_limit_bytes: mbToBytes(form.traffic_limit_mb)
+          storage_limit_bytes: mbToBytes(form.storage_limit_mb)
         }
         if (form.password) payload.password = form.password
         await updatePlatformTenant(editingId.value, payload)
@@ -703,8 +863,7 @@ const submitForm = async () => {
           username: form.username || undefined,
           password: form.password || undefined,
           skip_create: form.skip_create,
-          storage_limit_bytes: mbToBytes(form.storage_limit_mb) || undefined,
-          traffic_limit_bytes: mbToBytes(form.traffic_limit_mb) || undefined
+          storage_limit_bytes: mbToBytes(form.storage_limit_mb) || undefined
         })
         ElMessage.success(t('common.create_success'))
       }
@@ -894,8 +1053,6 @@ const openDelete = (row) => {
   deleteRow.value = row
   deleteConfirm.value = ''
   deleteDropDb.value = false
-  deletePurgeObjects.value = false
-  deletePurgeBackups.value = false
   deleteVisible.value = true
 }
 
@@ -903,19 +1060,13 @@ const submitDelete = async () => {
   if (!deleteRow.value) return
   deleteLoading.value = true
   try {
-    const res = await deletePlatformTenant(deleteRow.value.id, {
+    await deletePlatformTenant(deleteRow.value.id, {
       confirm_code: deleteConfirm.value,
-      drop_database: deleteDropDb.value,
-      purge_objects: deletePurgeObjects.value,
-      purge_backups: deletePurgeBackups.value
+      drop_database: deleteDropDb.value
     })
-    if (res?.data?.purge_queued) {
-      ElMessage.success(t('tenant.delete_purge_queued'))
-    } else {
-      ElMessage.success(t('common.delete_success'))
-    }
+    ElMessage.success(t('tenant.delete_to_recycle'))
     deleteVisible.value = false
-    loadData()
+    setListMode('recycle')
     refreshOpsSummary()
   } catch (error) {
     if (!error?.__handled) {
@@ -923,6 +1074,83 @@ const submitDelete = async () => {
     }
   } finally {
     deleteLoading.value = false
+  }
+}
+
+const onUndelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(t('tenant.undelete_confirm', { code: row.code }), { type: 'warning' })
+    await undeletePlatformTenant(row.id)
+    ElMessage.success(t('tenant.undelete_success'))
+    setListMode('active')
+    await refreshOpsSummary()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  }
+}
+
+const openPurge = (row) => {
+  purgeRow.value = row
+  purgeObjects.value = true
+  purgeBackups.value = true
+  purgeVisible.value = true
+}
+
+const submitPurge = async () => {
+  if (!purgeRow.value) return
+  purgeLoading.value = true
+  try {
+    await purgePlatformTenant(purgeRow.value.id, {
+      purge_objects: purgeObjects.value,
+      purge_backups: purgeBackups.value
+    })
+    ElMessage.success(t('tenant.purge_queued'))
+    purgeVisible.value = false
+    await loadData()
+    await refreshOpsSummary()
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    purgeLoading.value = false
+  }
+}
+
+const openForceDelete = (row) => {
+  forceDeleteRow.value = row
+  forceDeleteConfirm.value = ''
+  forcePurgeObjects.value = true
+  forcePurgeBackups.value = true
+  forceDeleteVisible.value = true
+}
+
+const submitForceDelete = async () => {
+  if (!forceDeleteRow.value) return
+  forceDeleteLoading.value = true
+  try {
+    const res = await forceDeletePlatformTenant(forceDeleteRow.value.id, {
+      confirm_code: forceDeleteConfirm.value,
+      purge_objects: forcePurgeObjects.value,
+      purge_backups: forcePurgeBackups.value
+    })
+    if (res?.data?.force_delete_queued || res?.data?.purge_queued) {
+      ElMessage.success(t('tenant.force_delete_queued'))
+    } else {
+      ElMessage.success(t('tenant.force_delete_success'))
+    }
+    forceDeleteVisible.value = false
+    await loadData()
+    await refreshOpsSummary()
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    forceDeleteLoading.value = false
   }
 }
 
@@ -1141,6 +1369,24 @@ const downloadBackup = async (file) => {
   margin-bottom: 12px;
   font-size: 13px;
   color: #475569;
+}
+.list-mode-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin-bottom: 12px;
+}
+.ops-inline {
+  font-size: 13px;
+  color: #475569;
+}
+.recycle-banner {
+  margin-bottom: 12px;
+}
+.recycle-badge {
+  margin-left: 6px;
+  vertical-align: middle;
 }
 .queue-meta {
   font-size: 12px;

@@ -10,6 +10,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Segmented,
   Select,
   Space,
   Switch,
@@ -18,6 +19,7 @@ import {
   Timeline,
   Tooltip,
   Typography,
+  Badge,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +28,7 @@ import {
   backupPlatformTenant,
   createPlatformTenant,
   deletePlatformTenant,
+  forceDeletePlatformTenant,
   downloadPlatformTenantBackup,
   exportPlatformTenants,
   getPlatformTenantList,
@@ -41,8 +44,10 @@ import {
   pingPlatformTenant,
   platformHealth,
   prunePlatformTenantBackups,
+  purgePlatformTenant,
   restorePlatformTenant,
   seedPlatformTenant,
+  undeletePlatformTenant,
   updatePlatformTenant,
   updatePlatformTenantStatus,
 } from '@/api/platform'
@@ -79,8 +84,9 @@ interface TenantRow {
   connection_name?: string
   migrated_at?: string
   created_at?: string
+  deleted_at?: string
+  trashed?: boolean
   storage_limit_bytes?: number
-  traffic_limit_bytes?: number
 }
 
 function isTenantBusy(row: TenantRow) {
@@ -150,9 +156,8 @@ interface TenantOverviewData {
 interface TenantQuotaData {
   storage_limit_bytes?: number
   storage_used_bytes?: number
-  traffic_limit_bytes?: number
-  traffic_used_bytes?: number
-  traffic_month?: string
+
+
 }
 
 interface TenantOpLogRow {
@@ -198,6 +203,8 @@ export default function PlatformTenantList() {
     failed_provision?: number
     busy?: number
     total?: number
+    deleted?: number
+    failed_purge?: number
   } | null>(null)
   const [batchLoading, setBatchLoading] = useState(false)
   const [detailRow, setDetailRow] = useState<TenantRow | null>(null)
@@ -221,9 +228,16 @@ export default function PlatformTenantList() {
   const [deleteTarget, setDeleteTarget] = useState<TenantRow | null>(null)
   const [deleteConfirmCode, setDeleteConfirmCode] = useState('')
   const [deleteDropDb, setDeleteDropDb] = useState(false)
-  const [deletePurgeObjects, setDeletePurgeObjects] = useState(false)
-  const [deletePurgeBackups, setDeletePurgeBackups] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [purgeTarget, setPurgeTarget] = useState<TenantRow | null>(null)
+  const [purgeObjects, setPurgeObjects] = useState(true)
+  const [purgeBackups, setPurgeBackups] = useState(true)
+  const [purgeLoading, setPurgeLoading] = useState(false)
+  const [forceDeleteTarget, setForceDeleteTarget] = useState<TenantRow | null>(null)
+  const [forceDeleteConfirm, setForceDeleteConfirm] = useState('')
+  const [forcePurgeObjects, setForcePurgeObjects] = useState(true)
+  const [forcePurgeBackups, setForcePurgeBackups] = useState(true)
+  const [forceDeleteLoading, setForceDeleteLoading] = useState(false)
   const [pruneKeep, setPruneKeep] = useState(10)
   const [pruneLoading, setPruneLoading] = useState(false)
   const [restoringName, setRestoringName] = useState('')
@@ -248,6 +262,8 @@ export default function PlatformTenantList() {
           failed_provision: Number(summary.failed_provision ?? 0),
           busy: Number(summary.busy ?? 0),
           total: Number(summary.total ?? 0),
+          deleted: Number(summary.deleted ?? 0),
+          failed_purge: Number(summary.failed_purge ?? 0),
         })
       }
     } catch {
@@ -305,7 +321,7 @@ export default function PlatformTenantList() {
     refresh,
   } = useListPage<TenantRow>({
     fetchApi: getPlatformTenantList,
-    initialSearchForm: { code: '', name: '', status: '', provision_status: '' },
+    initialSearchForm: { code: '', name: '', status: '', provision_status: '', trashed: '' },
     defaultSort: 'id:desc',
     normalizeRows: false,
     transformData: (row) => {
@@ -334,9 +350,39 @@ export default function PlatformTenantList() {
         connection_name: String(entityField(record, 'connection_name', '') ?? ''),
         migrated_at: String(entityField(record, 'migrated_at', '') ?? ''),
         created_at: String(entityField(record, 'created_at', '') ?? ''),
+        deleted_at: String(entityField(record, 'deleted_at', '') ?? ''),
+        trashed: Boolean(entityField(record, 'trashed', false)),
+        storage_limit_bytes: Number(entityField(record, 'storage_limit_bytes', 0) ?? 0),
       }
     },
   })
+
+  const isRecycleView = searchForm.trashed === 'only'
+
+  const setListMode = (mode: 'active' | 'recycle') => {
+    const next = mode === 'recycle' ? 'only' : ''
+    onSearchFormChange({ ...searchForm, trashed: next })
+    window.setTimeout(() => handleSearch(), 0)
+  }
+
+  const recycleOpTag = (row: TenantRow) => {
+    if (!isRecycleView) return null
+    if (row.last_op === 'purge') {
+      if (row.last_op_status === 'queued' || row.last_op_status === 'running') {
+        return { color: 'gold', label: t('tenant.purge_status_running') }
+      }
+      if (row.last_op_status === 'failed') {
+        return { color: 'red', label: t('tenant.purge_status_failed') }
+      }
+      if (row.last_op_status === 'success') {
+        return { color: 'green', label: t('tenant.purge_status_done') }
+      }
+    }
+    if (row.last_op_status === 'queued' || row.last_op_status === 'running') {
+      return { color: 'gold', label: t('tenant.op_busy') }
+    }
+    return null
+  }
 
   const copyText = async (text?: string) => {
     const value = String(text || '')
@@ -548,29 +594,82 @@ export default function PlatformTenantList() {
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
-      const res = await deletePlatformTenant(deleteTarget.id, {
+      await deletePlatformTenant(deleteTarget.id, {
         confirm_code: deleteConfirmCode.trim(),
         drop_database: deleteDropDb,
-        purge_objects: deletePurgeObjects,
-        purge_backups: deletePurgeBackups,
       })
-      if ((res as { data?: { purge_queued?: boolean } })?.data?.purge_queued) {
-        message.success(t('tenant.delete_purge_queued'))
-      } else {
-        message.success(t('tenant.delete_success'))
-      }
+      message.success(t('tenant.delete_to_recycle'))
       setDeleteTarget(null)
       setDeleteConfirmCode('')
       setDeleteDropDb(false)
-      setDeletePurgeObjects(false)
-      setDeletePurgeBackups(false)
       closeDetail()
-      await refresh()
+      setListMode('recycle')
       await refreshOpsSummary()
     } catch (error) {
       showError(error, t('common.operation_failed'))
     } finally {
       setDeleteLoading(false)
+    }
+  }
+
+  const onUndelete = (row: TenantRow) => {
+    modal.confirm({
+      title: t('tenant.undelete_confirm', { code: row.code }),
+      onOk: async () => {
+        try {
+          await undeletePlatformTenant(row.id)
+          message.success(t('tenant.undelete_success'))
+          setListMode('active')
+          await refreshOpsSummary()
+        } catch (error) {
+          showError(error, t('common.operation_failed'))
+        }
+      },
+    })
+  }
+
+  const submitPurge = async () => {
+    if (!purgeTarget) return
+    setPurgeLoading(true)
+    try {
+      await purgePlatformTenant(purgeTarget.id, {
+        purge_objects: purgeObjects,
+        purge_backups: purgeBackups,
+      })
+      message.success(t('tenant.purge_queued'))
+      setPurgeTarget(null)
+      await refresh()
+      await refreshOpsSummary()
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setPurgeLoading(false)
+    }
+  }
+
+  const submitForceDelete = async () => {
+    if (!forceDeleteTarget) return
+    setForceDeleteLoading(true)
+    try {
+      const res = await forceDeletePlatformTenant(forceDeleteTarget.id, {
+        confirm_code: forceDeleteConfirm.trim(),
+        purge_objects: forcePurgeObjects,
+        purge_backups: forcePurgeBackups,
+      })
+      const data = (res as { data?: { force_delete_queued?: boolean; purge_queued?: boolean } })?.data
+      if (data?.force_delete_queued || data?.purge_queued) {
+        message.success(t('tenant.force_delete_queued'))
+      } else {
+        message.success(t('tenant.force_delete_success'))
+      }
+      setForceDeleteTarget(null)
+      setForceDeleteConfirm('')
+      await refresh()
+      await refreshOpsSummary()
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setForceDeleteLoading(false)
     }
   }
 
@@ -668,6 +767,14 @@ export default function PlatformTenantList() {
         key: 'last_op',
         width: 140,
         render: (_, row) => {
+          const tag = recycleOpTag(row)
+          if (tag) {
+            return (
+              <Tooltip title={row.last_op_message || row.last_op_at || undefined}>
+                <Tag color={tag.color}>{tag.label}</Tag>
+              </Tooltip>
+            )
+          }
           if (!row.last_op && !row.last_op_status) return '—'
           return (
             <Tooltip title={row.last_op_message || row.last_op_at || undefined}>
@@ -724,6 +831,43 @@ export default function PlatformTenantList() {
         fixed: 'right',
         render: (_, row) => {
           const busy = isTenantBusy(row)
+          if (isRecycleView) {
+            return (
+              <Space size={0} wrap>
+                <Button type="link" size="small" disabled={busy} onClick={() => onUndelete(row)}>
+                  {t('tenant.op_undelete')}
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  danger
+                  disabled={busy}
+                  onClick={() => {
+                    setForceDeleteConfirm('')
+                    setForcePurgeObjects(true)
+                    setForcePurgeBackups(true)
+                    setForceDeleteTarget(row)
+                  }}
+                >
+                  {t('tenant.op_force_delete_short')}
+                </Button>
+                {row.last_op === 'purge' && row.last_op_status === 'failed' ? (
+                  <Button
+                    type="link"
+                    size="small"
+                    disabled={busy}
+                    onClick={() => {
+                      setPurgeObjects(true)
+                      setPurgeBackups(true)
+                      setPurgeTarget(row)
+                    }}
+                  >
+                    {t('tenant.op_purge_retry')}
+                  </Button>
+                ) : null}
+              </Space>
+            )
+          }
           return (
             <Space size={0} wrap>
               <Button type="link" size="small" onClick={() => openDetail(row)}>
@@ -744,7 +888,6 @@ export default function PlatformTenantList() {
                     database: row.database,
                     schema: row.schema,
                     storage_limit_mb: bytesToMb(row.storage_limit_bytes),
-                    traffic_limit_mb: bytesToMb(row.traffic_limit_bytes),
                   })
                 }}
               >
@@ -798,7 +941,7 @@ export default function PlatformTenantList() {
         },
       },
     ],
-    [t, message, modal, refresh, showError, form, copyText, openBackups, runQueued, openDetail, onPingRow],
+    [t, message, modal, refresh, showError, form, copyText, openBackups, runQueued, openDetail, onPingRow, isRecycleView],
   )
 
   const {
@@ -820,7 +963,6 @@ export default function PlatformTenantList() {
       await createPlatformTenant({
         ...values,
         storage_limit_bytes: mbToBytes(values.storage_limit_mb) || undefined,
-        traffic_limit_bytes: mbToBytes(values.traffic_limit_mb) || undefined,
       })
       message.success(t('common.create_success'))
       setCreateOpen(false)
@@ -846,7 +988,6 @@ export default function PlatformTenantList() {
         database: values.database,
         schema: values.schema,
         storage_limit_bytes: mbToBytes(values.storage_limit_mb),
-        traffic_limit_bytes: mbToBytes(values.traffic_limit_mb),
       }
       if (values.password) payload.password = values.password
       await updatePlatformTenant(editing.id, payload)
@@ -863,64 +1004,67 @@ export default function PlatformTenantList() {
 
   return (
     <PageContainer
-      title={t('menu.tenant')}
+      title={isRecycleView ? t('tenant.recycle_bin') : t('menu.tenant')}
       extra={
         <Space wrap>
-          <Button loading={exportLoading} onClick={() => void exportCsv()}>
-            {t('tenant.export_csv')}
-          </Button>
-          <Button
-            loading={batchLoading}
-            disabled={selectedRowKeys.length < 1}
-            onClick={() =>
-              runBatchOps(
-                'seed',
-                { ids: selectedRowKeys.map((id) => Number(id)) },
-                t('tenant.batch_seed'),
-                t('tenant.batch_seed_confirm', { n: selectedRowKeys.length }),
-              )
-            }
-          >
-            {t('tenant.batch_seed')}
-          </Button>
-          <Button
-            loading={batchLoading}
-            disabled={selectedRowKeys.length < 1}
-            onClick={() =>
-              runBatchOps(
-                'backup',
-                { ids: selectedRowKeys.map((id) => Number(id)) },
-                t('tenant.batch_backup'),
-                t('tenant.batch_backup_confirm', { n: selectedRowKeys.length }),
-              )
-            }
-          >
-            {t('tenant.batch_backup')}
-          </Button>
-          <Button
-            loading={batchLoading}
-            disabled={(opsSummary?.failed_provision ?? 0) < 1}
-            onClick={retryFailedMigrates}
-          >
-            {t('tenant.retry_failed_migrate')}
-          </Button>
-          <Button
-            type="primary"
-            onClick={() => {
-              form.resetFields()
-              form.setFieldsValue({
-                driver: 'mysql',
-                isolation: 'database',
-                skip_create: false,
-                port: 0,
-                storage_limit_mb: 0,
-                traffic_limit_mb: 0,
-              })
-              setCreateOpen(true)
-            }}
-          >
-            {t('tenant.add')}
-          </Button>
+          {!isRecycleView ? (
+            <>
+              <Button loading={exportLoading} onClick={() => void exportCsv()}>
+                {t('tenant.export_csv')}
+              </Button>
+              <Button
+                loading={batchLoading}
+                disabled={selectedRowKeys.length < 1}
+                onClick={() =>
+                  runBatchOps(
+                    'seed',
+                    { ids: selectedRowKeys.map((id) => Number(id)) },
+                    t('tenant.batch_seed'),
+                    t('tenant.batch_seed_confirm', { n: selectedRowKeys.length }),
+                  )
+                }
+              >
+                {t('tenant.batch_seed')}
+              </Button>
+              <Button
+                loading={batchLoading}
+                disabled={selectedRowKeys.length < 1}
+                onClick={() =>
+                  runBatchOps(
+                    'backup',
+                    { ids: selectedRowKeys.map((id) => Number(id)) },
+                    t('tenant.batch_backup'),
+                    t('tenant.batch_backup_confirm', { n: selectedRowKeys.length }),
+                  )
+                }
+              >
+                {t('tenant.batch_backup')}
+              </Button>
+              <Button
+                loading={batchLoading}
+                disabled={(opsSummary?.failed_provision ?? 0) < 1}
+                onClick={retryFailedMigrates}
+              >
+                {t('tenant.retry_failed_migrate')}
+              </Button>
+              <Button
+                type="primary"
+                onClick={() => {
+                  form.resetFields()
+                  form.setFieldsValue({
+                    driver: 'mysql',
+                    isolation: 'database',
+                    skip_create: false,
+                    port: 0,
+                    storage_limit_mb: 0,
+                  })
+                  setCreateOpen(true)
+                }}
+              >
+                {t('tenant.add')}
+              </Button>
+            </>
+          ) : null}
           <Button icon={<SettingOutlined />} onClick={openColumnSetting}>
             {t('common.column_setting')}
           </Button>
@@ -932,50 +1076,95 @@ export default function PlatformTenantList() {
         showIcon
         style={{ marginBottom: 12 }}
         message={t('platform.cli_ops_title')}
-        description={
-          <>
-            <div>{healthDesc}</div>
-            {opsSummary ? (
-              <div style={{ marginTop: 6 }}>
-                {t('tenant.ops_summary', {
-                  failed: opsSummary.failed_provision ?? 0,
-                  busy: opsSummary.busy ?? 0,
-                  total: opsSummary.total ?? 0,
-                })}
-              </div>
-            ) : null}
-          </>
-        }
+        description={healthDesc}
       />
+      <Space wrap style={{ marginBottom: 12 }} size="middle">
+        <Segmented
+          value={isRecycleView ? 'recycle' : 'active'}
+          onChange={(v) => setListMode(v === 'recycle' ? 'recycle' : 'active')}
+          options={[
+            { label: t('tenant.list_active'), value: 'active' },
+            {
+              label: (
+                <span>
+                  {t('tenant.recycle_bin')}
+                  {(opsSummary?.deleted ?? 0) > 0 ? (
+                    <Badge count={opsSummary?.deleted} style={{ marginLeft: 6 }} size="small" />
+                  ) : null}
+                </span>
+              ),
+              value: 'recycle',
+            },
+          ]}
+        />
+        {opsSummary ? (
+          <Typography.Text type="secondary">
+            {t('tenant.ops_summary', {
+              failed: opsSummary.failed_provision ?? 0,
+              busy: opsSummary.busy ?? 0,
+              total: opsSummary.total ?? 0,
+            })}
+            {(opsSummary.failed_purge ?? 0) > 0
+              ? ` · ${t('tenant.failed_purge_count', { n: opsSummary.failed_purge })}`
+              : ''}
+          </Typography.Text>
+        ) : null}
+      </Space>
+      {isRecycleView ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={t('tenant.recycle_banner_title')}
+          description={t('tenant.recycle_banner_desc')}
+        />
+      ) : null}
       <SearchForm
-        fields={[
-          { name: 'code', label: t('tenant.code') },
-          { name: 'name', label: t('tenant.name') },
-          {
-            name: 'provision_status',
-            label: t('tenant.provision_status_filter'),
-            type: 'select',
-            options: [
-              { label: t('tenant.provision_pending'), value: 'pending' },
-              { label: t('tenant.provision_migrating'), value: 'migrating' },
-              { label: t('tenant.provision_ready'), value: 'ready' },
-              { label: t('tenant.provision_failed'), value: 'failed' },
-            ],
-          },
-          {
-            name: 'status',
-            label: t('common.status'),
-            type: 'select',
-            options: [
-              { label: t('common.enabled'), value: '1' },
-              { label: t('common.disabled'), value: '0' },
-            ],
-          },
-        ]}
+        fields={
+          isRecycleView
+            ? [
+                { name: 'code', label: t('tenant.code') },
+                { name: 'name', label: t('tenant.name') },
+              ]
+            : [
+                { name: 'code', label: t('tenant.code') },
+                { name: 'name', label: t('tenant.name') },
+                {
+                  name: 'provision_status',
+                  label: t('tenant.provision_status_filter'),
+                  type: 'select',
+                  options: [
+                    { label: t('tenant.provision_pending'), value: 'pending' },
+                    { label: t('tenant.provision_migrating'), value: 'migrating' },
+                    { label: t('tenant.provision_ready'), value: 'ready' },
+                    { label: t('tenant.provision_failed'), value: 'failed' },
+                  ],
+                },
+                {
+                  name: 'status',
+                  label: t('common.status'),
+                  type: 'select',
+                  options: [
+                    { label: t('common.enabled'), value: '1' },
+                    { label: t('common.disabled'), value: '0' },
+                  ],
+                },
+              ]
+        }
         values={searchForm}
         onChange={onSearchFormChange}
         onSearch={handleSearch}
-        onReset={handleReset}
+        onReset={() => {
+          const keep = String(searchForm.trashed || '')
+          onSearchFormChange({
+            code: '',
+            name: '',
+            status: '',
+            provision_status: '',
+            trashed: keep,
+          })
+          window.setTimeout(() => handleSearch(), 0)
+        }}
       />
 
       <Table
@@ -983,11 +1172,16 @@ export default function PlatformTenantList() {
         loading={loading}
         dataSource={tableData}
         columns={filteredColumns}
-        scroll={{ x: 1500 }}
-        rowSelection={{
-          selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys.map((k) => (typeof k === 'bigint' ? String(k) : k))),
-        }}
+        scroll={{ x: isRecycleView ? 1100 : 1500 }}
+        rowSelection={
+          isRecycleView
+            ? undefined
+            : {
+                selectedRowKeys,
+                onChange: (keys) =>
+                  setSelectedRowKeys(keys.map((k) => (typeof k === 'bigint' ? String(k) : k))),
+              }
+        }
         pagination={{
           current: pagination.page,
           pageSize: pagination.pageSize,
@@ -1077,10 +1271,6 @@ export default function PlatformTenantList() {
                 </Descriptions.Item>
                 <Descriptions.Item label={t('tenant.storage_used')}>
                   {formatQuota(detailQuota?.storage_used_bytes, detailQuota?.storage_limit_bytes)}
-                </Descriptions.Item>
-                <Descriptions.Item label={t('tenant.traffic_used')}>
-                  {formatQuota(detailQuota?.traffic_used_bytes, detailQuota?.traffic_limit_bytes)}
-                  {detailQuota?.traffic_month ? ` (${detailQuota.traffic_month})` : ''}
                 </Descriptions.Item>
                 <Descriptions.Item label={t('tenant.ping_detail')}>
                   {detailOverview.ping_ok
@@ -1297,8 +1487,6 @@ export default function PlatformTenantList() {
           setDeleteTarget(null)
           setDeleteConfirmCode('')
           setDeleteDropDb(false)
-          setDeletePurgeObjects(false)
-          setDeletePurgeBackups(false)
         }}
         onOk={() => void submitDelete()}
         confirmLoading={deleteLoading}
@@ -1313,11 +1501,64 @@ export default function PlatformTenantList() {
           <Form.Item label={t('tenant.delete_drop_database')}>
             <Switch checked={deleteDropDb} onChange={setDeleteDropDb} />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={t('tenant.op_purge_retry')}
+        open={!!purgeTarget}
+        onCancel={() => setPurgeTarget(null)}
+        onOk={() => void submitPurge()}
+        confirmLoading={purgeLoading}
+        destroyOnHidden
+      >
+        <p>{t('tenant.purge_retry_hint', { code: purgeTarget?.code || '' })}</p>
+        {purgeTarget?.last_op === 'purge' ? (
+          <Alert
+            style={{ marginBottom: 12 }}
+            type={purgeTarget.last_op_status === 'failed' ? 'error' : 'info'}
+            showIcon
+            message={`${purgeTarget.last_op} / ${purgeTarget.last_op_status || '—'}`}
+            description={purgeTarget.last_op_message || undefined}
+          />
+        ) : null}
+        <Form layout="vertical">
+          <Form.Item label={t('tenant.purge_objects')}>
+            <Switch checked={purgeObjects} onChange={setPurgeObjects} />
+          </Form.Item>
+          <Form.Item label={t('tenant.purge_backups')}>
+            <Switch checked={purgeBackups} onChange={setPurgeBackups} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={t('tenant.op_force_delete')}
+        open={!!forceDeleteTarget}
+        onCancel={() => {
+          setForceDeleteTarget(null)
+          setForceDeleteConfirm('')
+        }}
+        onOk={() => void submitForceDelete()}
+        confirmLoading={forceDeleteLoading}
+        okButtonProps={{ danger: true }}
+        destroyOnHidden
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={t('tenant.force_delete_hint', { code: forceDeleteTarget?.code || '' })}
+        />
+        <Form layout="vertical">
+          <Form.Item label={t('tenant.delete_confirm_code', { code: forceDeleteTarget?.code || '' })}>
+            <Input value={forceDeleteConfirm} onChange={(e) => setForceDeleteConfirm(e.target.value)} />
+          </Form.Item>
           <Form.Item label={t('tenant.purge_objects')} extra={t('tenant.purge_objects_tip')}>
-            <Switch checked={deletePurgeObjects} onChange={setDeletePurgeObjects} />
+            <Switch checked={forcePurgeObjects} onChange={setForcePurgeObjects} />
           </Form.Item>
           <Form.Item label={t('tenant.purge_backups')} extra={t('tenant.purge_backups_tip')}>
-            <Switch checked={deletePurgeBackups} onChange={setDeletePurgeBackups} />
+            <Switch checked={forcePurgeBackups} onChange={setForcePurgeBackups} />
           </Form.Item>
         </Form>
       </Modal>
@@ -1448,13 +1689,6 @@ export default function PlatformTenantList() {
           >
             <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item
-            name="traffic_limit_mb"
-            label={t('tenant.traffic_limit_mb')}
-            extra={t('tenant.traffic_quota_tip')}
-          >
-            <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
-          </Form.Item>
         </Form>
       </Modal>
 
@@ -1503,13 +1737,6 @@ export default function PlatformTenantList() {
             name="storage_limit_mb"
             label={t('tenant.storage_limit_mb')}
             extra={t('tenant.quota_zero_unlimited')}
-          >
-            <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            name="traffic_limit_mb"
-            label={t('tenant.traffic_limit_mb')}
-            extra={t('tenant.traffic_quota_tip')}
           >
             <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
           </Form.Item>

@@ -80,5 +80,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20260913210000CreateTenantOpLogsTable{},
 		&migrations.M20260913223000AddTenantOpLogMeta{},
 		&migrations.M20260913240000AddTenantQuotaMeta{},
+		&migrations.M20260913250000DropTenantTrafficLimit{},
 	}
 }

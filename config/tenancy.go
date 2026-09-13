@@ -29,6 +29,8 @@ func init() {
 		"postgres_sslmode": config.Env("TENANCY_POSTGRES_SSLMODE", ""),
 		// tenant:backup 每个租户保留的最近份数（0=不清理）
 		"backup_keep": config.Env("TENANCY_BACKUP_KEEP", 10),
+		// Soft-deleted tenant retention days before tenant:cleanup-deleted hard-deletes (0=never auto)
+		"deleted_retention_days": config.Env("TENANCY_DELETED_RETENTION_DAYS", 30),
 		// 每租户连接池（公网收紧；覆盖 database.pool 对动态连接的默认）
 		"pool_max_idle_conns":   config.Env("TENANCY_POOL_MAX_IDLE_CONNS", 2),
 		"pool_max_open_conns":   config.Env("TENANCY_POOL_MAX_OPEN_CONNS", 20),

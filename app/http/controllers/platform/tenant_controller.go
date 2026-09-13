@@ -51,7 +51,7 @@ func (c *TenantController) Show(ctx http.Context) http.Response {
 	if id == 0 {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
-	tenant, err := c.service().GetByID(id)
+	tenant, err := c.service().GetByIDIncludingTrashed(id)
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
 	}
@@ -72,7 +72,6 @@ type tenantStoreBody struct {
 	Migrate           *bool  `json:"migrate" form:"migrate"` // 若传 true 则拒绝，引导 CLI
 	SkipCreate        bool   `json:"skip_create" form:"skip_create"`
 	StorageLimitBytes *int64 `json:"storage_limit_bytes" form:"storage_limit_bytes"`
-	TrafficLimitBytes *int64 `json:"traffic_limit_bytes" form:"traffic_limit_bytes"`
 }
 
 func (c *TenantController) Store(ctx http.Context) http.Response {
@@ -98,7 +97,6 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 		Migrate:           false,
 		SkipCreate:        body.SkipCreate,
 		StorageLimitBytes: body.StorageLimitBytes,
-		TrafficLimitBytes: body.TrafficLimitBytes,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
@@ -115,7 +113,6 @@ type tenantUpdateBody struct {
 	Database          *string `json:"database" form:"database"`
 	Schema            *string `json:"schema" form:"schema"`
 	StorageLimitBytes *int64  `json:"storage_limit_bytes" form:"storage_limit_bytes"`
-	TrafficLimitBytes *int64  `json:"traffic_limit_bytes" form:"traffic_limit_bytes"`
 }
 
 func (c *TenantController) Update(ctx http.Context) http.Response {
@@ -134,7 +131,6 @@ func (c *TenantController) Update(ctx http.Context) http.Response {
 		Database:          body.Database,
 		Schema:            body.Schema,
 		StorageLimitBytes: body.StorageLimitBytes,
-		TrafficLimitBytes: body.TrafficLimitBytes,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
@@ -278,6 +274,19 @@ type tenantDeleteBody struct {
 	PurgeFiles bool `json:"purge_files" form:"purge_files"`
 }
 
+type tenantForceDeleteBody struct {
+	ConfirmCode  string `json:"confirm_code" form:"confirm_code"`
+	PurgeObjects *bool  `json:"purge_objects" form:"purge_objects"` // nil => true
+	PurgeBackups *bool  `json:"purge_backups" form:"purge_backups"` // nil => true
+	PurgeFiles   bool   `json:"purge_files" form:"purge_files"`
+}
+
+type tenantPurgeBody struct {
+	PurgeObjects bool `json:"purge_objects" form:"purge_objects"`
+	PurgeBackups bool `json:"purge_backups" form:"purge_backups"`
+	PurgeFiles   bool `json:"purge_files" form:"purge_files"`
+}
+
 type tenantOpsBatchBody struct {
 	Op              string `json:"op" form:"op"` // migrate|seed|backup
 	IDs             []uint `json:"ids" form:"ids"`
@@ -380,7 +389,8 @@ func (c *TenantController) Restore(ctx http.Context) http.Response {
 	return c.enqueueOpWithOpts(ctx, models.TenantOpRestore, false, name, -1)
 }
 
-// Destroy soft-deletes tenant metadata; optional DROP DB; optional async purge of objects/backups.
+// Destroy soft-deletes tenant metadata; optional DROP DB. Object storage is NOT purged here
+// (purge happens on force-delete / recycle-bin purge).
 func (c *TenantController) Destroy(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
 	if id == 0 {
@@ -388,53 +398,154 @@ func (c *TenantController) Destroy(ctx http.Context) http.Response {
 	}
 	var body tenantDeleteBody
 	_ = ctx.Request().Bind(&body)
-	purgeObjects := body.PurgeObjects || body.PurgeFiles
-	purgeBackups := body.PurgeBackups || body.PurgeFiles
 	result, err := c.service().DeleteTenant(id, body.ConfirmCode, services.TenantDeleteOptions{
 		DropDatabase: body.DropDatabase,
-		PurgeObjects: purgeObjects,
-		PurgeBackups: purgeBackups,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 
-	purgeQueued := false
-	if purgeObjects || purgeBackups {
-		args, beginErr := c.ops().BeginQueuedPurge(result.ID, result.Code, purgeObjects, purgeBackups, platformActor(ctx))
-		if beginErr != nil {
-			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, beginErr, map[string]any{"id": id})
-		}
-		payload, marshalErr := json.Marshal(args)
-		if marshalErr != nil {
-			failAt := time.Now()
-			stub := &models.Tenant{Code: result.Code}
-			stub.ID = result.ID
-			services.UpdateTenantOpLog(args.OpLogID, stub, models.TenantOpPurge, models.TenantOpStatusFailed, marshalErr.Error(), &failAt)
-			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(marshalErr), map[string]any{"id": id})
-		}
-		if err := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
-			Type:  "string",
-			Value: string(payload),
-		}}).OnQueue("long-running").Dispatch(); err != nil {
-			failAt := time.Now()
-			stub := &models.Tenant{Code: result.Code}
-			stub.ID = result.ID
-			services.UpdateTenantOpLog(args.OpLogID, stub, models.TenantOpPurge, models.TenantOpStatusFailed, err.Error(), &failAt)
-			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(err), map[string]any{"id": id})
-		}
-		purgeQueued = true
+	return response.Success(ctx, map[string]any{
+		"deleted":       true,
+		"id":            result.ID,
+		"code":          result.Code,
+		"drop_database": result.DropDatabase,
+	})
+}
+
+// Undelete restores soft-deleted tenant metadata from the recycle bin.
+func (c *TenantController) Undelete(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	tenant, err := c.service().UndeleteTenant(id)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
+	}
+	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
+}
+
+// ForceDestroy permanently removes a soft-deleted tenant. By default it enqueues purge of
+// object storage + local backups, then hard-deletes the landlord row after purge succeeds.
+func (c *TenantController) ForceDestroy(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	var body tenantForceDeleteBody
+	_ = ctx.Request().Bind(&body)
+	tenant, err := c.service().GetByIDIncludingTrashed(id)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	if !services.TenantIsTrashed(tenant) {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusBadRequest, apperrors.ErrTenantNotTrashed, map[string]any{"id": id})
+	}
+	if strings.TrimSpace(body.ConfirmCode) != tenant.Code {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusBadRequest, apperrors.ErrInvalidArgument.WithMessage("confirm_code must equal tenant code"), map[string]any{"id": id})
 	}
 
+	purgeObjects := true
+	purgeBackups := true
+	if body.PurgeObjects != nil {
+		purgeObjects = *body.PurgeObjects
+	}
+	if body.PurgeBackups != nil {
+		purgeBackups = *body.PurgeBackups
+	}
+	if body.PurgeFiles {
+		purgeObjects = true
+		purgeBackups = true
+	}
+
+	if purgeObjects || purgeBackups {
+		purgeQueued, resp := c.enqueuePurge(ctx, tenant.ID, tenant.Code, purgeObjects, purgeBackups, true)
+		if resp != nil {
+			return resp
+		}
+		return response.Success(ctx, map[string]any{
+			"force_delete_queued": true,
+			"purge_queued":        purgeQueued,
+			"id":                  tenant.ID,
+			"code":                tenant.Code,
+			"purge_objects":       purgeObjects,
+			"purge_backups":       purgeBackups,
+		})
+	}
+
+	if err := c.service().ForceDeleteTenant(id, body.ConfirmCode); err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
+	}
 	return response.Success(ctx, map[string]any{
-		"deleted":        true,
-		"id":             result.ID,
-		"code":           result.Code,
-		"drop_database":  result.DropDatabase,
-		"purge_objects":  purgeObjects,
-		"purge_backups":  purgeBackups,
-		"purge_queued":   purgeQueued,
+		"force_deleted": true,
+		"id":            id,
+		"purge_objects": false,
+		"purge_backups": false,
 	})
+}
+
+// Purge enqueues async object/backup cleanup (typically for soft-deleted tenants / retry).
+func (c *TenantController) Purge(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	tenant, err := c.service().GetByIDIncludingTrashed(id)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	var body tenantPurgeBody
+	_ = ctx.Request().Bind(&body)
+	purgeObjects := body.PurgeObjects || body.PurgeFiles
+	purgeBackups := body.PurgeBackups || body.PurgeFiles
+	if !purgeObjects && !purgeBackups {
+		purgeObjects = true
+		purgeBackups = true
+	}
+	purgeQueued, resp := c.enqueuePurge(ctx, tenant.ID, tenant.Code, purgeObjects, purgeBackups, false)
+	if resp != nil {
+		return resp
+	}
+	return response.Success(ctx, map[string]any{
+		"purge_queued":  purgeQueued,
+		"id":            tenant.ID,
+		"code":          tenant.Code,
+		"purge_objects": purgeObjects,
+		"purge_backups": purgeBackups,
+	})
+}
+
+// enqueuePurge returns (queued, errorResponse). errorResponse is non-nil on failure.
+func (c *TenantController) enqueuePurge(ctx http.Context, id uint, code string, purgeObjects, purgeBackups, forceDeleteAfter bool) (bool, http.Response) {
+	if !purgeObjects && !purgeBackups {
+		return false, nil
+	}
+	args, beginErr := c.ops().BeginQueuedPurgeEx(id, code, purgeObjects, purgeBackups, forceDeleteAfter, platformActor(ctx))
+	if beginErr != nil {
+		return false, admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, beginErr, map[string]any{"id": id})
+	}
+	payload, marshalErr := json.Marshal(args)
+	if marshalErr != nil {
+		failAt := time.Now()
+		stub := &models.Tenant{Code: code}
+		stub.ID = id
+		services.UpdateTenantOpLog(args.OpLogID, stub, models.TenantOpPurge, models.TenantOpStatusFailed, marshalErr.Error(), &failAt)
+		services.MarkTenantOpFailedIncludingTrashed(id, models.TenantOpPurge, marshalErr.Error(), failAt)
+		return false, admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(marshalErr), map[string]any{"id": id})
+	}
+	if err := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
+		Type:  "string",
+		Value: string(payload),
+	}}).OnQueue("long-running").Dispatch(); err != nil {
+		failAt := time.Now()
+		stub := &models.Tenant{Code: code}
+		stub.ID = id
+		services.UpdateTenantOpLog(args.OpLogID, stub, models.TenantOpPurge, models.TenantOpStatusFailed, err.Error(), &failAt)
+		services.MarkTenantOpFailedIncludingTrashed(id, models.TenantOpPurge, err.Error(), failAt)
+		return false, admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(err), map[string]any{"id": id})
+	}
+	return true, nil
 }
 
 // Overview returns DB size / table / admin counts for one tenant.
@@ -462,7 +573,7 @@ func (c *TenantController) OpLogs(ctx http.Context) http.Response {
 	if id == 0 {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
-	if _, err := c.service().GetByID(id); err != nil {
+	if _, err := c.service().GetByIDIncludingTrashed(id); err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 	limit := helpers.GetIntQuery(ctx, "limit", 30)
@@ -542,10 +653,11 @@ func (c *TenantController) PruneBackups(ctx http.Context) http.Response {
 func (c *TenantController) Settings(ctx http.Context) http.Response {
 	queue := services.BuildPlatformQueueStatus()
 	return response.Success(ctx, map[string]any{
-		"backup_keep": facades.Config().GetInt("tenancy.backup_keep", 10),
-		"resolver":    facades.Config().GetString("tenancy.resolver", "header"),
-		"header":      facades.Config().GetString("tenancy.header", "X-Tenant-ID"),
-		"queue":       queue,
+		"backup_keep":             facades.Config().GetInt("tenancy.backup_keep", 10),
+		"deleted_retention_days":  facades.Config().GetInt("tenancy.deleted_retention_days", 30),
+		"resolver":                facades.Config().GetString("tenancy.resolver", "header"),
+		"header":                  facades.Config().GetString("tenancy.header", "X-Tenant-ID"),
+		"queue":                   queue,
 	})
 }
 

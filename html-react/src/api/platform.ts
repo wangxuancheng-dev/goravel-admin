@@ -71,9 +71,38 @@ export function restorePlatformTenant(id: string | number, data: { backup_name: 
 
 export function deletePlatformTenant(
   id: string | number,
-  data: { confirm_code: string; drop_database?: boolean },
+  data: {
+    confirm_code: string
+    drop_database?: boolean
+    purge_objects?: boolean
+    purge_backups?: boolean
+    purge_files?: boolean
+  },
 ) {
   return platformRequest.delete(`/tenants/${id}`, { data })
+}
+
+export function undeletePlatformTenant(id: string | number) {
+  return platformRequest.post(`/tenants/${id}/undelete`)
+}
+
+export function forceDeletePlatformTenant(
+  id: string | number,
+  data: {
+    confirm_code: string
+    purge_objects?: boolean
+    purge_backups?: boolean
+    purge_files?: boolean
+  },
+) {
+  return platformRequest.delete(`/tenants/${id}/force`, { data })
+}
+
+export function purgePlatformTenant(
+  id: string | number,
+  data?: { purge_objects?: boolean; purge_backups?: boolean; purge_files?: boolean },
+) {
+  return platformRequest.post(`/tenants/${id}/purge`, data || {})
 }
 
 export function getPlatformTenantOverview(id: string | number) {

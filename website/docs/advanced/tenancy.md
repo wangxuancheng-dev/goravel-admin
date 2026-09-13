@@ -162,9 +162,9 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 ## 对象存储与配额
 
 - **共用 disk**：S3/OSS/本地等仍是全站一份 `FILESYSTEM_DISK`；路径用 `tenants/{code}/` 前缀隔离。租户后台**不可**改 `file_disk`（保存会被拒绝），仅可改导出格式。
-- **删除租户**：平台元数据为**软删除**；`drop_database` 仅 DROP 库/Schema；`purge_objects` / `purge_backups` 分别异步清理对象前缀与本地备份（入队 `tenant_ops`/`long-running`，需 Worker）；旧参数 `purge_files` 表示两者都清。
+- **删除租户**：平台元数据**软删**入回收站；drop_database 仅 DROP 库/Schema；**此时不清理对象存储**。
+- **回收站 / 永久删除**：GET /tenants?trashed=only；POST .../undelete 恢复；POST .../purge 可单独重试清理；DELETE .../force 默认异步清理对象+备份后再硬删并释放 code。保留 TENANCY_DELETED_RETENTION_DAYS；定时 	enant:cleanup-deleted。
 - **存储限额** `storage_limit_bytes`（0=不限）：按租户库 `attachments.size` 汇总，上传前校验。
-- **月流量限额** `traffic_limit_bytes`（0=不限）：统计应用侧上传与经应用下载/预览（含签发临时 URL）；**直链 CDN 下载不计入**。计数存在缓存键 `t{id}:traffic:YYYYMM`（UTC 月）。
 
 ## 运维增强
 
@@ -263,6 +263,9 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/tenants/{id}/restore` | 异步从备份恢复（body `backup_name`） |
 | POST | `/api/platform/tenants/{id}/backups/prune` | 保留最新 N 份备份（body `keep`） |
 | DELETE | `/api/platform/tenants/{id}` | 软删元数据（`confirm_code`；可选 `drop_database`；`purge_objects` / `purge_backups` **异步**清文件，兼容 `purge_files`=两者） |
+| POST | /api/platform/tenants/{id}/undelete | 从回收站恢复元数据 |
+| POST | /api/platform/tenants/{id}/purge | 重试异步清理对象/备份 |
+| DELETE | /api/platform/tenants/{id}/force | 永久删除回收站记录（confirm_code；释放 code） |
 | GET | `/api/platform/tenants/{id}/overview` | 库概览（表数、体积、管理员数等） |
 | GET | `/api/platform/tenant-op-logs` | 全平台运维执行记录（筛选 code/op/status/batch_id/operator） |
 | GET | `/api/platform/tenants/{id}/op-logs` | 运维时间线 |

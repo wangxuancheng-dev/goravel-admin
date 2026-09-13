@@ -71,6 +71,18 @@ export function deletePlatformTenant(id, data) {
   return platformRequest.delete(`/tenants/${id}`, { data })
 }
 
+export function undeletePlatformTenant(id) {
+  return platformRequest.post(`/tenants/${id}/undelete`)
+}
+
+export function forceDeletePlatformTenant(id, data) {
+  return platformRequest.delete(`/tenants/${id}/force`, { data })
+}
+
+export function purgePlatformTenant(id, data = {}) {
+  return platformRequest.post(`/tenants/${id}/purge`, data)
+}
+
 export function getPlatformTenantOverview(id) {
   return platformRequest.get(`/tenants/${id}/overview`)
 }

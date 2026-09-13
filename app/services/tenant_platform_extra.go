@@ -113,6 +113,133 @@ func (s *TenantAdminService) DeleteTenant(id uint, confirmCode string, opts Tena
 	}, nil
 }
 
+// UndeleteTenant restores soft-deleted platform metadata (does not recreate a dropped DB).
+func (s *TenantAdminService) UndeleteTenant(id uint) (*models.Tenant, error) {
+	if err := s.requireEnabled(); err != nil {
+		return nil, err
+	}
+	tenant, err := s.GetByIDIncludingTrashed(id)
+	if err != nil {
+		return nil, err
+	}
+	if !TenantIsTrashed(tenant) {
+		return nil, apperrors.ErrTenantNotTrashed
+	}
+	if tenantOpBusy(tenant) {
+		return nil, apperrors.ErrTenantOpInProgress
+	}
+	if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).Restore(&models.Tenant{}); err != nil {
+		return nil, err
+	}
+	restored, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	msg := "undeleted"
+	if err := s.conn.Ping(restored, 5*time.Second); err != nil {
+		msg = "undeleted; database unreachable (re-migrate or recreate storage if drop_database was used): " + err.Error()
+		if len(msg) > 2000 {
+			msg = msg[:2000]
+		}
+		_, _ = appfacades.PlatformOrmQuery(nil).Model(restored).Update(map[string]any{
+			"provision_status":   models.TenantProvisionFailed,
+			"last_migrate_error": msg,
+			"last_op":            "undelete",
+			"last_op_status":     models.TenantOpStatusFailed,
+			"last_op_message":    msg,
+			"last_op_at":         now,
+		})
+		restored.ProvisionStatus = models.TenantProvisionFailed
+		restored.LastMigrateError = msg
+		restored.LastOp = "undelete"
+		restored.LastOpStatus = models.TenantOpStatusFailed
+		restored.LastOpMessage = msg
+		restored.LastOpAt = &now
+		return restored, nil
+	}
+	_, _ = appfacades.PlatformOrmQuery(nil).Model(restored).Update(map[string]any{
+		"last_op":         "undelete",
+		"last_op_status":  models.TenantOpStatusSuccess,
+		"last_op_message": msg,
+		"last_op_at":      now,
+	})
+	restored.LastOp = "undelete"
+	restored.LastOpStatus = models.TenantOpStatusSuccess
+	restored.LastOpMessage = msg
+	restored.LastOpAt = &now
+	return restored, nil
+}
+
+// ForceDeleteTenant permanently removes soft-deleted landlord metadata (frees code).
+func (s *TenantAdminService) ForceDeleteTenant(id uint, confirmCode string) error {
+	if err := s.requireEnabled(); err != nil {
+		return err
+	}
+	tenant, err := s.GetByIDIncludingTrashed(id)
+	if err != nil {
+		return err
+	}
+	if !TenantIsTrashed(tenant) {
+		return apperrors.ErrTenantNotTrashed
+	}
+	if strings.TrimSpace(confirmCode) != tenant.Code {
+		return apperrors.ErrInvalidArgument.WithMessage("confirm_code must equal tenant code")
+	}
+	if tenantOpBusy(tenant) {
+		return apperrors.ErrTenantOpInProgress
+	}
+	s.conn.Forget(tenant.ConnectionName)
+	if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CleanupExpiredDeletedTenants hard-deletes soft-deleted rows older than days.
+// When withPurge is true, object storage + local backups are removed first (sync).
+func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bool, limit int) (int, error) {
+	if err := s.requireEnabled(); err != nil {
+		return 0, err
+	}
+	if days <= 0 {
+		return 0, nil
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	cutoff := time.Now().AddDate(0, 0, -days)
+	var list []models.Tenant
+	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).WithTrashed().
+		Where("deleted_at IS NOT NULL").
+		Where("deleted_at < ?", cutoff).
+		Order("deleted_at asc").
+		Limit(limit).
+		Find(&list); err != nil {
+		return 0, err
+	}
+	removed := 0
+	for i := range list {
+		t := &list[i]
+		if tenantOpBusy(t) {
+			continue
+		}
+		if withPurge {
+			_ = PurgeTenantObjectStorage(t.Code)
+			_ = PurgeTenantLocalBackups(t.Code)
+		}
+		s.conn.Forget(t.ConnectionName)
+		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", t.ID).ForceDelete(&models.Tenant{}); err != nil {
+			continue
+		}
+		removed++
+	}
+	return removed, nil
+}
+
 // ListForBatchOp returns tenants for batch seed/backup/migrate.
 func (s *TenantAdminService) ListForBatchOp(ids []uint, provisionStatus string, status *uint8, limit int) ([]models.Tenant, error) {
 	if err := s.requireEnabled(); err != nil {

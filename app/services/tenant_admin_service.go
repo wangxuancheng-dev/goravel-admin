@@ -19,6 +19,8 @@ type TenantAdminFilters struct {
 	Name            string
 	Status          string
 	ProvisionStatus string
+	// Trashed: "" = exclude soft-deleted (default); "only" = recycle bin; "with" = include both.
+	Trashed string
 }
 
 func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
@@ -27,6 +29,7 @@ func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
 		Name:            strings.TrimSpace(ctx.Request().Query("name", "")),
 		Status:          strings.TrimSpace(ctx.Request().Query("status", "")),
 		ProvisionStatus: strings.TrimSpace(ctx.Request().Query("provision_status", "")),
+		Trashed:         strings.TrimSpace(ctx.Request().Query("trashed", "")),
 	}
 }
 
@@ -45,7 +48,6 @@ type TenantCreateInput struct {
 	Migrate           bool
 	SkipCreate        bool // remote DB already exists: skip CREATE DATABASE/SCHEMA
 	StorageLimitBytes *int64
-	TrafficLimitBytes *int64
 }
 
 // TenantUpdateInput updates connection metadata for an existing tenant.
@@ -58,7 +60,6 @@ type TenantUpdateInput struct {
 	Database          *string
 	Schema            *string
 	StorageLimitBytes *int64
-	TrafficLimitBytes *int64
 }
 
 type TenantAdminService struct {
@@ -81,6 +82,13 @@ func (s *TenantAdminService) GetList(filters TenantAdminFilters, page, pageSize 
 		return nil, 0, err
 	}
 	query := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{})
+	trashed := strings.ToLower(strings.TrimSpace(filters.Trashed))
+	switch trashed {
+	case "only":
+		query = query.WithTrashed().Where("deleted_at IS NOT NULL")
+	case "with":
+		query = query.WithTrashed()
+	}
 	if filters.Code != "" {
 		query = query.Where("code like ?", "%"+filters.Code+"%")
 	}
@@ -115,6 +123,23 @@ func (s *TenantAdminService) GetByID(id uint) (*models.Tenant, error) {
 	return &tenant, nil
 }
 
+// GetByIDIncludingTrashed loads active or soft-deleted tenant metadata.
+func (s *TenantAdminService) GetByIDIncludingTrashed(id uint) (*models.Tenant, error) {
+	if err := s.requireEnabled(); err != nil {
+		return nil, err
+	}
+	var tenant models.Tenant
+	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", id).First(&tenant); err != nil {
+		return nil, apperrors.ErrTenantNotFound.WithError(err)
+	}
+	return &tenant, nil
+}
+
+// TenantIsTrashed reports whether soft-delete is set.
+func TenantIsTrashed(t *models.Tenant) bool {
+	return t != nil && t.DeletedAt.Valid
+}
+
 func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, err
@@ -129,7 +154,10 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	}
 
 	var existing models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Where("code", code).First(&existing); err == nil && existing.ID > 0 {
+	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("code", code).First(&existing); err == nil && existing.ID > 0 {
+		if TenantIsTrashed(&existing) {
+			return nil, apperrors.ErrTenantCodeInRecycle
+		}
 		return nil, apperrors.ErrTenantExists
 	}
 
@@ -181,9 +209,6 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	}
 	if input.StorageLimitBytes != nil && *input.StorageLimitBytes > 0 {
 		tenant.StorageLimitBytes = *input.StorageLimitBytes
-	}
-	if input.TrafficLimitBytes != nil && *input.TrafficLimitBytes > 0 {
-		tenant.TrafficLimitBytes = *input.TrafficLimitBytes
 	}
 	if err := appfacades.PlatformOrmQuery(nil).Create(&tenant); err != nil {
 		return nil, err
@@ -300,14 +325,6 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 		updates["storage_limit_bytes"] = limit
 		tenant.StorageLimitBytes = limit
 	}
-	if input.TrafficLimitBytes != nil {
-		limit := *input.TrafficLimitBytes
-		if limit < 0 {
-			limit = 0
-		}
-		updates["traffic_limit_bytes"] = limit
-		tenant.TrafficLimitBytes = limit
-	}
 	if len(updates) == 0 {
 		return tenant, nil
 	}
@@ -350,6 +367,8 @@ type TenantOpsSummary struct {
 	ByLastOpStatus  map[string]int64 `json:"by_last_op_status"`
 	FailedProvision int64            `json:"failed_provision"`
 	Busy            int64            `json:"busy"`
+	Deleted         int64            `json:"deleted"`
+	FailedPurge     int64            `json:"failed_purge"`
 }
 
 func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
@@ -386,6 +405,14 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 			sum.Busy++
 		}
 	}
+	deleted, _ := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).WithTrashed().Where("deleted_at IS NOT NULL").Count()
+	sum.Deleted = deleted
+	failedPurge, _ := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).WithTrashed().
+		Where("deleted_at IS NOT NULL").
+		Where("last_op", models.TenantOpPurge).
+		Where("last_op_status", models.TenantOpStatusFailed).
+		Count()
+	sum.FailedPurge = failedPurge
 	return sum, nil
 }
 
@@ -419,6 +446,10 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 	if t == nil {
 		return nil
 	}
+	var deletedAt any
+	if t.DeletedAt.Valid {
+		deletedAt = t.DeletedAt.Time
+	}
 	return map[string]any{
 		"id":                 t.ID,
 		"code":               t.Code,
@@ -443,7 +474,8 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 		"last_backup_path":    t.LastBackupPath,
 		"backup_dir":          TenantBackupDir(t.Code),
 		"storage_limit_bytes": t.StorageLimitBytes,
-		"traffic_limit_bytes": t.TrafficLimitBytes,
+		"deleted_at":          deletedAt,
+		"trashed":             TenantIsTrashed(t),
 		"created_at":          t.CreatedAt,
 		"updated_at":          t.UpdatedAt,
 	}
