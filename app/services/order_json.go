@@ -1,20 +1,20 @@
-package orders
+package services
 
 import "goravel/app/models"
 
-// ExportData holds an order row for export field extension.
-type ExportData struct {
+// OrderExportData holds an order row for export field extension.
+type OrderExportData struct {
 	Order models.Order
 }
 
-// WithDetails is an order plus its line items.
-type WithDetails struct {
+// OrderWithDetails is an order plus its line items.
+type OrderWithDetails struct {
 	models.Order
 	Details []models.OrderDetail `json:"details"`
 }
 
-// ToJSON returns base order display fields.
-func ToJSON(order models.Order) map[string]any {
+// OrderToJSONMap returns base order display fields.
+func OrderToJSONMap(order models.Order) map[string]any {
 	return map[string]any{
 		"id":         order.ID,
 		"order_no":   order.OrderNo,
@@ -27,8 +27,8 @@ func ToJSON(order models.Order) map[string]any {
 	}
 }
 
-// DetailToJSON returns order detail display fields.
-func DetailToJSON(detail models.OrderDetail) map[string]any {
+// OrderDetailToJSONMap returns order detail display fields.
+func OrderDetailToJSONMap(detail models.OrderDetail) map[string]any {
 	return map[string]any{
 		"id":           detail.ID,
 		"order_id":     detail.OrderID,
@@ -42,15 +42,15 @@ func DetailToJSON(detail models.OrderDetail) map[string]any {
 	}
 }
 
-// WithDetailsToJSON returns a list item payload including details.
-func WithDetailsToJSON(item *WithDetails) map[string]any {
+// OrderWithDetailsToJSONMap returns a list item payload including details.
+func OrderWithDetailsToJSONMap(item *OrderWithDetails) map[string]any {
 	if item == nil {
 		return nil
 	}
-	payload := ToJSON(item.Order)
+	payload := OrderToJSONMap(item.Order)
 	detailsList := make([]map[string]any, len(item.Details))
 	for i, detail := range item.Details {
-		detailsList[i] = DetailToJSON(detail)
+		detailsList[i] = OrderDetailToJSONMap(detail)
 	}
 	payload["details"] = detailsList
 	return payload

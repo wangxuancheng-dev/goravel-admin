@@ -12,7 +12,6 @@ import (
 	"goravel/app/http/trans"
 	"goravel/app/jobs"
 	"goravel/app/models"
-	"goravel/app/orders"
 	"goravel/app/services"
 	"goravel/app/utils"
 )
@@ -27,7 +26,7 @@ func (r *OrderController) orderService(ctx http.Context) services.OrderService {
 	return services.NewOrderService(ctx)
 }
 
-// resolveOrderNo 分表场景以 order_no 为业务主键：优先 query/body，其次 Resource 路由 {id}。
+// resolveOrderNo ????? order_no ???????? query/body??? Resource ?? {id}?
 func (r *OrderController) resolveOrderNo(ctx http.Context) string {
 	orderNo := strings.TrimSpace(ctx.Request().Input("order_no", ctx.Request().Query("order_no", "")))
 	if orderNo != "" {
@@ -41,13 +40,13 @@ func (r *OrderController) resolveOrderNo(ctx http.Context) string {
 }
 
 // buildFilters builds filters shared by list/export endpoints.
-func (r *OrderController) buildFilters(ctx http.Context) (orders.Filters, http.Response) {
-	filters, err := orders.BuildFiltersFromHTTP(ctx)
+func (r *OrderController) buildFilters(ctx http.Context) (services.OrderFilters, http.Response) {
+	filters, err := services.BuildOrderFiltersFromHTTP(ctx)
 	if err != nil {
-		return orders.Filters{}, response.Error(ctx, http.StatusBadRequest, err.Error())
+		return services.OrderFilters{}, response.Error(ctx, http.StatusBadRequest, err.Error())
 	}
 	if resp := validateTimeRangeResponse(ctx, filters.StartTime, filters.EndTime, 3); resp != nil {
-		return orders.Filters{}, resp
+		return services.OrderFilters{}, resp
 	}
 	return filters, nil
 }

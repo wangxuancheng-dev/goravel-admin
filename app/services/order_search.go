@@ -8,7 +8,6 @@ import (
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
-	"goravel/app/orders"
 	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
@@ -16,7 +15,7 @@ import (
 	"goravel/app/utils/errorlog"
 )
 
-func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters orders.Filters, page, pageSize int) ([]orders.WithDetails, int64, error) {
+func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, page, pageSize int) ([]OrderWithDetails, int64, error) {
 	valid, err := utils.ValidateTimeRange(filters.StartTime, filters.EndTime)
 	if !valid {
 		return nil, 0, err
@@ -69,10 +68,10 @@ func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters orders.Filters
 		return nil, 0, err
 	}
 	if len(items) == 0 {
-		return []orders.WithDetails{}, total, nil
+		return []OrderWithDetails{}, total, nil
 	}
 
-	result := make([]orders.WithDetails, 0, len(items))
+	result := make([]OrderWithDetails, 0, len(items))
 	missed := 0
 	for _, item := range items {
 		order, details, err := orderrepo.FindOrderWithDetails(s.ctx, item.ID, item.OrderNo)
@@ -80,25 +79,25 @@ func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters orders.Filters
 			missed++
 			continue
 		}
-		result = append(result, orders.WithDetails{
+		result = append(result, OrderWithDetails{
 			Order:   *order,
 			Details: details,
 		})
 	}
-	// 整页都回源失败：视为搜索与 DB 不一致，回退分表以免返回空页+错误 total
+	// ????????????? DB ??????????????+?? total
 	if len(result) == 0 && len(items) > 0 {
 		return nil, 0, fmt.Errorf("order search hydrate failed: %d hits, all missing in db", len(items))
 	}
 	if missed > 0 {
-		errorlog.Record(s.ctx, "order", "搜索结果回源部分失败", map[string]any{
+		errorlog.Record(s.ctx, "order", "??????????", map[string]any{
 			"missed": missed,
 			"hits":   len(items),
-		}, "订单搜索回源部分失败: missed=%d hits=%d", missed, len(items))
+		}, "??????????: missed=%d hits=%d", missed, len(items))
 	}
 	return result, total, nil
 }
 
-func orderWithDetailsToSearchListItem(o orders.WithDetails) searchorders.ListItem {
+func orderWithDetailsToSearchListItem(o OrderWithDetails) searchorders.ListItem {
 	names := make([]string, 0, len(o.Details))
 	for _, d := range o.Details {
 		names = append(names, d.ProductName)
@@ -114,21 +113,21 @@ func orderWithDetailsToSearchListItem(o orders.WithDetails) searchorders.ListIte
 	}
 }
 
-// searchMyOrdersFromDB C 端订单检索的数据库路径（分表 + 关键词 LIKE）。
+// searchMyOrdersFromDB C ?????????????? + ??? LIKE??
 func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error) {
 	valid, err := utils.ValidateTimeRange(tr.DBStart, tr.DBEnd)
 	if !valid {
 		return nil, 0, err
 	}
 
-	filters := orders.Filters{
+	filters := OrderFilters{
 		UserID:    userID,
 		StartTime: tr.DBStart,
 		EndTime:   tr.DBEnd,
 		Keyword:   strings.TrimSpace(keyword),
 		OrderBy:   "created_at:desc",
 	}
-	// 已确定走 DB：直接分表查询，避免再进入 GetOrdersWithDetails 的引擎优先路径。
+	// ???? DB????????????? GetOrdersWithDetails ????????
 	rows, total, err := s.getOrdersWithDetailsFromDB(filters, page, pageSize)
 	if err != nil {
 		return nil, 0, err
@@ -140,7 +139,7 @@ func (s *OrderServiceImpl) searchMyOrdersFromDB(userID uint, keyword string, pag
 	return out, total, nil
 }
 
-// SearchMyOrdersForUser C 端「我的订单」检索：当前驱动检索可用时走索引；否则走分表数据库（关键词仅订单号、备注；时间无参数时默认近 3 个月，与列表接口一致）。
+// SearchMyOrdersForUser C ???????????????????????????????????????????????????? 3 ????????????
 func (s *OrderServiceImpl) SearchMyOrdersForUser(ctx context.Context, userID uint, keyword string, page, pageSize int, tr searchorders.CreatedRange) ([]searchorders.ListItem, int64, error) {
 	if searchorders.QueryEnabled() {
 		total, items, err := searchorders.SearchMyOrders(ctx, userID, keyword, page, pageSize, tr.IndexGTE, tr.IndexLTE)

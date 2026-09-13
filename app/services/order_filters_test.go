@@ -1,4 +1,4 @@
-package orders
+package services
 
 import (
 	"strings"
@@ -11,8 +11,8 @@ import (
 	"goravel/app/models"
 )
 
-func TestParseListTimeRangeDefaults(t *testing.T) {
-	start, end, err := ParseListTimeRange("", "")
+func TestParseOrderListTimeRangeDefaults(t *testing.T) {
+	start, end, err := ParseOrderListTimeRange("", "")
 	require.NoError(t, err)
 	assert.True(t, end.IsZero())
 	ago := time.Now().UTC().AddDate(0, 0, -7)
@@ -21,31 +21,31 @@ func TestParseListTimeRangeDefaults(t *testing.T) {
 	}
 }
 
-func TestParseListTimeRangeInvalid(t *testing.T) {
-	_, _, err := ParseListTimeRange("bad-time", "")
+func TestParseOrderListTimeRangeInvalid(t *testing.T) {
+	_, _, err := ParseOrderListTimeRange("bad-time", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid_start_time")
 
-	_, _, err = ParseListTimeRange("2026-01-01 00:00:00", "bad-end")
+	_, _, err = ParseOrderListTimeRange("2026-01-01 00:00:00", "bad-end")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid_end_time")
 }
 
-func TestParseListTimeRangeValid(t *testing.T) {
-	start, end, err := ParseListTimeRange("2026-01-01 00:00:00", "2026-01-31 23:59:59")
+func TestParseOrderListTimeRangeValid(t *testing.T) {
+	start, end, err := ParseOrderListTimeRange("2026-01-01 00:00:00", "2026-01-31 23:59:59")
 	require.NoError(t, err)
 	assert.Equal(t, 2026, start.Year())
 	assert.Equal(t, time.January, start.Month())
 	assert.Equal(t, 31, end.Day())
 }
 
-func TestDetailsTableFromOrdersTable(t *testing.T) {
-	assert.Equal(t, "order_details_202501", DetailsTableFromOrdersTable("orders_202501"))
-	assert.Equal(t, "orders", DetailsTableFromOrdersTable("orders"))
-	assert.Equal(t, "foo_order_details_bar", DetailsTableFromOrdersTable("foo_orders_bar"))
+func TestOrderDetailsTableFromOrdersTable(t *testing.T) {
+	assert.Equal(t, "order_details_202501", OrderDetailsTableFromOrdersTable("orders_202501"))
+	assert.Equal(t, "orders", OrderDetailsTableFromOrdersTable("orders"))
+	assert.Equal(t, "foo_order_details_bar", OrderDetailsTableFromOrdersTable("foo_orders_bar"))
 }
 
-func TestToJSONAndWithDetails(t *testing.T) {
+func TestOrderToJSONAndWithDetails(t *testing.T) {
 	order := models.Order{
 		OrderNo: "ORD202601",
 		UserID:  9,
@@ -55,7 +55,7 @@ func TestToJSONAndWithDetails(t *testing.T) {
 	}
 	order.ID = 1
 
-	payload := ToJSON(order)
+	payload := OrderToJSONMap(order)
 	assert.Equal(t, uint(1), payload["id"])
 	assert.Equal(t, "ORD202601", payload["order_no"])
 	assert.Equal(t, uint(9), payload["user_id"])
@@ -72,8 +72,8 @@ func TestToJSONAndWithDetails(t *testing.T) {
 	}
 	detail.ID = 10
 
-	item := &WithDetails{Order: order, Details: []models.OrderDetail{detail}}
-	full := WithDetailsToJSON(item)
+	item := &OrderWithDetails{Order: order, Details: []models.OrderDetail{detail}}
+	full := OrderWithDetailsToJSONMap(item)
 	require.NotNil(t, full)
 	details, ok := full["details"].([]map[string]any)
 	require.True(t, ok)
@@ -81,11 +81,11 @@ func TestToJSONAndWithDetails(t *testing.T) {
 	assert.Equal(t, uint(10), details[0]["id"])
 	assert.Equal(t, "sku", details[0]["product_name"])
 
-	assert.Nil(t, WithDetailsToJSON(nil))
+	assert.Nil(t, OrderWithDetailsToJSONMap(nil))
 }
 
-func TestDetailsTablePrefixOnlyOnce(t *testing.T) {
-	got := DetailsTableFromOrdersTable("orders_202501")
+func TestOrderDetailsTablePrefixOnlyOnce(t *testing.T) {
+	got := OrderDetailsTableFromOrdersTable("orders_202501")
 	assert.True(t, strings.HasPrefix(got, "order_details_"))
 	assert.False(t, strings.Contains(got, "orders_"))
 }
