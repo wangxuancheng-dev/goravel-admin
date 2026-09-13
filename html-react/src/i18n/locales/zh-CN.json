@@ -998,10 +998,10 @@
     "migrate_error": "迁移错误",
     "backup_path": "备份路径",
     "provision_status_filter": "开通状态",
-    "ops_summary": "运维概览：失败 {failed} · 忙碌 {busy} · 合计 {total}",
+    "ops_summary": "运维概览：失败 {{failed}} · 忙碌 {{busy}} · 合计 {{total}}",
     "retry_failed_migrate": "重试全部失败迁移",
     "retry_failed_migrate_confirm": "将为所有开通失败的租户入队 migrate（最多 100 个），是否继续？",
-    "batch_queued": "已入队 {n} 个租户迁移任务",
+    "batch_queued": "已入队 {{n}} 个租户迁移任务",
     "filter_failed": "仅失败"
   },
   "platform": {
@@ -1020,7 +1020,7 @@
     "health_driver": "驱动",
     "health_db_ok": "数据库正常",
     "health_db_bad": "数据库异常",
-    "health_tenants": "租户 {active}/{total} 启用",
+    "health_tenants": "租户 {{active}}/{{total}} 启用",
     "cli_ops_title": "租户运维",
     "cli_ops_hint": "单户迁移/种子/备份可在列表操作（异步队列）；migrate-all / restore 等仍用 CLI"
   },
@@ -1327,7 +1327,7 @@
     "queue_alert_hint": "告警通过服务器环境变量 Webhook 推送，不在本页配置 URL。未配置时按钮不可用。",
     "queue_alert_configured": "已配置（{source}）",
     "queue_alert_not_configured": "未配置 Webhook",
-    "queue_alert_threshold": "积压阈值：{n}",
+    "queue_alert_threshold": "积压阈值：{{n}}",
     "queue_alert_url": "地址：{url}",
     "queue_alert_test": "发送测试告警",
     "queue_alert_test_ok": "测试告警已发送，请检查机器人/Webhook"

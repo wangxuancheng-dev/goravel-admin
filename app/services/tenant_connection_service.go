@@ -125,11 +125,9 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 	facades.Config().Add("database.connections."+tenant.ConnectionName, cfg)
 	registeredConns.Store(tenant.ConnectionName, struct{}{})
 
-	// Apply per-tenant pool limits (framework pool config is global-only).
-	o := appfacades.Orm().Connection(tenant.ConnectionName)
-	if db, err := o.DB(); err == nil && db != nil {
-		applyTenantPoolLimits(db)
-	}
+	// Do not warm Orm().Connection here: framework cache-hit reuses parent
+	// dbConfig (wrong DatabaseName). Pool limits are applied after SetConnection
+	// in WithTenantConnection / after a fresh Connection in Ping.
 	return nil
 }
 
@@ -161,11 +159,8 @@ func (s *TenantConnectionService) Forget(connectionName string) {
 		return
 	}
 	registeredConns.Delete(connectionName)
-	o := appfacades.Orm().Connection(connectionName)
-	if db, err := o.DB(); err == nil && db != nil {
-		_ = db.Close()
-	}
-	o.Fresh()
+	appfacades.EvictOrmConnectionCache(connectionName)
+	appfacades.Orm().Fresh()
 }
 
 // ValidateTenantCredentials enforces dedicated DB users for remote hosts.
@@ -696,8 +691,19 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 
 	schema := facades.Schema()
 	prevConn := schema.GetConnection()
+	// Evict cached query so SetConnection rebuilds with tenant dbConfig.
+	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
 	schema.SetConnection(tenant.ConnectionName)
 	defer schema.SetConnection(prevConn)
+
+	if db, err := schema.Orm().DB(); err == nil && db != nil {
+		applyTenantPoolLimits(db)
+	}
+	if tenant.Isolation != models.TenantIsolationSchema {
+		if got := schema.Orm().DatabaseName(); got != "" && tenant.Database != "" && got != tenant.Database {
+			return fmt.Errorf("tenant schema DatabaseName=%s want %s (orm connection cache)", got, tenant.Database)
+		}
+	}
 
 	return fn()
 }
@@ -721,7 +727,16 @@ func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...s
 // MigrateTenant 在租户连接上执行 migrate，成功后标记 provision_status=ready。
 func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	err := s.WithTenantConnection(tenant, func() error {
-		return facades.Artisan().Call("migrate")
+		// Framework migrate command returns nil even on failure (only prints ERROR).
+		_ = facades.Artisan().Call("migrate")
+		schema := facades.Schema()
+		if !schema.HasTable("migrations") {
+			return fmt.Errorf("migrate failed: migrations table missing on %s", schema.Orm().DatabaseName())
+		}
+		if !schema.HasTable("admins") {
+			return fmt.Errorf("migrate failed: admins table missing on %s (schema still pointing at platform?)", schema.Orm().DatabaseName())
+		}
+		return nil
 	})
 	now := time.Now()
 	if err != nil {
@@ -775,10 +790,13 @@ func (s *TenantConnectionService) Ping(tenant *models.Tenant, timeout time.Durat
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	db, err := appfacades.Orm().Connection(tenant.ConnectionName).DB()
+	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
+	o := appfacades.Orm().Connection(tenant.ConnectionName)
+	db, err := o.DB()
 	if err != nil {
 		return apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
+	applyTenantPoolLimits(db)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {

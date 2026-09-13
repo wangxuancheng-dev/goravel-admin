@@ -88,6 +88,8 @@ func WithSchemaContext(ctx context.Context, fn func() error) error {
 		return fn()
 	}
 	prev := schema.GetConnection()
+	// Evict so SetConnection rebuilds Orm with tenant dbConfig (see EvictOrmConnectionCache).
+	EvictOrmConnectionCache(conn)
 	schema.SetConnection(conn)
 	defer schema.SetConnection(prev)
 	return fn()
