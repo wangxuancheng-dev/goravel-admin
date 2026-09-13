@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FocusEvent } from 'react'
 import {
   Alert,
   App,
@@ -197,9 +197,14 @@ export default function PlatformTenantList() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<TenantRow | null>(null)
   const [migrateTarget, setMigrateTarget] = useState<TenantRow | null>(null)
+  const [passwordTouched, setPasswordTouched] = useState(false)
   const [withSeed, setWithSeed] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
+
+  const unlockCredentialAutofill = (e: FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.removeAttribute('readonly')
+  }
   const [healthDesc, setHealthDesc] = useState(t('platform.cli_ops_hint'))
   const [opsSummary, setOpsSummary] = useState<{
     failed_provision?: number
@@ -887,6 +892,7 @@ export default function PlatformTenantList() {
                   size="small"
                   disabled={busy}
                   onClick={() => {
+                    setPasswordTouched(false)
                     setEditing(row)
                     form.setFieldsValue({
                       name: row.name,
@@ -976,6 +982,7 @@ export default function PlatformTenantList() {
       setSaving(true)
       await createPlatformTenant({
         ...values,
+        password: passwordTouched && values.password ? values.password : undefined,
         storage_limit_bytes: mbToBytes(values.storage_limit_mb) || undefined,
       })
       message.success(t('common.create_success'))
@@ -1003,7 +1010,7 @@ export default function PlatformTenantList() {
         schema: values.schema,
         storage_limit_bytes: mbToBytes(values.storage_limit_mb),
       }
-      if (values.password) payload.password = values.password
+      if (passwordTouched && values.password) payload.password = values.password
       await updatePlatformTenant(editing.id, payload)
       message.success(t('common.update_success'))
       setEditing(null)
@@ -1074,6 +1081,7 @@ export default function PlatformTenantList() {
                         port: 0,
                         storage_limit_mb: 0,
                       })
+                      setPasswordTouched(false)
                       setCreateOpen(true)
                     }}
                   >
@@ -1643,7 +1651,7 @@ export default function PlatformTenantList() {
         destroyOnHidden
         width={640}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" autoComplete="off">
           <Form.Item
             name="code"
             label={t('tenant.code')}
@@ -1688,10 +1696,23 @@ export default function PlatformTenantList() {
             <InputNumber min={0} max={65535} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="username" label={t('tenant.username')}>
-            <Input placeholder={t('tenant.username_placeholder')} />
+            <Input
+              name="tenant_db_username"
+              autoComplete="off"
+              readOnly
+              onFocus={unlockCredentialAutofill}
+              placeholder={t('tenant.username_placeholder')}
+            />
           </Form.Item>
           <Form.Item name="password" label={t('tenant.password')}>
-            <Input.Password placeholder={t('tenant.password_placeholder')} />
+            <Input.Password
+              name="tenant_db_password"
+              autoComplete="new-password"
+              readOnly
+              onFocus={unlockCredentialAutofill}
+              onChange={() => setPasswordTouched(true)}
+              placeholder={t('tenant.password_placeholder')}
+            />
           </Form.Item>
           <Alert
             type="info"
@@ -1727,7 +1748,7 @@ export default function PlatformTenantList() {
         destroyOnHidden
         width={640}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" autoComplete="off">
           <Form.Item
             name="name"
             label={t('tenant.name')}
@@ -1743,10 +1764,21 @@ export default function PlatformTenantList() {
             <InputNumber min={0} max={65535} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="username" label={t('tenant.username')}>
-            <Input placeholder={t('tenant.username_placeholder')} />
+            <Input
+              name="tenant_db_username"
+              autoComplete="off"
+              readOnly
+              onFocus={unlockCredentialAutofill}
+              placeholder={t('tenant.username_placeholder')}
+            />
           </Form.Item>
           <Form.Item name="password" label={t('tenant.password')}>
             <Input.Password
+              name="tenant_db_password"
+              autoComplete="new-password"
+              readOnly
+              onFocus={unlockCredentialAutofill}
+              onChange={() => setPasswordTouched(true)}
               placeholder={
                 editing?.has_password ? t('tenant.password_keep') : t('tenant.password_placeholder')
               }

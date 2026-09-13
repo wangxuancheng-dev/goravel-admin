@@ -170,7 +170,7 @@
         destroy-on-close
         @closed="resetForm"
       >
-        <el-form ref="formRef" :model="form" :rules="formRules" label-width="110px">
+        <el-form ref="formRef" :model="form" :rules="formRules" label-width="110px" autocomplete="off">
           <el-form-item v-if="!editingId" :label="$t('tenant.code')" prop="code">
             <el-input v-model="form.code" :placeholder="$t('tenant.code_placeholder')" />
           </el-form-item>
@@ -205,14 +205,26 @@
             <el-input-number v-model="form.port" :min="0" :max="65535" controls-position="right" style="width: 100%" />
           </el-form-item>
           <el-form-item :label="$t('tenant.username')">
-            <el-input v-model="form.username" :placeholder="$t('tenant.username_placeholder')" />
+            <el-input
+              v-model="form.username"
+              name="tenant_db_username"
+              autocomplete="off"
+              readonly
+              :placeholder="$t('tenant.username_placeholder')"
+              @focus="unlockCredentialAutofill"
+            />
           </el-form-item>
           <el-form-item :label="$t('tenant.password')">
             <el-input
               v-model="form.password"
               type="password"
+              name="tenant_db_password"
+              autocomplete="new-password"
               show-password
+              readonly
               :placeholder="editingId && form.has_password ? $t('tenant.password_keep') : $t('tenant.password_placeholder')"
+              @focus="unlockCredentialAutofill"
+              @input="passwordTouched = true"
             />
           </el-form-item>
           <el-form-item v-if="editingId" :label="$t('tenant.database')">
@@ -462,6 +474,15 @@ const listPageRef = ref(null)
 const formRef = ref(null)
 const saving = ref(false)
 const editingId = ref(null)
+const passwordTouched = ref(false)
+
+// Browsers treat username/password fields as login forms; readonly until focus blocks autofill.
+const unlockCredentialAutofill = (e) => {
+  const el = e?.target
+  if (el?.hasAttribute?.('readonly')) {
+    el.removeAttribute('readonly')
+  }
+}
 const health = ref(null)
 const migrateVisible = ref(false)
 const migrateRow = ref(null)
@@ -798,11 +819,13 @@ const formRules = computed(() => {
 
 const openCreate = () => {
   editingId.value = null
+  passwordTouched.value = false
   dialogVisible.value = true
 }
 
 const openEdit = (row) => {
   editingId.value = row.id
+  passwordTouched.value = false
   form.name = row.name || ''
   form.host = row.host || ''
   form.port = Number(row.port) || 0
@@ -823,6 +846,7 @@ const openMigrate = (row) => {
 
 const resetForm = () => {
   editingId.value = null
+  passwordTouched.value = false
   form.code = ''
   form.name = ''
   form.driver = 'mysql'
@@ -854,7 +878,8 @@ const submitForm = async () => {
           schema: form.schema,
           storage_limit_bytes: mbToBytes(form.storage_limit_mb)
         }
-        if (form.password) payload.password = form.password
+        // Ignore browser-autofilled password unless the user edited the field.
+        if (passwordTouched.value && form.password) payload.password = form.password
         await updatePlatformTenant(editingId.value, payload)
         ElMessage.success(t('common.update_success'))
       } else {
@@ -868,7 +893,7 @@ const submitForm = async () => {
           host: form.host || undefined,
           port: form.port || undefined,
           username: form.username || undefined,
-          password: form.password || undefined,
+          password: passwordTouched.value && form.password ? form.password : undefined,
           skip_create: form.skip_create,
           storage_limit_bytes: mbToBytes(form.storage_limit_mb) || undefined
         })
