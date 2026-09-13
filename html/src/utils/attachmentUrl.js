@@ -41,3 +41,92 @@ export function extractAttachmentIdFromPath(value) {
   }
   return 0
 }
+
+const BLOCKED_PREVIEW_EXTENSIONS = new Set(['html', 'htm', 'xhtml', 'svg', 'js', 'mjs', 'cjs', 'xml'])
+
+/**
+ * @param {{ mime_type?: string, file_type?: string, extension?: string } | null | undefined} row
+ */
+function normalizePreviewMeta(row) {
+  const mime = String(row?.mime_type || '').toLowerCase().trim()
+  const fileType = String(row?.file_type || '').toLowerCase().trim()
+  const extension = String(row?.extension || '')
+    .toLowerCase()
+    .trim()
+    .replace(/^\./, '')
+  return { mime, fileType, extension }
+}
+
+function isBlockedPreviewMimeOrExt(mime, extension) {
+  if (
+    mime.includes('html') ||
+    mime.includes('javascript') ||
+    mime.includes('svg') ||
+    mime.includes('xml')
+  ) {
+    return true
+  }
+  return BLOCKED_PREVIEW_EXTENSIONS.has(extension)
+}
+
+/**
+ * Mirror backend AttachmentInlinePreviewSafe: pdf, safe text, image, video/mp4|webm|quicktime.
+ * @param {{ mime_type?: string, file_type?: string, extension?: string } | null | undefined} row
+ */
+export function canInlinePreviewAttachment(row) {
+  const { mime, extension } = normalizePreviewMeta(row)
+  if (isBlockedPreviewMimeOrExt(mime, extension)) return false
+  if (!mime) return false
+
+  switch (mime) {
+    case 'image/jpeg':
+    case 'image/png':
+    case 'image/gif':
+    case 'image/webp':
+    case 'video/mp4':
+    case 'video/webm':
+    case 'video/quicktime':
+    case 'application/pdf':
+    case 'text/plain':
+    case 'text/csv':
+    case 'text/markdown':
+    case 'text/x-markdown':
+      return true
+    default:
+      break
+  }
+  return mime.startsWith('text/')
+}
+
+/**
+ * @param {{ mime_type?: string, file_type?: string, extension?: string } | null | undefined} row
+ * @returns {'image' | 'video' | 'pdf' | 'text' | ''}
+ */
+export function attachmentPreviewKind(row) {
+  if (!canInlinePreviewAttachment(row)) return ''
+  const { mime, fileType, extension } = normalizePreviewMeta(row)
+
+  if (
+    mime.startsWith('image/') ||
+    fileType === 'image' ||
+    ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)
+  ) {
+    return 'image'
+  }
+  if (mime === 'application/pdf' || extension === 'pdf') {
+    return 'pdf'
+  }
+  if (
+    mime === 'video/mp4' ||
+    mime === 'video/webm' ||
+    mime === 'video/quicktime' ||
+    fileType === 'video' ||
+    ['mp4', 'webm', 'mov'].includes(extension)
+  ) {
+    return 'video'
+  }
+  if (mime.startsWith('text/') || ['txt', 'csv', 'md', 'markdown'].includes(extension)) {
+    return 'text'
+  }
+  return ''
+}

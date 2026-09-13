@@ -1,6 +1,12 @@
 <template>
   <div class="markdown-editor-wrapper" :class="{ 'dark-mode': isDark }" :style="{ width: normalizedWidth }">
+    <div class="markdown-editor-media-bar">
+      <el-button size="small" @click="openMediaPicker">
+        {{ $t('attachment.select_from_library') }}
+      </el-button>
+    </div>
     <MdEditor
+      ref="mdEditorRef"
       v-model="markdownValue"
       :height="height"
       :placeholder="placeholder"
@@ -11,6 +17,11 @@
       @onUploadImg="handleUploadImg"
       @onChange="handleChange"
     />
+    <AttachmentImageField
+      ref="mediaPickerRef"
+      picker-only
+      @select="handleMediaSelect"
+    />
   </div>
 </template>
 
@@ -18,14 +29,16 @@
 import { ref, watch, computed } from 'vue'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
+import { ElMessage } from 'element-plus'
 import Storage from '../utils/storage'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../store/app'
 import axios from 'axios'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
 import { sanitizeHtml } from '@/utils/markdown'
+import AttachmentImageField from './AttachmentImageField.vue'
 
-const { locale } = useI18n()
+const { t, locale } = useI18n()
 const appStore = useAppStore()
 
 const props = defineProps({
@@ -53,7 +66,7 @@ const props = defineProps({
       'quote', 'unorderedList', 'orderedList', 'task', '-',
       'codeRow', 'code', 'link', 'image', 'table', '-',
       'revoke', 'next', 'save',
-      '=',
+      '-',
       'pageFullscreen', 'fullscreen', 'preview', 'catalog'
     ]
   }
@@ -62,6 +75,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change'])
 
 const markdownValue = ref(props.modelValue)
+const mediaPickerRef = ref(null)
+const mdEditorRef = ref(null)
 const isDark = computed(() => appStore.darkMode)
 const editorLanguage = computed(() => (locale.value === 'en-US' ? 'en-US' : 'zh-CN'))
 const normalizedWidth = computed(() =>
@@ -145,6 +160,32 @@ const handleChange = (value) => {
   emit('update:modelValue', value)
   emit('change', value)
 }
+
+const openMediaPicker = () => {
+  mediaPickerRef.value?.openPicker?.()
+}
+
+const escapeMdAlt = (value) => String(value || 'image').replace(/[[\]]/g, '')
+
+const handleMediaSelect = ({ url, alt }) => {
+  if (!url) {
+    ElMessage.warning(t('attachment.editor_public_required'))
+    return
+  }
+  const snippet = `![${escapeMdAlt(alt)}](${url})`
+  const editor = mdEditorRef.value
+  if (editor && typeof editor.insert === 'function') {
+    editor.insert(() => ({
+      targetValue: snippet,
+      select: false,
+      deviationStart: 0,
+      deviationEnd: 0
+    }))
+    return
+  }
+  const next = `${markdownValue.value || ''}${markdownValue.value ? '\n' : ''}${snippet}`
+  handleChange(next)
+}
 </script>
 
 <style scoped>
@@ -157,9 +198,19 @@ const handleChange = (value) => {
   transition: border-color 0.3s;
 }
 
+.markdown-editor-media-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #dcdfe6;
+  background: #fafafa;
+}
+
 .markdown-editor-wrapper :deep(.md-editor) {
   width: 100%;
   min-width: 0;
+  border: none;
 }
 
 .markdown-editor-wrapper :deep(.md-editor-toolbar-wrapper) {
@@ -188,6 +239,11 @@ const handleChange = (value) => {
 /* --- 外框 --- */
 .dark-mode {
   border-color: var(--el-border-color);
+}
+
+.dark-mode .markdown-editor-media-bar {
+  background-color: var(--el-bg-color-overlay);
+  border-bottom-color: var(--el-border-color);
 }
 
 /* --- 工具栏 --- */

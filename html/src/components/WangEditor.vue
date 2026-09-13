@@ -5,6 +5,11 @@
       :defaultConfig="toolbarConfig"
       :mode="mode"
     />
+    <div class="wang-editor-media-bar">
+      <el-button size="small" @click="openMediaPicker">
+        {{ $t('attachment.select_from_library') }}
+      </el-button>
+    </div>
     <Editor
       :style="{ height: height + 'px', overflowY: 'hidden' }"
       v-model="valueHtml"
@@ -13,6 +18,11 @@
       @onCreated="handleCreated"
       @onChange="handleChange"
     />
+    <AttachmentImageField
+      ref="mediaPickerRef"
+      picker-only
+      @select="handleMediaSelect"
+    />
   </div>
 </template>
 
@@ -20,12 +30,14 @@
 import '@wangeditor/editor/dist/css/style.css' // 引入 css
 import { onBeforeUnmount, ref, shallowRef, onMounted, watch, computed } from 'vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
+import { ElMessage } from 'element-plus'
 import Storage from '../utils/storage'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../store/app'
+import AttachmentImageField from './AttachmentImageField.vue'
 
-const { locale } = useI18n()
+const { t, locale } = useI18n()
 const appStore = useAppStore()
 
 const props = defineProps({
@@ -59,6 +71,7 @@ const emit = defineEmits(['update:modelValue', 'change'])
 
 // 编辑器实例，必须用 shallowRef
 const editorRef = shallowRef()
+const mediaPickerRef = ref(null)
 
 // 内容 HTML
 const valueHtml = ref('')
@@ -168,6 +181,29 @@ const handleChange = (editor) => {
     emit('update:modelValue', editor.getHtml())
     emit('change', editor.getHtml())
 }
+
+const openMediaPicker = () => {
+  mediaPickerRef.value?.openPicker?.()
+}
+
+const escapeAttr = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+const handleMediaSelect = ({ url, alt }) => {
+  const editor = editorRef.value
+  if (!editor) return
+  if (!url) {
+    ElMessage.warning(t('attachment.editor_public_required'))
+    return
+  }
+  const safeUrl = escapeAttr(url)
+  const safeAlt = escapeAttr(alt || 'image')
+  editor.dangerouslyInsertHtml(`<img src="${safeUrl}" alt="${safeAlt}" />`)
+}
 </script>
 
 <style scoped>
@@ -176,6 +212,15 @@ const handleChange = (editor) => {
   border-radius: 4px;
   overflow: hidden;
   transition: border-color 0.3s;
+}
+
+.wang-editor-media-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #ccc;
+  background: #fafafa;
 }
 
 .wang-editor-wrapper :deep(.w-e-toolbar) {
@@ -192,6 +237,11 @@ const handleChange = (editor) => {
 /* --- 外框 --- */
 .dark-mode {
   border-color: var(--el-border-color);
+}
+
+.dark-mode .wang-editor-media-bar {
+  background-color: var(--el-bg-color-overlay);
+  border-bottom-color: var(--el-border-color);
 }
 
 /* --- 工具栏 --- */

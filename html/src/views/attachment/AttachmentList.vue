@@ -174,6 +174,15 @@
 
         <template #operation="{ row }">
           <el-button
+            v-if="canInlinePreviewAttachment(row)"
+            type="primary"
+            link
+            :loading="previewLoading && previewRow?.id === row.id"
+            @click="handlePreview(row)"
+          >
+            {{ $t('attachment.preview') }}
+          </el-button>
+          <el-button
             type="success"
             link
             :disabled="downloadingIds.has(row.id)"
@@ -192,6 +201,34 @@
           </el-button>
         </template>
     </ListPage>
+
+    <el-dialog
+      v-model="previewVisible"
+      :title="previewTitle"
+      width="860px"
+      append-to-body
+      destroy-on-close
+      @closed="handlePreviewClosed"
+    >
+      <div v-loading="previewLoading" class="preview-container">
+        <div v-if="previewKind === 'image' && previewBlobUrl" class="preview-image">
+          <img :src="previewBlobUrl" :alt="previewTitle" style="max-width: 100%; max-height: 70vh;" />
+        </div>
+        <div v-else-if="previewKind === 'video' && previewBlobUrl" class="preview-video">
+          <video :src="previewBlobUrl" controls style="max-width: 100%; max-height: 70vh;" />
+        </div>
+        <div v-else-if="previewKind === 'pdf' && previewBlobUrl" class="preview-document">
+          <iframe :src="previewBlobUrl" style="width: 100%; height: 70vh; border: none;" />
+        </div>
+        <div v-else-if="previewKind === 'text'" class="preview-text">
+          <pre>{{ previewText }}</pre>
+        </div>
+        <el-empty
+          v-else-if="!previewLoading"
+          :description="$t('attachment.preview_unsupported')"
+        />
+      </div>
+    </el-dialog>
 
     <AttachmentCategoryDialog
       v-model="categoryDialogVisible"
@@ -296,7 +333,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, markRaw, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, markRaw, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, Delete, Loading, Picture, Crop } from '@element-plus/icons-vue'
@@ -314,12 +351,17 @@ import {
   batchDeleteAttachments,
   updateDisplayName,
   updateCategory,
-  updateVisibility
+  updateVisibility,
+  getAttachmentPreviewUrl
 } from '@/api/attachment'
 import AttachmentCategoryDialog from './AttachmentCategoryDialog.vue'
 import request from '@/utils/request'
 import i18n from '@/i18n'
 import Storage from '@/utils/storage'
+import {
+  canInlinePreviewAttachment,
+  attachmentPreviewKind
+} from '@/utils/attachmentUrl'
 import 'vue-cropper/dist/index.css'
 import { VueCropper } from 'vue-cropper'
 import {
@@ -396,6 +438,92 @@ const { handleDelete: handleDeleteCrud, handleBatchDelete: handleBatchDeleteCrud
 const listPageRef = ref(null)
 const uploadRef = ref(null)
 const downloadingIds = ref(new Set())
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewRow = ref(null)
+const previewKind = ref('')
+const previewBlobUrl = ref('')
+const previewText = ref('')
+const previewTitle = computed(() => {
+  const row = previewRow.value
+  if (!row) return t('attachment.preview')
+  return row.display_name || row.filename || t('attachment.preview')
+})
+
+const revokePreviewBlob = () => {
+  if (previewBlobUrl.value) {
+    window.URL.revokeObjectURL(previewBlobUrl.value)
+    previewBlobUrl.value = ''
+  }
+  previewText.value = ''
+  previewKind.value = ''
+  previewRow.value = null
+}
+
+const handlePreviewClosed = () => {
+  revokePreviewBlob()
+  previewLoading.value = false
+}
+
+const handlePreview = async (row) => {
+  if (!canInlinePreviewAttachment(row)) {
+    ElMessage.warning(t('attachment.preview_unsupported'))
+    return
+  }
+  const kind = attachmentPreviewKind(row)
+  if (!kind) {
+    ElMessage.warning(t('attachment.preview_unsupported'))
+    return
+  }
+
+  revokePreviewBlob()
+  previewRow.value = row
+  previewKind.value = kind
+  previewVisible.value = true
+  previewLoading.value = true
+
+  try {
+    const previewUrl = getAttachmentPreviewUrl(row.id)
+    const token = Storage.getItem('token', '') || ''
+    const tokenStr = typeof token === 'string' ? token.trim() : ''
+    const currentLocale = locale.value || i18n.global.locale.value || Storage.getItem('language', 'zh-CN') || 'zh-CN'
+    const acceptLanguage = currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
+
+    const response = await fetch(previewUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${tokenStr}`,
+        'Accept-Language': acceptLanguage
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('text/html') && kind !== 'text') {
+      throw new Error('invalid preview content')
+    }
+
+    const blob = await response.blob()
+    if (kind === 'text') {
+      previewText.value = await blob.text()
+    } else {
+      previewBlobUrl.value = window.URL.createObjectURL(blob)
+    }
+  } catch (error) {
+    console.error('Preview error:', error)
+    previewVisible.value = false
+    revokePreviewBlob()
+    if (!error.__handled) {
+      ElMessage.error(t('attachment.preview_failed'))
+    }
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 // 裁剪上传相关
 const cropDialogVisible = ref(false)
 const cropperRef = ref(null)
@@ -712,6 +840,10 @@ onMounted(() => {
   loadData()
 })
 
+onBeforeUnmount(() => {
+  revokePreviewBlob()
+})
+
 // 刷新由菜单的「是否缓存」设置控制：no_cache=1 时每次进入会 remount 触发 onMounted 刷新
 </script>
 
@@ -735,6 +867,20 @@ onMounted(() => {
 .preview-document iframe {
   border-radius: var(--border-radius-sm);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.preview-text pre {
+  max-height: 70vh;
+  overflow: auto;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  padding: 12px;
+  background: var(--bg-color-tertiary, #f5f7fa);
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .chunk-upload-container {

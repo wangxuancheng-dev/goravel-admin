@@ -5,6 +5,19 @@
   overflow: hidden;
 }
 
+.markdown-editor-media-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ant-color-border);
+  background: var(--ant-color-fill-quaternary, #fafafa);
+}
+
+.markdown-editor-wrapper[data-color-mode='dark'] .markdown-editor-media-bar {
+  background: var(--ant-color-bg-elevated);
+}
+
 .markdown-editor-wrapper .w-md-editor {
   box-shadow: none;
 }

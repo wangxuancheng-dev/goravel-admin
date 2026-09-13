@@ -139,6 +139,15 @@ func TestAttachmentInlinePreviewSafe(t *testing.T) {
 	if AttachmentInlinePreviewSafe("text/html", "document") {
 		t.Fatal("html should not be inline safe")
 	}
+	if !AttachmentInlinePreviewSafe("application/pdf", "document") {
+		t.Fatal("pdf should be inline safe")
+	}
+	if !AttachmentInlinePreviewSafe("text/plain", "document") {
+		t.Fatal("plain text should be inline safe")
+	}
+	if !AttachmentInlinePreviewSafe("video/mp4", "video") {
+		t.Fatal("mp4 should be inline safe")
+	}
 }
 
 func TestAttachmentPreviewDisposition(t *testing.T) {

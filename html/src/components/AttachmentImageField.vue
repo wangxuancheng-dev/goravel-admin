@@ -1,6 +1,7 @@
 <template>
-  <div class="attachment-image-field">
+  <div class="attachment-image-field" :class="{ 'is-picker-only': pickerOnly }">
     <el-input
+      v-if="!pickerOnly"
       :model-value="modelValue"
       :placeholder="placeholder || $t('config.site_logo_placeholder')"
       clearable
@@ -14,7 +15,7 @@
       </template>
     </el-input>
 
-    <div v-if="displayPreviewUrl" class="logo-preview">
+    <div v-if="!pickerOnly && displayPreviewUrl" class="logo-preview">
       <el-image
         :src="displayPreviewUrl"
         :preview-src-list="[displayPreviewUrl]"
@@ -138,10 +139,15 @@ const props = defineProps({
   placeholder: {
     type: String,
     default: ''
+  },
+  /** When true, only the picker dialog is rendered (for editors). */
+  pickerOnly: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'change'])
+const emit = defineEmits(['update:modelValue', 'change', 'select'])
 
 const pickerVisible = ref(false)
 const loading = ref(false)
@@ -215,6 +221,7 @@ const loadPreview = async (raw) => {
 watch(
   () => props.modelValue,
   (val) => {
+    if (props.pickerOnly) return
     loadPreview(val)
   },
   { immediate: true }
@@ -320,15 +327,28 @@ const handlePageChange = (newPage) => {
 const confirmSelect = (item) => {
   if (!item) return
   const url = toSubmitUrl(toStablePublicUrl(item))
-  emitValue(url)
+  const alt = item.display_name || item.filename || 'image'
+  emit('select', { url, alt, item })
+  if (!props.pickerOnly) {
+    emitValue(url)
+  }
   pickerVisible.value = false
 }
+
+defineExpose({ openPicker })
 </script>
 
 <style scoped>
 .attachment-image-field {
   width: 100%;
   max-width: 480px;
+}
+
+.attachment-image-field.is-picker-only {
+  width: 0;
+  height: 0;
+  max-width: none;
+  overflow: hidden;
 }
 
 .logo-preview {

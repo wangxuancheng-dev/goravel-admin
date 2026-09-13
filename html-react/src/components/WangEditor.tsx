@@ -2,11 +2,16 @@ import '@wangeditor/editor/dist/css/style.css'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Editor, Toolbar } from '@wangeditor/editor-for-react'
 import type { IDomEditor, IEditorConfig, IToolbarConfig } from '@wangeditor/editor'
+import { App, Button } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/stores/app'
 import { getApiBaseURL } from '@/utils/env'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
 import Storage from '@/utils/storage'
+import AttachmentImageField, {
+  type AttachmentImageFieldRef,
+  type AttachmentSelectPayload,
+} from './AttachmentImageField'
 import './WangEditor.scss'
 
 interface WangEditorProps {
@@ -29,6 +34,14 @@ interface UploadResponse {
   }
 }
 
+function escapeAttr(value: string) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 export default function WangEditor({
   value = '',
   onChange,
@@ -38,11 +51,13 @@ export default function WangEditor({
   placeholder,
   excludeToolbarKeys = ['group-video'],
 }: WangEditorProps) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const { message } = App.useApp()
   const darkMode = useAppStore((s) => s.darkMode)
   const [editor, setEditor] = useState<IDomEditor | null>(null)
   const [html, setHtml] = useState(value)
   const lastEmittedRef = useRef(value)
+  const mediaPickerRef = useRef<AttachmentImageFieldRef>(null)
 
   const normalizedWidth = typeof width === 'number' ? `${width}px` : width
 
@@ -124,12 +139,26 @@ export default function WangEditor({
     onChange?.(nextHtml)
   }
 
+  const handleMediaSelect = ({ url, alt }: AttachmentSelectPayload) => {
+    if (!editor) return
+    if (!url) {
+      message.warning(t('attachment.editor_public_required'))
+      return
+    }
+    editor.dangerouslyInsertHtml(`<img src="${escapeAttr(url)}" alt="${escapeAttr(alt || 'image')}" />`)
+  }
+
   return (
     <div
       className={`wang-editor-wrapper${darkMode ? ' dark-mode' : ''}`}
       style={{ width: normalizedWidth }}
     >
       <Toolbar editor={editor} defaultConfig={toolbarConfig} mode={mode} />
+      <div className="wang-editor-media-bar">
+        <Button size="small" onClick={() => mediaPickerRef.current?.openPicker()}>
+          {t('attachment.select_from_library')}
+        </Button>
+      </div>
       <Editor
         defaultConfig={editorConfig}
         value={html}
@@ -138,6 +167,7 @@ export default function WangEditor({
         mode={mode}
         style={{ height, overflowY: 'hidden' }}
       />
+      <AttachmentImageField ref={mediaPickerRef} pickerOnly onSelect={handleMediaSelect} />
     </div>
   )
 }

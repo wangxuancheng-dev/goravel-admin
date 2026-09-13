@@ -129,7 +129,13 @@ func AttachmentInlinePreviewSafe(mimeType, fileType string) bool {
 	}
 	switch mimeType {
 	case "image/jpeg", "image/png", "image/gif", "image/webp",
-		"video/mp4", "video/webm", "video/quicktime":
+		"video/mp4", "video/webm", "video/quicktime",
+		"application/pdf",
+		"text/plain", "text/csv", "text/markdown", "text/x-markdown":
+		return true
+	}
+	// text/* except blocked families above
+	if strings.HasPrefix(mimeType, "text/") {
 		return true
 	}
 	switch fileType {

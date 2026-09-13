@@ -159,3 +159,25 @@ export function createUploadProgressSSE(chunkID, totalChunks, options = {}) {
   const { interval = 500 } = options
   return `/attachments/upload/progress?chunk_id=${chunkID}&total_chunks=${totalChunks}&interval=${interval}`
 }
+
+/** Absolute authenticated URL for attachment download. */
+export function getAttachmentDownloadUrl(id) {
+  const apiBaseURL = import.meta.env.VITE_API_BASE_URL
+  const apiPrefix = import.meta.env.VITE_API_PREFIX || '/api/admin'
+  let url = `${apiPrefix}/attachments/${id}/download`
+  if (apiBaseURL) {
+    url = `${String(apiBaseURL).replace(/\/+$/, '')}${url}`
+  }
+  return url
+}
+
+/** Absolute authenticated URL for attachment inline preview. */
+export function getAttachmentPreviewUrl(id) {
+  const apiBaseURL = import.meta.env.VITE_API_BASE_URL
+  const apiPrefix = import.meta.env.VITE_API_PREFIX || '/api/admin'
+  let url = `${apiPrefix}/attachments/${id}/preview`
+  if (apiBaseURL) {
+    url = `${String(apiBaseURL).replace(/\/+$/, '')}${url}`
+  }
+  return url
+}

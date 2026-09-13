@@ -194,3 +194,9 @@ export function getAttachmentDownloadUrl(id: string | number) {
   const base = getApiBaseURL().replace(/\/+$/, '')
   return `${base}/attachments/${id}/download`
 }
+
+/** Absolute inline preview URL for authenticated blob fetch. */
+export function getAttachmentPreviewUrl(id: string | number) {
+  const base = getApiBaseURL().replace(/\/+$/, '')
+  return `${base}/attachments/${id}/preview`
+}

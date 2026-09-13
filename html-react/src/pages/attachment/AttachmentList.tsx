@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   App,
   Button,
@@ -26,6 +26,7 @@ import {
   batchDeleteAttachments,
   deleteAttachment,
   getAttachmentDownloadUrl,
+  getAttachmentPreviewUrl,
   getAttachmentList,
   updateCategory,
   updateDisplayName,
@@ -47,6 +48,11 @@ import SearchForm from '@/components/SearchForm'
 import PermissionButton from '@/components/PermissionButton'
 import Storage from '@/utils/storage'
 import i18n from '@/i18n'
+import {
+  attachmentPreviewKind,
+  canInlinePreviewAttachment,
+  type AttachmentPreviewKind,
+} from '@/utils/attachmentUrl'
 import AttachmentCategoryModal from './AttachmentCategoryModal'
 import CropUploadModal from './CropUploadModal'
 import {
@@ -70,6 +76,13 @@ export default function AttachmentList() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<Array<string | number>>([])
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [cropModalOpen, setCropModalOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewRow, setPreviewRow] = useState<AttachmentRow | null>(null)
+  const [previewKind, setPreviewKind] = useState<AttachmentPreviewKind>('')
+  const [previewBlobUrl, setPreviewBlobUrl] = useState('')
+  const [previewText, setPreviewText] = useState('')
+  const previewBlobUrlRef = useRef('')
   const [, bump] = useState(0)
   const forceRender = () => bump((n) => n + 1)
   const { selectOptions: categoryOptions, reload: reloadCategories } = useOptions('attachment_category')
@@ -111,6 +124,15 @@ export default function AttachmentList() {
   useEffect(() => {
     void reloadCategories()
   }, [reloadCategories])
+
+  useEffect(() => {
+    return () => {
+      if (previewBlobUrlRef.current) {
+        window.URL.revokeObjectURL(previewBlobUrlRef.current)
+        previewBlobUrlRef.current = ''
+      }
+    }
+  }, [])
 
   const handleUploadFile = async (file: File) => {
     const maxSize = 100 * 1024 * 1024
@@ -185,6 +207,78 @@ export default function AttachmentList() {
       forceRender()
       showError(error, t('attachment.update_failed'))
       await refresh()
+    }
+  }
+
+  const revokePreviewBlob = () => {
+    if (previewBlobUrlRef.current) {
+      window.URL.revokeObjectURL(previewBlobUrlRef.current)
+      previewBlobUrlRef.current = ''
+    }
+    setPreviewBlobUrl('')
+    setPreviewText('')
+    setPreviewKind('')
+    setPreviewRow(null)
+  }
+
+  const closePreview = () => {
+    setPreviewOpen(false)
+  }
+
+  const handlePreview = async (row: AttachmentRow) => {
+    if (!canInlinePreviewAttachment(row)) {
+      message.warning(t('attachment.preview_unsupported'))
+      return
+    }
+    const kind = attachmentPreviewKind(row)
+    if (!kind) {
+      message.warning(t('attachment.preview_unsupported'))
+      return
+    }
+
+    revokePreviewBlob()
+    setPreviewRow(row)
+    setPreviewKind(kind)
+    setPreviewOpen(true)
+    setPreviewLoading(true)
+
+    try {
+      const previewUrl = getAttachmentPreviewUrl(row.id)
+      const token = String(Storage.getItem('token', '') ?? '').trim()
+      const currentLocale = i18n.language || Storage.getItem('language', 'zh-CN') || 'zh-CN'
+      const acceptLanguage = currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
+
+      const response = await fetch(previewUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Accept-Language': acceptLanguage,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('text/html') && kind !== 'text') {
+        throw new Error('invalid preview content')
+      }
+
+      const blob = await response.blob()
+      if (kind === 'text') {
+        setPreviewText(await blob.text())
+      } else {
+        const objectUrl = window.URL.createObjectURL(blob)
+        previewBlobUrlRef.current = objectUrl
+        setPreviewBlobUrl(objectUrl)
+      }
+    } catch (error) {
+      setPreviewOpen(false)
+      revokePreviewBlob()
+      showError(error, t('attachment.preview_failed'))
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -416,10 +510,19 @@ export default function AttachmentList() {
     {
       title: t('common.operation'),
       key: 'operation',
-      width: 160,
+      width: 220,
       fixed: 'end',
       render: (_, row) => (
         <Space>
+          {canInlinePreviewAttachment(row) ? (
+            <Button
+              type="link"
+              loading={previewLoading && previewRow?.id === row.id}
+              onClick={() => void handlePreview(row)}
+            >
+              {t('attachment.preview')}
+            </Button>
+          ) : null}
           <Button
             type="link"
             loading={downloadingIds.has(row.id)}
@@ -593,6 +696,60 @@ export default function AttachmentList() {
         onSuccess={() => void refresh()}
       />
 
+      <Modal
+        open={previewOpen}
+        title={previewRow?.display_name || previewRow?.filename || t('attachment.preview')}
+        width={860}
+        footer={null}
+        destroyOnHidden
+        onCancel={closePreview}
+        afterOpenChange={(open) => {
+          if (!open) {
+            setPreviewLoading(false)
+            revokePreviewBlob()
+          }
+        }}
+      >
+        <div style={{ minHeight: 200, textAlign: 'center' }}>
+          {previewLoading ? (
+            <div style={{ padding: 48, color: '#999' }}>...</div>
+          ) : previewKind === 'image' && previewBlobUrl ? (
+            <img
+              src={previewBlobUrl}
+              alt={previewRow?.filename || ''}
+              style={{ maxWidth: '100%', maxHeight: '70vh' }}
+            />
+          ) : previewKind === 'video' && previewBlobUrl ? (
+            <video src={previewBlobUrl} controls style={{ maxWidth: '100%', maxHeight: '70vh' }} />
+          ) : previewKind === 'pdf' && previewBlobUrl ? (
+            <iframe
+              src={previewBlobUrl}
+              title={previewRow?.filename || 'pdf'}
+              style={{ width: '100%', height: '70vh', border: 'none' }}
+            />
+          ) : previewKind === 'text' ? (
+            <pre
+              style={{
+                maxHeight: '70vh',
+                overflow: 'auto',
+                textAlign: 'left',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                margin: 0,
+                padding: 12,
+                background: '#f5f7fa',
+                borderRadius: 4,
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            >
+              {previewText}
+            </pre>
+          ) : (
+            <div style={{ padding: 48, color: '#999' }}>{t('attachment.preview_unsupported')}</div>
+          )}
+        </div>
+      </Modal>
       <Modal
         open={chunk.visible}
         title={t('attachment.chunk_upload')}

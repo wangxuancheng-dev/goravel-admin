@@ -5,6 +5,20 @@
   transition: border-color 0.3s;
 }
 
+.wang-editor-media-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ant-color-border);
+  background: var(--ant-color-fill-quaternary, #fafafa);
+}
+
+.wang-editor-wrapper.dark-mode .wang-editor-media-bar {
+  background: var(--ant-color-bg-elevated);
+  border-bottom-color: var(--ant-color-border);
+}
+
 .wang-editor-wrapper :global(.w-e-toolbar) {
   border-bottom: 1px solid var(--ant-color-border);
   transition: background-color 0.3s, border-color 0.3s;
