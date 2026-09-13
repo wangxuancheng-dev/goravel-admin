@@ -48,7 +48,18 @@
       </el-tooltip>
     </template>
     <template #last_op="{ row }">
-      <span class="op-meta">{{ row.last_op || '—' }} / {{ row.last_op_status || '—' }}</span>
+      <el-tooltip :content="row.last_op_message || row.last_op_at || ''" :disabled="!(row.last_op_message || row.last_op_at)">
+        <span class="op-meta">{{ row.last_op || '—' }} / {{ row.last_op_status || '—' }}</span>
+      </el-tooltip>
+    </template>
+    <template #last_backup_path="{ row }">
+      <div v-if="row.last_backup_path" class="backup-cell">
+        <el-tooltip :content="row.last_backup_path" placement="top">
+          <span class="backup-path">{{ shortPath(row.last_backup_path) }}</span>
+        </el-tooltip>
+        <el-button link type="primary" @click="copyText(row.last_backup_path)">{{ $t('tenant.backup_copy_path') }}</el-button>
+      </div>
+      <span v-else class="op-meta">—</span>
     </template>
     <template #status="{ row }">
       <el-switch
@@ -57,11 +68,13 @@
       />
     </template>
     <template #actions="{ row }">
+      <el-button link type="primary" @click="openDetail(row)">{{ $t('tenant.op_detail') }}</el-button>
       <el-button link type="primary" :disabled="isBusy(row)" @click="openEdit(row)">{{ $t('common.edit') }}</el-button>
       <el-button link type="primary" @click="onPing(row)">{{ $t('tenant.op_ping') }}</el-button>
       <el-button link type="primary" :disabled="isBusy(row)" @click="openMigrate(row)">{{ $t('tenant.op_migrate') }}</el-button>
       <el-button link type="primary" :disabled="isBusy(row)" @click="onSeed(row)">{{ $t('tenant.op_seed') }}</el-button>
       <el-button link type="primary" :disabled="isBusy(row)" @click="onBackup(row)">{{ $t('tenant.op_backup') }}</el-button>
+      <el-button link type="primary" @click="openBackups(row)">{{ $t('tenant.op_backups') }}</el-button>
     </template>
 
     <template #form>
@@ -164,6 +177,63 @@
       <el-button type="primary" @click="submitMigrate">{{ $t('common.confirm') }}</el-button>
     </template>
   </el-dialog>
+
+  <el-drawer v-model="detailVisible" :title="$t('tenant.detail_title')" size="440px" destroy-on-close>
+    <template v-if="detailRow">
+      <el-descriptions :column="1" border size="small">
+        <el-descriptions-item :label="$t('tenant.code')">{{ detailRow.code }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.name')">{{ detailRow.name }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.driver')">{{ detailRow.driver }} / {{ detailRow.isolation }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.database')">{{ detailRow.database }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.schema')">{{ detailRow.schema || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.host')">{{ detailRow.host || '—' }}:{{ detailRow.port || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.connection_name')">{{ detailRow.connection_name || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.provision_status')">{{ provisionLabel(detailRow.provision_status) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.last_op')">{{ detailRow.last_op || '—' }} / {{ detailRow.last_op_status || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.last_op_at')">{{ detailRow.last_op_at || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.op_message')">{{ detailRow.last_op_message || detailRow.last_migrate_error || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.migrated_at')">{{ detailRow.migrated_at || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.backup_dir')">
+          <div class="backup-cell">
+            <span>{{ detailRow.backup_dir || backupDirOf(detailRow) }}</span>
+            <el-button link type="primary" @click="copyText(detailRow.backup_dir || backupDirOf(detailRow))">{{ $t('tenant.backup_copy_path') }}</el-button>
+          </div>
+        </el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.backup_path')">
+          <div v-if="detailRow.last_backup_path" class="backup-cell">
+            <span>{{ detailRow.last_backup_path }}</span>
+            <el-button link type="primary" @click="copyText(detailRow.last_backup_path)">{{ $t('tenant.backup_copy_path') }}</el-button>
+          </div>
+          <span v-else>—</span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <div class="drawer-actions">
+        <el-button type="primary" @click="openBackups(detailRow)">{{ $t('tenant.op_backups') }}</el-button>
+      </div>
+    </template>
+  </el-drawer>
+
+  <el-dialog v-model="backupsVisible" :title="$t('tenant.backup_list_title')" width="720px" destroy-on-close>
+    <el-alert type="info" :closable="false" show-icon class="migrate-tip" :title="$t('tenant.backup_hint')" />
+    <div v-if="backupsMeta.dir" class="backup-dir-row">
+      <span>{{ $t('tenant.backup_dir') }}: {{ backupsMeta.dir }}</span>
+      <el-button link type="primary" @click="copyText(backupsMeta.dir)">{{ $t('tenant.backup_copy_path') }}</el-button>
+    </div>
+    <el-table v-loading="backupsLoading" :data="backupsList" size="small" empty-text="">
+      <el-table-column prop="name" :label="$t('tenant.backup_name')" min-width="180" />
+      <el-table-column prop="size" :label="$t('tenant.backup_size')" width="100">
+        <template #default="{ row }">{{ formatSize(row.size) }}</template>
+      </el-table-column>
+      <el-table-column prop="mod_time" :label="$t('tenant.backup_time')" width="170" />
+      <el-table-column :label="$t('common.operation')" width="160" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="copyText(row.path)">{{ $t('tenant.backup_copy_path') }}</el-button>
+          <el-button link type="primary" :loading="downloadingName === row.name" @click="downloadBackup(row)">{{ $t('tenant.backup_download') }}</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-empty v-if="!backupsLoading && backupsList.length === 0" :description="$t('tenant.backup_empty')" />
+  </el-dialog>
   </div>
 </template>
 
@@ -176,8 +246,10 @@ import { useStandardListPage } from '@/composables/useStandardListPage'
 import {
   backupPlatformTenant,
   createPlatformTenant,
+  downloadPlatformTenantBackup,
   getPlatformTenantList,
   getPlatformTenantOpsSummary,
+  listPlatformTenantBackups,
   migratePlatformTenant,
   migratePlatformTenantBatch,
   pingPlatformTenant,
@@ -198,6 +270,14 @@ const migrateRow = ref(null)
 const withSeed = ref(true)
 const opsSummary = ref(null)
 const batchLoading = ref(false)
+const detailVisible = ref(false)
+const detailRow = ref(null)
+const backupsVisible = ref(false)
+const backupsRow = ref(null)
+const backupsList = ref([])
+const backupsMeta = reactive({ dir: '', last: '' })
+const backupsLoading = ref(false)
+const downloadingName = ref('')
 let pollTimer = null
 
 const healthDesc = computed(() => {
@@ -358,9 +438,10 @@ const tableColumns = computed(() => [
   { field: 'database', title: t('tenant.database'), width: 140, key: 'database' },
   { field: 'provision_status', title: t('tenant.provision_status'), width: 110, slot: 'provision_status', key: 'provision_status' },
   { field: 'last_op', title: t('tenant.last_op'), width: 140, slot: 'last_op', key: 'last_op' },
+  { field: 'last_backup_path', title: t('tenant.backup_path'), minWidth: 180, slot: 'last_backup_path', key: 'last_backup_path' },
   { field: 'status', title: t('common.status'), width: 90, slot: 'status', key: 'status' },
   { field: 'created_at', title: t('table.created_at'), key: 'created_at' },
-  { field: 'actions', title: t('common.operation'), width: 300, slot: 'actions', key: 'actions' }
+  { field: 'actions', title: t('common.operation'), width: 420, slot: 'actions', key: 'actions' }
 ])
 
 const form = reactive({
@@ -540,6 +621,82 @@ const onBackup = async (row) => {
     }
   }
 }
+
+const shortPath = (path) => {
+  const s = String(path || '')
+  if (s.length <= 28) return s
+  return `…${s.slice(-26)}`
+}
+
+const backupDirOf = (row) => {
+  if (row?.backup_dir) return row.backup_dir
+  if (row?.code) return `storage/backups/tenants/${row.code}`
+  return ''
+}
+
+const formatSize = (n) => {
+  const size = Number(n) || 0
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+const copyText = async (text) => {
+  const value = String(text || '')
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+    ElMessage.success(t('tenant.backup_copied'))
+  } catch {
+    ElMessage.error(t('common.operation_failed'))
+  }
+}
+
+const openDetail = (row) => {
+  detailRow.value = row
+  detailVisible.value = true
+}
+
+const openBackups = async (row) => {
+  backupsRow.value = row
+  backupsVisible.value = true
+  backupsList.value = []
+  backupsMeta.dir = row.backup_dir || backupDirOf(row)
+  backupsMeta.last = row.last_backup_path || ''
+  backupsLoading.value = true
+  try {
+    const res = await listPlatformTenantBackups(row.id)
+    backupsList.value = res?.data?.list || []
+    backupsMeta.dir = res?.data?.backup_dir || backupsMeta.dir
+    backupsMeta.last = res?.data?.last_backup_path || backupsMeta.last
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    backupsLoading.value = false
+  }
+}
+
+const downloadBackup = async (file) => {
+  if (!backupsRow.value || !file?.name) return
+  downloadingName.value = file.name
+  try {
+    const blob = await downloadPlatformTenantBackup(backupsRow.value.id, file.name)
+    const url = window.URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.name
+    a.click()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    downloadingName.value = ''
+  }
+}
 </script>
 
 <style scoped>
@@ -564,5 +721,29 @@ const onBackup = async (row) => {
   align-items: center;
   gap: 8px;
   margin: 12px 0;
+}
+.backup-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.backup-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #475569;
+}
+.backup-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+.drawer-actions {
+  margin-top: 16px;
 }
 </style>

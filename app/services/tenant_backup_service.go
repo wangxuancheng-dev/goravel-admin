@@ -200,3 +200,88 @@ func MarkTenantBackupResult(tenant *models.Tenant, path string) error {
 	tenant.LastOpAt = &now
 	return nil
 }
+
+// TenantBackupDir returns the relative backup directory for a tenant code.
+func TenantBackupDir(code string) string {
+	code = strings.TrimSpace(code)
+	return filepath.Join("storage", "backups", "tenants", code)
+}
+
+// TenantBackupFile is a dump under storage/backups/tenants/{code}/.
+type TenantBackupFile struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Size    int64  `json:"size"`
+	ModTime string `json:"mod_time"`
+}
+
+// ListTenantBackups lists .sql dumps for the tenant (newest first).
+func ListTenantBackups(tenant *models.Tenant) ([]TenantBackupFile, string, error) {
+	if tenant == nil || tenant.Code == "" {
+		return nil, "", apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	dir := TenantBackupDir(tenant.Code)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []TenantBackupFile{}, dir, nil
+		}
+		return nil, dir, err
+	}
+	var files []TenantBackupFile
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".sql") || strings.HasSuffix(name, ".tmp") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		rel := filepath.ToSlash(filepath.Join(dir, name))
+		files = append(files, TenantBackupFile{
+			Name:    name,
+			Path:    rel,
+			Size:    info.Size(),
+			ModTime: info.ModTime().Format("2006-01-02 15:04:05"),
+		})
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name > files[j].Name
+	})
+	return files, dir, nil
+}
+
+// ResolveTenantBackupAbsPath validates name and returns an absolute path under the tenant backup dir.
+func ResolveTenantBackupAbsPath(tenant *models.Tenant, name string) (string, error) {
+	if tenant == nil || tenant.Code == "" {
+		return "", apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	name = filepath.Base(strings.TrimSpace(name))
+	if name == "" || name == "." || name == ".." {
+		return "", apperrors.ErrInvalidArgument.WithMessage("invalid backup name")
+	}
+	if !strings.HasSuffix(strings.ToLower(name), ".sql") || strings.Contains(name, "..") {
+		return "", apperrors.ErrInvalidArgument.WithMessage("invalid backup name")
+	}
+	absDir, err := filepath.Abs(TenantBackupDir(tenant.Code))
+	if err != nil {
+		return "", err
+	}
+	absFile := filepath.Join(absDir, name)
+	rel, err := filepath.Rel(absDir, absFile)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", apperrors.ErrInvalidArgument.WithMessage("invalid backup name")
+	}
+	if _, err := os.Stat(absFile); err != nil {
+		if os.IsNotExist(err) {
+			return "", apperrors.ErrInvalidArgument.WithMessage("backup file not found")
+		}
+		return "", err
+	}
+	return absFile, nil
+}
+

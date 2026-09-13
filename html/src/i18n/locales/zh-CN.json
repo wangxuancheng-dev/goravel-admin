@@ -1121,7 +1121,24 @@
     "retry_failed_migrate": "重试全部失败迁移",
     "retry_failed_migrate_confirm": "将为所有开通失败的租户入队 migrate（最多 100 个），是否继续？",
     "batch_queued": "已入队 {n} 个租户迁移任务",
-    "filter_failed": "仅失败"
+    "filter_failed": "仅失败",
+    "op_detail": "详情",
+    "op_backups": "备份列表",
+    "backup_dir": "备份目录",
+    "backup_list_title": "租户备份",
+    "backup_empty": "暂无备份文件（路径见备份目录）",
+    "backup_download": "下载",
+    "backup_copy_path": "复制路径",
+    "backup_copied": "路径已复制",
+    "backup_size": "大小",
+    "backup_time": "时间",
+    "backup_name": "文件名",
+    "detail_title": "租户详情",
+    "last_op_at": "运维时间",
+    "migrated_at": "最近迁移",
+    "connection_name": "连接名",
+    "op_message": "运维消息",
+    "backup_hint": "备份落在服务器目录 storage/backups/tenants/{code}/，可在此下载"
   },
   "platform": {
     "title": "平台控制台",
@@ -1141,7 +1158,7 @@
     "health_db_bad": "数据库异常",
     "health_tenants": "租户 {active}/{total} 启用",
     "cli_ops_title": "租户运维",
-    "cli_ops_hint": "单户迁移/种子/备份可在列表操作（异步队列）；migrate-all / restore 等仍用 CLI"
+    "cli_ops_hint": "单户迁移/种子/备份可在列表操作（异步队列）；备份文件可在「备份列表」查看下载；migrate-all / restore 等仍用 CLI"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",

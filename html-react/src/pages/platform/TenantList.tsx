@@ -3,7 +3,9 @@ import {
   Alert,
   App,
   Button,
+  Descriptions,
   Divider,
+  Drawer,
   Form,
   Input,
   InputNumber,
@@ -22,8 +24,10 @@ import { SettingOutlined } from '@ant-design/icons'
 import {
   backupPlatformTenant,
   createPlatformTenant,
+  downloadPlatformTenantBackup,
   getPlatformTenantList,
   getPlatformTenantOpsSummary,
+  listPlatformTenantBackups,
   migratePlatformTenant,
   migratePlatformTenantBatch,
   pingPlatformTenant,
@@ -60,6 +64,9 @@ interface TenantRow {
   last_op_message?: string
   last_migrate_error?: string
   last_backup_path?: string
+  backup_dir?: string
+  last_op_at?: string
+  connection_name?: string
   migrated_at?: string
   created_at?: string
 }
@@ -67,6 +74,25 @@ interface TenantRow {
 function isTenantBusy(row: TenantRow) {
   if (row.provision_status === 'migrating') return true
   return row.last_op_status === 'queued' || row.last_op_status === 'running'
+}
+
+function shortPath(path?: string) {
+  const s = String(path || '')
+  if (s.length <= 28) return s
+  return `…${s.slice(-26)}`
+}
+
+function formatSize(n?: number) {
+  const size = Number(n) || 0
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+function backupDirOf(row: TenantRow) {
+  if (row.backup_dir) return row.backup_dir
+  if (row.code) return `storage/backups/tenants/${row.code}`
+  return ''
 }
 
 export default function PlatformTenantList() {
@@ -86,6 +112,14 @@ export default function PlatformTenantList() {
     total?: number
   } | null>(null)
   const [batchLoading, setBatchLoading] = useState(false)
+  const [detailRow, setDetailRow] = useState<TenantRow | null>(null)
+  const [backupsRow, setBackupsRow] = useState<TenantRow | null>(null)
+  const [backupsLoading, setBackupsLoading] = useState(false)
+  const [backupsList, setBackupsList] = useState<
+    Array<{ name: string; path: string; size: number; mod_time: string }>
+  >([])
+  const [backupsDir, setBackupsDir] = useState('')
+  const [downloadingName, setDownloadingName] = useState('')
 
   const refreshOpsSummary = async () => {
     try {
@@ -160,11 +194,60 @@ export default function PlatformTenantList() {
         last_op_message: String(entityField(record, 'last_op_message', '') ?? ''),
         last_migrate_error: String(entityField(record, 'last_migrate_error', '') ?? ''),
         last_backup_path: String(entityField(record, 'last_backup_path', '') ?? ''),
+        backup_dir: String(entityField(record, 'backup_dir', '') ?? ''),
+        last_op_at: String(entityField(record, 'last_op_at', '') ?? ''),
+        connection_name: String(entityField(record, 'connection_name', '') ?? ''),
         migrated_at: String(entityField(record, 'migrated_at', '') ?? ''),
         created_at: String(entityField(record, 'created_at', '') ?? ''),
       }
     },
   })
+
+  const copyText = async (text?: string) => {
+    const value = String(text || '')
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+      message.success(t('tenant.backup_copied'))
+    } catch {
+      message.error(t('common.operation_failed'))
+    }
+  }
+
+  const openBackups = async (row: TenantRow) => {
+    setBackupsRow(row)
+    setBackupsList([])
+    setBackupsDir(row.backup_dir || backupDirOf(row))
+    setBackupsLoading(true)
+    try {
+      const res = await listPlatformTenantBackups(row.id)
+      const data = (res as { data?: { list?: typeof backupsList; backup_dir?: string } })?.data
+      setBackupsList(data?.list || [])
+      setBackupsDir(data?.backup_dir || row.backup_dir || backupDirOf(row))
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setBackupsLoading(false)
+    }
+  }
+
+  const downloadBackup = async (file: { name: string }) => {
+    if (!backupsRow) return
+    setDownloadingName(file.name)
+    try {
+      const blob = (await downloadPlatformTenantBackup(backupsRow.id, file.name)) as Blob
+      const url = window.URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob as unknown as BlobPart]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setDownloadingName('')
+    }
+  }
 
   const hasBusy = tableData.some(isTenantBusy)
   useEffect(() => {
@@ -259,11 +342,31 @@ export default function PlatformTenantList() {
         render: (_, row) => {
           if (!row.last_op && !row.last_op_status) return '—'
           return (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {row.last_op || '—'} / {row.last_op_status || '—'}
-            </Typography.Text>
+            <Tooltip title={row.last_op_message || row.last_op_at || undefined}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {row.last_op || '—'} / {row.last_op_status || '—'}
+              </Typography.Text>
+            </Tooltip>
           )
         },
+      },
+      {
+        title: t('tenant.backup_path'),
+        key: 'last_backup_path',
+        width: 200,
+        render: (_, row) =>
+          row.last_backup_path ? (
+            <Space size={4}>
+              <Tooltip title={row.last_backup_path}>
+                <Typography.Text style={{ fontSize: 12 }}>{shortPath(row.last_backup_path)}</Typography.Text>
+              </Tooltip>
+              <Button type="link" size="small" onClick={() => void copyText(row.last_backup_path)}>
+                {t('tenant.backup_copy_path')}
+              </Button>
+            </Space>
+          ) : (
+            '—'
+          ),
       },
       {
         title: t('common.status'),
@@ -289,12 +392,15 @@ export default function PlatformTenantList() {
       {
         title: t('common.operation'),
         key: 'actions',
-        width: 280,
+        width: 420,
         fixed: 'right',
         render: (_, row) => {
           const busy = isTenantBusy(row)
           return (
             <Space size={0} wrap>
+              <Button type="link" size="small" onClick={() => setDetailRow(row)}>
+                {t('tenant.op_detail')}
+              </Button>
               <Button
                 type="link"
                 size="small"
@@ -365,12 +471,15 @@ export default function PlatformTenantList() {
               >
                 {t('tenant.op_backup')}
               </Button>
+              <Button type="link" size="small" onClick={() => void openBackups(row)}>
+                {t('tenant.op_backups')}
+              </Button>
             </Space>
           )
         },
       },
     ],
-    [t, message, modal, refresh, showError, form],
+    [t, message, modal, refresh, showError, form, copyText, openBackups, runQueued],
   )
 
   const {
@@ -516,7 +625,7 @@ export default function PlatformTenantList() {
         loading={loading}
         dataSource={tableData}
         columns={filteredColumns}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1500 }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.pageSize,
@@ -527,6 +636,132 @@ export default function PlatformTenantList() {
           handlePaginatedTableChange({ pager, sorter, pagination, loadData, handleSortChange })
         }
       />
+
+      <Drawer
+        title={t('tenant.detail_title')}
+        open={!!detailRow}
+        onClose={() => setDetailRow(null)}
+        width={440}
+        destroyOnHidden
+      >
+        {detailRow ? (
+          <>
+            <Descriptions column={1} size="small" bordered>
+              <Descriptions.Item label={t('tenant.code')}>{detailRow.code}</Descriptions.Item>
+              <Descriptions.Item label={t('tenant.name')}>{detailRow.name}</Descriptions.Item>
+              <Descriptions.Item label={t('tenant.driver')}>
+                {detailRow.driver} / {detailRow.isolation}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('tenant.database')}>{detailRow.database}</Descriptions.Item>
+              <Descriptions.Item label={t('tenant.schema')}>{detailRow.schema || '—'}</Descriptions.Item>
+              <Descriptions.Item label={t('tenant.host')}>
+                {detailRow.host || '—'}:{detailRow.port || '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('tenant.connection_name')}>
+                {detailRow.connection_name || '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('tenant.provision_status')}>
+                {provisionLabel(detailRow.provision_status)}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('tenant.last_op')}>
+                {detailRow.last_op || '—'} / {detailRow.last_op_status || '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('tenant.last_op_at')}>{detailRow.last_op_at || '—'}</Descriptions.Item>
+              <Descriptions.Item label={t('tenant.op_message')}>
+                {detailRow.last_op_message || detailRow.last_migrate_error || '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('tenant.migrated_at')}>{detailRow.migrated_at || '—'}</Descriptions.Item>
+              <Descriptions.Item label={t('tenant.backup_dir')}>
+                <Space>
+                  <span>{detailRow.backup_dir || backupDirOf(detailRow)}</span>
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => void copyText(detailRow.backup_dir || backupDirOf(detailRow))}
+                  >
+                    {t('tenant.backup_copy_path')}
+                  </Button>
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label={t('tenant.backup_path')}>
+                {detailRow.last_backup_path ? (
+                  <Space>
+                    <span>{detailRow.last_backup_path}</span>
+                    <Button type="link" size="small" onClick={() => void copyText(detailRow.last_backup_path)}>
+                      {t('tenant.backup_copy_path')}
+                    </Button>
+                  </Space>
+                ) : (
+                  '—'
+                )}
+              </Descriptions.Item>
+            </Descriptions>
+            <Button type="primary" style={{ marginTop: 16 }} onClick={() => void openBackups(detailRow)}>
+              {t('tenant.op_backups')}
+            </Button>
+          </>
+        ) : null}
+      </Drawer>
+
+      <Modal
+        title={t('tenant.backup_list_title')}
+        open={!!backupsRow}
+        onCancel={() => setBackupsRow(null)}
+        footer={null}
+        width={720}
+        destroyOnHidden
+      >
+        <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('tenant.backup_hint')} />
+        {backupsDir ? (
+          <Space style={{ marginBottom: 12 }}>
+            <Typography.Text type="secondary">
+              {t('tenant.backup_dir')}: {backupsDir}
+            </Typography.Text>
+            <Button type="link" size="small" onClick={() => void copyText(backupsDir)}>
+              {t('tenant.backup_copy_path')}
+            </Button>
+          </Space>
+        ) : null}
+        <Table
+          rowKey="name"
+          size="small"
+          loading={backupsLoading}
+          dataSource={backupsList}
+          pagination={false}
+          locale={{ emptyText: t('tenant.backup_empty') }}
+          columns={[
+            { title: t('tenant.backup_name'), dataIndex: 'name', key: 'name' },
+            {
+              title: t('tenant.backup_size'),
+              dataIndex: 'size',
+              key: 'size',
+              width: 100,
+              render: (size: number) => formatSize(size),
+            },
+            { title: t('tenant.backup_time'), dataIndex: 'mod_time', key: 'mod_time', width: 170 },
+            {
+              title: t('common.operation'),
+              key: 'actions',
+              width: 180,
+              render: (_, file) => (
+                <Space size={0}>
+                  <Button type="link" size="small" onClick={() => void copyText(file.path)}>
+                    {t('tenant.backup_copy_path')}
+                  </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    loading={downloadingName === file.name}
+                    onClick={() => void downloadBackup(file)}
+                  >
+                    {t('tenant.backup_download')}
+                  </Button>
+                </Space>
+              ),
+            },
+          ]}
+        />
+      </Modal>
 
       <ColumnSettingDialog
         open={columnSettingOpen}

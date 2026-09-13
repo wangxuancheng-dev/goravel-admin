@@ -94,6 +94,9 @@ platformRequest.interceptors.request.use((config) => {
 
 platformRequest.interceptors.response.use(
   (response) => {
+    if (response.config?.responseType === 'blob' || response.data instanceof Blob) {
+      return response.data
+    }
     const res = response.data
     const url = response.config?.url || ''
     const isAuthEndpoint = isAuthEndpointUrl(url)

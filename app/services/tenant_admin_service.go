@@ -415,6 +415,7 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 		"last_op_message":    t.LastOpMessage,
 		"last_op_at":         t.LastOpAt,
 		"last_backup_path":   t.LastBackupPath,
+		"backup_dir":         TenantBackupDir(t.Code),
 		"created_at":         t.CreatedAt,
 		"updated_at":         t.UpdatedAt,
 	}

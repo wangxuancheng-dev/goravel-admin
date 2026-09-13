@@ -220,6 +220,8 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/tenants/{id}/migrate` | Async migrate (`with_seed` optional) |
 | POST | `/api/platform/tenants/{id}/seed` | Async seed |
 | POST | `/api/platform/tenants/{id}/backup` | Async backup |
+| GET | `/api/platform/tenants/{id}/backups` | List backup files under `storage/backups/tenants/{code}/` |
+| GET | `/api/platform/tenants/{id}/backups/download?name=` | Download a `.sql` backup |
 
 Platform console list supports per-tenant **Ping / Migrate / Seed / Backup** (queue job `tenant_ops` on `long-running`). `migrate-all` / `restore` / `backup-all` stay CLI-only.
 

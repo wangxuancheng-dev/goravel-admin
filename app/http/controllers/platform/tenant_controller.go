@@ -2,6 +2,7 @@ package platform
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 
 	"github.com/goravel/framework/contracts/http"
@@ -292,4 +293,47 @@ func (c *TenantController) Seed(ctx http.Context) http.Response {
 // Backup enqueues async mysqldump/pg_dump for one tenant.
 func (c *TenantController) Backup(ctx http.Context) http.Response {
 	return c.enqueueOp(ctx, models.TenantOpBackup, false)
+}
+
+// ListBackups lists SQL dump files under storage/backups/tenants/{code}/.
+func (c *TenantController) ListBackups(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	tenant, err := c.service().GetByID(id)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	files, dir, err := services.ListTenantBackups(tenant)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
+	}
+	return response.Success(ctx, map[string]any{
+		"backup_dir":       dir,
+		"last_backup_path": tenant.LastBackupPath,
+		"list":             files,
+		"total":            len(files),
+	})
+}
+
+// DownloadBackup streams a backup .sql file for the tenant.
+func (c *TenantController) DownloadBackup(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	name := strings.TrimSpace(ctx.Request().Query("name", ""))
+	if name == "" {
+		name = strings.TrimSpace(ctx.Request().Input("name", ""))
+	}
+	tenant, err := c.service().GetByID(id)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	absPath, err := services.ResolveTenantBackupAbsPath(tenant, name)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusBadRequest, err, map[string]any{"id": id, "name": name})
+	}
+	return ctx.Response().Download(absPath, filepath.Base(absPath))
 }

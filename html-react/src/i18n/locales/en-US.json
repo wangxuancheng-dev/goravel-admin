@@ -998,7 +998,24 @@
     "retry_failed_migrate": "Retry all failed migrates",
     "retry_failed_migrate_confirm": "Enqueue migrate for all failed tenants (max 100). Continue?",
     "batch_queued": "Queued migrate for {{n}} tenant(s)",
-    "filter_failed": "Failed only"
+    "filter_failed": "Failed only",
+    "op_detail": "Details",
+    "op_backups": "Backups",
+    "backup_dir": "Backup directory",
+    "backup_list_title": "Tenant backups",
+    "backup_empty": "No backup files yet (see backup directory)",
+    "backup_download": "Download",
+    "backup_copy_path": "Copy path",
+    "backup_copied": "Path copied",
+    "backup_size": "Size",
+    "backup_time": "Time",
+    "backup_name": "Filename",
+    "detail_title": "Tenant details",
+    "last_op_at": "Last op at",
+    "migrated_at": "Migrated at",
+    "connection_name": "Connection",
+    "op_message": "Op message",
+    "backup_hint": "Backups are stored under storage/backups/tenants/{code}/ on the server; download here"
   },
   "platform": {
     "title": "Platform Console",
@@ -1018,7 +1035,7 @@
     "health_db_bad": "Database unreachable",
     "health_tenants": "Tenants {{active}}/{{total}} active",
     "cli_ops_title": "Tenant ops",
-    "cli_ops_hint": "Per-tenant migrate/seed/backup via list actions (async queue); migrate-all / restore remain CLI"
+    "cli_ops_hint": "Per-tenant migrate/seed/backup via list actions (async queue); use Backups to view/download dumps; migrate-all / restore remain CLI"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

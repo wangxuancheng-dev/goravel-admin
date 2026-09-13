@@ -63,6 +63,17 @@ export function backupPlatformTenant(id) {
   return platformRequest.post(`/tenants/${id}/backup`)
 }
 
+export function listPlatformTenantBackups(id) {
+  return platformRequest.get(`/tenants/${id}/backups`)
+}
+
+export function downloadPlatformTenantBackup(id, name) {
+  return platformRequest.get(`/tenants/${id}/backups/download`, {
+    params: { name },
+    responseType: 'blob'
+  })
+}
+
 export function getPlatformTenantOpsSummary() {
   return platformRequest.get('/tenants/ops-summary')
 }

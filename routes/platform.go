@@ -39,6 +39,8 @@ func Platform() {
 			router.Post("tenants/{id}/migrate", tenantController.Migrate)
 			router.Post("tenants/{id}/seed", tenantController.Seed)
 			router.Post("tenants/{id}/backup", tenantController.Backup)
+			router.Get("tenants/{id}/backups", tenantController.ListBackups)
+			router.Get("tenants/{id}/backups/download", tenantController.DownloadBackup)
 		})
 	})
 }

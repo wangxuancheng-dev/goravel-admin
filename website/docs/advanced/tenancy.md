@@ -217,6 +217,8 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/tenants/{id}/migrate` | 异步 migrate（body 可选 `with_seed`） |
 | POST | `/api/platform/tenants/{id}/seed` | 异步 seed |
 | POST | `/api/platform/tenants/{id}/backup` | 异步备份 |
+| GET | `/api/platform/tenants/{id}/backups` | 备份文件列表（`storage/backups/tenants/{code}/`） |
+| GET | `/api/platform/tenants/{id}/backups/download?name=` | 下载指定 `.sql` 备份 |
 
 平台控制台列表可操作单户 **Ping / 迁移 / 种子 / 备份**（入队 `tenant_ops`，`long-running` 队列）。`migrate-all` / `restore` / `backup-all` 仍仅 CLI。
 
