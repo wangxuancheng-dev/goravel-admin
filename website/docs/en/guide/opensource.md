@@ -45,7 +45,7 @@ Demo UI: `MODULE_PAYMENTS_ENABLED=true`. Keep off or mock-only on public product
 |----------|---------|--------|
 | `MODULE_ORDERS_ENABLED` | `true` | Hide order menus + reject order APIs when false |
 | `MODULE_PAYMENTS_ENABLED` | `false` | Payment admin UI/API; keep off on public deploy by default |
-| `PAYMENT_GATEWAYS_ENABLED` | empty | Gateway whitelist; empty = all registered |
+| `PAYMENT_GATEWAYS_ENABLED` | empty | Gateway allowlist (e.g. `wechat,alipay`); empty / `*` / `all` = all registered. **Prefer explicit production allowlist**; new channels: [Payments](/en/advanced/payments) §6 |
 | `APP_ENABLE_DEV_TOOL` | `false` | Explicit `true` in production to open dev tools |
 
 ## Data scope (row-level, inside a tenant)

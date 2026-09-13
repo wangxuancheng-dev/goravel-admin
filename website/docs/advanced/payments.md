@@ -84,9 +84,11 @@ curl -X POST http://127.0.0.1:3000/api/payment/notify/mock \
 
 下单示例已在对应 Driver 的 `Create`（需真实商户配置）。
 
-## 6. 接入全新渠道（推荐）
+## 6. 接入全新渠道 / 多支付平台
 
-回调路由已通用：`POST /api/payment/notify/{type}[/{tenant}]`，**不必再改 routes**。
+**结论**：接很多新平台时按驱动叠加即可；不要为每个渠道建 `app/stripe` 一类包，也不要恢复 `PaymentStore` / `OrderStore` ports。回调路由已通用：`POST /api/payment/notify/{type}[/{tenant}]`，**不必再改 routes**。
+
+### 6.1 每个渠道一份驱动
 
 1. 新建例如 `app/services/payment_gateway_stripe.go`：
 
@@ -116,17 +118,38 @@ func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.Payment
 }
 ```
 
-2. 后台支付方式 `type` 填同一字符串（如 `stripe`）  
-3. 前端（可选）：在 Vue/React 的 `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` 增加同名项与 i18n；未配置字段时仍可出现在下拉（来自 `config.payment_gateways`），但表单无专用字段。只注册已实现的驱动类型。
+2. 后台支付方式 `type` 与 `Type()` 同一字符串（如 `stripe`）
+3. 把新 type 写入 `PAYMENT_GATEWAYS_ENABLED`（生产务必白名单，不要长期空 / `*`）
+4. 前端（可选）：在 Vue/React 的 `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` 增加同名项与 i18n（`payment_method.type_<name>`）；未配置字段时仍可出现在下拉（来自 `config.payment_gateways`），但表单无专用字段。只注册已实现的驱动类型。
 
 已注册类型可用 `RegisteredPaymentGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考实现：`payment_gateway_mock.go`。
+
+### 6.2 明确不做
+
+| 项 | 原因 |
+|----|------|
+| 每渠道一个 `app/<vendor>` 包 | 违背 [Service 包拆分](/guide/service-packages)；驱动只依赖 SDK + models + `ApplyPaidResult` |
+| 再引入 PaymentStore / OrderStore ports | 已删除未完成稿；编排留 services |
+| 为新渠道改 routes / 复制 notify controller | 路由已按 `{type}` 分发 |
+| 把 `OrderService` / `PaymentService` 整包迁出 | 冻结范围外 |
+
+### 6.3 文件变多时
+
+当 `payment_gateway_*.go` 超过约 8～10 个、services 目录噪音明显时，**仅搬家驱动实现**到例如 `app/payment/gateways/`（仍 `init` 注册）；注册表与 `ApplyPaidResult` **继续留在 services**。当前（mock / wechat / alipay）**不需要先搬**。
+
+### 6.4 实现纪律
+
+- **幂等**：重复回调依赖 `ApplyPaidResult` 状态闸门；驱动不要自己写 paid
+- **金额**：能拿到实付金额就填 `PaidResult.Amount`，走现有校验
+- **租户**：SaaS 回调必须带 `{tenant}`；`defaultPaymentNotifyURL` 已按租户拼 path
+- **依赖**：重 SDK 可各自引入，但注册入口仍统一 `RegisterPaymentGateway`
 
 ## 7. 环境与模块
 
 | 变量 / 开关 | 说明 |
 |-------------|------|
 | `MODULE_PAYMENTS_ENABLED` | 管理端支付菜单与 API；**不影响**公开 notify |
-| `PAYMENT_GATEWAYS_ENABLED` | 启用的网关类型（逗号分隔），如 `wechat,alipay`。空 / `*` / `all` = 全部已注册驱动。未列入的类型：不可创建支付方式、不可下单/查询/回调 |
+| `PAYMENT_GATEWAYS_ENABLED` | 启用的网关类型（逗号分隔），如 `wechat,alipay`。空 / `*` / `all` = 全部已注册驱动。未列入的类型：不可创建支付方式、不可下单/查询/回调。**生产建议显式白名单** |
 | `APP_URL` | 拼默认 `notify_url` |
 | 多租户 | 回调必须带 `{tenant}`；见 `tenancy.PaymentNotifyPath` |
 

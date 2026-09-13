@@ -88,11 +88,13 @@ curl -X POST http://127.0.0.1:3000/api/payment/notify/mock \
 
 下单示例已在对应 Driver 的 `Create`（需真实商户配置）。
 
-## 6. 接入全新渠道（推荐）
+## 6. New channels / many payment platforms
 
-回调路由已通用：`POST /api/payment/notify/{type}[/{tenant}]`，**不必再改 routes**。
+**Summary**: scale by adding drivers — do **not** create per-vendor `app/stripe`-style packages or revive `PaymentStore` / `OrderStore` ports. Notify routing is already generic: `POST /api/payment/notify/{type}[/{tenant}]` — **no route changes**.
 
-1. 新建例如 `app/services/payment_gateway_stripe.go`：
+### 6.1 One driver file per channel
+
+1. Add e.g. `app/services/payment_gateway_stripe.go`:
 
 ```go
 package services
@@ -106,7 +108,7 @@ type stripePaymentDriver struct{}
 func (d *stripePaymentDriver) Type() string { return "stripe" }
 
 func (d *stripePaymentDriver) Create(ctx context.Context, payment *models.Payment, method *models.PaymentMethod, config map[string]any, clientIP string) (map[string]any, error) {
-    // 调第三方下单，notify_url 可用 defaultPaymentNotifyURL(ctx, "stripe")
+    // Call provider; notify_url via defaultPaymentNotifyURL(ctx, "stripe")
     return map[string]any{"payment_no": payment.PaymentNo}, nil
 }
 
@@ -115,23 +117,44 @@ func (d *stripePaymentDriver) Query(ctx context.Context, payment *models.Payment
 }
 
 func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.PaymentMethod, notifyData map[string]any) (*models.Payment, error) {
-    // 验签 → PaidResult → ApplyPaidResult(ctx, result)
+    // Verify → PaidResult → ApplyPaidResult(ctx, result)
     return ApplyPaidResult(ctx, PaidResult{PaymentNo: "...", ThirdPartyNo: "..."})
 }
 ```
 
-2. 后台支付方式 `type` 填同一字符串（如 `stripe`）  
-3. 前端（可选）：在 Vue/React 的 `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` 增加同名项与 i18n；未配置字段时仍可出现在下拉（来自 `config.payment_gateways`），但表单无专用字段。只注册已实现的驱动类型。
+2. Admin `payment_methods.type` must match `Type()` (e.g. `stripe`)
+3. Add the type to `PAYMENT_GATEWAYS_ENABLED` (production: explicit allowlist; avoid long-lived empty / `*`)
+4. Frontend (optional): extend Vue/React `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` and i18n (`payment_method.type_<name>`). Without field defs the type still appears in the dropdown from `config.payment_gateways`, but the form has no dedicated fields. Only register implemented drivers.
 
-已注册类型可用 `RegisteredPaymentGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考实现：`payment_gateway_mock.go`。
+List types via `RegisteredPaymentGatewayTypes()` / `/api/admin/info` → `payment_gateways`. Reference: `payment_gateway_mock.go`.
 
-## 7. 环境与模块
+### 6.2 Explicitly do not
 
-| 变量 / 开关 | 说明 |
-|-------------|------|
-| `MODULE_PAYMENTS_ENABLED` | 管理端支付菜单与 API；**不影响**公开 notify |
-| `PAYMENT_GATEWAYS_ENABLED` | 启用的网关类型（逗号分隔），如 `wechat,alipay`。空 / `*` / `all` = 全部已注册驱动。未列入的类型：不可创建支付方式、不可下单/查询/回调 |
-| `APP_URL` | 拼默认 `notify_url` |
-| 多租户 | 回调必须带 `{tenant}`；见 `tenancy.PaymentNotifyPath` |
+| Item | Why |
+|------|-----|
+| Per-vendor `app/<vendor>` package | Against [service packages](/en/guide/service-packages); drivers need SDK + models + `ApplyPaidResult` only |
+| Revive PaymentStore / OrderStore ports | Unfinished draft removed; orchestration stays in services |
+| New routes / notify controllers per channel | `{type}` already dispatches |
+| Move entire `OrderService` / `PaymentService` | Outside frozen split |
 
-管理端 `/api/admin/info` 的 `config.payment_gateways` 会返回当前启用列表，前端支付方式「类型」下拉按此过滤。
+### 6.3 When files proliferate
+
+If `payment_gateway_*.go` exceeds ~8–10 files and clutters services, **move driver implementations only** to e.g. `app/payment/gateways/` (still `init` register); keep the registry and `ApplyPaidResult` **in services**. Today (mock / wechat / alipay) **do not move yet**.
+
+### 6.4 Implementation discipline
+
+- **Idempotency**: rely on `ApplyPaidResult` status gate; drivers must not write paid themselves
+- **Amount**: set `PaidResult.Amount` when the provider returns it
+- **Tenancy**: SaaS notify must include `{tenant}`; `defaultPaymentNotifyURL` already builds the path
+- **Heavy SDKs**: import per driver; registration stays `RegisterPaymentGateway`
+
+## 7. Environment / modules
+
+| Variable | Notes |
+|----------|-------|
+| `MODULE_PAYMENTS_ENABLED` | Admin payment menu/API; does **not** affect public notify |
+| `PAYMENT_GATEWAYS_ENABLED` | Comma-separated enabled types, e.g. `wechat,alipay`. Empty / `*` / `all` = all registered. Unlisted types cannot create methods or create/query/notify. **Prefer an explicit production allowlist** |
+| `APP_URL` | Default `notify_url` base |
+| Multi-tenant | Notify must include `{tenant}`; see `tenancy.PaymentNotifyPath` |
+
+Admin `/api/admin/info` → `config.payment_gateways` drives the payment-method type dropdown.

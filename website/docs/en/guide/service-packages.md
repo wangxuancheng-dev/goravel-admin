@@ -15,6 +15,7 @@
 | Capability | Package / file | Notes |
 |------------|----------------|-------|
 | Payment paid status gate | `app/payment` | `PaidResult` + `ApplyPaidResultStatusGate` (pure) |
+| Payment gateway drivers | `app/services/payment_gateway_*.go` | one file per channel + `RegisterPaymentGateway`; `Notify` only via `ApplyPaidResult`. If files exceed ~8–10, **move drivers only** to `app/payment/gateways/`; registry + apply stay in services. See [Payments](/en/advanced/payments) §6 |
 | Payment DB apply | `app/services/payment_apply.go` | orchestration in services; calls gate; alias `services.PaidResult` |
 | Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy`; services call `rbac` directly |
 | Order filters + JSON | `app/orders` | Filters / ToJSON; services / controllers call `orders` directly; `OrderServiceImpl` remains in services |
@@ -26,6 +27,7 @@
 | Item | Decision |
 |------|----------|
 | Full `ApplyPaidResult` + `PaymentStore`/`OrderStore` ports | **Do not split**; unfinished `app/payment/store.go` removed |
+| Per-vendor `app/<vendor>` payment packages | **Do not split**; stack `payment_gateway_*.go` drivers |
 | `tenant_connection_service` / `tenant_ops_service` | **Stay in services** |
 | Entire `OrderServiceImpl` / `PaymentService` | **Stay in services** |
 

@@ -1,6 +1,12 @@
 import type { TFunction } from 'i18next'
 
-/** Backend-registered drivers only. Source of truth: RegisterPaymentGateway. */
+/** Backend-registered drivers only. Source of truth: RegisterPaymentGateway.
+ * Adding a new channel:
+ * 1) app/services/payment_gateway_<type>.go + init RegisterPaymentGateway
+ * 2) append type to PAYMENT_GATEWAYS_ENABLED
+ * 3) extend PaymentMethodType / PAYMENT_METHOD_TYPES / PAYMENT_TYPE_CONFIG_FIELDS + i18n `payment_method.type_<type>`
+ * Unknown enabled types still appear via resolvePaymentMethodTypes (empty config fields).
+ */
 export type PaymentMethodType = 'mock' | 'wechat' | 'alipay'
 
 export interface PaymentMethodSearchForm {

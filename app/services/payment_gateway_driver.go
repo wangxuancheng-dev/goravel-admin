@@ -14,7 +14,15 @@ import (
 )
 
 // PaymentGatewayDriver is one payment channel (mock / wechat / stripe / …).
-// Register via RegisterPaymentGateway in init(); business success always goes through ApplyPaidResult.
+//
+// Multi-gateway scale path (do not invent new packages per vendor):
+//   - One file per channel: app/services/payment_gateway_<type>.go
+//   - Register in init() via RegisterPaymentGateway; Type() must match payment_methods.type
+//   - Notify / successful Query: verify → PaidResult → ApplyPaidResult only (never mutate order/payment yourself)
+//   - Routes stay POST /api/payment/notify/{type}[/{tenant}]; no new notify controllers
+//   - Gate with PAYMENT_GATEWAYS_ENABLED; when payment_gateway_*.go grows past ~8–10 files,
+//     drivers may move to app/payment/gateways/ while this registry + ApplyPaidResult stay in services
+// Docs: website/docs/advanced/payments.md
 type PaymentGatewayDriver interface {
 	Type() string
 	Create(ctx context.Context, payment *models.Payment, method *models.PaymentMethod, config map[string]any, clientIP string) (map[string]any, error)
