@@ -1,6 +1,16 @@
 <template>
   <div class="storage-config">
     <el-alert
+      v-if="tenancyEnabled"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 20px;"
+      :title="$t('config.storage_disk_locked_title')"
+      :description="$t('config.storage_disk_locked_tip')"
+    />
+    <el-alert
+      v-else
       type="info"
       :closable="false"
       show-icon
@@ -26,7 +36,7 @@
       label-position="left"
     >
       <el-row :gutter="20">
-        <el-col :span="12">
+        <el-col v-if="!tenancyEnabled" :span="12">
           <el-form-item :label="$t('config.file_disk')" prop="file_disk">
             <el-select v-model="formData.file_disk" :placeholder="$t('config.file_disk_placeholder')">
               <el-option label="local" value="local" />
@@ -41,7 +51,7 @@
             </div>
           </el-form-item>
         </el-col>
-        <el-col :span="12">
+        <el-col :span="tenancyEnabled ? 24 : 12">
           <el-form-item :label="$t('config.export_format')" prop="export_format">
             <el-select v-model="formData.export_format" :placeholder="$t('config.export_format_placeholder')">
               <el-option label="csv" value="csv" />
@@ -61,30 +71,37 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { getConfigByGroup, saveConfig } from '../../../api/config'
 import { usePermission } from '../../../composables/usePermission'
+import { isTenancyEnabled } from '../../../utils/tenant'
 
 const { t } = useI18n()
 const { getButtonState } = usePermission()
 const formRef = ref(null)
 const submitting = ref(false)
+const tenancyEnabled = isTenancyEnabled()
 
 const formData = reactive({
   file_disk: 'local',
   export_format: 'csv'
 })
 
-const formRules = {
-  file_disk: [
-    { required: true, message: t('config.file_disk_required'), trigger: 'change' }
-  ],
-  export_format: [
-    { required: true, message: t('config.export_format_required'), trigger: 'change' }
-  ]
-}
+const formRules = computed(() => {
+  const rules = {
+    export_format: [
+      { required: true, message: t('config.export_format_required'), trigger: 'change' }
+    ]
+  }
+  if (!tenancyEnabled) {
+    rules.file_disk = [
+      { required: true, message: t('config.file_disk_required'), trigger: 'change' }
+    ]
+  }
+  return rules
+})
 
 const loadData = async () => {
   try {
@@ -116,17 +133,18 @@ const handleSubmit = async () => {
     if (valid) {
       submitting.value = true
       try {
-        // 只保存驱动选择，不保存其他配置
         const configs = {
-          file_disk: formData.file_disk,
           export_format: formData.export_format
+        }
+        if (!tenancyEnabled) {
+          configs.file_disk = formData.file_disk
         }
 
         await saveConfig('storage', configs)
         ElMessage.success(t('config.update_success'))
       } catch (error) {
         console.error('Submit error:', error)
-        ElMessage.error(t('config.update_failed'))
+        ElMessage.error(error?.translatedMessage || error?.message || t('config.update_failed'))
       } finally {
         submitting.value = false
       }

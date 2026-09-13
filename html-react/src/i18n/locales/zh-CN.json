@@ -948,6 +948,8 @@
     "captcha_expire_required": "请输入验证码有效期",
     "captcha_expire_min": "验证码有效期不能小于 {{seconds}} 秒",
     "file_disk": "文件存储磁盘",
+    "storage_disk_locked_title": "多租户统一存储",
+    "storage_disk_locked_tip": "文件存储驱动由平台 .env（FILESYSTEM_DISK）统一配置，租户不可切换；仍可修改导出格式。",
     "export_format": "导出格式",
     "update_success": "更新成功",
     "site_theme_color": "主题色",

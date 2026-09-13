@@ -1003,6 +1003,8 @@
     "storage_config_desc_2": "Detailed cloud storage configuration (keys, bucket, region, etc.) should be set in the .env file",
     "storage_config_desc_3": "Application restart is required after changing the driver to take effect",
     "storage_config_default_tip": "If not configured, the framework default value will be used (FILESYSTEM_DISK in .env, default is local)",
+    "storage_disk_locked_title": "Shared platform storage",
+    "storage_disk_locked_tip": "The file storage disk is set by the platform FILESYSTEM_DISK and cannot be changed per tenant. Export format can still be edited.",
     "s3_key": "S3 Access Key",
     "s3_key_placeholder": "Please enter S3 Access Key",
     "s3_secret": "S3 Secret Key",

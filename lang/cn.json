@@ -100,6 +100,7 @@
     "tenant_op_queue_failed": "租户运维任务入队失败",
     "tenant_storage_quota_exceeded": "租户对象存储配额已用尽（已用 {used} / 限额 {limit} 字节）",
     "tenant_traffic_quota_exceeded": "租户本月流量配额已用尽（已用 {used} / 限额 {limit} 字节）",
+    "tenant_storage_disk_locked": "多租户模式下文件存储驱动由平台统一配置，租户不可修改",
     "token_expired": "Token已过期，请重新登录",
     "token_required": "Token不能为空",
     "invalid_token": "无效的Token",

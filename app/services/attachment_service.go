@@ -108,19 +108,9 @@ func (s *AttachmentServiceImpl) chunkObjectPath(chunkID string, chunkIndex int) 
 }
 
 func NewAttachmentService(ctx http.Context) AttachmentService {
-	// 从数据库读取文件存储配置
-	// 优先使用 file_disk，如果没有则使用 storage_disk（向后兼容），最后使用默认值 local
-	disk := utils.GetConfigValue(ctx, "storage", "file_disk", "")
-	if disk == "" {
-		disk = utils.GetConfigValue(ctx, "storage", "storage_disk", "")
-	}
-	if disk == "" {
-		disk = "local"
-	}
-
 	return &AttachmentServiceImpl{
 		ctx:              ctx,
-		disk:             disk,
+		disk:             utils.ResolveFileDisk(ctx),
 		systemLogService: NewSystemLogService(ctx),
 	}
 }

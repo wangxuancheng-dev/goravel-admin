@@ -81,23 +81,7 @@ type ExportServiceImpl struct {
 }
 
 func NewExportService(ctx http.Context) ExportService {
-	// 从数据库读取文件存储配置，如果不存在则使用默认值
-	// 优先使用 file_disk，如果没有则使用 storage_disk（向后兼容），再尝试 export_disk，最后使用默认值 local
-	disk := utils.GetConfigValue(ctx, "storage", "file_disk", "")
-	if disk == "" {
-		disk = utils.GetConfigValue(ctx, "storage", "storage_disk", "")
-	}
-	if disk == "" {
-		// 向后兼容 export_disk
-		disk = utils.GetConfigValue(ctx, "storage", "export_disk", "")
-	}
-	// 如果都不存在，使用默认值 local
-	if disk == "" {
-		disk = "local"
-	}
-
-	// 记录使用的存储驱动（用于调试）
-	// facades.Log().Debugf("ExportService: using storage disk: %s", disk)
+	disk := utils.ResolveFileDisk(ctx)
 
 	// 文件路径默认使用 exports，不再从配置读取
 	path := "exports"

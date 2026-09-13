@@ -144,6 +144,7 @@
     "tenant_op_queue_failed": "Failed to enqueue tenant maintenance job",
     "tenant_storage_quota_exceeded": "Tenant object storage quota exceeded (used {used} / limit {limit} bytes)",
     "tenant_traffic_quota_exceeded": "Tenant monthly traffic quota exceeded (used {used} / limit {limit} bytes)",
+    "tenant_storage_disk_locked": "File storage disk is managed by the platform in multi-tenant mode and cannot be changed",
     "token_expired": "Token has expired, please login again",
     "token_required": "Token is required",
     "invalid_token": "Invalid token",

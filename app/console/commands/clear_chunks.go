@@ -39,10 +39,7 @@ func (r *ClearChunks) Handle(ctx console.Context) error {
 	threeDaysAgo := time.Now().AddDate(0, 0, -3)
 
 	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
-		disk := utils.GetConfigValue(bound, "storage", "file_disk", "")
-		if disk == "" {
-			disk = "local"
-		}
+		disk := utils.ResolveFileDisk(bound)
 		if disk != "local" && disk != "public" {
 			ctx.Info(fmt.Sprintf("当前存储驱动为 %s，清理分片文件功能仅支持本地存储，跳过清理", disk))
 			return nil

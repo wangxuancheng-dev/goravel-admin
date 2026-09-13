@@ -200,6 +200,7 @@ var (
 	ErrTenantOpQueueFailed       = NewBusinessError("tenant_op_queue_failed", "租户运维任务入队失败")
 	ErrTenantStorageQuotaExceeded = NewBusinessError("tenant_storage_quota_exceeded", "租户对象存储配额已用尽")
 	ErrTenantTrafficQuotaExceeded = NewBusinessError("tenant_traffic_quota_exceeded", "租户本月流量配额已用尽")
+	ErrTenantStorageDiskLocked   = NewBusinessError("tenant_storage_disk_locked", "多租户模式下文件存储驱动由平台统一配置，租户不可修改")
 	ErrTokenRefreshFailed        = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound              = NewBusinessError("user_not_found", "用户不存在")
 

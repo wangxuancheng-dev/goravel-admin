@@ -944,6 +944,8 @@
     "captcha_expire_required": "Please enter captcha expiry",
     "captcha_expire_min": "Captcha expiry cannot be less than {{seconds}} seconds",
     "file_disk": "File Disk",
+    "storage_disk_locked_title": "Shared platform storage",
+    "storage_disk_locked_tip": "The file storage disk is set by the platform FILESYSTEM_DISK and cannot be changed per tenant. Export format can still be edited.",
     "export_format": "Export Format",
     "update_success": "Updated successfully",
     "site_theme_color": "Theme color",

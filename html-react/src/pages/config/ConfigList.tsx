@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { App, Card, Form, Input, InputNumber, Select, Switch, Tabs } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Alert, App, Card, Form, Input, InputNumber, Select, Switch, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import PageContainer from '@/components/PageContainer'
 import PermissionButton from '@/components/PermissionButton'
@@ -8,6 +8,7 @@ import { getConfigByGroup, saveConfig, testEmail } from '@/api/config'
 import { entityField } from '@/utils/normalize'
 import { notifyWebsiteConfigUpdated } from '@/utils/publicImage'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
+import { isTenancyEnabled } from '@/utils/tenant'
 
 function configsToForm(
   configs: Array<Record<string, unknown>> | undefined,
@@ -317,6 +318,7 @@ function StorageConfigPanel() {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const tenancyEnabled = useMemo(() => isTenancyEnabled(), [])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -341,7 +343,13 @@ function StorageConfigPanel() {
     try {
       const values = await form.validateFields()
       setSubmitting(true)
-      await saveConfig('storage', values as Record<string, unknown>)
+      const payload: Record<string, unknown> = {
+        export_format: values.export_format,
+      }
+      if (!tenancyEnabled) {
+        payload.file_disk = values.file_disk
+      }
+      await saveConfig('storage', payload)
       message.success(t('config.update_success'))
     } catch (error) {
       if ((error as { errorFields?: unknown })?.errorFields) return
@@ -353,18 +361,28 @@ function StorageConfigPanel() {
 
   return (
     <Form form={form} layout="vertical" disabled={loading}>
-      <Form.Item name="file_disk" label={t('config.file_disk')}>
-        <Select
-          options={[
-            { label: 'local', value: 'local' },
-            { label: 's3', value: 's3' },
-            { label: 'oss', value: 'oss' },
-            { label: 'cos', value: 'cos' },
-            { label: 'qiniu', value: 'qiniu' },
-            { label: 'minio', value: 'minio' },
-          ]}
+      {tenancyEnabled ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={t('config.storage_disk_locked_title')}
+          description={t('config.storage_disk_locked_tip')}
         />
-      </Form.Item>
+      ) : (
+        <Form.Item name="file_disk" label={t('config.file_disk')}>
+          <Select
+            options={[
+              { label: 'local', value: 'local' },
+              { label: 's3', value: 's3' },
+              { label: 'oss', value: 'oss' },
+              { label: 'cos', value: 'cos' },
+              { label: 'qiniu', value: 'qiniu' },
+              { label: 'minio', value: 'minio' },
+            ]}
+          />
+        </Form.Item>
+      )}
       <Form.Item name="export_format" label={t('config.export_format')}>
         <Select
           options={[

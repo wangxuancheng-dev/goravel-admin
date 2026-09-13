@@ -1012,6 +1012,8 @@
     "storage_config_desc_2": "云存储的详细配置（密钥、bucket、region等）请在 .env 文件中设置",
     "storage_config_desc_3": "修改驱动后需要重启应用才能生效",
     "storage_config_default_tip": "如果未配置，将使用框架默认值（.env 中的 FILESYSTEM_DISK，默认为 local）",
+    "storage_disk_locked_title": "多租户统一存储",
+    "storage_disk_locked_tip": "文件存储驱动由平台 .env（FILESYSTEM_DISK）统一配置，租户不可切换；仍可修改导出格式。",
     "s3_key": "S3 Access Key",
     "s3_key_placeholder": "请输入 S3 Access Key",
     "s3_secret": "S3 Secret Key",

@@ -1,14 +1,44 @@
 package utils
 
 import (
+	"context"
 	"fmt"
+	"strings"
 
 	"github.com/goravel/framework/contracts/filesystem"
 	"github.com/goravel/framework/facades"
 	fwfilesystem "github.com/goravel/framework/filesystem"
 
 	apperrors "goravel/app/errors"
+	"goravel/app/tenancy"
 )
+
+// ResolveFileDisk returns the active filesystem disk name.
+// When TENANCY_DRIVER=database, tenants share the platform default (FILESYSTEM_DISK / filesystems.default);
+// per-tenant configs.file_disk is ignored so purge/quota stay consistent.
+func ResolveFileDisk(ctx context.Context) string {
+	if tenancy.Enabled() {
+		disk := strings.TrimSpace(facades.Config().GetString("filesystems.default", ""))
+		if disk != "" {
+			return disk
+		}
+		return "local"
+	}
+	disk := GetConfigValue(ctx, "storage", "file_disk", "")
+	if disk == "" {
+		disk = GetConfigValue(ctx, "storage", "storage_disk", "")
+	}
+	if disk == "" {
+		disk = GetConfigValue(ctx, "storage", "export_disk", "")
+	}
+	if disk == "" {
+		disk = strings.TrimSpace(facades.Config().GetString("filesystems.default", ""))
+	}
+	if disk == "" {
+		return "local"
+	}
+	return disk
+}
 
 // ValidateFilesystemDisk 检查云存储磁盘的必填配置是否已写入 .env / config。
 // 未配置时返回业务错误，避免 Storage().Disk() 内部 panic。

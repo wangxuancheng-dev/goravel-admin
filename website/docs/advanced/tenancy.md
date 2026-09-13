@@ -161,7 +161,7 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 ## 对象存储与配额
 
-- **共用 disk**：S3/OSS/本地等仍是全站一份 `FILESYSTEM_DISK`；路径用 `tenants/{code}/` 前缀隔离。
+- **共用 disk**：S3/OSS/本地等仍是全站一份 `FILESYSTEM_DISK`；路径用 `tenants/{code}/` 前缀隔离。租户后台**不可**改 `file_disk`（保存会被拒绝），仅可改导出格式。
 - **删除租户**：平台元数据为**软删除**；`drop_database` 仅 DROP 库/Schema；`purge_objects` / `purge_backups` 分别异步清理对象前缀与本地备份（入队 `tenant_ops`/`long-running`，需 Worker）；旧参数 `purge_files` 表示两者都清。
 - **存储限额** `storage_limit_bytes`（0=不限）：按租户库 `attachments.size` 汇总，上传前校验。
 - **月流量限额** `traffic_limit_bytes`（0=不限）：统计应用侧上传与经应用下载/预览（含签发临时 URL）；**直链 CDN 下载不计入**。计数存在缓存键 `t{id}:traffic:YYYYMM`（UTC 月）。

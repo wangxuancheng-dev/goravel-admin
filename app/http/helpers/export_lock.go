@@ -53,12 +53,5 @@ func AcquireExportLockWithTTL(ctx http.Context, resource string, ttl time.Durati
 
 // ResolveExportDisk 读取导出存储盘配置。
 func ResolveExportDisk(ctx http.Context) string {
-	disk := utils.GetConfigValue(ctx, "storage", "file_disk", "")
-	if disk == "" {
-		disk = utils.GetConfigValue(ctx, "storage", "export_disk", "")
-	}
-	if disk == "" {
-		return "local"
-	}
-	return disk
+	return utils.ResolveFileDisk(ctx)
 }

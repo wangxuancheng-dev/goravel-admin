@@ -164,7 +164,7 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 ## Object storage and quotas
 
-- **Shared disk**: one `FILESYSTEM_DISK` for the whole platform; paths are isolated with `tenants/{code}/`.
+- **Shared disk**: one `FILESYSTEM_DISK` for the whole platform; paths are isolated with `tenants/{code}/`. Tenant admin **cannot** change `file_disk` (save rejected); export format remains editable.
 - **Delete tenant**: landlord row is **soft-deleted**; `drop_database` drops DB/schema only; `purge_objects` / `purge_backups` enqueue async cleanup on `long-running` (needs Worker); legacy `purge_files` enables both.
 - **Storage limit** `storage_limit_bytes` (0=unlimited): enforced from `SUM(attachments.size)` before upload.
 - **Monthly traffic limit** `traffic_limit_bytes` (0=unlimited): counts app uploads and app-proxied download/preview (including temporary URL issuance); **direct CDN downloads are not counted**. Counter key `t{id}:traffic:YYYYMM` (UTC month).

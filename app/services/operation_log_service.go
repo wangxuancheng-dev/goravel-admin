@@ -204,12 +204,7 @@ func (s *OperationLogServiceImpl) Archive(days int) (uint, error) {
 		adminID = admin.ID
 	}
 
-	disk := "local"
-	if v := utils.GetConfigValue(s.ctx, "storage", "file_disk", ""); v != "" {
-		disk = v
-	} else if v := utils.GetConfigValue(s.ctx, "storage", "export_disk", ""); v != "" {
-		disk = v
-	}
+	disk := utils.ResolveFileDisk(s.ctx)
 
 	exportRecord := models.Export{
 		AdminID: adminID,

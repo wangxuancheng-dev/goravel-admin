@@ -12,6 +12,7 @@ import (
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
+	"goravel/app/tenancy"
 )
 
 type ConfigService interface {
@@ -151,6 +152,14 @@ func (s *ConfigServiceImpl) Save(group string, configsMap map[string]any) error 
 			}
 		}
 		configsMap = filteredConfigs
+		// Multi-tenant: shared platform disk only; reject tenant overrides of the driver.
+		if tenancy.Enabled() {
+			for _, locked := range []string{"file_disk", "storage_disk", "export_disk"} {
+				if _, ok := configsMap[locked]; ok {
+					return apperrors.ErrTenantStorageDiskLocked
+				}
+			}
+		}
 	}
 
 	for key, value := range configsMap {
