@@ -15,7 +15,9 @@ func init() {
 	RegisterPaymentGateway(&wechatPaymentDriver{})
 }
 
-// wechatPaymentDriver: gopay create example; query/notify return NotImplemented until verify is wired.
+// wechatPaymentDriver: example using an external Go module (github.com/go-pay/gopay).
+// Prefer this style when a maintained SDK/module exists — require it in go.mod, keep only the
+// PaymentGatewayDriver adapter in services. Query/notify return NotImplemented until verify is wired.
 type wechatPaymentDriver struct{}
 
 func (d *wechatPaymentDriver) Type() string { return "wechat" }

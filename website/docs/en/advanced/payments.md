@@ -128,14 +128,30 @@ func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.Payment
 
 List types via `RegisteredPaymentGatewayTypes()` / `/api/admin/info` → `payment_gateways`. Reference: `payment_gateway_mock.go`.
 
+### 6.1.1 Two implementation styles (both supported)
+
+The driver only implements `PaymentGatewayDriver`. **How** you talk to the provider is unrestricted:
+
+| Style | When | How | In-repo reference |
+|-------|------|-----|-------------------|
+| **External Go module / SDK** | Stable official or community package (Stripe, gopay, …) | `go get` into `go.mod`; call SDK from `payment_gateway_<type>.go`. Do **not** wrap in an `app/<vendor>` domain package | `payment_gateway_wechat.go` / `alipay` (gopay) |
+| **Hand-written from docs** | HTTP/signing docs only, no reliable Go package, or SDK too heavy | Same file: `net/http` + `crypto` for create/query/verify; still map to `PaidResult` → `ApplyPaidResult` | `payment_gateway_mock.go` |
+
+Shared rules:
+
+- Same register / route / apply path (`RegisterPaymentGateway` + `notify/{type}` + `ApplyPaidResult`)
+- Secrets live in `payment_methods.config` JSON
+- Heavy SDKs are `require`d modules; hand-written logic stays in the driver (or small same-package helpers). **No** per-channel `app/stripe`-style domain packages
+
 ### 6.2 Explicitly do not
 
 | Item | Why |
 |------|-----|
-| Per-vendor `app/<vendor>` package | Against [service packages](/en/guide/service-packages); drivers need SDK + models + `ApplyPaidResult` only |
+| Per-vendor `app/<vendor>` package | Against [service packages](/en/guide/service-packages); use a **go.mod dependency** or hand-written driver logic |
 | Revive PaymentStore / OrderStore ports | Unfinished draft removed; orchestration stays in services |
 | New routes / notify controllers per channel | `{type}` already dispatches |
 | Move entire `OrderService` / `PaymentService` | Outside frozen split |
+| Force every channel onto one SDK | Not required; SDK and hand-written drivers may coexist |
 
 ### 6.3 When files proliferate
 
@@ -146,7 +162,7 @@ If `payment_gateway_*.go` exceeds ~8–10 files and clutters services, **move dr
 - **Idempotency**: rely on `ApplyPaidResult` status gate; drivers must not write paid themselves
 - **Amount**: set `PaidResult.Amount` when the provider returns it
 - **Tenancy**: SaaS notify must include `{tenant}`; `defaultPaymentNotifyURL` already builds the path
-- **Heavy SDKs**: import per driver; registration stays `RegisterPaymentGateway`
+- **Heavy SDKs or hand-written HTTP**: either is fine; registration stays `RegisterPaymentGateway` (see §6.1.1)
 
 ## 7. Environment / modules
 

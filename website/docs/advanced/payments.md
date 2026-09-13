@@ -124,14 +124,30 @@ func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.Payment
 
 已注册类型可用 `RegisteredPaymentGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考实现：`payment_gateway_mock.go`。
 
+### 6.1.1 两种实现方式（都支持）
+
+驱动只负责实现 `PaymentGatewayDriver`；**怎么调第三方不限**，以下两种都是一等公民：
+
+| 方式 | 何时用 | 做法 | 仓库内参考 |
+|------|--------|------|------------|
+| **外部 Go 模块 / SDK** | 有稳定官方或社区包（如 Stripe、gopay） | `go get` 写入 `go.mod`，在 `payment_gateway_<type>.go` 里调 SDK；**不要**再包一层 `app/<vendor>` 域包 | `payment_gateway_wechat.go` / `alipay`（gopay） |
+| **按文档手写** | 只有 HTTP/签名文档、无可靠 Go 包，或包过重不值得引 | 同文件内用 `net/http` + `crypto` 等自实现验签/下单/查单，仍映射 `PaidResult` → `ApplyPaidResult` | `payment_gateway_mock.go` |
+
+共同点：
+
+- 注册、路由、落库路径相同（`RegisterPaymentGateway` + `notify/{type}` + `ApplyPaidResult`）
+- 密钥 / 商户号放在 `payment_methods.config` JSON，不要硬编码
+- 重 SDK 可以 `require` 独立 module；手写逻辑也可以全部留在驱动文件（或同包小 helper），**禁止**为渠道新建 `app/stripe` 这类业务域包
+
 ### 6.2 明确不做
 
 | 项 | 原因 |
 |----|------|
-| 每渠道一个 `app/<vendor>` 包 | 违背 [Service 包拆分](/guide/service-packages)；驱动只依赖 SDK + models + `ApplyPaidResult` |
+| 每渠道一个 `app/<vendor>` 包 | 违背 [Service 包拆分](/guide/service-packages)；第三方用 **go.mod 依赖** 或驱动内手写即可 |
 | 再引入 PaymentStore / OrderStore ports | 已删除未完成稿；编排留 services |
 | 为新渠道改 routes / 复制 notify controller | 路由已按 `{type}` 分发 |
 | 把 `OrderService` / `PaymentService` 整包迁出 | 冻结范围外 |
+| 强制所有渠道必须用同一 SDK | 不要求；SDK 与手写可并存 |
 
 ### 6.3 文件变多时
 
@@ -142,7 +158,7 @@ func (d *stripePaymentDriver) Notify(ctx context.Context, method *models.Payment
 - **幂等**：重复回调依赖 `ApplyPaidResult` 状态闸门；驱动不要自己写 paid
 - **金额**：能拿到实付金额就填 `PaidResult.Amount`，走现有校验
 - **租户**：SaaS 回调必须带 `{tenant}`；`defaultPaymentNotifyURL` 已按租户拼 path
-- **依赖**：重 SDK 可各自引入，但注册入口仍统一 `RegisterPaymentGateway`
+- **依赖**：可用外部仓库包（`go.mod`），也可纯文档手写 HTTP/验签；注册入口仍统一 `RegisterPaymentGateway`（见 §6.1.1）
 
 ## 7. 环境与模块
 

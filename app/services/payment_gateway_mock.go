@@ -17,7 +17,8 @@ func init() {
 	RegisterPaymentGateway(&mockPaymentDriver{})
 }
 
-// mockPaymentDriver: local reference implementation for secondary developers.
+// mockPaymentDriver: local reference for secondary developers — hand-written (no third-party SDK).
+// Prefer this style when the provider only publishes HTTP/signing docs and no stable Go module.
 // Config JSON keys (payment_methods.config):
 //   - shared_secret (optional): notify must include sign = HMAC-SHA256(out_trade_no|trade_status|amount, secret)
 //   - notify_url (optional): override default APP_URL + /api/payment/notify/mock[/{tenant}]
