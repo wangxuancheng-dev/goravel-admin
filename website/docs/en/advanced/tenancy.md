@@ -128,7 +128,6 @@ PLATFORM_ADMIN_NAME=平台管理员
 4. **Connection pool**: per-tenant `TENANCY_POOL_MAX_*` (default idle 2 / open 20); at higher tenant counts, tighten using [Scale and recommended settings](#scale-and-recommended-settings) so MySQL is not exhausted.
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
-
 ## Scale and recommended settings
 
 These are **starting points**, not hard quotas — tune from monitoring. With many tenants the first bottleneck is usually the **per-tenant DB pool**, not Redis. Redis is shared cluster-wide (cache keys use `tenancy.CacheKey` → `t{id}:` prefix); size the instance up first. Split cache vs queue (or Redis DB indexes) only if noisy-neighbor becomes real.
@@ -142,7 +141,7 @@ These are **starting points**, not hard quotas — tune from monitoring. With ma
 | Active tenants (rule of thumb) | Tenant pool | Queue / processes | Redis |
 |--------------------------------|-------------|-------------------|-------|
 | &lt; 50 | Defaults `IDLE=2` / `OPEN=20` OK; low traffic can use `OPEN=10` | Worker may share the API host; `QUEUE_CONNECTION=redis` | Single or small managed Redis |
-| 50–200 | `IDLE=1–2`, `OPEN=3–5`; shorter idle/lifetime (e.g. 120 / 600) | Split **API vs Worker** roles (see [Production](/deploy/production) §4.1); keep `QUEUE_LONG_RUNNING_CONCURRENT` low and scale Worker nodes | Managed Redis; watch `used_memory` and queue backlog |
+| 50–200 | `IDLE=1–2`, `OPEN=3–5`; shorter idle/lifetime (e.g. 120 / 600) | Split **API vs Worker** roles (see [Production](/en/deploy/production) §4.1); keep `QUEUE_LONG_RUNNING_CONCURRENT` low and scale Worker nodes | Managed Redis; watch `used_memory` and queue backlog |
 | 200+ | Tighten `OPEN` further or raise `max_connections`; do not ship default 20 unchanged | Dedicated Workers for `default` + `long-running`; set `QUEUE_ALERT_BACKLOG_THRESHOLD` | Larger tier / Cluster; watch export/import noisy neighbors |
 
 Example starting point (~100 active tenants, 2 API instances):
@@ -161,6 +160,14 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 ```
 
 **Watch:** MySQL/PG `Threads_connected` (or equivalent), queue pending / `queue:alert-backlog`, Redis memory and connections. Near limits, lower `TENANCY_POOL_*` or scale the DB before blindly adding API replicas (replicas multiply connection usage).
+
+
+## Object storage and quotas
+
+- **Shared disk**: one `FILESYSTEM_DISK` for the whole platform; paths are isolated with `tenants/{code}/`.
+- **Delete tenant**: landlord row is **soft-deleted**; `drop_database` drops DB/schema only; `purge_objects` / `purge_backups` enqueue async cleanup on `long-running` (needs Worker); legacy `purge_files` enables both.
+- **Storage limit** `storage_limit_bytes` (0=unlimited): enforced from `SUM(attachments.size)` before upload.
+- **Monthly traffic limit** `traffic_limit_bytes` (0=unlimited): counts app uploads and app-proxied download/preview (including temporary URL issuance); **direct CDN downloads are not counted**. Counter key `t{id}:traffic:YYYYMM` (UTC month).
 
 ## 运维增强
 
@@ -258,7 +265,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | GET | `/api/platform/tenants/{id}/backups/download?name=` | Download a `.sql` backup |
 | POST | `/api/platform/tenants/{id}/restore` | Async restore (`backup_name`) |
 | POST | `/api/platform/tenants/{id}/backups/prune` | Keep newest N backups (`keep`) |
-| DELETE | `/api/platform/tenants/{id}` | Remove tenant row (`confirm_code`=code, optional `drop_database`) |
+| DELETE | `/api/platform/tenants/{id}` | Soft-delete (`confirm_code`; optional `drop_database`; async `purge_objects` / `purge_backups`; legacy `purge_files` = both) |
 | GET | `/api/platform/tenants/{id}/overview` | DB snapshot stats |
 | GET | `/api/platform/tenant-op-logs` | Platform-wide ops execution logs (filter code/op/status/batch_id/operator) |
 | GET | `/api/platform/tenants/{id}/op-logs` | Ops timeline |

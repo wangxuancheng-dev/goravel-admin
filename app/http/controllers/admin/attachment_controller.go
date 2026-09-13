@@ -335,6 +335,9 @@ func (r *AttachmentController) Download(ctx http.Context) http.Response {
 	if attachment.Path == "" || attachment.Disk == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrFilePathRequired.Code)
 	}
+	if err := services.RecordTenantTraffic(ctx, attachment.Size); err != nil {
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusForbidden, err, map[string]any{"id": id})
+	}
 
 	storage, errResp, ok := response.OpenStorageDisk(ctx, "attachment", attachment.Disk, map[string]any{
 		"path": attachment.Path,
@@ -624,6 +627,9 @@ func (r *AttachmentController) buildUploadResponse(attachmentService services.At
 func (r *AttachmentController) serveAttachmentContent(ctx http.Context, attachment *models.Attachment, disposition string) http.Response {
 	if attachment.Path == "" || attachment.Disk == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrFilePathRequired.Code)
+	}
+	if err := services.RecordTenantTraffic(ctx, attachment.Size); err != nil {
+		return HandleGeneratedServiceError(ctx, "attachment", http.StatusForbidden, err, map[string]any{"id": attachment.ID})
 	}
 
 	storage, errResp, ok := response.OpenStorageDisk(ctx, "attachment", attachment.Disk, map[string]any{

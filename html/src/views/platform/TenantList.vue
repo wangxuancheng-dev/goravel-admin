@@ -178,6 +178,15 @@
             <el-switch v-model="form.skip_create" />
             <div class="form-tip">{{ $t('tenant.skip_create_tip') }}</div>
           </el-form-item>
+          <el-divider content-position="left">{{ $t('tenant.quota_section') }}</el-divider>
+          <el-form-item :label="$t('tenant.storage_limit_mb')">
+            <el-input-number v-model="form.storage_limit_mb" :min="0" :max="1048576" controls-position="right" style="width: 100%" />
+            <div class="form-tip">{{ $t('tenant.quota_zero_unlimited') }}</div>
+          </el-form-item>
+          <el-form-item :label="$t('tenant.traffic_limit_mb')">
+            <el-input-number v-model="form.traffic_limit_mb" :min="0" :max="1048576" controls-position="right" style="width: 100%" />
+            <div class="form-tip">{{ $t('tenant.traffic_quota_tip') }}</div>
+          </el-form-item>
         </el-form>
         <template #footer>
           <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -280,6 +289,8 @@
       <el-descriptions-item :label="$t('tenant.overview_size')">{{ formatSize(overviewData.database_bytes) }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.overview_admins')">{{ overviewData.admins_count }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.overview_migrations')">{{ overviewData.migrations_count }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.storage_used')">{{ formatQuota(quotaData?.storage_used_bytes, quotaData?.storage_limit_bytes) }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.traffic_used')">{{ formatQuota(quotaData?.traffic_used_bytes, quotaData?.traffic_limit_bytes) }}{{ quotaData?.traffic_month ? ` (${quotaData.traffic_month})` : '' }}</el-descriptions-item>
       <el-descriptions-item v-if="overviewData.error" :label="$t('tenant.op_message')">{{ overviewData.error }}</el-descriptions-item>
     </el-descriptions>
   </el-drawer>
@@ -304,6 +315,14 @@
       </el-form-item>
       <el-form-item :label="$t('tenant.drop_database')">
         <el-switch v-model="deleteDropDb" />
+      </el-form-item>
+      <el-form-item :label="$t('tenant.purge_objects')">
+        <el-switch v-model="deletePurgeObjects" />
+        <div class="form-tip">{{ $t('tenant.purge_objects_tip') }}</div>
+      </el-form-item>
+      <el-form-item :label="$t('tenant.purge_backups')">
+        <el-switch v-model="deletePurgeBackups" />
+        <div class="form-tip">{{ $t('tenant.purge_backups_tip') }}</div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -370,12 +389,15 @@ const queueInfo = ref(null)
 const settingsKeep = ref(0)
 const overviewVisible = ref(false)
 const overviewData = ref(null)
+const quotaData = ref(null)
 const timelineVisible = ref(false)
 const opLogs = ref([])
 const deleteVisible = ref(false)
 const deleteRow = ref(null)
 const deleteConfirm = ref('')
 const deleteDropDb = ref(false)
+const deletePurgeObjects = ref(false)
+const deletePurgeBackups = ref(false)
 const deleteLoading = ref(false)
 let pollTimer = null
 
@@ -575,8 +597,24 @@ const form = reactive({
   username: '',
   password: '',
   has_password: false,
-  skip_create: false
+  skip_create: false,
+  storage_limit_mb: 0,
+  traffic_limit_mb: 0
 })
+
+const MB = 1024 * 1024
+const mbToBytes = (m) => Math.round((Number(m) || 0) * MB)
+const bytesToMb = (b) => {
+  const n = Number(b) || 0
+  if (n <= 0) return 0
+  return Math.round(n / MB)
+}
+const formatQuota = (used, limit) => {
+  const u = formatSize(used)
+  const lim = Number(limit) || 0
+  if (lim <= 0) return `${u} / ∞`
+  return `${u} / ${formatSize(lim)}`
+}
 
 const formRules = computed(() => {
   const rules = {
@@ -603,6 +641,8 @@ const openEdit = (row) => {
   form.database = row.database || ''
   form.schema = row.schema || ''
   form.has_password = !!row.has_password
+  form.storage_limit_mb = bytesToMb(row.storage_limit_bytes)
+  form.traffic_limit_mb = bytesToMb(row.traffic_limit_bytes)
   dialogVisible.value = true
 }
 
@@ -626,6 +666,8 @@ const resetForm = () => {
   form.password = ''
   form.has_password = false
   form.skip_create = false
+  form.storage_limit_mb = 0
+  form.traffic_limit_mb = 0
 }
 
 const submitForm = async () => {
@@ -641,7 +683,9 @@ const submitForm = async () => {
           port: form.port || 0,
           username: form.username,
           database: form.database,
-          schema: form.schema
+          schema: form.schema,
+          storage_limit_bytes: mbToBytes(form.storage_limit_mb),
+          traffic_limit_bytes: mbToBytes(form.traffic_limit_mb)
         }
         if (form.password) payload.password = form.password
         await updatePlatformTenant(editingId.value, payload)
@@ -658,7 +702,9 @@ const submitForm = async () => {
           port: form.port || undefined,
           username: form.username || undefined,
           password: form.password || undefined,
-          skip_create: form.skip_create
+          skip_create: form.skip_create,
+          storage_limit_bytes: mbToBytes(form.storage_limit_mb) || undefined,
+          traffic_limit_bytes: mbToBytes(form.traffic_limit_mb) || undefined
         })
         ElMessage.success(t('common.create_success'))
       }
@@ -805,9 +851,11 @@ const exportCsv = async () => {
 const openOverview = async (row) => {
   overviewVisible.value = true
   overviewData.value = null
+  quotaData.value = null
   try {
     const res = await getPlatformTenantOverview(row.id)
     overviewData.value = res?.data?.overview || null
+    quotaData.value = res?.data?.quota || null
   } catch (error) {
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
@@ -846,6 +894,8 @@ const openDelete = (row) => {
   deleteRow.value = row
   deleteConfirm.value = ''
   deleteDropDb.value = false
+  deletePurgeObjects.value = false
+  deletePurgeBackups.value = false
   deleteVisible.value = true
 }
 
@@ -853,11 +903,17 @@ const submitDelete = async () => {
   if (!deleteRow.value) return
   deleteLoading.value = true
   try {
-    await deletePlatformTenant(deleteRow.value.id, {
+    const res = await deletePlatformTenant(deleteRow.value.id, {
       confirm_code: deleteConfirm.value,
-      drop_database: deleteDropDb.value
+      drop_database: deleteDropDb.value,
+      purge_objects: deletePurgeObjects.value,
+      purge_backups: deletePurgeBackups.value
     })
-    ElMessage.success(t('common.delete_success'))
+    if (res?.data?.purge_queued) {
+      ElMessage.success(t('tenant.delete_purge_queued'))
+    } else {
+      ElMessage.success(t('common.delete_success'))
+    }
     deleteVisible.value = false
     loadData()
     refreshOpsSummary()

@@ -142,6 +142,8 @@
     "tenant_hint_conflict": "Subdomain tenant does not match the tenant hint in the request",
     "tenant_op_in_progress": "A maintenance job is already running for this tenant; try again later",
     "tenant_op_queue_failed": "Failed to enqueue tenant maintenance job",
+    "tenant_storage_quota_exceeded": "Tenant object storage quota exceeded (used {used} / limit {limit} bytes)",
+    "tenant_traffic_quota_exceeded": "Tenant monthly traffic quota exceeded (used {used} / limit {limit} bytes)",
     "token_expired": "Token has expired, please login again",
     "token_required": "Token is required",
     "invalid_token": "Invalid token",

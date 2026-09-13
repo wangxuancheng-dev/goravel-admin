@@ -27,6 +27,7 @@ const (
 	TenantOpSeed    = "seed"
 	TenantOpBackup  = "backup"
 	TenantOpRestore = "restore"
+	TenantOpPurge   = "purge"
 
 	TenantOpStatusIdle    = "idle"
 	TenantOpStatusQueued  = "queued"
@@ -57,7 +58,9 @@ type Tenant struct {
 	LastOpStatus     string     `gorm:"size:32;comment:idle|queued|running|success|failed" json:"last_op_status"`
 	LastOpMessage    string     `gorm:"type:text;comment:最近运维结果" json:"last_op_message"`
 	LastOpAt         *time.Time `gorm:"comment:最近运维时间" json:"last_op_at"`
-	LastBackupPath   string     `gorm:"size:512;comment:最近备份路径" json:"last_backup_path"`
+	LastBackupPath    string     `gorm:"size:512;comment:最近备份路径" json:"last_backup_path"`
+	StorageLimitBytes int64      `gorm:"default:0;comment:对象存储配额字节 0不限" json:"storage_limit_bytes"`
+	TrafficLimitBytes int64      `gorm:"default:0;comment:月流量配额字节 0不限" json:"traffic_limit_bytes"`
 	orm.SoftDeletes
 }
 

@@ -10,7 +10,7 @@ import (
 	"goravel/app/services"
 )
 
-// TenantOps runs platform tenant migrate / seed / backup asynchronously.
+// TenantOps runs platform tenant migrate / seed / backup / restore / purge asynchronously.
 type TenantOps struct{}
 
 func (r *TenantOps) Signature() string {

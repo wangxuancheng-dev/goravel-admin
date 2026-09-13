@@ -198,6 +198,8 @@ var (
 	ErrTenantHintConflict        = NewBusinessError("tenant_hint_conflict", "子域名与请求中的租户标识不一致")
 	ErrTenantOpInProgress        = NewBusinessError("tenant_op_in_progress", "该租户已有运维任务进行中，请稍后再试")
 	ErrTenantOpQueueFailed       = NewBusinessError("tenant_op_queue_failed", "租户运维任务入队失败")
+	ErrTenantStorageQuotaExceeded = NewBusinessError("tenant_storage_quota_exceeded", "租户对象存储配额已用尽")
+	ErrTenantTrafficQuotaExceeded = NewBusinessError("tenant_traffic_quota_exceeded", "租户本月流量配额已用尽")
 	ErrTokenRefreshFailed        = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound              = NewBusinessError("user_not_found", "用户不存在")
 

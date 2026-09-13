@@ -63,29 +63,54 @@ type PlatformQueueStatus struct {
 	Message    string `json:"message"`
 }
 
-// DeleteTenant soft-deletes platform metadata and optionally drops tenant storage.
-func (s *TenantAdminService) DeleteTenant(id uint, confirmCode string, dropDatabase bool) error {
+// TenantDeleteOptions controls destructive side effects when removing a tenant.
+type TenantDeleteOptions struct {
+	DropDatabase bool
+	PurgeObjects bool
+	PurgeBackups bool
+}
+
+// TenantDeleteResult is returned after soft-delete (and optional DROP DATABASE).
+type TenantDeleteResult struct {
+	ID           uint   `json:"id"`
+	Code         string `json:"code"`
+	DropDatabase bool   `json:"drop_database"`
+	PurgeObjects bool   `json:"purge_objects"`
+	PurgeBackups bool   `json:"purge_backups"`
+}
+
+// DeleteTenant soft-deletes platform metadata and optionally drops the tenant DB/schema.
+// Object storage / local backup cleanup is NOT done here — enqueue TenantOpPurge asynchronously.
+func (s *TenantAdminService) DeleteTenant(id uint, confirmCode string, opts TenantDeleteOptions) (*TenantDeleteResult, error) {
 	if err := s.requireEnabled(); err != nil {
-		return err
+		return nil, err
 	}
 	tenant, err := s.GetByID(id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if strings.TrimSpace(confirmCode) != tenant.Code {
-		return apperrors.ErrInvalidArgument.WithMessage("confirm_code must equal tenant code")
+		return nil, apperrors.ErrInvalidArgument.WithMessage("confirm_code must equal tenant code")
 	}
 	if tenantOpBusy(tenant) {
-		return apperrors.ErrTenantOpInProgress
+		return nil, apperrors.ErrTenantOpInProgress
 	}
 	s.conn.Forget(tenant.ConnectionName)
-	if dropDatabase {
+	if opts.DropDatabase {
 		if err := s.conn.DropStorage(tenant); err != nil {
-			return apperrors.ErrTenantConnectionFailed.WithError(err)
+			return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
 		}
 	}
-	_, err = appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).Delete(&models.Tenant{})
-	return err
+	if _, err := appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).Delete(&models.Tenant{}); err != nil {
+		return nil, err
+	}
+	return &TenantDeleteResult{
+		ID:           tenant.ID,
+		Code:         tenant.Code,
+		DropDatabase: opts.DropDatabase,
+		PurgeObjects: opts.PurgeObjects,
+		PurgeBackups: opts.PurgeBackups,
+	}, nil
 }
 
 // ListForBatchOp returns tenants for batch seed/backup/migrate.

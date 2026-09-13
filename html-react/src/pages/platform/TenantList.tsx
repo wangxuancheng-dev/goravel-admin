@@ -79,6 +79,8 @@ interface TenantRow {
   connection_name?: string
   migrated_at?: string
   created_at?: string
+  storage_limit_bytes?: number
+  traffic_limit_bytes?: number
 }
 
 function isTenantBusy(row: TenantRow) {
@@ -97,6 +99,22 @@ function formatSize(n?: number) {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+const MB = 1024 * 1024
+function mbToBytes(m?: number) {
+  return Math.round((Number(m) || 0) * MB)
+}
+function bytesToMb(b?: number) {
+  const n = Number(b) || 0
+  if (n <= 0) return 0
+  return Math.round(n / MB)
+}
+function formatQuota(used?: number, limit?: number) {
+  const u = formatSize(used)
+  const lim = Number(limit) || 0
+  if (lim <= 0) return `${u} / ∞`
+  return `${u} / ${formatSize(lim)}`
 }
 
 function backupDirOf(row: TenantRow) {
@@ -127,6 +145,14 @@ interface TenantOverviewData {
   ping_ok?: boolean
   ping_ms?: number
   error?: string
+}
+
+interface TenantQuotaData {
+  storage_limit_bytes?: number
+  storage_used_bytes?: number
+  traffic_limit_bytes?: number
+  traffic_used_bytes?: number
+  traffic_month?: string
 }
 
 interface TenantOpLogRow {
@@ -189,11 +215,14 @@ export default function PlatformTenantList() {
   const [pingRow, setPingRow] = useState<TenantRow | null>(null)
   const [detailExtraLoading, setDetailExtraLoading] = useState(false)
   const [detailOverview, setDetailOverview] = useState<TenantOverviewData | null>(null)
+  const [detailQuota, setDetailQuota] = useState<TenantQuotaData | null>(null)
   const [detailOpLogs, setDetailOpLogs] = useState<TenantOpLogRow[]>([])
   const [detailLoginLinks, setDetailLoginLinks] = useState<TenantLoginLinksData | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<TenantRow | null>(null)
   const [deleteConfirmCode, setDeleteConfirmCode] = useState('')
   const [deleteDropDb, setDeleteDropDb] = useState(false)
+  const [deletePurgeObjects, setDeletePurgeObjects] = useState(false)
+  const [deletePurgeBackups, setDeletePurgeBackups] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [pruneKeep, setPruneKeep] = useState(10)
   const [pruneLoading, setPruneLoading] = useState(false)
@@ -364,6 +393,7 @@ export default function PlatformTenantList() {
   const loadDetailExtra = async (row: TenantRow) => {
     setDetailExtraLoading(true)
     setDetailOverview(null)
+    setDetailQuota(null)
     setDetailOpLogs([])
     setDetailLoginLinks(null)
     try {
@@ -374,6 +404,9 @@ export default function PlatformTenantList() {
       ])
       setDetailOverview(
         (overviewRes as { data?: { overview?: TenantOverviewData } })?.data?.overview || null,
+      )
+      setDetailQuota(
+        (overviewRes as { data?: { quota?: TenantQuotaData } })?.data?.quota || null,
       )
       setDetailOpLogs((logsRes as { data?: { list?: TenantOpLogRow[] } })?.data?.list || [])
       setDetailLoginLinks(
@@ -394,6 +427,7 @@ export default function PlatformTenantList() {
   const closeDetail = () => {
     setDetailRow(null)
     setDetailOverview(null)
+    setDetailQuota(null)
     setDetailOpLogs([])
     setDetailLoginLinks(null)
   }
@@ -514,14 +548,22 @@ export default function PlatformTenantList() {
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
-      await deletePlatformTenant(deleteTarget.id, {
+      const res = await deletePlatformTenant(deleteTarget.id, {
         confirm_code: deleteConfirmCode.trim(),
         drop_database: deleteDropDb,
+        purge_objects: deletePurgeObjects,
+        purge_backups: deletePurgeBackups,
       })
-      message.success(t('tenant.delete_success'))
+      if ((res as { data?: { purge_queued?: boolean } })?.data?.purge_queued) {
+        message.success(t('tenant.delete_purge_queued'))
+      } else {
+        message.success(t('tenant.delete_success'))
+      }
       setDeleteTarget(null)
       setDeleteConfirmCode('')
       setDeleteDropDb(false)
+      setDeletePurgeObjects(false)
+      setDeletePurgeBackups(false)
       closeDetail()
       await refresh()
       await refreshOpsSummary()
@@ -701,6 +743,8 @@ export default function PlatformTenantList() {
                     password: '',
                     database: row.database,
                     schema: row.schema,
+                    storage_limit_mb: bytesToMb(row.storage_limit_bytes),
+                    traffic_limit_mb: bytesToMb(row.traffic_limit_bytes),
                   })
                 }}
               >
@@ -773,7 +817,11 @@ export default function PlatformTenantList() {
     try {
       const values = await form.validateFields()
       setSaving(true)
-      await createPlatformTenant(values)
+      await createPlatformTenant({
+        ...values,
+        storage_limit_bytes: mbToBytes(values.storage_limit_mb) || undefined,
+        traffic_limit_bytes: mbToBytes(values.traffic_limit_mb) || undefined,
+      })
       message.success(t('common.create_success'))
       setCreateOpen(false)
       await refresh()
@@ -797,6 +845,8 @@ export default function PlatformTenantList() {
         username: values.username,
         database: values.database,
         schema: values.schema,
+        storage_limit_bytes: mbToBytes(values.storage_limit_mb),
+        traffic_limit_bytes: mbToBytes(values.traffic_limit_mb),
       }
       if (values.password) payload.password = values.password
       await updatePlatformTenant(editing.id, payload)
@@ -863,6 +913,8 @@ export default function PlatformTenantList() {
                 isolation: 'database',
                 skip_create: false,
                 port: 0,
+                storage_limit_mb: 0,
+                traffic_limit_mb: 0,
               })
               setCreateOpen(true)
             }}
@@ -1022,6 +1074,13 @@ export default function PlatformTenantList() {
                 </Descriptions.Item>
                 <Descriptions.Item label={t('tenant.overview_migrations')}>
                   {detailOverview.migrations_count ?? '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.storage_used')}>
+                  {formatQuota(detailQuota?.storage_used_bytes, detailQuota?.storage_limit_bytes)}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.traffic_used')}>
+                  {formatQuota(detailQuota?.traffic_used_bytes, detailQuota?.traffic_limit_bytes)}
+                  {detailQuota?.traffic_month ? ` (${detailQuota.traffic_month})` : ''}
                 </Descriptions.Item>
                 <Descriptions.Item label={t('tenant.ping_detail')}>
                   {detailOverview.ping_ok
@@ -1238,6 +1297,8 @@ export default function PlatformTenantList() {
           setDeleteTarget(null)
           setDeleteConfirmCode('')
           setDeleteDropDb(false)
+          setDeletePurgeObjects(false)
+          setDeletePurgeBackups(false)
         }}
         onOk={() => void submitDelete()}
         confirmLoading={deleteLoading}
@@ -1251,6 +1312,12 @@ export default function PlatformTenantList() {
           </Form.Item>
           <Form.Item label={t('tenant.delete_drop_database')}>
             <Switch checked={deleteDropDb} onChange={setDeleteDropDb} />
+          </Form.Item>
+          <Form.Item label={t('tenant.purge_objects')} extra={t('tenant.purge_objects_tip')}>
+            <Switch checked={deletePurgeObjects} onChange={setDeletePurgeObjects} />
+          </Form.Item>
+          <Form.Item label={t('tenant.purge_backups')} extra={t('tenant.purge_backups_tip')}>
+            <Switch checked={deletePurgeBackups} onChange={setDeletePurgeBackups} />
           </Form.Item>
         </Form>
       </Modal>
@@ -1373,6 +1440,21 @@ export default function PlatformTenantList() {
           >
             <Switch />
           </Form.Item>
+          <Divider>{t('tenant.quota_section')}</Divider>
+          <Form.Item
+            name="storage_limit_mb"
+            label={t('tenant.storage_limit_mb')}
+            extra={t('tenant.quota_zero_unlimited')}
+          >
+            <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="traffic_limit_mb"
+            label={t('tenant.traffic_limit_mb')}
+            extra={t('tenant.traffic_quota_tip')}
+          >
+            <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -1415,6 +1497,21 @@ export default function PlatformTenantList() {
           </Form.Item>
           <Form.Item name="schema" label={t('tenant.schema')}>
             <Input />
+          </Form.Item>
+          <Divider>{t('tenant.quota_section')}</Divider>
+          <Form.Item
+            name="storage_limit_mb"
+            label={t('tenant.storage_limit_mb')}
+            extra={t('tenant.quota_zero_unlimited')}
+          >
+            <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="traffic_limit_mb"
+            label={t('tenant.traffic_limit_mb')}
+            extra={t('tenant.traffic_quota_tip')}
+          >
+            <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>

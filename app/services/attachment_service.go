@@ -182,6 +182,9 @@ func (s *AttachmentServiceImpl) InitChunkUpload(filename string, totalSize int64
 	if err := utils.ValidateAttachmentExtension(filename); err != nil {
 		return "", err
 	}
+	if err := EnsureTenantStorageQuota(s.ctx, totalSize); err != nil {
+		return "", err
+	}
 
 	// 不再使用服务端缓存，分片信息由客户端管理
 	return chunkID, nil
@@ -200,6 +203,10 @@ func (s *AttachmentServiceImpl) UploadChunk(chunkID string, chunkIndex int, chun
 		return err
 	}
 	chunkPath := s.chunkObjectPath(chunkID, chunkIndex)
+
+	if err := RecordTenantTraffic(s.ctx, int64(len(chunkData))); err != nil {
+		return err
+	}
 
 	if err := storage.Put(chunkPath, string(chunkData)); err != nil {
 		if s.ctx != nil {
@@ -516,6 +523,14 @@ func (s *AttachmentServiceImpl) UploadFile(fileData []byte, filename string, mim
 	}
 	mimeType = validatedMIME
 
+	fileSize := int64(len(fileData))
+	if err := EnsureTenantStorageQuota(s.ctx, fileSize); err != nil {
+		return nil, err
+	}
+	if err := RecordTenantTraffic(s.ctx, fileSize); err != nil {
+		return nil, err
+	}
+
 	// 生成文件路径
 	ext := filepath.Ext(filename)
 	hash := md5.Sum([]byte(fmt.Sprintf("%s_%d", filename, time.Now().UnixNano())))
@@ -540,7 +555,6 @@ func (s *AttachmentServiceImpl) UploadFile(fileData []byte, filename string, mim
 	}
 
 	// 获取文件大小
-	fileSize := int64(len(fileData))
 	if size, err := storage.Size(finalPath); err == nil {
 		fileSize = size
 	}

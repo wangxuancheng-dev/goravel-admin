@@ -108,6 +108,7 @@ Full Chinese detail: [生产清单](/deploy/production) §6.
 
 ## Related
 
+- Tenant scale / pool starting points: [Tenancy · Scale and recommended settings](/en/advanced/tenancy#scale-and-recommended-settings)
 - [Build & deploy](/en/deploy/build)  
 - [Docker production](/en/deploy/docker)  
 - [Testing](/en/guide/testing)  

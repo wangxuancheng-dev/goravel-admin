@@ -32,29 +32,33 @@ func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
 
 // TenantCreateInput create tenant from API / CLI shared fields.
 type TenantCreateInput struct {
-	Code      string
-	Name      string
-	Driver    string
-	Isolation string
-	Database  string
-	Schema    string
-	Host      string
-	Port      int
-	Username  string
-	Password  string
-	Migrate   bool
-	SkipCreate bool // 远程库已存在时跳过 CREATE DATABASE/SCHEMA
+	Code              string
+	Name              string
+	Driver            string
+	Isolation         string
+	Database          string
+	Schema            string
+	Host              string
+	Port              int
+	Username          string
+	Password          string
+	Migrate           bool
+	SkipCreate        bool // remote DB already exists: skip CREATE DATABASE/SCHEMA
+	StorageLimitBytes *int64
+	TrafficLimitBytes *int64
 }
 
 // TenantUpdateInput updates connection metadata for an existing tenant.
 type TenantUpdateInput struct {
-	Name     *string
-	Host     *string
-	Port     *int
-	Username *string
-	Password *string
-	Database *string
-	Schema   *string
+	Name              *string
+	Host              *string
+	Port              *int
+	Username          *string
+	Password          *string
+	Database          *string
+	Schema            *string
+	StorageLimitBytes *int64
+	TrafficLimitBytes *int64
 }
 
 type TenantAdminService struct {
@@ -175,6 +179,12 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		Password:        sealedPassword,
 		ConnectionName:  fmt.Sprintf("tenant_pending_%s", code),
 	}
+	if input.StorageLimitBytes != nil && *input.StorageLimitBytes > 0 {
+		tenant.StorageLimitBytes = *input.StorageLimitBytes
+	}
+	if input.TrafficLimitBytes != nil && *input.TrafficLimitBytes > 0 {
+		tenant.TrafficLimitBytes = *input.TrafficLimitBytes
+	}
 	if err := appfacades.PlatformOrmQuery(nil).Create(&tenant); err != nil {
 		return nil, err
 	}
@@ -281,6 +291,22 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 	if input.Schema != nil {
 		updates["schema"] = strings.TrimSpace(*input.Schema)
 		tenant.Schema = strings.TrimSpace(*input.Schema)
+	}
+	if input.StorageLimitBytes != nil {
+		limit := *input.StorageLimitBytes
+		if limit < 0 {
+			limit = 0
+		}
+		updates["storage_limit_bytes"] = limit
+		tenant.StorageLimitBytes = limit
+	}
+	if input.TrafficLimitBytes != nil {
+		limit := *input.TrafficLimitBytes
+		if limit < 0 {
+			limit = 0
+		}
+		updates["traffic_limit_bytes"] = limit
+		tenant.TrafficLimitBytes = limit
 	}
 	if len(updates) == 0 {
 		return tenant, nil
@@ -414,9 +440,11 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 		"last_op_status":     t.LastOpStatus,
 		"last_op_message":    t.LastOpMessage,
 		"last_op_at":         t.LastOpAt,
-		"last_backup_path":   t.LastBackupPath,
-		"backup_dir":         TenantBackupDir(t.Code),
-		"created_at":         t.CreatedAt,
-		"updated_at":         t.UpdatedAt,
+		"last_backup_path":    t.LastBackupPath,
+		"backup_dir":          TenantBackupDir(t.Code),
+		"storage_limit_bytes": t.StorageLimitBytes,
+		"traffic_limit_bytes": t.TrafficLimitBytes,
+		"created_at":          t.CreatedAt,
+		"updated_at":          t.UpdatedAt,
 	}
 }

@@ -125,7 +125,6 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20）；户多时按下方 [规模与推荐配置](#规模与推荐配置) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
-
 ## 规模与推荐配置
 
 以下为**经验起点**，需按监控回调，不是硬性配额。户多时首要瓶颈通常是**租户库连接池**（不是 Redis）。Redis 全站共用（缓存键经 `tenancy.CacheKey` 加 `t{id}:` 前缀），一般升规格即可；队列与缓存吵邻居时再考虑拆实例或分 DB。
@@ -158,6 +157,14 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 ```
 
 **建议监控：** MySQL/PG `Threads_connected`（或等价指标）、队列 pending / `queue:alert-backlog`、Redis 内存与连接数。接近上限时先下调 `TENANCY_POOL_*` 或扩容，而不是盲目加 API 副本（副本会放大连接占用）。
+
+
+## 对象存储与配额
+
+- **共用 disk**：S3/OSS/本地等仍是全站一份 `FILESYSTEM_DISK`；路径用 `tenants/{code}/` 前缀隔离。
+- **删除租户**：平台元数据为**软删除**；`drop_database` 仅 DROP 库/Schema；`purge_objects` / `purge_backups` 分别异步清理对象前缀与本地备份（入队 `tenant_ops`/`long-running`，需 Worker）；旧参数 `purge_files` 表示两者都清。
+- **存储限额** `storage_limit_bytes`（0=不限）：按租户库 `attachments.size` 汇总，上传前校验。
+- **月流量限额** `traffic_limit_bytes`（0=不限）：统计应用侧上传与经应用下载/预览（含签发临时 URL）；**直链 CDN 下载不计入**。计数存在缓存键 `t{id}:traffic:YYYYMM`（UTC 月）。
 
 ## 运维增强
 
@@ -255,7 +262,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | GET | `/api/platform/tenants/{id}/backups/download?name=` | 下载指定 `.sql` 备份 |
 | POST | `/api/platform/tenants/{id}/restore` | 异步从备份恢复（body `backup_name`） |
 | POST | `/api/platform/tenants/{id}/backups/prune` | 保留最新 N 份备份（body `keep`） |
-| DELETE | `/api/platform/tenants/{id}` | 删除租户元数据（body `confirm_code`=租户码，可选 `drop_database`） |
+| DELETE | `/api/platform/tenants/{id}` | 软删元数据（`confirm_code`；可选 `drop_database`；`purge_objects` / `purge_backups` **异步**清文件，兼容 `purge_files`=两者） |
 | GET | `/api/platform/tenants/{id}/overview` | 库概览（表数、体积、管理员数等） |
 | GET | `/api/platform/tenant-op-logs` | 全平台运维执行记录（筛选 code/op/status/batch_id/operator） |
 | GET | `/api/platform/tenants/{id}/op-logs` | 运维时间线 |

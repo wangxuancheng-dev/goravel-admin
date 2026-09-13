@@ -25,7 +25,7 @@ type TenantOpActor struct {
 // TenantOpsArgs is the queue payload for platform tenant maintenance jobs.
 type TenantOpsArgs struct {
 	TenantID     uint   `json:"tenant_id"`
-	Op           string `json:"op"` // migrate|seed|backup|restore
+	Op           string `json:"op"` // migrate|seed|backup|restore|purge
 	WithSeed     bool   `json:"with_seed,omitempty"`
 	BackupName   string `json:"backup_name,omitempty"`
 	Keep         int    `json:"keep,omitempty"`
@@ -33,6 +33,10 @@ type TenantOpsArgs struct {
 	BatchID      string `json:"batch_id,omitempty"`
 	OperatorID   uint   `json:"operator_id,omitempty"`
 	OperatorName string `json:"operator_name,omitempty"`
+	// Purge (async after soft-delete): Code is required; flags select what to remove.
+	Code         string `json:"code,omitempty"`
+	PurgeObjects bool   `json:"purge_objects,omitempty"`
+	PurgeBackups bool   `json:"purge_backups,omitempty"`
 }
 
 type TenantOpsService struct {
@@ -193,12 +197,15 @@ func tenantOpBusy(t *models.Tenant) bool {
 	return true
 }
 
-// RunTenantOp executes migrate/seed/backup/restore for a queued platform job.
+// RunTenantOp executes migrate/seed/backup/restore/purge for a queued platform job.
 func RunTenantOp(args TenantOpsArgs) error {
+	op := strings.TrimSpace(args.Op)
+	if op == models.TenantOpPurge {
+		return runTenantPurgeOp(args)
+	}
 	if args.TenantID == 0 {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant_id required")
 	}
-	op := strings.TrimSpace(args.Op)
 	svc := NewTenantOpsService()
 	tenant, err := svc.admin.GetByID(args.TenantID)
 	if err != nil {
@@ -307,6 +314,121 @@ func RunTenantOp(args TenantOpsArgs) error {
 	tenant.LastOpAt = &okAt
 	UpdateTenantOpLog(args.OpLogID, tenant, op, models.TenantOpStatusSuccess, successMsg, &okAt)
 	return nil
+}
+
+// runTenantPurgeOp clears object storage and/or local backups by tenant code (works after soft-delete).
+func runTenantPurgeOp(args TenantOpsArgs) error {
+	code := strings.TrimSpace(args.Code)
+	tenant := &models.Tenant{Code: code}
+	if args.TenantID > 0 {
+		tenant.ID = args.TenantID
+		var row models.Tenant
+		if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", args.TenantID).First(&row); err == nil {
+			tenant = &row
+			if code == "" {
+				code = row.Code
+			}
+		}
+	}
+	if code == "" {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant code required for purge")
+	}
+	if !args.PurgeObjects && !args.PurgeBackups {
+		return apperrors.ErrInvalidArgument.WithMessage("purge_objects or purge_backups required")
+	}
+
+	lockKey := fmt.Sprintf("platform:tenant_purge:%s", code)
+	if args.TenantID > 0 {
+		lockKey = fmt.Sprintf("platform:tenant_op:%d", args.TenantID)
+	}
+	lock := facades.Cache().Lock(lockKey, tenantOpLockTTL)
+	if !lock.Get() {
+		facades.Log().Warningf("tenant_ops purge skip: lock held code=%s", code)
+		return nil
+	}
+	defer lock.Release()
+
+	UpdateTenantOpLog(args.OpLogID, tenant, models.TenantOpPurge, models.TenantOpStatusRunning, "", nil)
+
+	var parts []string
+	var runErr error
+	if args.PurgeObjects {
+		if err := PurgeTenantObjectStorage(code); err != nil {
+			runErr = err
+		} else {
+			parts = append(parts, "objects")
+		}
+	}
+	if runErr == nil && args.PurgeBackups {
+		if err := PurgeTenantLocalBackups(code); err != nil {
+			runErr = err
+		} else {
+			parts = append(parts, "backups")
+		}
+	}
+
+	if runErr != nil {
+		msg := runErr.Error()
+		if len(msg) > 2000 {
+			msg = msg[:2000]
+		}
+		failAt := time.Now()
+		UpdateTenantOpLog(args.OpLogID, tenant, models.TenantOpPurge, models.TenantOpStatusFailed, msg, &failAt)
+		if tenant.ID > 0 {
+			_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Model(&models.Tenant{}).Where("id", tenant.ID).Update(map[string]any{
+				"last_op":         models.TenantOpPurge,
+				"last_op_status":  models.TenantOpStatusFailed,
+				"last_op_message": msg,
+				"last_op_at":      failAt,
+			})
+		}
+		return runErr
+	}
+
+	successMsg := "purge ok: " + strings.Join(parts, "+")
+	okAt := time.Now()
+	UpdateTenantOpLog(args.OpLogID, tenant, models.TenantOpPurge, models.TenantOpStatusSuccess, successMsg, &okAt)
+	if tenant.ID > 0 {
+		_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Model(&models.Tenant{}).Where("id", tenant.ID).Update(map[string]any{
+			"last_op":         models.TenantOpPurge,
+			"last_op_status":  models.TenantOpStatusSuccess,
+			"last_op_message": successMsg,
+			"last_op_at":      okAt,
+		})
+	}
+	return nil
+}
+
+// BeginQueuedPurge records an op-log row for async file cleanup after tenant soft-delete.
+func (s *TenantOpsService) BeginQueuedPurge(tenantID uint, code string, purgeObjects, purgeBackups bool, actor TenantOpActor) (TenantOpsArgs, error) {
+	if err := s.requireEnabled(); err != nil {
+		return TenantOpsArgs{}, err
+	}
+	code = strings.TrimSpace(code)
+	if code == "" || tenantID == 0 {
+		return TenantOpsArgs{}, apperrors.ErrInvalidArgument.WithMessage("tenant id and code required for purge")
+	}
+	if !purgeObjects && !purgeBackups {
+		return TenantOpsArgs{}, apperrors.ErrInvalidArgument.WithMessage("purge_objects or purge_backups required")
+	}
+	tenant := &models.Tenant{Code: code}
+	tenant.ID = tenantID
+	var row models.Tenant
+	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenantID).First(&row); err == nil {
+		tenant = &row
+	}
+	now := time.Now()
+	logID := CreateTenantOpLog(tenant, models.TenantOpPurge, models.TenantOpStatusQueued, "", "", actor, &now, nil)
+	return TenantOpsArgs{
+		TenantID:     tenantID,
+		Op:           models.TenantOpPurge,
+		Code:         code,
+		PurgeObjects: purgeObjects,
+		PurgeBackups: purgeBackups,
+		OpLogID:      logID,
+		OperatorID:   actor.ID,
+		OperatorName: actor.Name,
+	}, nil
 }
 
 // CreateTenantOpLog inserts one landlord history row; returns id (0 on failure).

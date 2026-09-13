@@ -59,18 +59,20 @@ func (c *TenantController) Show(ctx http.Context) http.Response {
 }
 
 type tenantStoreBody struct {
-	Code      string `json:"code" form:"code"`
-	Name      string `json:"name" form:"name"`
-	Driver    string `json:"driver" form:"driver"`
-	Isolation string `json:"isolation" form:"isolation"`
-	Database  string `json:"database" form:"database"`
-	Schema    string `json:"schema" form:"schema"`
-	Host      string `json:"host" form:"host"`
-	Port      int    `json:"port" form:"port"`
-	Username   string `json:"username" form:"username"`
-	Password   string `json:"password" form:"password"`
-	Migrate    *bool  `json:"migrate" form:"migrate"` // 若传 true 则拒绝，引导 CLI
-	SkipCreate bool   `json:"skip_create" form:"skip_create"`
+	Code              string `json:"code" form:"code"`
+	Name              string `json:"name" form:"name"`
+	Driver            string `json:"driver" form:"driver"`
+	Isolation         string `json:"isolation" form:"isolation"`
+	Database          string `json:"database" form:"database"`
+	Schema            string `json:"schema" form:"schema"`
+	Host              string `json:"host" form:"host"`
+	Port              int    `json:"port" form:"port"`
+	Username          string `json:"username" form:"username"`
+	Password          string `json:"password" form:"password"`
+	Migrate           *bool  `json:"migrate" form:"migrate"` // 若传 true 则拒绝，引导 CLI
+	SkipCreate        bool   `json:"skip_create" form:"skip_create"`
+	StorageLimitBytes *int64 `json:"storage_limit_bytes" form:"storage_limit_bytes"`
+	TrafficLimitBytes *int64 `json:"traffic_limit_bytes" form:"traffic_limit_bytes"`
 }
 
 func (c *TenantController) Store(ctx http.Context) http.Response {
@@ -83,18 +85,20 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrTenantMigrateViaCLI.Code)
 	}
 	tenant, err := c.service().Create(services.TenantCreateInput{
-		Code:       body.Code,
-		Name:       body.Name,
-		Driver:     body.Driver,
-		Isolation:  body.Isolation,
-		Database:   body.Database,
-		Schema:     body.Schema,
-		Host:       body.Host,
-		Port:       body.Port,
-		Username:   body.Username,
-		Password:   body.Password,
-		Migrate:    false,
-		SkipCreate: body.SkipCreate,
+		Code:              body.Code,
+		Name:              body.Name,
+		Driver:            body.Driver,
+		Isolation:         body.Isolation,
+		Database:          body.Database,
+		Schema:            body.Schema,
+		Host:              body.Host,
+		Port:              body.Port,
+		Username:          body.Username,
+		Password:          body.Password,
+		Migrate:           false,
+		SkipCreate:        body.SkipCreate,
+		StorageLimitBytes: body.StorageLimitBytes,
+		TrafficLimitBytes: body.TrafficLimitBytes,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
@@ -103,13 +107,15 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 }
 
 type tenantUpdateBody struct {
-	Name     *string `json:"name" form:"name"`
-	Host     *string `json:"host" form:"host"`
-	Port     *int    `json:"port" form:"port"`
-	Username *string `json:"username" form:"username"`
-	Password *string `json:"password" form:"password"`
-	Database *string `json:"database" form:"database"`
-	Schema   *string `json:"schema" form:"schema"`
+	Name              *string `json:"name" form:"name"`
+	Host              *string `json:"host" form:"host"`
+	Port              *int    `json:"port" form:"port"`
+	Username          *string `json:"username" form:"username"`
+	Password          *string `json:"password" form:"password"`
+	Database          *string `json:"database" form:"database"`
+	Schema            *string `json:"schema" form:"schema"`
+	StorageLimitBytes *int64  `json:"storage_limit_bytes" form:"storage_limit_bytes"`
+	TrafficLimitBytes *int64  `json:"traffic_limit_bytes" form:"traffic_limit_bytes"`
 }
 
 func (c *TenantController) Update(ctx http.Context) http.Response {
@@ -120,13 +126,15 @@ func (c *TenantController) Update(ctx http.Context) http.Response {
 	var body tenantUpdateBody
 	_ = ctx.Request().Bind(&body)
 	tenant, err := c.service().UpdateConnection(id, services.TenantUpdateInput{
-		Name:     body.Name,
-		Host:     body.Host,
-		Port:     body.Port,
-		Username: body.Username,
-		Password: body.Password,
-		Database: body.Database,
-		Schema:   body.Schema,
+		Name:              body.Name,
+		Host:              body.Host,
+		Port:              body.Port,
+		Username:          body.Username,
+		Password:          body.Password,
+		Database:          body.Database,
+		Schema:            body.Schema,
+		StorageLimitBytes: body.StorageLimitBytes,
+		TrafficLimitBytes: body.TrafficLimitBytes,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
@@ -264,6 +272,10 @@ type tenantRestoreBody struct {
 type tenantDeleteBody struct {
 	ConfirmCode  string `json:"confirm_code" form:"confirm_code"`
 	DropDatabase bool   `json:"drop_database" form:"drop_database"`
+	PurgeObjects bool   `json:"purge_objects" form:"purge_objects"`
+	PurgeBackups bool   `json:"purge_backups" form:"purge_backups"`
+	// PurgeFiles is a legacy alias: when true, enables both purge_objects and purge_backups.
+	PurgeFiles bool `json:"purge_files" form:"purge_files"`
 }
 
 type tenantOpsBatchBody struct {
@@ -368,7 +380,7 @@ func (c *TenantController) Restore(ctx http.Context) http.Response {
 	return c.enqueueOpWithOpts(ctx, models.TenantOpRestore, false, name, -1)
 }
 
-// Destroy deletes tenant metadata; optional drop of tenant database/schema.
+// Destroy soft-deletes tenant metadata; optional DROP DB; optional async purge of objects/backups.
 func (c *TenantController) Destroy(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
 	if id == 0 {
@@ -376,10 +388,53 @@ func (c *TenantController) Destroy(ctx http.Context) http.Response {
 	}
 	var body tenantDeleteBody
 	_ = ctx.Request().Bind(&body)
-	if err := c.service().DeleteTenant(id, body.ConfirmCode, body.DropDatabase); err != nil {
+	purgeObjects := body.PurgeObjects || body.PurgeFiles
+	purgeBackups := body.PurgeBackups || body.PurgeFiles
+	result, err := c.service().DeleteTenant(id, body.ConfirmCode, services.TenantDeleteOptions{
+		DropDatabase: body.DropDatabase,
+		PurgeObjects: purgeObjects,
+		PurgeBackups: purgeBackups,
+	})
+	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
-	return response.Success(ctx, map[string]any{"deleted": true, "id": id})
+
+	purgeQueued := false
+	if purgeObjects || purgeBackups {
+		args, beginErr := c.ops().BeginQueuedPurge(result.ID, result.Code, purgeObjects, purgeBackups, platformActor(ctx))
+		if beginErr != nil {
+			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, beginErr, map[string]any{"id": id})
+		}
+		payload, marshalErr := json.Marshal(args)
+		if marshalErr != nil {
+			failAt := time.Now()
+			stub := &models.Tenant{Code: result.Code}
+			stub.ID = result.ID
+			services.UpdateTenantOpLog(args.OpLogID, stub, models.TenantOpPurge, models.TenantOpStatusFailed, marshalErr.Error(), &failAt)
+			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(marshalErr), map[string]any{"id": id})
+		}
+		if err := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
+			Type:  "string",
+			Value: string(payload),
+		}}).OnQueue("long-running").Dispatch(); err != nil {
+			failAt := time.Now()
+			stub := &models.Tenant{Code: result.Code}
+			stub.ID = result.ID
+			services.UpdateTenantOpLog(args.OpLogID, stub, models.TenantOpPurge, models.TenantOpStatusFailed, err.Error(), &failAt)
+			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(err), map[string]any{"id": id})
+		}
+		purgeQueued = true
+	}
+
+	return response.Success(ctx, map[string]any{
+		"deleted":        true,
+		"id":             result.ID,
+		"code":           result.Code,
+		"drop_database":  result.DropDatabase,
+		"purge_objects":  purgeObjects,
+		"purge_backups":  purgeBackups,
+		"purge_queued":   purgeQueued,
+	})
 }
 
 // Overview returns DB size / table / admin counts for one tenant.
@@ -393,8 +448,10 @@ func (c *TenantController) Overview(ctx http.Context) http.Response {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
 	}
 	overview := services.NewTenantConnectionService().BuildTenantOverview(tenant)
+	quota := services.BuildTenantQuotaSnapshot(tenant)
 	return response.Success(ctx, map[string]any{
 		"overview": overview,
+		"quota":    quota,
 		"tenant":   services.TenantToJSON(tenant),
 	})
 }
