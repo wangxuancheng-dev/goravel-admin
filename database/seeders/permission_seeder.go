@@ -147,6 +147,8 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "慢SQL TopN", Slug: "observability.slow_sql_top", Method: "GET", Path: "/api/admin/observability/slow-sql/top", Description: "查询慢 SQL TopN 统计", Status: 1, Sort: 2, MenuID: observabilityMenu.ID},
 		{Name: "审计时间线", Slug: "observability.audit_timeline", Method: "GET", Path: "/api/admin/observability/audit-timeline", Description: "查询统一审计时间线", Status: 1, Sort: 3, MenuID: observabilityMenu.ID},
 		{Name: "队列看板", Slug: "observability.queue_dashboard", Method: "GET", Path: "/api/admin/observability/queue-dashboard", Description: "轻量队列统计看板", Status: 1, Sort: 4, MenuID: observabilityMenu.ID},
+		{Name: "队列告警状态", Slug: "observability.queue_alert", Method: "GET", Path: "/api/admin/observability/queue-alert", Description: "查看队列积压 Webhook 配置状态", Status: 1, Sort: 4, MenuID: observabilityMenu.ID},
+		{Name: "测试队列告警", Slug: "observability.queue_alert_test", Method: "POST", Path: "/api/admin/observability/queue-alert/test", Description: "向配置的 Webhook 发送测试告警", Status: 1, Sort: 4, MenuID: observabilityMenu.ID},
 		{Name: "接口性能概览", Slug: "observability.api_performance_overview", Method: "GET", Path: "/api/admin/observability/api-performance/overview", Description: "接口性能 TopN 与错误率概览", Status: 1, Sort: 5, MenuID: observabilityMenu.ID},
 		{Name: "接口性能 Trace 下钻", Slug: "observability.api_performance_traces", Method: "GET", Path: "/api/admin/observability/api-performance/traces", Description: "按路由模板查询关联 trace 列表", Status: 1, Sort: 6, MenuID: observabilityMenu.ID},
 		// {Name: "PPROF状态", Slug: "observability.pprof_status", Method: "GET", Path: "/api/admin/observability/pprof/status", Description: "查询 pprof 功能状态", Status: 1, Sort: 7, MenuID: observabilityMenu.ID},

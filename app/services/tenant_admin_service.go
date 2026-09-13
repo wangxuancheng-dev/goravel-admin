@@ -15,16 +15,18 @@ import (
 
 // TenantAdminFilters platform tenants list filters.
 type TenantAdminFilters struct {
-	Code   string
-	Name   string
-	Status string
+	Code            string
+	Name            string
+	Status          string
+	ProvisionStatus string
 }
 
 func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
 	return TenantAdminFilters{
-		Code:   strings.TrimSpace(ctx.Request().Query("code", "")),
-		Name:   strings.TrimSpace(ctx.Request().Query("name", "")),
-		Status: strings.TrimSpace(ctx.Request().Query("status", "")),
+		Code:            strings.TrimSpace(ctx.Request().Query("code", "")),
+		Name:            strings.TrimSpace(ctx.Request().Query("name", "")),
+		Status:          strings.TrimSpace(ctx.Request().Query("status", "")),
+		ProvisionStatus: strings.TrimSpace(ctx.Request().Query("provision_status", "")),
 	}
 }
 
@@ -83,6 +85,9 @@ func (s *TenantAdminService) GetList(filters TenantAdminFilters, page, pageSize 
 	}
 	if filters.Status != "" {
 		query = query.Where("status", filters.Status)
+	}
+	if filters.ProvisionStatus != "" {
+		query = query.Where("provision_status", filters.ProvisionStatus)
 	}
 	total, err := query.Count()
 	if err != nil {
@@ -301,6 +306,77 @@ func (s *TenantAdminService) ListAll() ([]models.Tenant, error) {
 	}
 	var list []models.Tenant
 	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).Order("id asc").Find(&list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+// TenantOpsSummary aggregates provision / op status counts for the platform console.
+type TenantOpsSummary struct {
+	Total           int64            `json:"total"`
+	ByProvision     map[string]int64 `json:"by_provision"`
+	ByLastOpStatus  map[string]int64 `json:"by_last_op_status"`
+	FailedProvision int64            `json:"failed_provision"`
+	Busy            int64            `json:"busy"`
+}
+
+func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
+	if err := s.requireEnabled(); err != nil {
+		return nil, err
+	}
+	var tenants []models.Tenant
+	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).
+		Select("id", "provision_status", "last_op_status").
+		Get(&tenants); err != nil {
+		return nil, err
+	}
+	sum := &TenantOpsSummary{
+		Total:          int64(len(tenants)),
+		ByProvision:    map[string]int64{},
+		ByLastOpStatus: map[string]int64{},
+	}
+	for i := range tenants {
+		t := &tenants[i]
+		ps := strings.TrimSpace(t.ProvisionStatus)
+		if ps == "" {
+			ps = models.TenantProvisionPending
+		}
+		sum.ByProvision[ps]++
+		if ps == models.TenantProvisionFailed {
+			sum.FailedProvision++
+		}
+		os := strings.TrimSpace(t.LastOpStatus)
+		if os == "" {
+			os = models.TenantOpStatusIdle
+		}
+		sum.ByLastOpStatus[os]++
+		if ps == models.TenantProvisionMigrating || os == models.TenantOpStatusQueued || os == models.TenantOpStatusRunning {
+			sum.Busy++
+		}
+	}
+	return sum, nil
+}
+
+// ListForBatchMigrate returns tenants matching ids and/or provision_status (max limit).
+func (s *TenantAdminService) ListForBatchMigrate(ids []uint, provisionStatus string, limit int) ([]models.Tenant, error) {
+	if err := s.requireEnabled(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	query := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{})
+	if len(ids) > 0 {
+		query = query.Where("id IN ?", ids)
+	}
+	if strings.TrimSpace(provisionStatus) != "" {
+		query = query.Where("provision_status", strings.TrimSpace(provisionStatus))
+	}
+	var list []models.Tenant
+	if err := query.Order("id asc").Limit(limit).Find(&list); err != nil {
 		return nil, err
 	}
 	return list, nil

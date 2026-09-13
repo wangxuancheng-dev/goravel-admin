@@ -54,18 +54,23 @@ export function useLayoutWebsite() {
       const res = await getConfigByGroup('website')
       const configs = res?.data?.configs
       if (Array.isArray(configs)) {
-        const siteNameConfig = configs.find((config) => {
-          const key = config?.Key || config?.key
-          return key === 'site_name'
-        })
-        const value = siteNameConfig?.Value || siteNameConfig?.value || ''
-        websiteSiteName.value = typeof value === 'string' ? value : ''
-        const siteLogoConfig = configs.find((config) => {
-          const key = config?.Key || config?.key
-          return key === 'site_logo'
-        })
-        const logoValue = siteLogoConfig?.Value || siteLogoConfig?.value || ''
-        websiteSiteLogo.value = typeof logoValue === 'string' ? logoValue : ''
+        const pick = (k) => {
+          const item = configs.find((config) => {
+            const key = config?.Key || config?.key
+            return key === k
+          })
+          const value = item?.Value || item?.value || ''
+          return typeof value === 'string' ? value : ''
+        }
+        websiteSiteName.value = pick('site_name')
+        websiteSiteLogo.value = pick('site_logo')
+        const themeKey = pick('site_theme_color').trim()
+        if (themeKey) {
+          const { useAppStore, THEME_COLORS } = await import('@/store/app')
+          if (THEME_COLORS.some((c) => c.key === themeKey)) {
+            useAppStore().setThemeColor(themeKey)
+          }
+        }
       } else {
         websiteSiteName.value = ''
         websiteSiteLogo.value = ''

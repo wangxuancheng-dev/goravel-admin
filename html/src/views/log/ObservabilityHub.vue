@@ -10,6 +10,29 @@
       <el-tabs v-model="activeTab">
         <el-tab-pane v-if="tabAccess.queue" :label="$t('observability.queue_tab')" name="queue">
           <el-alert type="info" :closable="false" class="queue-hint" :title="$t('observability.queue_dashboard_hint')" />
+          <el-card shadow="never" class="queue-alert-card" style="margin-bottom: 12px">
+            <template #header>{{ $t('observability.queue_alert_title') }}</template>
+            <el-alert type="warning" :closable="false" :title="$t('observability.queue_alert_hint')" style="margin-bottom: 12px" />
+            <div class="queue-alert-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <el-tag :type="queueAlert.configured ? 'success' : 'info'">
+                {{ queueAlert.configured
+                  ? $t('observability.queue_alert_configured', { source: queueAlert.source || '-' })
+                  : $t('observability.queue_alert_not_configured') }}
+              </el-tag>
+              <span v-if="queueAlert.configured" class="queue-alert-meta">
+                {{ $t('observability.queue_alert_threshold', { n: queueAlert.threshold || 100 }) }}
+                · {{ $t('observability.queue_alert_url', { url: queueAlert.url_masked || '***' }) }}
+              </span>
+              <el-button
+                v-if="canTestQueueAlert"
+                :loading="queueAlertTesting"
+                :disabled="!queueAlert.configured"
+                @click="onTestQueueAlert"
+              >
+                {{ $t('observability.queue_alert_test') }}
+              </el-button>
+            </div>
+          </el-card>
           <div class="search-row queue-toolbar">
             <span class="queue-default-label">{{ $t('observability.queue_default') }}: <code>{{ queueDashboard.default_connection || '-' }}</code></span>
             <el-button type="primary" :loading="queueLoading" @click="loadQueue">{{ $t('common.refresh') }}</el-button>
@@ -336,7 +359,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../../store/user'
-import { getApiPerformanceOverview, getApiPerformanceTraces, getAuditTimeline, getPprofCpuHotspots, getPprofMemoryHotspots, getPprofStatus, getQueueDashboard, getSlowSqlTop, getTraceAggregate, verifyPprofToken } from '../../api/observability'
+import { getApiPerformanceOverview, getApiPerformanceTraces, getAuditTimeline, getPprofCpuHotspots, getPprofMemoryHotspots, getPprofStatus, getQueueDashboard, testQueueAlert, getSlowSqlTop, getTraceAggregate, verifyPprofToken } from '../../api/observability'
 
 const activeTab = ref('queue')
 const userStore = useUserStore()
@@ -362,6 +385,8 @@ const auditData = reactive({ list: [], total: 0 })
 
 const queueLoading = ref(false)
 const queueDashboard = reactive({ default_connection: '', connections: [] })
+const queueAlert = reactive({ configured: false, source: '', url_masked: '', threshold: 100 })
+const queueAlertTesting = ref(false)
 const pprofStatus = reactive({ enabled: false, is_developer: false, token_required: false })
 const pprofForm = reactive({ token: '' })
 const pprofVerifying = ref(false)
@@ -380,6 +405,8 @@ const hasAnyPermission = (slugs = []) => {
   if (!Array.isArray(slugs) || slugs.length === 0) return false
   return slugs.some(slug => userStore.hasPermission(slug))
 }
+
+const canTestQueueAlert = computed(() => hasAnyPermission(['observability.queue_alert_test']))
 
 const tabAccess = reactive({
   queue: hasAnyPermission(['observability.queue_dashboard']),
@@ -457,10 +484,28 @@ const loadQueue = async () => {
     const res = await getQueueDashboard()
     queueDashboard.default_connection = res.data?.default_connection || ''
     queueDashboard.connections = res.data?.connections || []
+    const alert = res.data?.queue_alert || {}
+    queueAlert.configured = !!alert.configured
+    queueAlert.source = alert.source || ''
+    queueAlert.url_masked = alert.url_masked || ''
+    queueAlert.threshold = alert.threshold || 100
   } catch (error) {
     handleViewRequestError(error)
   } finally {
     queueLoading.value = false
+  }
+}
+
+const onTestQueueAlert = async () => {
+  queueAlertTesting.value = true
+  try {
+    await testQueueAlert()
+    ElMessage.success(t('observability.queue_alert_test_ok'))
+    await loadQueue()
+  } catch (error) {
+    handleViewRequestError(error)
+  } finally {
+    queueAlertTesting.value = false
   }
 }
 

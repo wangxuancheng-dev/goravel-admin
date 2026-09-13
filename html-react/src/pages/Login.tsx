@@ -3,9 +3,9 @@ import { App, Button, Form, Input, Space, Typography, theme } from 'antd'
 import { LockOutlined, UserOutlined, ReloadOutlined, BankOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { login, getLoginCaptcha } from '@/api/auth'
+import { login, getLoginCaptcha, getLoginBranding } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
-import { useAppStore, THEME_COLORS } from '@/stores/app'
+import { useAppStore, THEME_COLORS, type ThemeColorKey } from '@/stores/app'
 import { ERROR_CODES, type ApiError } from '@/types'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
@@ -15,6 +15,7 @@ import {
   resolveTenantCodeFromLocation,
   setTenantCode,
 } from '@/utils/tenant'
+import { resolveImageDisplayUrl } from '@/utils/publicImage'
 import './Login.scss'
 
 interface LoginFormValues {
@@ -49,6 +50,34 @@ export default function LoginPage() {
   const themeColor = useAppStore((s) => s.themeColor)
   const setThemeColor = useAppStore((s) => s.setThemeColor)
   const { token } = theme.useToken()
+  const [brandName, setBrandName] = useState('')
+  const [brandLogoUrl, setBrandLogoUrl] = useState('')
+
+  const loadBranding = async () => {
+    try {
+      if (tenancyEnabled) {
+        setTenantCode(form.getFieldValue('tenant_code'))
+      }
+      const res = await getLoginBranding()
+      const b = res.data?.branding
+      const name = String(b?.site_name || '').trim()
+      setBrandName(name)
+      const themeKey = String(b?.site_theme_color || '').trim()
+      if (themeKey && THEME_COLORS.some((c) => c.key === themeKey)) {
+        setThemeColor(themeKey as ThemeColorKey)
+      }
+      const logoRaw = String(b?.site_logo || '').trim()
+      if (!logoRaw) {
+        setBrandLogoUrl('')
+        return
+      }
+      const resolved = await resolveImageDisplayUrl(logoRaw)
+      setBrandLogoUrl(resolved.url || '')
+    } catch {
+      setBrandName('')
+      setBrandLogoUrl('')
+    }
+  }
 
   /** Check whether captcha is enabled (do not show image yet). */
   const checkCaptchaEnabled = async () => {
@@ -98,6 +127,7 @@ export default function LoginPage() {
       setTenantCode(initialTenant)
     }
     void checkCaptchaEnabled()
+    void loadBranding()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
   }, [])
 
@@ -175,10 +205,14 @@ export default function LoginPage() {
       <div className="login-page__left">
         <div className="login-page__brand">
           <div className="brand-logo">
-            <LockOutlined />
+            {brandLogoUrl ? (
+              <img src={brandLogoUrl} alt="" style={{ width: 48, height: 48, objectFit: 'contain' }} />
+            ) : (
+              <LockOutlined />
+            )}
           </div>
           <Typography.Title level={2} className="brand-title">
-            {t('login.title')}
+            {brandName || t('login.title')}
           </Typography.Title>
           <Typography.Paragraph className="brand-desc">{t('login.page_description')}</Typography.Paragraph>
         </div>
@@ -229,6 +263,7 @@ export default function LoginPage() {
                       setTenantCode(e.target.value)
                       if (tenancyEnabled && String(e.target.value || '').trim()) {
                         void checkCaptchaEnabled()
+                        void loadBranding()
                       }
                     }}
                   />

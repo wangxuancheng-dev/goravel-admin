@@ -63,6 +63,14 @@ export function backupPlatformTenant(id) {
   return platformRequest.post(`/tenants/${id}/backup`)
 }
 
+export function getPlatformTenantOpsSummary() {
+  return platformRequest.get('/tenants/ops-summary')
+}
+
+export function migratePlatformTenantBatch(data) {
+  return platformRequest.post('/tenants/migrate-batch', data || { provision_status: 'failed' })
+}
+
 export async function completePlatformLogin(res) {
   const token = res?.data?.token
   const admin = res?.data?.admin

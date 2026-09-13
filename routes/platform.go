@@ -29,6 +29,8 @@ func Platform() {
 			router.Put("password", passwordController.Update)
 
 			router.Get("tenants", tenantController.Index)
+			router.Get("tenants/ops-summary", tenantController.OpsSummary)
+			router.Post("tenants/migrate-batch", tenantController.MigrateBatch)
 			router.Get("tenants/{id}", tenantController.Show)
 			router.Post("tenants", tenantController.Store)
 			router.Put("tenants/{id}", tenantController.Update)

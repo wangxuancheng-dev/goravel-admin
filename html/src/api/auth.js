@@ -34,6 +34,15 @@ export function getLoginCaptcha(params) {
   })
 }
 
+// 登录页白标（站点名 / Logo / 主题色）
+export function getLoginBranding() {
+  return request({
+    url: '/login/branding',
+    method: 'get',
+    skipErrorMessage: true
+  })
+}
+
 // 获取谷歌验证码绑定状态
 export function getGoogleAuthenticatorStatus() {
   return request({

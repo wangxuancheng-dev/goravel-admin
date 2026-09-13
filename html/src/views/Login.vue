@@ -4,9 +4,10 @@
     <div class="login-page__left">
       <div class="login-page__brand">
         <div class="brand-logo">
-          <el-icon :size="40"><Lock /></el-icon>
+          <img v-if="brandLogoUrl" :src="brandLogoUrl" alt="" class="brand-logo-img" />
+          <el-icon v-else :size="40"><Lock /></el-icon>
         </div>
-        <h1 class="brand-title">{{ $t('login.title') }}</h1>
+        <h1 class="brand-title">{{ brandName || $t('login.title') }}</h1>
         <p class="brand-desc">{{ $t('login.page_description') }}</p>
       </div>
       <div class="login-page__deco">
@@ -140,9 +141,10 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Lock, Refresh } from '@element-plus/icons-vue'
-import { login, getLoginCaptcha } from '../api/auth'
+import { login, getLoginCaptcha, getLoginBranding } from '../api/auth'
 import { useUserStore } from '../store/user'
 import { useAppStore, THEME_COLORS } from '../store/app'
+import { resolveImageDisplayUrl } from '../utils/publicImage'
 import LanguageSwitch from '../components/LanguageSwitch.vue'
 import DarkModeSwitch from '../components/DarkModeSwitch.vue'
 import { ERROR_CODES } from '../utils/request'
@@ -207,6 +209,35 @@ const onTenantCodeChange = () => {
   setTenantCode(loginForm.tenant_code)
   if (tenancyEnabled && loginForm.tenant_code) {
     checkCaptchaEnabled()
+    loadBranding()
+  }
+}
+
+const brandName = ref('')
+const brandLogoUrl = ref('')
+
+const loadBranding = async () => {
+  try {
+    if (tenancyEnabled) {
+      setTenantCode(loginForm.tenant_code)
+    }
+    const res = await getLoginBranding()
+    const b = res?.data?.branding || {}
+    brandName.value = String(b.site_name || '').trim()
+    const themeKey = String(b.site_theme_color || '').trim()
+    if (themeKey && THEME_COLORS.some((c) => c.key === themeKey)) {
+      appStore.setThemeColor(themeKey)
+    }
+    const logoRaw = String(b.site_logo || '').trim()
+    if (!logoRaw) {
+      brandLogoUrl.value = ''
+      return
+    }
+    const resolved = await resolveImageDisplayUrl(logoRaw)
+    brandLogoUrl.value = resolved.url || ''
+  } catch {
+    brandName.value = ''
+    brandLogoUrl.value = ''
   }
 }
 
@@ -263,6 +294,7 @@ onMounted(() => {
   }
   // 只检查图形验证码是否启用，不自动获取图片
   checkCaptchaEnabled()
+  loadBranding()
 })
 
 const handleLogin = async () => {
@@ -425,6 +457,12 @@ const handleLogin = async () => {
   color: #fff;
   margin-bottom: 22px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+
+.brand-logo-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
 }
 
 .brand-title {

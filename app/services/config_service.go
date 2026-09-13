@@ -18,6 +18,7 @@ type ConfigService interface {
 	GetByGroup(group string) ([]models.Config, error)
 	Save(group string, configsMap map[string]any) error
 	TestEmail(params TestEmailParams, recipientEmail string) error
+	GetWebsiteBranding() map[string]string
 }
 
 type TestEmailParams struct {
@@ -82,6 +83,28 @@ func (s *ConfigServiceImpl) GetByGroup(group string) ([]models.Config, error) {
 	}
 
 	return configs, nil
+}
+
+// GetWebsiteBranding returns public-safe website branding for login/layout (no secrets).
+func (s *ConfigServiceImpl) GetWebsiteBranding() map[string]string {
+	out := map[string]string{
+		"site_enabled":     "1",
+		"site_name":        "",
+		"site_logo":        "",
+		"site_theme_color": "",
+		"site_copyright":   "",
+	}
+	configs, err := s.GetByGroup("website")
+	if err != nil || len(configs) == 0 {
+		return out
+	}
+	for _, c := range configs {
+		switch c.Key {
+		case "site_enabled", "site_name", "site_logo", "site_theme_color", "site_copyright":
+			out[c.Key] = c.Value
+		}
+	}
+	return out
 }
 
 // Save 按分组批量保存配置

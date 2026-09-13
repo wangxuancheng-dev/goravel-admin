@@ -15,6 +15,7 @@ import (
 
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
+	"goravel/app/health"
 	"goravel/app/models"
 	"goravel/app/search"
 	"goravel/app/services"
@@ -188,7 +189,25 @@ func (r *ObservabilityController) QueueDashboard(ctx ghttp.Context) ghttp.Respon
 			"pending": pending,
 			"failed":  failed,
 		},
+		"queue_alert": health.QueueAlertConfigStatus(),
 	})
+}
+
+// QueueAlertStatus returns whether queue backlog webhook is configured (URL masked).
+func (r *ObservabilityController) QueueAlertStatus(ctx ghttp.Context) ghttp.Response {
+	return response.Success(ctx, health.QueueAlertConfigStatus())
+}
+
+// TestQueueAlert POSTs a test payload to QUEUE_ALERT_WEBHOOK_URL / READY_ALERT_WEBHOOK_URL.
+func (r *ObservabilityController) TestQueueAlert(ctx ghttp.Context) ghttp.Response {
+	status, err := health.SendTestQueueAlert(ctx)
+	if err != nil {
+		if err.Error() == "queue_alert_webhook_not_configured" {
+			return response.Error(ctx, http.StatusBadRequest, "queue_alert_webhook_not_configured")
+		}
+		return HandleGeneratedServiceError(ctx, "observability", http.StatusBadGateway, err, nil)
+	}
+	return response.Success(ctx, "queue_alert_test_sent", status)
 }
 
 // PprofStatus 返回 pprof 功能开关与 token 要求

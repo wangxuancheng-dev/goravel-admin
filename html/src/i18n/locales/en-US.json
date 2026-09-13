@@ -118,7 +118,8 @@
     "google_code_placeholder": "Please enter 6-digit Google Authenticator code",
     "google_code_required": "Please enter Google Authenticator code",
     "google_code_invalid": "Invalid Google Authenticator code",
-    "google_code_format": "Verification code must be 6 digits"
+    "google_code_format": "Verification code must be 6 digits",
+    "brand_fallback": "Admin"
   },
   "error": {
     "default": "Request failed",
@@ -316,7 +317,15 @@
     "pprof_cum_percent": "Cumulative %",
     "pprof_mem_flat_bytes": "Self allocations",
     "pprof_mem_cum_bytes": "Cumulative allocations",
-    "pprof_sampling_in_progress": "Sampling in progress, {seconds}s remaining"
+    "pprof_sampling_in_progress": "Sampling in progress, {seconds}s remaining",
+    "queue_alert_title": "Queue backlog alert",
+    "queue_alert_hint": "Alerts POST to a server env webhook; URL is not configured in this UI.",
+    "queue_alert_configured": "Configured ({source})",
+    "queue_alert_not_configured": "Webhook not configured",
+    "queue_alert_threshold": "Backlog threshold: {n}",
+    "queue_alert_url": "URL: {url}",
+    "queue_alert_test": "Send test alert",
+    "queue_alert_test_ok": "Test alert sent — check your bot/webhook"
   },
   "admin": {
     "add_admin": "Add Admin",
@@ -1049,7 +1058,10 @@
     "minio_ssl_tip": "Whether to enable SSL connection",
     "update_success": "Update successful",
     "create_success": "Create successful",
-    "delete_success": "Delete successful"
+    "delete_success": "Delete successful",
+    "site_theme_color": "Theme color",
+    "site_theme_color_placeholder": "Default theme for login and admin chrome",
+    "site_theme_color_tip": "White-label: login title/logo/theme apply after save"
   },
   "tenant": {
     "add": "Create tenant",
@@ -1094,7 +1106,13 @@
     "op_backup_confirm": "Queue backup for this tenant? (requires mysqldump/pg_dump)",
     "ping_ok": "Tenant DB reachable",
     "migrate_error": "Migrate error",
-    "backup_path": "Backup path"
+    "backup_path": "Backup path",
+    "provision_status_filter": "Provision status",
+    "ops_summary": "Ops: failed {failed} · busy {busy} · total {total}",
+    "retry_failed_migrate": "Retry all failed migrates",
+    "retry_failed_migrate_confirm": "Enqueue migrate for all failed tenants (max 100). Continue?",
+    "batch_queued": "Queued migrate for {n} tenant(s)",
+    "filter_failed": "Failed only"
   },
   "platform": {
     "title": "Platform Console",
@@ -2021,4 +2039,3 @@
     "preview_audio": "Generated audio"
   }
 }
-

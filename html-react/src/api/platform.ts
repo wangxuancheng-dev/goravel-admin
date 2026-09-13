@@ -65,6 +65,19 @@ export function backupPlatformTenant(id: string | number) {
   return platformRequest.post(`/tenants/${id}/backup`)
 }
 
+export function getPlatformTenantOpsSummary() {
+  return platformRequest.get('/tenants/ops-summary')
+}
+
+export function migratePlatformTenantBatch(data?: {
+  ids?: Array<string | number>
+  provision_status?: string
+  with_seed?: boolean
+  limit?: number
+}) {
+  return platformRequest.post('/tenants/migrate-batch', data || { provision_status: 'failed' })
+}
+
 export function completePlatformLogin(res: { data?: { token?: string; admin?: unknown } }) {
   if (res?.data?.token) setPlatformToken(res.data.token)
   if (res?.data?.admin) setPlatformAdmin(res.data.admin)

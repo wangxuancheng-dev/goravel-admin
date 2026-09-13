@@ -359,6 +359,8 @@
         "end_time": "结束时间"
       }
     },
-    "username_unavailable": "该用户名不可使用，请更换后重试"
+    "username_unavailable": "该用户名不可使用，请更换后重试",
+    "queue_alert_test_sent": "测试告警已发送",
+    "queue_alert_webhook_not_configured": "未配置队列告警 Webhook（QUEUE_ALERT_WEBHOOK_URL 或 READY_ALERT_WEBHOOK_URL）"
   }
 }

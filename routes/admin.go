@@ -53,6 +53,7 @@ func Admin() {
 			router.Middleware(httpmiddleware.Throttle("login")).Post("login", adminAuthController.Login)
 			router.Middleware(middleware.Tenant(), middleware.Blacklist()).Group(func(router route.Router) {
 				router.Get("login/captcha", adminAuthController.Captcha)
+				router.Get("login/branding", adminAuthController.Branding)
 				router.Get("public/images/{id}", attachmentController.PublicPreview)
 			})
 		})
@@ -223,6 +224,8 @@ func Admin() {
 			router.Get("observability/api-performance/traces", observabilityController.APIPerformanceTraces)
 			router.Get("observability/audit-timeline", observabilityController.AuditTimeline)
 			router.Get("observability/queue-dashboard", observabilityController.QueueDashboard)
+			router.Get("observability/queue-alert", observabilityController.QueueAlertStatus)
+			router.Post("observability/queue-alert/test", observabilityController.TestQueueAlert)
 			router.Get("observability/pprof/status", observabilityController.PprofStatus)
 			router.Middleware(httpmiddleware.Throttle("pprofVerify")).Post("observability/pprof/verify", observabilityController.PprofVerify)
 			router.Middleware(httpmiddleware.Throttle("pprofCPU")).Post("observability/pprof/cpu-hotspots", observabilityController.PprofCPUHotspots)

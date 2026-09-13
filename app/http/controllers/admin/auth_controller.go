@@ -358,6 +358,14 @@ func (r *AuthController) Captcha(ctx http.Context) http.Response {
 	})
 }
 
+// Branding returns public website branding for the login page (tenant-scoped when tenancy is on).
+func (r *AuthController) Branding(ctx http.Context) http.Response {
+	branding := services.NewConfigService(ctx).GetWebsiteBranding()
+	return response.Success(ctx, http.Json{
+		"branding": branding,
+	})
+}
+
 // Info 获取当前登录管理员信息
 func (r *AuthController) Info(ctx http.Context) http.Response {
 	admin, permissions, menus, err := r.authService(ctx).GetAdminInfo(ctx)

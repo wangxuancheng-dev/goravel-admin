@@ -23,7 +23,9 @@ import {
   backupPlatformTenant,
   createPlatformTenant,
   getPlatformTenantList,
+  getPlatformTenantOpsSummary,
   migratePlatformTenant,
+  migratePlatformTenantBatch,
   pingPlatformTenant,
   platformHealth,
   seedPlatformTenant,
@@ -78,6 +80,28 @@ export default function PlatformTenantList() {
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [healthDesc, setHealthDesc] = useState(t('platform.cli_ops_hint'))
+  const [opsSummary, setOpsSummary] = useState<{
+    failed_provision?: number
+    busy?: number
+    total?: number
+  } | null>(null)
+  const [batchLoading, setBatchLoading] = useState(false)
+
+  const refreshOpsSummary = async () => {
+    try {
+      const res = await getPlatformTenantOpsSummary()
+      const summary = (res as { data?: { summary?: Record<string, unknown> } })?.data?.summary
+      if (summary) {
+        setOpsSummary({
+          failed_provision: Number(summary.failed_provision ?? 0),
+          busy: Number(summary.busy ?? 0),
+          total: Number(summary.total ?? 0),
+        })
+      }
+    } catch {
+      /* optional */
+    }
+  }
 
   useEffect(() => {
     void platformHealth()
@@ -96,6 +120,7 @@ export default function PlatformTenantList() {
       .catch(() => {
         /* list still usable */
       })
+    void refreshOpsSummary()
   }, [t])
 
   const {
@@ -111,7 +136,7 @@ export default function PlatformTenantList() {
     refresh,
   } = useListPage<TenantRow>({
     fetchApi: getPlatformTenantList,
-    initialSearchForm: { code: '', name: '', status: '' },
+    initialSearchForm: { code: '', name: '', status: '', provision_status: '' },
     defaultSort: 'id:desc',
     normalizeRows: false,
     transformData: (row) => {
@@ -146,9 +171,31 @@ export default function PlatformTenantList() {
     if (!hasBusy) return
     const timer = window.setInterval(() => {
       void refresh()
+      void refreshOpsSummary()
     }, 3000)
     return () => window.clearInterval(timer)
   }, [hasBusy, refresh])
+
+  const retryFailedMigrates = () => {
+    modal.confirm({
+      title: t('tenant.retry_failed_migrate'),
+      content: t('tenant.retry_failed_migrate_confirm'),
+      onOk: async () => {
+        setBatchLoading(true)
+        try {
+          const res = await migratePlatformTenantBatch({ provision_status: 'failed', with_seed: false })
+          const n = Number((res as { data?: { queued_count?: number } })?.data?.queued_count ?? 0)
+          message.success(t('tenant.batch_queued', { n }))
+          await refresh()
+          await refreshOpsSummary()
+        } catch (error) {
+          showError(error, t('common.operation_failed'))
+        } finally {
+          setBatchLoading(false)
+        }
+      },
+    })
+  }
 
   const provisionLabel = (status?: string) => {
     switch (status) {
@@ -384,7 +431,14 @@ export default function PlatformTenantList() {
     <PageContainer
       title={t('menu.tenant')}
       extra={
-        <Space>
+        <Space wrap>
+          <Button
+            loading={batchLoading}
+            disabled={(opsSummary?.failed_provision ?? 0) < 1}
+            onClick={retryFailedMigrates}
+          >
+            {t('tenant.retry_failed_migrate')}
+          </Button>
           <Button
             type="primary"
             onClick={() => {
@@ -411,12 +465,36 @@ export default function PlatformTenantList() {
         showIcon
         style={{ marginBottom: 12 }}
         message={t('platform.cli_ops_title')}
-        description={healthDesc}
+        description={
+          <>
+            <div>{healthDesc}</div>
+            {opsSummary ? (
+              <div style={{ marginTop: 6 }}>
+                {t('tenant.ops_summary', {
+                  failed: opsSummary.failed_provision ?? 0,
+                  busy: opsSummary.busy ?? 0,
+                  total: opsSummary.total ?? 0,
+                })}
+              </div>
+            ) : null}
+          </>
+        }
       />
       <SearchForm
         fields={[
           { name: 'code', label: t('tenant.code') },
           { name: 'name', label: t('tenant.name') },
+          {
+            name: 'provision_status',
+            label: t('tenant.provision_status_filter'),
+            type: 'select',
+            options: [
+              { label: t('tenant.provision_pending'), value: 'pending' },
+              { label: t('tenant.provision_migrating'), value: 'migrating' },
+              { label: t('tenant.provision_ready'), value: 'ready' },
+              { label: t('tenant.provision_failed'), value: 'failed' },
+            ],
+          },
           {
             name: 'status',
             label: t('common.status'),

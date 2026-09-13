@@ -124,7 +124,8 @@
     "google_code_placeholder": "请输入6位谷歌验证码",
     "google_code_required": "请输入谷歌验证码",
     "google_code_invalid": "谷歌验证码错误",
-    "google_code_format": "验证码必须是6位数字"
+    "google_code_format": "验证码必须是6位数字",
+    "brand_fallback": "管理后台"
   },
   "error": {
     "default": "请求失败",
@@ -323,7 +324,15 @@
     "pprof_cum_percent": "累计占比",
     "pprof_mem_flat_bytes": "自身分配量",
     "pprof_mem_cum_bytes": "累计分配量",
-    "pprof_sampling_in_progress": "采样中，预计剩余 {seconds} 秒"
+    "pprof_sampling_in_progress": "采样中，预计剩余 {seconds} 秒",
+    "queue_alert_title": "队列积压告警",
+    "queue_alert_hint": "告警通过服务器环境变量 Webhook 推送，不在本页配置 URL。未配置时按钮不可用。",
+    "queue_alert_configured": "已配置（{source}）",
+    "queue_alert_not_configured": "未配置 Webhook",
+    "queue_alert_threshold": "积压阈值：{n}",
+    "queue_alert_url": "地址：{url}",
+    "queue_alert_test": "发送测试告警",
+    "queue_alert_test_ok": "测试告警已发送，请检查机器人/Webhook"
   },
   "admin": {
     "add_admin": "添加管理员",
@@ -1058,7 +1067,10 @@
     "minio_ssl_tip": "是否启用 SSL 连接",
     "update_success": "更新成功",
     "create_success": "创建成功",
-    "delete_success": "删除成功"
+    "delete_success": "删除成功",
+    "site_theme_color": "主题色",
+    "site_theme_color_placeholder": "选择登录页与后台默认主题色",
+    "site_theme_color_tip": "租户白标：保存后登录页与顶栏标题/Logo/主题色会生效"
   },
   "tenant": {
     "add": "新建租户",
@@ -1103,7 +1115,13 @@
     "op_backup_confirm": "确认对该租户入队备份？（需主机有 mysqldump/pg_dump）",
     "ping_ok": "租户库连通",
     "migrate_error": "迁移错误",
-    "backup_path": "备份路径"
+    "backup_path": "备份路径",
+    "provision_status_filter": "开通状态",
+    "ops_summary": "运维概览：失败 {failed} · 忙碌 {busy} · 合计 {total}",
+    "retry_failed_migrate": "重试全部失败迁移",
+    "retry_failed_migrate_confirm": "将为所有开通失败的租户入队 migrate（最多 100 个），是否继续？",
+    "batch_queued": "已入队 {n} 个租户迁移任务",
+    "filter_failed": "仅失败"
   },
   "platform": {
     "title": "平台控制台",
@@ -2030,4 +2048,3 @@
     "preview_audio": "生成音频"
   }
 }
-

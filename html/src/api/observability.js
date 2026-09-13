@@ -48,6 +48,20 @@ export function getQueueDashboard() {
   })
 }
 
+export function getQueueAlertStatus() {
+  return request({
+    url: '/observability/queue-alert',
+    method: 'get'
+  })
+}
+
+export function testQueueAlert() {
+  return request({
+    url: '/observability/queue-alert/test',
+    method: 'post'
+  })
+}
+
 export function getPprofStatus() {
   return request({
     url: '/observability/pprof/status',

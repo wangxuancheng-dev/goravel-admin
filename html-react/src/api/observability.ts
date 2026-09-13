@@ -38,6 +38,14 @@ export function getQueueDashboard() {
   return request({ url: '/observability/queue-dashboard', method: 'get' }) as Promise<ApiResponse>
 }
 
+export function getQueueAlertStatus() {
+  return request({ url: '/observability/queue-alert', method: 'get' }) as Promise<ApiResponse>
+}
+
+export function testQueueAlert() {
+  return request({ url: '/observability/queue-alert/test', method: 'post' }) as Promise<ApiResponse>
+}
+
 export function getPprofStatus() {
   return request({
     url: '/observability/pprof/status',

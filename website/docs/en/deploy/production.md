@@ -52,8 +52,13 @@ Do **not** put queue backlog scans on `/ready` (latency). Use the scheduled comm
 ./main artisan queue:alert-backlog
 ```
 
-Ready failure webhook: `READY_ALERT_WEBHOOK_URL` (5 min debounce on `/ready` non-200).
+In **Observability → Queue**, check whether the webhook is configured and use **Send test alert** (`observability.queue_alert_test`). Configure the URL via `.env` (not the UI).
 
+White-label: System Config → Website (name / logo / theme). Login uses `GET /api/admin/login/branding`.
+
+Platform tenant list: filter by provision status, **Retry all failed migrates**, summary at `GET /api/platform/tenants/ops-summary`.
+
+Ready failure webhook: `READY_ALERT_WEBHOOK_URL` (5 min debounce on `/ready` non-200).
 ## Processes: API vs Queue Worker
 
 Same binary and shared Redis/DB. Split roles via `.env` — do not run full HTTP + all queue runners on every node.

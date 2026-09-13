@@ -131,25 +131,89 @@ func postQueueBacklogAlert(url string, snap *QueueBacklogSnapshot) {
 		"app":        facades.Config().GetString("app.name", ""),
 		"env":        facades.Config().GetString("app.env", ""),
 	}
+	if err := PostJSONWebhook(url, payload); err != nil {
+		facades.Log().Warningf("queue backlog alert webhook post failed: %v", err)
+	}
+}
+
+// PostJSONWebhook POSTs a JSON payload to url (5s timeout). Returns non-nil on transport/build errors.
+func PostJSONWebhook(url string, payload map[string]any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return
+		return err
 	}
-
 	reqCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		facades.Log().Warningf("queue backlog alert webhook build request failed: %v", err)
-		return
+		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		facades.Log().Warningf("queue backlog alert webhook post failed: %v", err)
-		return
+		return err
 	}
 	_ = resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// QueueAlertConfigStatus reports whether webhook env is set (never exposes the URL secret fully).
+func QueueAlertConfigStatus() map[string]any {
+	url := ResolveQueueAlertWebhookURL()
+	configured := url != ""
+	source := ""
+	if strings.TrimSpace(facades.Config().GetString("health.queue_alert_webhook_url", "")) != "" {
+		source = "QUEUE_ALERT_WEBHOOK_URL"
+	} else if configured {
+		source = "READY_ALERT_WEBHOOK_URL"
+	}
+	masked := ""
+	if configured {
+		masked = maskWebhookURL(url)
+	}
+	return map[string]any{
+		"configured": configured,
+		"source":     source,
+		"url_masked": masked,
+		"threshold":  QueueAlertBacklogThreshold(),
+	}
+}
+
+func maskWebhookURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if len(raw) <= 12 {
+		return "***"
+	}
+	return raw[:8] + "…" + raw[len(raw)-4:]
+}
+
+// SendTestQueueAlert posts a test event to the configured webhook (no debounce).
+func SendTestQueueAlert(ctx context.Context) (map[string]any, error) {
+	url := ResolveQueueAlertWebhookURL()
+	if url == "" {
+		return nil, fmt.Errorf("queue_alert_webhook_not_configured")
+	}
+	snap, err := CollectRedisQueueBacklog(ctx)
+	payload := map[string]any{
+		"event":     "queue_alert_test",
+		"test":      true,
+		"timestamp": time.Now().Unix(),
+		"app":       facades.Config().GetString("app.name", ""),
+		"env":       facades.Config().GetString("app.env", ""),
+		"message":   "manual test from observability queue alert",
+	}
+	if err == nil && snap != nil {
+		payload["connection"] = snap.Connection
+		payload["kind"] = snap.Kind
+		payload["pending"] = snap.Pending
+		payload["failed"] = snap.Failed
+		payload["threshold"] = snap.Threshold
+	}
+	if err := PostJSONWebhook(url, payload); err != nil {
+		return nil, err
+	}
+	return QueueAlertConfigStatus(), nil
 }

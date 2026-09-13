@@ -150,6 +150,73 @@ func (c *TenantController) UpdateStatus(ctx http.Context) http.Response {
 	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
 }
 
+// OpsSummary returns provision/op status counts for the platform tenant console.
+func (c *TenantController) OpsSummary(ctx http.Context) http.Response {
+	sum, err := c.service().OpsSummary()
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+	}
+	return response.Success(ctx, map[string]any{"summary": sum})
+}
+
+type tenantMigrateBatchBody struct {
+	IDs             []uint `json:"ids" form:"ids"`
+	ProvisionStatus string `json:"provision_status" form:"provision_status"`
+	WithSeed        bool   `json:"with_seed" form:"with_seed"`
+	Limit           int    `json:"limit" form:"limit"`
+}
+
+// MigrateBatch enqueues migrate for multiple tenants (e.g. all failed).
+func (c *TenantController) MigrateBatch(ctx http.Context) http.Response {
+	var body tenantMigrateBatchBody
+	_ = ctx.Request().Bind(&body)
+	if len(body.IDs) == 0 && strings.TrimSpace(body.ProvisionStatus) == "" {
+		body.ProvisionStatus = models.TenantProvisionFailed
+	}
+	tenants, err := c.service().ListForBatchMigrate(body.IDs, body.ProvisionStatus, body.Limit)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+	}
+	queued := make([]map[string]any, 0)
+	skipped := make([]map[string]any, 0)
+	failed := make([]map[string]any, 0)
+	for i := range tenants {
+		tenant := &tenants[i]
+		_, args, err := c.ops().BeginQueuedOp(tenant.ID, models.TenantOpMigrate, body.WithSeed)
+		if err != nil {
+			skipped = append(skipped, map[string]any{
+				"id":    tenant.ID,
+				"code":  tenant.Code,
+				"error": err.Error(),
+			})
+			continue
+		}
+		payload, err := json.Marshal(args)
+		if err != nil {
+			_ = c.ops().MarkOpFailed(tenant, err.Error())
+			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
+			continue
+		}
+		if err := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
+			Type:  "string",
+			Value: string(payload),
+		}}).OnQueue("long-running").Dispatch(); err != nil {
+			_ = c.ops().MarkOpFailed(tenant, err.Error())
+			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
+			continue
+		}
+		queued = append(queued, map[string]any{"id": tenant.ID, "code": tenant.Code})
+	}
+	return response.Success(ctx, map[string]any{
+		"queued_count":  len(queued),
+		"skipped_count": len(skipped),
+		"failed_count":  len(failed),
+		"queued":        queued,
+		"skipped":       skipped,
+		"failed":        failed,
+	})
+}
+
 // Ping checks that the tenant database connection is reachable.
 func (c *TenantController) Ping(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")

@@ -8,6 +8,17 @@
       :title="$t('platform.cli_ops_title')"
       :description="healthDesc"
     />
+    <div v-if="opsSummary" class="ops-summary-row">
+      <span>{{ $t('tenant.ops_summary', { failed: opsSummary.failed_provision || 0, busy: opsSummary.busy || 0, total: opsSummary.total || 0 }) }}</span>
+      <el-button
+        size="small"
+        :loading="batchLoading"
+        :disabled="!(opsSummary.failed_provision > 0)"
+        @click="retryFailedMigrates"
+      >
+        {{ $t('tenant.retry_failed_migrate') }}
+      </el-button>
+    </div>
     <ListPage
     ref="listPageRef"
     page-class="platform-tenant"
@@ -166,7 +177,9 @@ import {
   backupPlatformTenant,
   createPlatformTenant,
   getPlatformTenantList,
+  getPlatformTenantOpsSummary,
   migratePlatformTenant,
+  migratePlatformTenantBatch,
   pingPlatformTenant,
   platformHealth,
   seedPlatformTenant,
@@ -183,6 +196,8 @@ const health = ref(null)
 const migrateVisible = ref(false)
 const migrateRow = ref(null)
 const withSeed = ref(true)
+const opsSummary = ref(null)
+const batchLoading = ref(false)
 let pollTimer = null
 
 const healthDesc = computed(() => {
@@ -197,6 +212,15 @@ const healthDesc = computed(() => {
   return `${t('platform.health_driver')}: ${h.driver} · ${db} · ${tenants} · ${cli}`
 })
 
+const refreshOpsSummary = async () => {
+  try {
+    const res = await getPlatformTenantOpsSummary()
+    opsSummary.value = res?.data?.summary || null
+  } catch {
+    // ignore
+  }
+}
+
 onMounted(async () => {
   try {
     const res = await platformHealth()
@@ -204,9 +228,10 @@ onMounted(async () => {
   } catch {
     // ignore — list still usable
   }
+  await refreshOpsSummary()
 })
 
-const initialSearchForm = { code: '', name: '', status: '' }
+const initialSearchForm = { code: '', name: '', status: '', provision_status: '' }
 
 const {
   pagination,
@@ -234,7 +259,10 @@ watch(
   (rows) => {
     const busy = Array.isArray(rows) && rows.some(isBusy)
     if (busy && !pollTimer) {
-      pollTimer = window.setInterval(() => loadData(), 3000)
+      pollTimer = window.setInterval(() => {
+        loadData()
+        refreshOpsSummary()
+      }, 3000)
     } else if (!busy && pollTimer) {
       clearInterval(pollTimer)
       pollTimer = null
@@ -277,6 +305,18 @@ const searchFields = computed(() => [
   { prop: 'code', label: t('tenant.code'), type: 'input', width: '180px' },
   { prop: 'name', label: t('tenant.name'), type: 'input', width: '180px' },
   {
+    prop: 'provision_status',
+    label: t('tenant.provision_status_filter'),
+    type: 'select',
+    width: '160px',
+    options: [
+      { label: t('tenant.provision_pending'), value: 'pending' },
+      { label: t('tenant.provision_migrating'), value: 'migrating' },
+      { label: t('tenant.provision_ready'), value: 'ready' },
+      { label: t('tenant.provision_failed'), value: 'failed' }
+    ]
+  },
+  {
     prop: 'status',
     label: t('common.status'),
     type: 'select',
@@ -287,6 +327,28 @@ const searchFields = computed(() => [
     ]
   }
 ])
+
+const retryFailedMigrates = async () => {
+  try {
+    await ElMessageBox.confirm(t('tenant.retry_failed_migrate_confirm'), t('tenant.retry_failed_migrate'), {
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  batchLoading.value = true
+  try {
+    const res = await migratePlatformTenantBatch({ provision_status: 'failed', with_seed: false })
+    const n = res?.data?.queued_count ?? 0
+    ElMessage.success(t('tenant.batch_queued', { n }))
+    await loadData()
+    await refreshOpsSummary()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    batchLoading.value = false
+  }
+}
 
 const tableColumns = computed(() => [
   { field: 'id', title: t('table.id'), width: 70, sortable: true, key: 'id' },

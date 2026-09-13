@@ -31,6 +31,24 @@ export function getLoginCaptcha(params?: { check?: boolean }) {
   }) as Promise<ApiResponse<CaptchaInfo>>
 }
 
+export function getLoginBranding() {
+  return request({
+    url: '/login/branding',
+    method: 'get',
+    skipErrorMessage: true,
+  }) as Promise<
+    ApiResponse<{
+      branding?: {
+        site_enabled?: string
+        site_name?: string
+        site_logo?: string
+        site_theme_color?: string
+        site_copyright?: string
+      }
+    }>
+  >
+}
+
 export function getGoogleAuthenticatorStatus() {
   return request({
     url: '/google-authenticator/status',

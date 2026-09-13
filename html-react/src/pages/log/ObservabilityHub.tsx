@@ -26,6 +26,7 @@ import {
   getPprofMemoryHotspots,
   getPprofStatus,
   getQueueDashboard,
+  testQueueAlert,
   getSlowSqlTop,
   getTraceAggregate,
   verifyPprofToken,
@@ -189,10 +190,19 @@ export default function ObservabilityHub() {
 
   // Queue tab
   const [queueLoading, setQueueLoading] = useState(false)
+  const [queueAlertTesting, setQueueAlertTesting] = useState(false)
   const [queueDashboard, setQueueDashboard] = useState<{
     default_connection: string
     connections: QueueConnection[]
+    queue_alert?: {
+      configured?: boolean
+      source?: string
+      url_masked?: string
+      threshold?: number
+    }
   }>({ default_connection: '', connections: [] })
+
+  const canTestQueueAlert = hasAnyPermission(['observability.queue_alert_test'])
 
   const currentQueuePanel = useMemo(() => {
     const rows = queueDashboard.connections || []
@@ -217,6 +227,12 @@ export default function ObservabilityHub() {
       setQueueDashboard({
         default_connection: String(data.default_connection || ''),
         connections: (data.connections as QueueConnection[]) || [],
+        queue_alert: (data.queue_alert as {
+          configured?: boolean
+          source?: string
+          url_masked?: string
+          threshold?: number
+        }) || undefined,
       })
     } catch (error) {
       handleViewRequestError(error)
@@ -224,6 +240,19 @@ export default function ObservabilityHub() {
       setQueueLoading(false)
     }
   }, [handleViewRequestError])
+
+  const onTestQueueAlert = useCallback(async () => {
+    setQueueAlertTesting(true)
+    try {
+      await testQueueAlert()
+      message.success(t('observability.queue_alert_test_ok'))
+      await loadQueue()
+    } catch (error) {
+      handleViewRequestError(error)
+    } finally {
+      setQueueAlertTesting(false)
+    }
+  }, [handleViewRequestError, loadQueue, message, t])
 
   // Trace tab
   const [traceLoading, setTraceLoading] = useState(false)
@@ -643,6 +672,41 @@ export default function ObservabilityHub() {
       children: (
         <>
           <Alert type="info" showIcon message={t('observability.queue_dashboard_hint')} style={{ marginBottom: 12 }} />
+          <Card size="small" style={{ marginBottom: 12 }} title={t('observability.queue_alert_title')}>
+            <Alert type="warning" showIcon message={t('observability.queue_alert_hint')} style={{ marginBottom: 12 }} />
+            <Space wrap>
+              <Tag color={queueDashboard.queue_alert?.configured ? 'success' : 'default'}>
+                {queueDashboard.queue_alert?.configured
+                  ? t('observability.queue_alert_configured', {
+                      source: queueDashboard.queue_alert.source || '-',
+                    })
+                  : t('observability.queue_alert_not_configured')}
+              </Tag>
+              {queueDashboard.queue_alert?.configured ? (
+                <>
+                  <Typography.Text type="secondary">
+                    {t('observability.queue_alert_threshold', {
+                      n: queueDashboard.queue_alert.threshold ?? 100,
+                    })}
+                  </Typography.Text>
+                  <Typography.Text type="secondary">
+                    {t('observability.queue_alert_url', {
+                      url: queueDashboard.queue_alert.url_masked || '***',
+                    })}
+                  </Typography.Text>
+                </>
+              ) : null}
+              {canTestQueueAlert ? (
+                <Button
+                  loading={queueAlertTesting}
+                  disabled={!queueDashboard.queue_alert?.configured}
+                  onClick={() => void onTestQueueAlert()}
+                >
+                  {t('observability.queue_alert_test')}
+                </Button>
+              ) : null}
+            </Space>
+          </Card>
           <div style={searchRowStyle}>
             <span style={{ flex: 1 }}>
               {t('observability.queue_default')}:{' '}

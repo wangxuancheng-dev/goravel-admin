@@ -37,6 +37,18 @@
         />
       </el-form-item>
 
+      <el-form-item :label="$t('config.site_theme_color')" prop="site_theme_color">
+        <el-select v-model="formData.site_theme_color" :placeholder="$t('config.site_theme_color_placeholder')" style="max-width: 280px">
+          <el-option v-for="item in themeColorOptions" :key="item.key" :label="item.key" :value="item.key">
+            <span style="display:inline-flex;align-items:center;gap:8px">
+              <span :style="{ width: '14px', height: '14px', borderRadius: '4px', background: item.color, display: 'inline-block' }" />
+              {{ item.key }}
+            </span>
+          </el-option>
+        </el-select>
+        <div class="form-tip">{{ $t('config.site_theme_color_tip') }}</div>
+      </el-form-item>
+
       <el-form-item :label="$t('config.site_icp')" prop="site_icp">
         <el-input v-model="formData.site_icp" :placeholder="$t('config.site_icp_placeholder')" style="max-width: 480px" />
       </el-form-item>
@@ -76,17 +88,20 @@ import { getConfigByGroup, saveConfig } from '../../../api/config'
 import { usePermission } from '../../../composables/usePermission'
 import AttachmentImageField from '../../../components/AttachmentImageField.vue'
 import { notifyWebsiteConfigUpdated } from '../../../utils/publicImage'
+import { THEME_COLORS } from '../../../store/app'
 
 const { t } = useI18n()
 const { getButtonState } = usePermission()
 const formRef = ref(null)
 const submitting = ref(false)
+const themeColorOptions = THEME_COLORS
 
 const formData = reactive({
   site_enabled: '1',
   site_name: '',
   site_url: '',
   site_logo: '',
+  site_theme_color: 'blue',
   site_icp: '',
   site_keywords: '',
   site_description: '',
