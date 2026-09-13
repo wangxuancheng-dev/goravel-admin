@@ -35,6 +35,11 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ### 截图展示
 
 <p align="center">
+  <img src="./images/platform.png" alt="平台控制台" width="800">
+  <p align="center">平台控制台（租户管理）</p>
+</p>
+
+<p align="center">
   <img src="./images/login.png" alt="登录页面" width="800">
   <p align="center">登录页面</p>
 </p>

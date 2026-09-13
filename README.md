@@ -35,6 +35,11 @@ See module tiers and production configs: [Open-source scope](https://docs.xuanch
 ### Screenshots
 
 <p align="center">
+  <img src="./images/platform.png" alt="Platform Console" width="800">
+  <p align="center">Platform Console (Tenant Management)</p>
+</p>
+
+<p align="center">
   <img src="./images/login.png" alt="Login Page" width="800">
   <p align="center">Login Page</p>
 </p>
