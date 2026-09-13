@@ -14,6 +14,9 @@ import (
 // reuses the parent Orm's dbConfig while returning the tenant query. HasTable /
 // GetTables then inspect the platform database (table_schema=platform) while
 // DML runs against the tenant database — tenant migrate becomes a no-op skip.
+//
+// Does not Close the underlying sql.DB: concurrent requests may still hold that
+// pool. Forget() / Orm.Fresh() remain responsible for full teardown.
 func EvictOrmConnectionCache(name string) {
 	if name == "" {
 		return
@@ -31,14 +34,8 @@ func EvictOrmConnectionCache(name string) {
 	if !queriesField.IsValid() || queriesField.Kind() != reflect.Map {
 		return
 	}
-	key := reflect.ValueOf(name)
-	if qv := queriesField.MapIndex(key); qv.IsValid() && !qv.IsZero() {
-		if q, ok := qv.Interface().(contractsorm.Query); ok && q != nil {
-			if db, err := q.DB(); err == nil && db != nil {
-				_ = db.Close()
-			}
-		}
-	}
+	// Must use the typed map via unsafe — MapIndex().Interface() panics on
+	// values from unexported fields.
 	m := *(*map[string]contractsorm.Query)(unsafe.Pointer(queriesField.UnsafeAddr()))
 	delete(m, name)
 }

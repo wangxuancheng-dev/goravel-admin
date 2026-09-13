@@ -6,6 +6,7 @@ import (
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
 
+	"goravel/app/models"
 	"goravel/app/services"
 )
 
@@ -38,8 +39,14 @@ func (r *TenantSeedAll) Handle(ctx console.Context) error {
 	}
 	conn := services.NewTenantConnectionService()
 	var failed int
+	var skipped int
 	for _, t := range list {
 		tenant := t
+		if tenant.Status != models.TenantStatusActive || !tenant.IsProvisionReady() {
+			skipped++
+			ctx.Warning(fmt.Sprintf("skip %s (status=%d provision=%s)", tenant.Code, tenant.Status, tenant.ProvisionStatus))
+			continue
+		}
 		ctx.Info(fmt.Sprintf("seed %s ...", tenant.Code))
 		if err := conn.SeedTenant(&tenant, seeders...); err != nil {
 			ctx.Error(fmt.Sprintf("%s: %v", tenant.Code, err))
@@ -47,6 +54,9 @@ func (r *TenantSeedAll) Handle(ctx console.Context) error {
 			continue
 		}
 		ctx.Success(fmt.Sprintf("%s ok", tenant.Code))
+	}
+	if skipped > 0 {
+		ctx.Info(fmt.Sprintf("skipped %d non-ready tenant(s)", skipped))
 	}
 	if failed > 0 {
 		return fmt.Errorf("%d tenant seed(s) failed", failed)

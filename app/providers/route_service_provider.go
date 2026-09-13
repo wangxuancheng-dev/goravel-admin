@@ -19,6 +19,7 @@ import (
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 )
 
 type RouteServiceProvider struct {
@@ -168,7 +169,7 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 			response.Abort(ctx, contractshttp.StatusTooManyRequests, "ai_lab_rate_limited")
 		}
 
-		key := "ai_lab:admin:" + adminID
+		key := tenantRateKeyPrefix(ctx) + "ai_lab:admin:" + adminID
 		return []contractshttp.Limit{
 			limit.PerMinute(perMinute).Response(rateLimited).By(key + ":minute"),
 			limit.PerDay(perDay).Response(rateLimited).By(key + ":day"),
@@ -181,7 +182,7 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 		adminID := resolveAdminIdentifier(ctx)
 		return limit.PerMinute(perMinute).Response(func(ctx contractshttp.Context) {
 			response.Abort(ctx, contractshttp.StatusTooManyRequests, "too_many_requests")
-		}).By("admin_api:" + adminID)
+		}).By(tenantRateKeyPrefix(ctx) + "admin_api:" + adminID)
 	})
 }
 
@@ -242,6 +243,20 @@ func isSuperAdminFromContext(ctx contractshttp.Context) bool {
 		}
 	}
 	return false
+}
+
+// tenantRateKeyPrefix isolates rate-limit buckets across tenants (admin IDs collide).
+func tenantRateKeyPrefix(ctx contractshttp.Context) string {
+	if !tenancy.Enabled() {
+		return ""
+	}
+	if code, ok := tenancyctx.CodeFrom(ctx); ok && code != "" {
+		return "t:" + code + ":"
+	}
+	if id, ok := tenancyctx.IDFrom(ctx); ok && id > 0 {
+		return fmt.Sprintf("t%d:", id)
+	}
+	return "t_unbound:"
 }
 
 // resolveLoginIdentifier 从请求中提取登录标识（username > email > X-Username > IP fallback）。

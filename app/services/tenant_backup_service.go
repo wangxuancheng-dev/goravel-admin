@@ -28,7 +28,9 @@ func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 		return "", err
 	}
 	stamp := time.Now().Format("20060102_150405")
-	outFile := filepath.Join(dir, stamp+".sql")
+	finalFile := filepath.Join(dir, stamp+".sql")
+	tmpFile := finalFile + ".tmp"
+	_ = os.Remove(tmpFile)
 
 	host, port, user, pass, database, err := ResolveTenantDSN(tenant)
 	if err != nil {
@@ -38,7 +40,7 @@ func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 	var cleanup func()
 	switch strings.ToLower(tenant.Driver) {
 	case models.TenantDriverPostgres, "pgsql", "postgresql":
-		args := []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-f", outFile}
+		args := []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-f", tmpFile}
 		if tenant.Isolation == models.TenantIsolationSchema && strings.TrimSpace(tenant.Schema) != "" {
 			args = append(args, "-n", tenant.Schema)
 		}
@@ -54,7 +56,7 @@ func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 			"--defaults-extra-file=" + defaultsFile,
 			"-h", host,
 			"-P", strconv.Itoa(port),
-			"--result-file=" + outFile,
+			"--result-file=" + tmpFile,
 			"--single-transaction",
 			"--routines",
 			"--triggers",
@@ -67,7 +69,17 @@ func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		_ = os.Remove(tmpFile)
 		return "", fmt.Errorf("backup failed: %w\n%s", err, string(out))
+	}
+	info, statErr := os.Stat(tmpFile)
+	if statErr != nil || info.Size() == 0 {
+		_ = os.Remove(tmpFile)
+		return "", fmt.Errorf("backup failed: empty dump file")
+	}
+	if err := os.Rename(tmpFile, finalFile); err != nil {
+		_ = os.Remove(tmpFile)
+		return "", err
 	}
 
 	if keep < 0 {
@@ -76,7 +88,7 @@ func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 	if keep > 0 {
 		_, _ = pruneTenantBackups(dir, keep)
 	}
-	return outFile, nil
+	return finalFile, nil
 }
 
 // ResolveTenantDSN returns connection fields for dump tools.

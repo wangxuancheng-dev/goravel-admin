@@ -145,8 +145,12 @@ func (s *TokenServiceImpl) FindToken(token string) (*models.PersonalAccessToken,
 
 	if accessToken.ExpiresAt != nil && accessToken.ExpiresAt.Before(time.Now()) {
 		if _, err := s.query().Delete(&accessToken); err != nil {
-			ctx, _ := traceid.EnsureContext(context.Background())
-			errorlog.Record(ctx, "token", "Failed to delete expired token", map[string]any{
+			logCtx := s.ctx
+			if logCtx == nil {
+				logCtx = context.Background()
+			}
+			logCtx, _ = traceid.EnsureContext(logCtx)
+			errorlog.Record(logCtx, "token", "Failed to delete expired token", map[string]any{
 				"token_id":     accessToken.ID,
 				"tokenable_id": accessToken.TokenableID,
 				"expires_at":   accessToken.ExpiresAt,

@@ -195,6 +195,12 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 			return nil, err
 		}
 		if err := s.conn.SeedTenant(&tenant); err != nil {
+			_ = s.conn.SetProvisionStatus(&tenant, models.TenantProvisionFailed)
+			_, _ = appfacades.PlatformOrmQuery(nil).Model(&tenant).Update(map[string]any{
+				"last_op":         models.TenantOpSeed,
+				"last_op_status":  models.TenantOpStatusFailed,
+				"last_op_message": err.Error(),
+			})
 			return nil, err
 		}
 	}

@@ -77,20 +77,38 @@ func WithSchemaContext(ctx context.Context, fn func() error) error {
 		return fn()
 	}
 	schema := Schema()
-	if schema.GetConnection() == conn {
+	if schema.GetConnection() == conn && schemaOrmDatabaseMatches(conn, schema) {
 		return fn()
 	}
 
 	schemaConnMu.Lock()
 	defer schemaConnMu.Unlock()
 
-	if schema.GetConnection() == conn {
+	if schema.GetConnection() == conn && schemaOrmDatabaseMatches(conn, schema) {
 		return fn()
 	}
 	prev := schema.GetConnection()
-	// Evict so SetConnection rebuilds Orm with tenant dbConfig (see EvictOrmConnectionCache).
-	EvictOrmConnectionCache(conn)
-	schema.SetConnection(conn)
+	bindSchemaConnection(schema, conn)
 	defer schema.SetConnection(prev)
 	return fn()
+}
+
+// bindSchemaConnection switches Schema to conn, rebuilding the Orm cache entry when
+// DatabaseName still points at the platform DB (framework Connection cache bug).
+func bindSchemaConnection(schema schema.Schema, conn string) {
+	schema.SetConnection(conn)
+	if schemaOrmDatabaseMatches(conn, schema) {
+		return
+	}
+	EvictOrmConnectionCache(conn)
+	schema.SetConnection(conn)
+}
+
+func schemaOrmDatabaseMatches(conn string, schema schema.Schema) bool {
+	want := Config().GetString("database.connections."+conn+".database", "")
+	if want == "" {
+		return true
+	}
+	got := schema.Orm().DatabaseName()
+	return got == "" || got == want
 }

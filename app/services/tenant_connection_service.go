@@ -11,6 +11,7 @@ import (
 	"github.com/goravel/framework/contracts/database/driver"
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/database/migration"
 	"github.com/goravel/framework/facades"
 	mysqlfacades "github.com/goravel/mysql/facades"
 	postgresfacades "github.com/goravel/postgres/facades"
@@ -691,19 +692,38 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 
 	schema := facades.Schema()
 	prevConn := schema.GetConnection()
-	// Evict cached query so SetConnection rebuilds with tenant dbConfig.
-	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
 	schema.SetConnection(tenant.ConnectionName)
+	if tenant.Isolation != models.TenantIsolationSchema {
+		want := tenant.Database
+		if want == "" {
+			want = facades.Config().GetString("database.connections."+tenant.ConnectionName+".database", "")
+		}
+		got := schema.Orm().DatabaseName()
+		if want != "" && got != "" && got != want {
+			appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
+			schema.SetConnection(tenant.ConnectionName)
+			got = schema.Orm().DatabaseName()
+			if got != "" && got != want {
+				schema.SetConnection(prevConn)
+				return fmt.Errorf("tenant schema DatabaseName=%s want %s (orm connection cache)", got, want)
+			}
+		}
+	}
 	defer schema.SetConnection(prevConn)
 
 	if db, err := schema.Orm().DB(); err == nil && db != nil {
 		applyTenantPoolLimits(db)
 	}
-	if tenant.Isolation != models.TenantIsolationSchema {
-		if got := schema.Orm().DatabaseName(); got != "" && tenant.Database != "" && got != tenant.Database {
-			return fmt.Errorf("tenant schema DatabaseName=%s want %s (orm connection cache)", got, tenant.Database)
-		}
-	}
+
+	// Seeders (and some migrate helpers) call facades.Orm().Query() on the root
+	// Orm. Flipping database.default does not rebind that query — point it at the
+	// tenant connection for the duration of fn.
+	// WARNING: this is process-global; migrateMu + SchemaConnLock serialize
+	// maintenance, but avoid concurrent facades.Orm().Query() outside OrmQuery(ctx).
+	rootOrm := facades.Orm()
+	prevQuery := rootOrm.Query()
+	rootOrm.SetQuery(schema.Orm().Query())
+	defer rootOrm.SetQuery(prevQuery)
 
 	return fn()
 }
@@ -720,21 +740,31 @@ func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...s
 			}
 			cmd += " --seeder=" + name
 		}
-		return facades.Artisan().Call(cmd)
+		if err := facades.Artisan().Call(cmd); err != nil {
+			return err
+		}
+		// Artisan seed may return nil even when data landed on the wrong DB.
+		n, err := facades.Orm().Query().Table("admins").Count()
+		if err != nil {
+			return fmt.Errorf("seed verify failed: %w", err)
+		}
+		if n == 0 {
+			return fmt.Errorf("seed failed: admins empty on %s (orm still on platform?)", facades.Schema().Orm().DatabaseName())
+		}
+		return nil
 	})
 }
 
 // MigrateTenant 在租户连接上执行 migrate，成功后标记 provision_status=ready。
 func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	err := s.WithTenantConnection(tenant, func() error {
-		// Framework migrate command returns nil even on failure (only prints ERROR).
-		_ = facades.Artisan().Call("migrate")
-		schema := facades.Schema()
-		if !schema.HasTable("migrations") {
-			return fmt.Errorf("migrate failed: migrations table missing on %s", schema.Orm().DatabaseName())
+		// Call Migrator.Run directly: Artisan migrate returns nil even on failure.
+		migrator := migration.NewMigrator(facades.Artisan(), facades.Schema(), "migrations")
+		if err := migrator.Run(); err != nil {
+			return err
 		}
-		if !schema.HasTable("admins") {
-			return fmt.Errorf("migrate failed: admins table missing on %s (schema still pointing at platform?)", schema.Orm().DatabaseName())
+		if !facades.Schema().HasTable("admins") {
+			return fmt.Errorf("migrate failed: admins table missing on %s", facades.Schema().Orm().DatabaseName())
 		}
 		return nil
 	})
@@ -790,7 +820,7 @@ func (s *TenantConnectionService) Ping(tenant *models.Tenant, timeout time.Durat
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
+	// Ping only needs Query/DB; do not Evict (would drop shared pools under load).
 	o := appfacades.Orm().Connection(tenant.ConnectionName)
 	db, err := o.DB()
 	if err != nil {
