@@ -1139,10 +1139,10 @@
     "op_restore_confirm": "Restore tenant DB from {name}? This overwrites current data.",
     "ping_ok_detail": "OK {host}/{db} · {ms}ms",
     "ping_fail": "Tenant DB unreachable",
-    "batch_seed": "Batch seed (active)",
-    "batch_backup": "Batch backup (active)",
-    "batch_seed_confirm": "Enqueue seed for all active tenants (max 100)?",
-    "batch_backup_confirm": "Enqueue backup for all active tenants (max 100)?",
+    "batch_seed": "Batch seed",
+    "batch_backup": "Batch backup",
+    "batch_seed_confirm": "Enqueue seed for {n} selected tenant(s)?",
+    "batch_backup_confirm": "Enqueue backup for {n} selected tenant(s)?",
     "export_csv": "Export CSV",
     "queue_status": "Queue {conn} · pending {pending}",
     "backup_keep_label": "Keep latest {n}",
@@ -1160,7 +1160,8 @@
     "delete_confirm_hint": "Delete tenant metadata. Type code {code} to confirm. Optionally DROP database/schema.",
     "confirm_code": "Confirm code",
     "drop_database": "Also drop database",
-    "login_link_copied": "Login path copied. {hint}"
+    "login_link_copied": "Login path copied. {hint}",
+    "batch_need_selection": "Select tenants first"
   },
   "platform": {
     "title": "Platform Console",

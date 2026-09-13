@@ -1148,10 +1148,10 @@
     "op_restore_confirm": "确认从 {name} 恢复该租户库？将覆盖当前数据。",
     "ping_ok_detail": "连通 {host}/{db} · {ms}ms",
     "ping_fail": "租户库不可达",
-    "batch_seed": "批量种子(启用)",
-    "batch_backup": "批量备份(启用)",
-    "batch_seed_confirm": "为所有启用租户入队 seed（最多100），是否继续？",
-    "batch_backup_confirm": "为所有启用租户入队 backup（最多100），是否继续？",
+    "batch_seed": "批量种子",
+    "batch_backup": "批量备份",
+    "batch_seed_confirm": "确认为选中的 {n} 个租户入队 seed？",
+    "batch_backup_confirm": "确认为选中的 {n} 个租户入队 backup？",
     "export_csv": "导出 CSV",
     "queue_status": "队列 {conn} · pending {pending}",
     "backup_keep_label": "保留最近 {n} 份",
@@ -1169,7 +1169,8 @@
     "delete_confirm_hint": "删除租户元数据。请输入租户码 {code} 确认。可选同时 DROP 数据库/Schema。",
     "confirm_code": "确认租户码",
     "drop_database": "同时删除数据库",
-    "login_link_copied": "登录路径已复制。{hint}"
+    "login_link_copied": "登录路径已复制。{hint}",
+    "batch_need_selection": "请先勾选租户"
   },
   "platform": {
     "title": "平台控制台",

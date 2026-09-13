@@ -1029,10 +1029,10 @@
     "op_restore_confirm": "确认从 {{name}} 入队恢复？将覆盖租户库数据。",
     "ping_ok_detail": "连通 {host}/{db} · {ms}ms",
     "ping_fail": "租户库不可达",
-    "batch_seed": "批量种子（已选）",
-    "batch_backup": "批量备份（已选）",
-    "batch_seed_confirm": "为已选 {{n}} 个租户入队 seed？",
-    "batch_backup_confirm": "为已选 {{n}} 个租户入队 backup？",
+    "batch_seed": "批量种子",
+    "batch_backup": "批量备份",
+    "batch_seed_confirm": "确认为选中的 {n} 个租户入队 seed？",
+    "batch_backup_confirm": "确认为选中的 {n} 个租户入队 backup？",
     "export_csv": "导出 CSV",
     "queue_status": "队列 {conn} · pending {pending}",
     "backup_keep_label": "保留最近 {n} 份",
@@ -1071,7 +1071,8 @@
     "prune_backups": "清理旧备份",
     "prune_confirm": "保留最新 {{keep}} 份并删除更旧的备份？",
     "prune_success": "已删除 {{n}} 个备份文件",
-    "queue_pending": "队列 {{queue}} 待处理 {{n}}"
+    "queue_pending": "队列 {{queue}} 待处理 {{n}}",
+    "batch_need_selection": "请先勾选租户"
   },
   "platform": {
     "title": "平台控制台",

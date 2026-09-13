@@ -19,8 +19,22 @@
       >
         {{ $t('tenant.retry_failed_migrate') }}
       </el-button>
-      <el-button size="small" :loading="batchLoading" @click="batchSeedActive">{{ $t('tenant.batch_seed') }}</el-button>
-      <el-button size="small" :loading="batchLoading" @click="batchBackupActive">{{ $t('tenant.batch_backup') }}</el-button>
+      <el-button
+        size="small"
+        :loading="batchLoading"
+        :disabled="selectedRows.length < 1"
+        @click="batchSeedSelected"
+      >
+        {{ $t('tenant.batch_seed') }}
+      </el-button>
+      <el-button
+        size="small"
+        :loading="batchLoading"
+        :disabled="selectedRows.length < 1"
+        @click="batchBackupSelected"
+      >
+        {{ $t('tenant.batch_backup') }}
+      </el-button>
       <el-button size="small" @click="exportCsv">{{ $t('tenant.export_csv') }}</el-button>
     </div>
     <ListPage
@@ -43,6 +57,7 @@
     @refresh="loadData"
     @page-change="loadData"
     @sort-change="handleSortChange"
+    @selection-change="handleSelectionChange"
   >
     <template #provision_status="{ row }">
       <el-tooltip :content="row.last_migrate_error || row.last_op_message || ''" :disabled="!(row.last_migrate_error || row.last_op_message)">
@@ -339,6 +354,7 @@ const migrateRow = ref(null)
 const withSeed = ref(true)
 const opsSummary = ref(null)
 const batchLoading = ref(false)
+const selectedRows = ref([])
 const detailVisible = ref(false)
 const detailRow = ref(null)
 const backupsVisible = ref(false)
@@ -526,6 +542,7 @@ const retryFailedMigrates = async () => {
 }
 
 const tableColumns = computed(() => [
+  { type: 'checkbox', width: 52, fixed: 'left', key: 'checkbox' },
   { field: 'id', title: t('table.id'), width: 70, sortable: true, key: 'id' },
   { field: 'code', title: t('tenant.code'), width: 110, key: 'code' },
   { field: 'name', title: t('tenant.name'), width: 120, key: 'name' },
@@ -538,6 +555,10 @@ const tableColumns = computed(() => [
   { field: 'created_at', title: t('table.created_at'), key: 'created_at' },
   { field: 'actions', title: t('common.operation'), width: 320, slot: 'actions', key: 'actions' }
 ])
+
+const handleSelectionChange = (rows) => {
+  selectedRows.value = Array.isArray(rows) ? rows : []
+}
 
 const form = reactive({
   code: '',
@@ -708,16 +729,22 @@ const onMoreCommand = (cmd, row) => {
   }
 }
 
-const batchSeedActive = async () => {
+const batchSeedSelected = async () => {
+  const ids = selectedRows.value.map((r) => r.id).filter(Boolean)
+  if (!ids.length) {
+    ElMessage.warning(t('tenant.batch_need_selection'))
+    return
+  }
   try {
-    await ElMessageBox.confirm(t('tenant.batch_seed_confirm'), { type: 'warning' })
+    await ElMessageBox.confirm(t('tenant.batch_seed_confirm', { n: ids.length }), { type: 'warning' })
   } catch {
     return
   }
   batchLoading.value = true
   try {
-    const res = await opsPlatformTenantBatch({ op: 'seed', status: 1 })
+    const res = await opsPlatformTenantBatch({ op: 'seed', ids })
     ElMessage.success(t('tenant.batch_queued', { n: res?.data?.queued_count ?? 0 }))
+    selectedRows.value = []
     await loadData()
     await refreshOpsSummary()
   } catch (e) {
@@ -727,16 +754,22 @@ const batchSeedActive = async () => {
   }
 }
 
-const batchBackupActive = async () => {
+const batchBackupSelected = async () => {
+  const ids = selectedRows.value.map((r) => r.id).filter(Boolean)
+  if (!ids.length) {
+    ElMessage.warning(t('tenant.batch_need_selection'))
+    return
+  }
   try {
-    await ElMessageBox.confirm(t('tenant.batch_backup_confirm'), { type: 'warning' })
+    await ElMessageBox.confirm(t('tenant.batch_backup_confirm', { n: ids.length }), { type: 'warning' })
   } catch {
     return
   }
   batchLoading.value = true
   try {
-    const res = await opsPlatformTenantBatch({ op: 'backup', status: 1 })
+    const res = await opsPlatformTenantBatch({ op: 'backup', ids })
     ElMessage.success(t('tenant.batch_queued', { n: res?.data?.queued_count ?? 0 }))
+    selectedRows.value = []
     await loadData()
     await refreshOpsSummary()
   } catch (e) {
