@@ -86,6 +86,7 @@ var (
 
 	// 数据存在性错误
 	ErrUsernameExists                = NewBusinessError("username_exists", "用户名已存在")
+	ErrUsernameUnavailable           = NewBusinessError("username_unavailable", "username unavailable")
 	ErrMenuSlugExists                = NewBusinessError("menu_slug_exists", "菜单标识已存在")
 	ErrRoleNameExists                = NewBusinessError("role_name_exists", "角色名称已存在")
 	ErrRoleSlugExists                = NewBusinessError("role_slug_exists", "角色标识已存在")

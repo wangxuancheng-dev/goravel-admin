@@ -6,6 +6,7 @@ import { createRole, getRoleDetail, updateRole } from '@/api/role'
 import { getMenuTree } from '@/api/menu'
 import { getPermissionList } from '@/api/permission'
 import { getOptions, type OptionItem } from '@/api/option'
+import { normalizeOptions, toOptionTreeData } from '@/hooks/useOptions'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { entityField, normalizeEntity } from '@/utils/normalize'
 import { resolveMenuTitle, resolvePermissionTitle } from '@/utils/menuTitle'
@@ -27,21 +28,6 @@ interface RoleFormModalProps {
 
 const PROTECTED = 'super-admin'
 
-type DeptTreeNode = { title: string; value: number | string; children?: DeptTreeNode[] }
-
-function toDeptTreeData(items: OptionItem[]): DeptTreeNode[] {
-  return items.map((item) => {
-    const value = (item.value ?? item.id) as number | string
-    const title = String(item.label ?? item.name ?? value)
-    const children = item.children
-    return {
-      title,
-      value,
-      children: Array.isArray(children) ? toDeptTreeData(children) : undefined,
-    }
-  })
-}
-
 export default function RoleFormModal({ open, editId, onClose, onSuccess }: RoleFormModalProps) {
   const { t, i18n } = useTranslation()
   const { message } = App.useApp()
@@ -57,7 +43,7 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
   const dataScope = Form.useWatch('data_scope', form)
 
   const isProtected = slug === PROTECTED
-  const deptTreeData = useMemo(() => toDeptTreeData(deptTree), [deptTree])
+  const deptTreeData = useMemo(() => toOptionTreeData(deptTree), [deptTree])
 
   const dataScopeOptions = useMemo(
     () => [
@@ -112,13 +98,7 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
         const flatPerms = flattenPermissionList(permRes.data)
         setMenus(flatMenus)
         setPermissions(flatPerms)
-        const deptData = deptRes.data
-        const deptList = Array.isArray(deptData)
-          ? deptData
-          : (deptData as { list?: OptionItem[]; options?: OptionItem[] })?.list ||
-            (deptData as { options?: OptionItem[] })?.options ||
-            []
-        setDeptTree(deptList)
+        setDeptTree(normalizeOptions(deptRes.data))
 
         if (!editId) {
           form.setFieldsValue({

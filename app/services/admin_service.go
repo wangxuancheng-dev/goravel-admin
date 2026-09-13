@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"slices"
+	"strings"
 
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
@@ -429,14 +430,58 @@ func (s *AdminServiceImpl) ValidateUsernameUnique(username string, excludeID uin
 	if username == "" {
 		return nil
 	}
+	username = strings.TrimSpace(username)
+	if s.isReservedAdminUsername(username) {
+		return apperrors.ErrUsernameUnavailable
+	}
 	exists, err := utils.ExistsColumnValue(s.ctx, "admins", nil, utils.UniqueReuseDeny, "username", username, excludeID)
 	if err != nil {
 		return apperrors.ErrCreateFailed.WithError(err)
 	}
-	if exists {
-		return apperrors.ErrUsernameExists
+	if !exists {
+		return nil
 	}
-	return nil
+	if s.isUsernameTakenByProtectedAdmin(username, excludeID) {
+		return apperrors.ErrUsernameUnavailable
+	}
+	return apperrors.ErrUsernameExists
+}
+
+func (s *AdminServiceImpl) isReservedAdminUsername(username string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(username))
+	if normalized == "" {
+		return false
+	}
+	for _, reserved := range s.getReservedAdminUsernames() {
+		if normalized == strings.ToLower(reserved) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *AdminServiceImpl) getReservedAdminUsernames() []string {
+	raw := facades.Config().GetString("admin.reserved_usernames", "admin,developer")
+	var names []string
+	for _, part := range str.Of(raw).Split(",") {
+		part = str.Of(part).Trim().String()
+		if part != "" {
+			names = append(names, part)
+		}
+	}
+	return names
+}
+
+func (s *AdminServiceImpl) isUsernameTakenByProtectedAdmin(username string, excludeID uint) bool {
+	var admin models.Admin
+	query := appfacades.OrmQuery(s.ctx).Where("username", username)
+	if excludeID > 0 {
+		query = query.Where("id <> ?", excludeID)
+	}
+	if err := query.First(&admin); err != nil || admin.ID == 0 {
+		return false
+	}
+	return s.IsProtectedAdmin(admin.ID)
 }
 
 // CreateAdmin 创建管理员并同步角色

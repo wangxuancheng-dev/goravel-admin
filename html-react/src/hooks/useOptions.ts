@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { getOptions, type OptionItem } from '@/api/option'
 import logger from '@/utils/logger'
 
-function normalizeOptions(data: unknown): OptionItem[] {
+export type OptionTreeNode = {
+  title: string
+  value: number | string
+  children?: OptionTreeNode[]
+}
+
+/** Prefer `options` tree (id/name/label); fall back to `list` only if needed. */
+export function normalizeOptions(data: unknown): OptionItem[] {
   if (Array.isArray(data)) return data
   if (data && typeof data === 'object') {
     const obj = data as { options?: OptionItem[]; list?: OptionItem[] }
@@ -10,6 +17,20 @@ function normalizeOptions(data: unknown): OptionItem[] {
     if (Array.isArray(obj.list)) return obj.list
   }
   return []
+}
+
+/** Map option tree nodes for Ant Design TreeSelect. */
+export function toOptionTreeData(items: OptionItem[]): OptionTreeNode[] {
+  return items.map((item) => {
+    const value = (item.value ?? item.id ?? item.ID) as number | string
+    const title = String(item.label ?? item.name ?? item.Name ?? item.title ?? value ?? '')
+    const children = item.children
+    return {
+      title,
+      value,
+      children: Array.isArray(children) ? toOptionTreeData(children) : undefined,
+    }
+  })
 }
 
 export function mapOptions(

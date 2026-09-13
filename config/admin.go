@@ -28,6 +28,10 @@ func init() {
 		//   Multiple IDs: ADMIN_DEVELOPER_IDS=2,3,4
 		//   Multiple IDs with spaces: ADMIN_DEVELOPER_IDS=2, 3, 4
 		"developer_ids": config.Env("ADMIN_DEVELOPER_IDS", "2"), // Default: ID 2 (developer admin)
+
+		// Reserved usernames for create/update (comma-separated, case-insensitive).
+		// Conflicts return username_unavailable instead of username_exists (avoids leaking hidden accounts).
+		"reserved_usernames": config.Env("ADMIN_RESERVED_USERNAMES", "admin,developer"),
 		// 注意：验证码配置已迁移到数据库存储（configs表，group='captcha'）
 		// 后台管理系统 -> 系统管理 -> 配置管理 -> 验证码配置
 		// 如需在代码中使用验证码配置，请从数据库读取，而不是从环境变量读取

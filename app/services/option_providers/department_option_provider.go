@@ -28,7 +28,6 @@ func (p *DepartmentOptionProvider) GetOptions(ctx http.Context) (map[string]any,
 
 	return map[string]any{
 		"options": tree,
-		"list":    departments,
 	}, nil
 }
 

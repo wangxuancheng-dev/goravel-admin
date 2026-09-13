@@ -358,6 +358,7 @@
         "start_time": "start time",
         "end_time": "end time"
       }
-    }
+    },
+    "username_unavailable": "This username is not available. Please choose another."
   }
 }

@@ -358,6 +358,7 @@
         "start_time": "开始时间",
         "end_time": "结束时间"
       }
-    }
+    },
+    "username_unavailable": "该用户名不可使用，请更换后重试"
   }
 }

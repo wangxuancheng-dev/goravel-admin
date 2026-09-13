@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { App, Form, Input, Modal, Radio, Select, TreeSelect } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { createAdmin, getAdminDetail, updateAdmin } from '@/api/admin'
-import { useOptions } from '@/hooks/useOptions'
+import { normalizeOptions, toOptionTreeData, useOptions } from '@/hooks/useOptions'
 import { getOptions, type OptionItem } from '@/api/option'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { entityField } from '@/utils/normalize'
@@ -12,21 +12,6 @@ interface AdminFormModalProps {
   editId?: string | number | null
   onClose: () => void
   onSuccess: () => void
-}
-
-type DeptTreeNode = { title: string; value: number | string; children?: DeptTreeNode[] }
-
-function toTreeData(items: OptionItem[]): DeptTreeNode[] {
-  return items.map((item) => {
-    const value = (item.value ?? item.id) as number | string
-    const title = String(item.label ?? item.name ?? value)
-    const children = item.children
-    return {
-      title,
-      value,
-      children: Array.isArray(children) ? toTreeData(children) : undefined,
-    }
-  })
 }
 
 export default function AdminFormModal({ open, editId, onClose, onSuccess }: AdminFormModalProps) {
@@ -44,15 +29,11 @@ export default function AdminFormModal({ open, editId, onClose, onSuccess }: Adm
   useEffect(() => {
     if (!open) return
     getOptions('department')
-      .then((res) => {
-        const data = res.data
-        const list = Array.isArray(data) ? data : (data as { list?: OptionItem[] })?.list || []
-        setDeptTree(list)
-      })
+      .then((res) => setDeptTree(normalizeOptions(res.data)))
       .catch(() => setDeptTree([]))
   }, [open])
 
-  const deptTreeData = useMemo(() => toTreeData(deptTree), [deptTree])
+  const deptTreeData = useMemo(() => toOptionTreeData(deptTree), [deptTree])
 
   useEffect(() => {
     if (!open) return

@@ -52,6 +52,8 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusNotFound
 	case strings.HasSuffix(code, "_exists") || strings.HasSuffix(code, "_already_exists"):
 		return http.StatusBadRequest
+	case code == "username_unavailable" || strings.HasSuffix(code, "_unavailable"):
+		return http.StatusBadRequest
 	case code == "password_encrypt_failed":
 		return http.StatusInternalServerError
 	case code == "too_many_requests" || code == "login_locked":
