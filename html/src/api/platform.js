@@ -79,6 +79,11 @@ export function getPlatformTenantOpLogs(id, params = {}) {
   return platformRequest.get(`/tenants/${id}/op-logs`, { params })
 }
 
+export async function getPlatformTenantOpLogList(params) {
+  const res = await platformRequest.get('/tenant-op-logs', { params })
+  return normalizeListResponse(res)
+}
+
 export function getPlatformTenantLoginLinks(id) {
   return platformRequest.get(`/tenants/${id}/login-links`)
 }

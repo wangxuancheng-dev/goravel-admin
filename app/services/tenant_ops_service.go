@@ -11,17 +11,28 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/utils"
 )
 
 const tenantOpLockTTL = 30 * time.Minute
 
+// TenantOpActor is the platform admin who triggered an op.
+type TenantOpActor struct {
+	ID   uint
+	Name string
+}
+
 // TenantOpsArgs is the queue payload for platform tenant maintenance jobs.
 type TenantOpsArgs struct {
-	TenantID   uint   `json:"tenant_id"`
-	Op         string `json:"op"` // migrate|seed|backup|restore
-	WithSeed   bool   `json:"with_seed,omitempty"`
-	BackupName string `json:"backup_name,omitempty"` // restore only
-	Keep       int    `json:"keep,omitempty"`        // backup retention override; <0 = config default
+	TenantID     uint   `json:"tenant_id"`
+	Op           string `json:"op"` // migrate|seed|backup|restore
+	WithSeed     bool   `json:"with_seed,omitempty"`
+	BackupName   string `json:"backup_name,omitempty"`
+	Keep         int    `json:"keep,omitempty"`
+	OpLogID      uint   `json:"op_log_id,omitempty"`
+	BatchID      string `json:"batch_id,omitempty"`
+	OperatorID   uint   `json:"operator_id,omitempty"`
+	OperatorName string `json:"operator_name,omitempty"`
 }
 
 type TenantOpsService struct {
@@ -43,14 +54,18 @@ func (s *TenantOpsService) requireEnabled() error {
 	return nil
 }
 
-// BeginQueuedOp marks the tenant as queued for op. Caller must Dispatch the job;
-// on dispatch failure call MarkOpFailed (and restore provision for migrate).
-func (s *TenantOpsService) BeginQueuedOp(id uint, op string, withSeed bool) (*models.Tenant, TenantOpsArgs, error) {
-	return s.BeginQueuedOpWithBackup(id, op, withSeed, "")
+// NewTenantOpsBatchID returns a correlation id for multi-tenant enqueue.
+func NewTenantOpsBatchID() string {
+	return utils.GenerateULID()
+}
+
+// BeginQueuedOp marks the tenant as queued for op.
+func (s *TenantOpsService) BeginQueuedOp(id uint, op string, withSeed bool, actor TenantOpActor, batchID string) (*models.Tenant, TenantOpsArgs, error) {
+	return s.BeginQueuedOpWithBackup(id, op, withSeed, "", actor, batchID)
 }
 
 // BeginQueuedOpWithBackup is BeginQueuedOp plus optional backup file name (restore).
-func (s *TenantOpsService) BeginQueuedOpWithBackup(id uint, op string, withSeed bool, backupName string) (*models.Tenant, TenantOpsArgs, error) {
+func (s *TenantOpsService) BeginQueuedOpWithBackup(id uint, op string, withSeed bool, backupName string, actor TenantOpActor, batchID string) (*models.Tenant, TenantOpsArgs, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, TenantOpsArgs{}, err
 	}
@@ -109,14 +124,23 @@ func (s *TenantOpsService) BeginQueuedOpWithBackup(id uint, op string, withSeed 
 		tenant.ProvisionStatus = models.TenantProvisionMigrating
 		tenant.LastMigrateError = ""
 	}
-	AppendTenantOpLog(tenant, op, models.TenantOpStatusQueued, "", &now, nil)
 
-	return tenant, TenantOpsArgs{TenantID: id, Op: op, WithSeed: withSeed, BackupName: strings.TrimSpace(backupName)}, nil
+	logID := CreateTenantOpLog(tenant, op, models.TenantOpStatusQueued, "", batchID, actor, &now, nil)
+	return tenant, TenantOpsArgs{
+		TenantID:     id,
+		Op:           op,
+		WithSeed:     withSeed,
+		BackupName:   strings.TrimSpace(backupName),
+		OpLogID:      logID,
+		BatchID:      strings.TrimSpace(batchID),
+		OperatorID:   actor.ID,
+		OperatorName: actor.Name,
+	}, nil
 }
 
 // BeginQueuedBackup enqueues backup with optional keep override (negative = config default).
-func (s *TenantOpsService) BeginQueuedBackup(id uint, keep int) (*models.Tenant, TenantOpsArgs, error) {
-	tenant, args, err := s.BeginQueuedOpWithBackup(id, models.TenantOpBackup, false, "")
+func (s *TenantOpsService) BeginQueuedBackup(id uint, keep int, actor TenantOpActor, batchID string) (*models.Tenant, TenantOpsArgs, error) {
+	tenant, args, err := s.BeginQueuedOpWithBackup(id, models.TenantOpBackup, false, "", actor, batchID)
 	if err != nil {
 		return nil, TenantOpsArgs{}, err
 	}
@@ -124,7 +148,7 @@ func (s *TenantOpsService) BeginQueuedBackup(id uint, keep int) (*models.Tenant,
 	return tenant, args, nil
 }
 
-func (s *TenantOpsService) MarkOpFailed(tenant *models.Tenant, msg string) error {
+func (s *TenantOpsService) MarkOpFailed(tenant *models.Tenant, msg string, opLogID uint) error {
 	if tenant == nil || tenant.ID == 0 {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
@@ -146,7 +170,7 @@ func (s *TenantOpsService) MarkOpFailed(tenant *models.Tenant, msg string) error
 		tenant.LastOpStatus = models.TenantOpStatusFailed
 		tenant.LastOpMessage = msg
 		tenant.LastOpAt = &now
-		AppendTenantOpLog(tenant, tenant.LastOp, models.TenantOpStatusFailed, msg, nil, &now)
+		UpdateTenantOpLog(opLogID, tenant, tenant.LastOp, models.TenantOpStatusFailed, msg, &now)
 	}
 	return err
 }
@@ -199,7 +223,7 @@ func RunTenantOp(args TenantOpsArgs) error {
 	tenant.LastOp = op
 	tenant.LastOpStatus = models.TenantOpStatusRunning
 	tenant.LastOpAt = &now
-	AppendTenantOpLog(tenant, op, models.TenantOpStatusRunning, "", &now, nil)
+	UpdateTenantOpLog(args.OpLogID, tenant, op, models.TenantOpStatusRunning, "", nil)
 
 	var runErr error
 	var successMsg string
@@ -266,7 +290,7 @@ func RunTenantOp(args TenantOpsArgs) error {
 		tenant.LastOpStatus = models.TenantOpStatusFailed
 		tenant.LastOpMessage = msg
 		tenant.LastOpAt = &failAt
-		AppendTenantOpLog(tenant, op, models.TenantOpStatusFailed, msg, &now, &failAt)
+		UpdateTenantOpLog(args.OpLogID, tenant, op, models.TenantOpStatusFailed, msg, &failAt)
 		return runErr
 	}
 
@@ -281,28 +305,68 @@ func RunTenantOp(args TenantOpsArgs) error {
 	tenant.LastOpStatus = models.TenantOpStatusSuccess
 	tenant.LastOpMessage = successMsg
 	tenant.LastOpAt = &okAt
-	AppendTenantOpLog(tenant, op, models.TenantOpStatusSuccess, successMsg, &now, &okAt)
+	UpdateTenantOpLog(args.OpLogID, tenant, op, models.TenantOpStatusSuccess, successMsg, &okAt)
 	return nil
 }
 
-// AppendTenantOpLog writes a landlord history row (best-effort).
-func AppendTenantOpLog(tenant *models.Tenant, op, status, message string, started, finished *time.Time) {
+// CreateTenantOpLog inserts one landlord history row; returns id (0 on failure).
+func CreateTenantOpLog(tenant *models.Tenant, op, status, message, batchID string, actor TenantOpActor, started, finished *time.Time) uint {
 	if tenant == nil || tenant.ID == 0 || op == "" {
-		return
+		return 0
 	}
 	if len(message) > 2000 {
 		message = message[:2000]
 	}
 	row := models.TenantOpLog{
-		TenantID:   tenant.ID,
-		Code:       tenant.Code,
-		Op:         op,
-		Status:     status,
-		Message:    message,
-		StartedAt:  started,
-		FinishedAt: finished,
+		TenantID:     tenant.ID,
+		Code:         tenant.Code,
+		Op:           op,
+		Status:       status,
+		Message:      message,
+		BatchID:      strings.TrimSpace(batchID),
+		OperatorID:   actor.ID,
+		OperatorName: strings.TrimSpace(actor.Name),
+		StartedAt:    started,
+		FinishedAt:   finished,
 	}
-	_ = appfacades.PlatformOrmQuery(nil).Create(&row)
+	if err := appfacades.PlatformOrmQuery(nil).Create(&row); err != nil {
+		return 0
+	}
+	return row.ID
+}
+
+// UpdateTenantOpLog updates the same job row; falls back to latest open row when id is 0.
+func UpdateTenantOpLog(id uint, tenant *models.Tenant, op, status, message string, finished *time.Time) {
+	if len(message) > 2000 {
+		message = message[:2000]
+	}
+	updates := map[string]any{
+		"status":  status,
+		"message": message,
+	}
+	if finished != nil {
+		updates["finished_at"] = finished
+	}
+	q := appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{})
+	if id > 0 {
+		_, _ = q.Where("id", id).Update(updates)
+		return
+	}
+	if tenant == nil || tenant.ID == 0 || op == "" {
+		return
+	}
+	var row models.TenantOpLog
+	err := appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{}).
+		Where("tenant_id", tenant.ID).
+		Where("op", op).
+		Where("status IN ?", []string{models.TenantOpStatusQueued, models.TenantOpStatusRunning}).
+		Order("id desc").
+		First(&row)
+	if err != nil || row.ID == 0 {
+		_ = CreateTenantOpLog(tenant, op, status, message, "", TenantOpActor{}, nil, finished)
+		return
+	}
+	_, _ = appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{}).Where("id", row.ID).Update(updates)
 }
 
 // ListTenantOpLogs returns recent op history for a tenant.
@@ -323,4 +387,71 @@ func ListTenantOpLogs(tenantID uint, limit int) ([]models.TenantOpLog, error) {
 		Limit(limit).
 		Find(&rows)
 	return rows, err
+}
+
+// TenantOpLogFilters for the global platform ops log list.
+type TenantOpLogFilters struct {
+	Code     string
+	Op       string
+	Status   string
+	BatchID  string
+	Operator string
+}
+
+// ListTenantOpLogsPaged returns a filtered platform-wide ops log page.
+func ListTenantOpLogsPaged(filters TenantOpLogFilters, page, pageSize int) ([]models.TenantOpLog, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 15
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	query := appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{})
+	if code := strings.TrimSpace(filters.Code); code != "" {
+		query = query.Where("code LIKE ?", "%"+code+"%")
+	}
+	if op := strings.TrimSpace(filters.Op); op != "" {
+		query = query.Where("op", op)
+	}
+	if st := strings.TrimSpace(filters.Status); st != "" {
+		query = query.Where("status", st)
+	}
+	if batch := strings.TrimSpace(filters.BatchID); batch != "" {
+		query = query.Where("batch_id", batch)
+	}
+	if opName := strings.TrimSpace(filters.Operator); opName != "" {
+		query = query.Where("operator_name LIKE ?", "%"+opName+"%")
+	}
+	total, err := query.Count()
+	if err != nil {
+		return nil, 0, err
+	}
+	var rows []models.TenantOpLog
+	err = query.Order("id desc").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows)
+	return rows, total, err
+}
+
+// TenantOpLogToJSON serializes a log row for API responses.
+func TenantOpLogToJSON(row *models.TenantOpLog) map[string]any {
+	if row == nil {
+		return nil
+	}
+	return map[string]any{
+		"id":            row.ID,
+		"tenant_id":     row.TenantID,
+		"code":          row.Code,
+		"op":            row.Op,
+		"status":        row.Status,
+		"message":       row.Message,
+		"batch_id":      row.BatchID,
+		"operator_id":   row.OperatorID,
+		"operator_name": row.OperatorName,
+		"started_at":    row.StartedAt,
+		"finished_at":   row.FinishedAt,
+		"created_at":    row.CreatedAt,
+		"updated_at":    row.UpdatedAt,
+	}
 }

@@ -33,6 +33,7 @@ func Platform() {
 			router.Get("tenants/settings", tenantController.Settings)
 			router.Get("tenants/queue-status", tenantController.QueueStatus)
 			router.Get("tenants/export", tenantController.Export)
+			router.Get("tenant-op-logs", tenantController.OpLogsIndex)
 			router.Post("tenants/migrate-batch", tenantController.MigrateBatch)
 			router.Post("tenants/ops-batch", tenantController.OpsBatch)
 			router.Get("tenants/{id}", tenantController.Show)

@@ -288,6 +288,8 @@
     <el-timeline v-if="opLogs.length">
       <el-timeline-item v-for="item in opLogs" :key="item.id" :timestamp="item.finished_at || item.started_at || item.created_at" placement="top">
         <div>{{ item.op }} / {{ item.status }}</div>
+        <div v-if="item.operator_name" class="op-meta">{{ $t('tenant_op_log.operator') }}: {{ item.operator_name }}</div>
+        <div v-if="item.batch_id" class="op-meta">{{ $t('tenant_op_log.batch_id') }}: {{ item.batch_id }}</div>
         <div class="op-meta">{{ item.message || '—' }}</div>
       </el-timeline-item>
     </el-timeline>
@@ -531,7 +533,8 @@ const retryFailedMigrates = async () => {
   try {
     const res = await migratePlatformTenantBatch({ provision_status: 'failed', with_seed: false })
     const n = res?.data?.queued_count ?? 0
-    ElMessage.success(t('tenant.batch_queued', { n }))
+    const batch = res?.data?.batch_id ? t('tenant.batch_id_suffix', { id: res.data.batch_id }) : ''
+    ElMessage.success(t('tenant.batch_queued', { n, batch }))
     await loadData()
     await refreshOpsSummary()
   } catch (e) {
@@ -743,7 +746,9 @@ const batchSeedSelected = async () => {
   batchLoading.value = true
   try {
     const res = await opsPlatformTenantBatch({ op: 'seed', ids })
-    ElMessage.success(t('tenant.batch_queued', { n: res?.data?.queued_count ?? 0 }))
+    const n = res?.data?.queued_count ?? 0
+    const batch = res?.data?.batch_id ? t('tenant.batch_id_suffix', { id: res.data.batch_id }) : ''
+    ElMessage.success(t('tenant.batch_queued', { n, batch }))
     selectedRows.value = []
     await loadData()
     await refreshOpsSummary()
@@ -768,7 +773,9 @@ const batchBackupSelected = async () => {
   batchLoading.value = true
   try {
     const res = await opsPlatformTenantBatch({ op: 'backup', ids })
-    ElMessage.success(t('tenant.batch_queued', { n: res?.data?.queued_count ?? 0 }))
+    const n = res?.data?.queued_count ?? 0
+    const batch = res?.data?.batch_id ? t('tenant.batch_id_suffix', { id: res.data.batch_id }) : ''
+    ElMessage.success(t('tenant.batch_queued', { n, batch }))
     selectedRows.value = []
     await loadData()
     await refreshOpsSummary()

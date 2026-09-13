@@ -122,8 +122,42 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
-4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20），避免几百商户打满 MySQL。
+4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20）；户多时按下方 [规模与推荐配置](#规模与推荐配置) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
+
+
+## 规模与推荐配置
+
+以下为**经验起点**，需按监控回调，不是硬性配额。户多时首要瓶颈通常是**租户库连接池**（不是 Redis）。Redis 全站共用（缓存键经 `tenancy.CacheKey` 加 `t{id}:` 前缀），一般升规格即可；队列与缓存吵邻居时再考虑拆实例或分 DB。
+
+**容量公式（租户库）：**
+
+`进程内已注册的租户池数 × TENANCY_POOL_MAX_OPEN_CONNS × API 实例数` ≪ 数据库 `max_connections`（预留平台库、备份、运维余量）。
+
+「已注册池数」≈ 近期有流量、尚未被 Forget 的租户，**不是** `tenants` 表总行数。同机多库时所有 `tenant_*` 仍计入同一 MySQL/PG 实例的连接上限。
+
+| 活跃商户量级（经验） | 租户池建议 | 队列 / 进程 | Redis |
+|----------------------|------------|-------------|-------|
+| &lt; 50 | 默认 `IDLE=2` / `OPEN=20` 可留；流量低可先降到 `OPEN=10` | 可同机 Worker；`QUEUE_CONNECTION=redis` | 单机或小规格云 Redis |
+| 50–200 | `IDLE=1–2`，`OPEN=3–5`；缩短 idle/lifetime（如 120 / 600） | API 与 Worker **分角色**（见 [生产清单](/deploy/production) §4.1）；`QUEUE_LONG_RUNNING_CONCURRENT` 保持较小，靠加 Worker 机水平扩 | 托管 Redis，盯 `used_memory` 与队列 backlog |
+| 200+ | `OPEN` 进一步收紧或扩库 `max_connections`；避免默认 20 原样上生产 | 独立 Worker 消费 `default` + `long-running`；配置 `QUEUE_ALERT_BACKLOG_THRESHOLD` | 更大规格 / Cluster；导出导入高峰注意吵邻居 |
+
+示例（约 100 活跃户、2 个 API 实例时的起点）：
+
+```ini
+TENANCY_POOL_MAX_IDLE_CONNS=1
+TENANCY_POOL_MAX_OPEN_CONNS=5
+TENANCY_POOL_CONN_MAX_IDLETIME=120
+TENANCY_POOL_CONN_MAX_LIFETIME=600
+
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+QUEUE_CONCURRENT=2
+QUEUE_LONG_RUNNING_CONCURRENT=1
+# API 机：APP_DISABLED_RUNNERS=queue-*
+```
+
+**建议监控：** MySQL/PG `Threads_connected`（或等价指标）、队列 pending / `queue:alert-backlog`、Redis 内存与连接数。接近上限时先下调 `TENANCY_POOL_*` 或扩容，而不是盲目加 API 副本（副本会放大连接占用）。
 
 ## 运维增强
 
@@ -223,6 +257,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/tenants/{id}/backups/prune` | 保留最新 N 份备份（body `keep`） |
 | DELETE | `/api/platform/tenants/{id}` | 删除租户元数据（body `confirm_code`=租户码，可选 `drop_database`） |
 | GET | `/api/platform/tenants/{id}/overview` | 库概览（表数、体积、管理员数等） |
+| GET | `/api/platform/tenant-op-logs` | 全平台运维执行记录（筛选 code/op/status/batch_id/operator） |
 | GET | `/api/platform/tenants/{id}/op-logs` | 运维时间线 |
 | GET | `/api/platform/tenants/{id}/login-links` | 租户后台登录方式 |
 | GET | `/api/platform/tenants/settings` | 控制台可见配置（`backup_keep`、队列） |

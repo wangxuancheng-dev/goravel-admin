@@ -27,7 +27,7 @@ func (r *TenantOps) Handle(args ...any) (retErr error) {
 				admin := services.NewTenantAdminService()
 				ops := services.NewTenantOpsService()
 				if tenant, err := admin.GetByID(opArgs.TenantID); err == nil {
-					_ = ops.MarkOpFailed(tenant, retErr.Error())
+					_ = ops.MarkOpFailed(tenant, retErr.Error(), opArgs.OpLogID)
 				}
 			}
 		}
@@ -57,6 +57,10 @@ func parseTenantOpsArgs(args ...any) (services.TenantOpsArgs, error) {
 		out.WithSeed = cast.ToBool(v["with_seed"])
 		out.BackupName = cast.ToString(v["backup_name"])
 		out.Keep = cast.ToInt(v["keep"])
+		out.OpLogID = cast.ToUint(v["op_log_id"])
+		out.BatchID = cast.ToString(v["batch_id"])
+		out.OperatorID = cast.ToUint(v["operator_id"])
+		out.OperatorName = cast.ToString(v["operator_name"])
 		return out, nil
 	default:
 		return out, fmt.Errorf("invalid tenant ops args type: %T", args[0])

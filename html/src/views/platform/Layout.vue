@@ -12,6 +12,7 @@
       <aside class="platform-aside">
         <el-menu :default-active="active" router>
           <el-menu-item index="/platform/tenants">{{ $t('menu.tenant') }}</el-menu-item>
+          <el-menu-item index="/platform/tenant-op-logs">{{ $t('menu.tenant_op_log') }}</el-menu-item>
         </el-menu>
       </aside>
       <main class="platform-main">

@@ -24,6 +24,7 @@ import NotFoundPage from '../pages/NotFound'
 import PlatformLoginPage from '../pages/platform/Login'
 import PlatformLayout from '../pages/platform/Layout'
 import PlatformTenantListPage from '../pages/platform/TenantList'
+import PlatformTenantOpLogListPage from '../pages/platform/TenantOpLogList'
 import { getPlatformToken } from '@/utils/platformRequest'
 
 function PageFallback({ fullscreen = false }: { fullscreen?: boolean }) {
@@ -165,6 +166,11 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
               path: 'tenants',
               element: <PlatformTenantListPage />,
               handle: { titleKey: 'menu.tenant', platform: true },
+            },
+            {
+              path: 'tenant-op-logs',
+              element: <PlatformTenantOpLogListPage />,
+              handle: { titleKey: 'menu.tenant_op_log', platform: true },
             },
           ],
         },

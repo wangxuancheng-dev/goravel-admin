@@ -182,12 +182,14 @@ func (c *TenantController) MigrateBatch(ctx http.Context) http.Response {
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
 	}
+	actor := platformActor(ctx)
+	batchID := services.NewTenantOpsBatchID()
 	queued := make([]map[string]any, 0)
 	skipped := make([]map[string]any, 0)
 	failed := make([]map[string]any, 0)
 	for i := range tenants {
 		tenant := &tenants[i]
-		_, args, err := c.ops().BeginQueuedOp(tenant.ID, models.TenantOpMigrate, body.WithSeed)
+		_, args, err := c.ops().BeginQueuedOp(tenant.ID, models.TenantOpMigrate, body.WithSeed, actor, batchID)
 		if err != nil {
 			skipped = append(skipped, map[string]any{
 				"id":    tenant.ID,
@@ -198,7 +200,7 @@ func (c *TenantController) MigrateBatch(ctx http.Context) http.Response {
 		}
 		payload, err := json.Marshal(args)
 		if err != nil {
-			_ = c.ops().MarkOpFailed(tenant, err.Error())
+			_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
 			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
 			continue
 		}
@@ -206,13 +208,14 @@ func (c *TenantController) MigrateBatch(ctx http.Context) http.Response {
 			Type:  "string",
 			Value: string(payload),
 		}}).OnQueue("long-running").Dispatch(); err != nil {
-			_ = c.ops().MarkOpFailed(tenant, err.Error())
+			_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
 			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
 			continue
 		}
 		queued = append(queued, map[string]any{"id": tenant.ID, "code": tenant.Code})
 	}
 	return response.Success(ctx, map[string]any{
+		"batch_id":      batchID,
 		"queued_count":  len(queued),
 		"skipped_count": len(skipped),
 		"failed_count":  len(failed),
@@ -281,6 +284,15 @@ func (c *TenantController) ops() *services.TenantOpsService {
 	return services.NewTenantOpsService()
 }
 
+func platformActor(ctx http.Context) services.TenantOpActor {
+	adminUser, _ := ctx.Value("platform_admin").(models.PlatformAdmin)
+	name := strings.TrimSpace(adminUser.Name)
+	if name == "" {
+		name = strings.TrimSpace(adminUser.Username)
+	}
+	return services.TenantOpActor{ID: adminUser.ID, Name: name}
+}
+
 func (c *TenantController) enqueueOp(ctx http.Context, op string, withSeed bool) http.Response {
 	return c.enqueueOpWithOpts(ctx, op, withSeed, "", -1)
 }
@@ -290,33 +302,35 @@ func (c *TenantController) enqueueOpWithOpts(ctx http.Context, op string, withSe
 	if id == 0 {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
 	}
+	actor := platformActor(ctx)
 	var tenant *models.Tenant
 	var args services.TenantOpsArgs
 	var err error
 	if op == models.TenantOpBackup {
-		tenant, args, err = c.ops().BeginQueuedBackup(id, keep)
+		tenant, args, err = c.ops().BeginQueuedBackup(id, keep, actor, "")
 	} else {
-		tenant, args, err = c.ops().BeginQueuedOpWithBackup(id, op, withSeed, backupName)
+		tenant, args, err = c.ops().BeginQueuedOpWithBackup(id, op, withSeed, backupName, actor, "")
 	}
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 	payload, err := json.Marshal(args)
 	if err != nil {
-		_ = c.ops().MarkOpFailed(tenant, err.Error())
+		_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
 	if err := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
 		Type:  "string",
 		Value: string(payload),
 	}}).OnQueue("long-running").Dispatch(); err != nil {
-		_ = c.ops().MarkOpFailed(tenant, err.Error())
+		_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(err), map[string]any{"id": id})
 	}
 	return response.Success(ctx, map[string]any{
-		"queued": true,
-		"op":     op,
-		"tenant": services.TenantToJSON(tenant),
+		"queued":    true,
+		"op":        op,
+		"op_log_id": args.OpLogID,
+		"tenant":    services.TenantToJSON(tenant),
 	})
 }
 
@@ -399,7 +413,32 @@ func (c *TenantController) OpLogs(ctx http.Context) http.Response {
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
 	}
-	return response.Success(ctx, map[string]any{"list": rows, "total": len(rows)})
+	list := make([]map[string]any, 0, len(rows))
+	for i := range rows {
+		list = append(list, services.TenantOpLogToJSON(&rows[i]))
+	}
+	return response.Success(ctx, map[string]any{"list": list, "total": len(list)})
+}
+
+// OpLogsIndex returns a platform-wide tenant ops execution log.
+func (c *TenantController) OpLogsIndex(ctx http.Context) http.Response {
+	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
+	filters := services.TenantOpLogFilters{
+		Code:     strings.TrimSpace(ctx.Request().Query("code", "")),
+		Op:       strings.TrimSpace(ctx.Request().Query("op", "")),
+		Status:   strings.TrimSpace(ctx.Request().Query("status", "")),
+		BatchID:  strings.TrimSpace(ctx.Request().Query("batch_id", "")),
+		Operator: strings.TrimSpace(ctx.Request().Query("operator", "")),
+	}
+	rows, total, err := services.ListTenantOpLogsPaged(filters, page, pageSize)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+	}
+	list := make([]map[string]any, 0, len(rows))
+	for i := range rows {
+		list = append(list, services.TenantOpLogToJSON(&rows[i]))
+	}
+	return response.Paginate(ctx, list, total, page, pageSize)
 }
 
 // LoginLinks returns how to open the tenant admin UI.
@@ -487,6 +526,8 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 	if body.Keep != nil {
 		keep = *body.Keep
 	}
+	actor := platformActor(ctx)
+	batchID := services.NewTenantOpsBatchID()
 	queued := make([]map[string]any, 0)
 	skipped := make([]map[string]any, 0)
 	failed := make([]map[string]any, 0)
@@ -495,9 +536,9 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 		var args services.TenantOpsArgs
 		var beginErr error
 		if op == models.TenantOpBackup {
-			_, args, beginErr = c.ops().BeginQueuedBackup(tenant.ID, keep)
+			_, args, beginErr = c.ops().BeginQueuedBackup(tenant.ID, keep, actor, batchID)
 		} else {
-			_, args, beginErr = c.ops().BeginQueuedOp(tenant.ID, op, body.WithSeed && op == models.TenantOpMigrate)
+			_, args, beginErr = c.ops().BeginQueuedOp(tenant.ID, op, body.WithSeed && op == models.TenantOpMigrate, actor, batchID)
 		}
 		if beginErr != nil {
 			skipped = append(skipped, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": beginErr.Error()})
@@ -505,7 +546,7 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 		}
 		payload, err := json.Marshal(args)
 		if err != nil {
-			_ = c.ops().MarkOpFailed(tenant, err.Error())
+			_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
 			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
 			continue
 		}
@@ -513,14 +554,15 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 			Type:  "string",
 			Value: string(payload),
 		}}).OnQueue("long-running").Dispatch(); err != nil {
-			_ = c.ops().MarkOpFailed(tenant, err.Error())
+			_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
 			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
 			continue
 		}
-		queued = append(queued, map[string]any{"id": tenant.ID, "code": tenant.Code})
+		queued = append(queued, map[string]any{"id": tenant.ID, "code": tenant.Code, "op_log_id": args.OpLogID})
 	}
 	return response.Success(ctx, map[string]any{
 		"op":            op,
+		"batch_id":      batchID,
 		"queued_count":  len(queued),
 		"skipped_count": len(skipped),
 		"failed_count":  len(failed),

@@ -210,7 +210,8 @@
     "code-generator": "Code Generator",
     "form_demo": "Form Demo",
     "ai_lab": "AI Lab",
-    "observability-lite": "Runtime Observability"
+    "observability-lite": "Runtime Observability",
+    "tenant_op_log": "Tenant ops logs"
   },
   "monitor_runtime": {
     "title": "Runtime Observability",
@@ -1111,7 +1112,7 @@
     "ops_summary": "Ops: failed {failed} · busy {busy} · total {total}",
     "retry_failed_migrate": "Retry all failed migrates",
     "retry_failed_migrate_confirm": "Enqueue migrate for all failed tenants (max 100). Continue?",
-    "batch_queued": "Queued migrate for {n} tenant(s)",
+    "batch_queued": "Queued {n} job(s){batch}",
     "filter_failed": "Failed only",
     "op_detail": "Details",
     "op_backups": "Backups",
@@ -1161,7 +1162,8 @@
     "confirm_code": "Confirm code",
     "drop_database": "Also drop database",
     "login_link_copied": "Login path copied. {hint}",
-    "batch_need_selection": "Select tenants first"
+    "batch_need_selection": "Select tenants first",
+    "batch_id_suffix": " · batch {id}"
   },
   "platform": {
     "title": "Platform Console",
@@ -2086,5 +2088,14 @@
     "language_placeholder": "e.g. zh, en; leave empty to auto-detect",
     "preview_image": "Generated image",
     "preview_audio": "Generated audio"
+  },
+  "tenant_op_log": {
+    "op": "Op",
+    "status": "Status",
+    "batch_id": "Batch ID",
+    "operator": "Operator",
+    "message": "Message",
+    "started_at": "Started",
+    "finished_at": "Finished"
   }
 }

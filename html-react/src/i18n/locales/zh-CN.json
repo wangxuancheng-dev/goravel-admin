@@ -222,7 +222,8 @@
     "ai_lab": "AI 实验室",
     "dev": "开发工具",
     "code_generator": "代码生成器",
-    "form_demo": "表单示例"
+    "form_demo": "表单示例",
+    "tenant_op_log": "运维执行记录"
   },
   "table": {
     "id": "ID",
@@ -1001,7 +1002,7 @@
     "ops_summary": "运维概览：失败 {{failed}} · 忙碌 {{busy}} · 合计 {{total}}",
     "retry_failed_migrate": "重试全部失败迁移",
     "retry_failed_migrate_confirm": "将为所有开通失败的租户入队 migrate（最多 100 个），是否继续？",
-    "batch_queued": "已入队 {{n}} 个租户迁移任务",
+    "batch_queued": "已入队 {n} 个任务{batch}",
     "filter_failed": "仅失败",
     "op_detail": "详情",
     "op_backups": "备份列表",
@@ -1072,7 +1073,8 @@
     "prune_confirm": "保留最新 {{keep}} 份并删除更旧的备份？",
     "prune_success": "已删除 {{n}} 个备份文件",
     "queue_pending": "队列 {{queue}} 待处理 {{n}}",
-    "batch_need_selection": "请先勾选租户"
+    "batch_need_selection": "请先勾选租户",
+    "batch_id_suffix": " · 批次 {id}"
   },
   "platform": {
     "title": "平台控制台",
@@ -1750,5 +1752,14 @@
     "language_placeholder": "如 zh、en，留空自动识别",
     "preview_image": "生成图片",
     "preview_audio": "生成音频"
+  },
+  "tenant_op_log": {
+    "op": "操作",
+    "status": "状态",
+    "batch_id": "批次号",
+    "operator": "操作人",
+    "message": "结果/消息",
+    "started_at": "开始时间",
+    "finished_at": "结束时间"
   }
 }

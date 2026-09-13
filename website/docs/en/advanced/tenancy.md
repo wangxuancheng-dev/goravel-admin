@@ -226,6 +226,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | POST | `/api/platform/tenants/{id}/backups/prune` | Keep newest N backups (`keep`) |
 | DELETE | `/api/platform/tenants/{id}` | Remove tenant row (`confirm_code`=code, optional `drop_database`) |
 | GET | `/api/platform/tenants/{id}/overview` | DB snapshot stats |
+| GET | `/api/platform/tenant-op-logs` | Platform-wide ops execution logs (filter code/op/status/batch_id/operator) |
 | GET | `/api/platform/tenants/{id}/op-logs` | Ops timeline |
 | GET | `/api/platform/tenants/{id}/login-links` | How to open tenant admin |
 | GET | `/api/platform/tenants/settings` | Console settings (`backup_keep`, queue) |

@@ -84,6 +84,10 @@ export function getPlatformTenantOpLogs(id: string | number, params?: { limit?: 
   return platformRequest.get(`/tenants/${id}/op-logs`, { params })
 }
 
+export async function getPlatformTenantOpLogList(params?: Record<string, unknown>) {
+  return normalizeListResponse(await platformRequest.get('/tenant-op-logs', { params }))
+}
+
 export function getPlatformTenantLoginLinks(id: string | number) {
   return platformRequest.get(`/tenants/${id}/login-links`)
 }

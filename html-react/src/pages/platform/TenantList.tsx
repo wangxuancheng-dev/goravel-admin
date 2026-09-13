@@ -134,6 +134,8 @@ interface TenantOpLogRow {
   op?: string
   status?: string
   message?: string
+  batch_id?: string
+  operator_name?: string
   started_at?: string
   finished_at?: string
   created_at?: string
@@ -432,8 +434,10 @@ export default function PlatformTenantList() {
         setBatchLoading(true)
         try {
           const res = await opsPlatformTenantBatch({ op, ...payload })
-          const n = Number((res as { data?: { queued_count?: number } })?.data?.queued_count ?? 0)
-          message.success(t('tenant.batch_queued', { n }))
+          const data = (res as { data?: { queued_count?: number; batch_id?: string } })?.data
+          const n = Number(data?.queued_count ?? 0)
+          const batch = data?.batch_id ? t('tenant.batch_id_suffix', { id: data.batch_id }) : ''
+          message.success(t('tenant.batch_queued', { n, batch }))
           await refresh()
           await refreshOpsSummary()
           await refreshHealthBanner()
@@ -547,8 +551,10 @@ export default function PlatformTenantList() {
         setBatchLoading(true)
         try {
           const res = await migratePlatformTenantBatch({ provision_status: 'failed', with_seed: false })
-          const n = Number((res as { data?: { queued_count?: number } })?.data?.queued_count ?? 0)
-          message.success(t('tenant.batch_queued', { n }))
+          const data = (res as { data?: { queued_count?: number; batch_id?: string } })?.data
+          const n = Number(data?.queued_count ?? 0)
+          const batch = data?.batch_id ? t('tenant.batch_id_suffix', { id: data.batch_id }) : ''
+          message.success(t('tenant.batch_queued', { n, batch }))
           await refresh()
           await refreshOpsSummary()
         } catch (error) {
@@ -1056,6 +1062,20 @@ export default function PlatformTenantList() {
                       <Typography.Text strong>
                         {log.op} / {log.status}
                       </Typography.Text>
+                      {log.operator_name ? (
+                        <div>
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            {t('tenant_op_log.operator')}: {log.operator_name}
+                          </Typography.Text>
+                        </div>
+                      ) : null}
+                      {log.batch_id ? (
+                        <div>
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            {t('tenant_op_log.batch_id')}: {log.batch_id}
+                          </Typography.Text>
+                        </div>
+                      ) : null}
                       <div>
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                           {log.finished_at || log.started_at || log.created_at || '—'}
