@@ -125,8 +125,42 @@ PLATFORM_ADMIN_NAME=平台管理员
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
-4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20），避免几百商户打满 MySQL。
+4. **Connection pool**: per-tenant `TENANCY_POOL_MAX_*` (default idle 2 / open 20); at higher tenant counts, tighten using [Scale and recommended settings](#scale-and-recommended-settings) so MySQL is not exhausted.
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
+
+
+## Scale and recommended settings
+
+These are **starting points**, not hard quotas — tune from monitoring. With many tenants the first bottleneck is usually the **per-tenant DB pool**, not Redis. Redis is shared cluster-wide (cache keys use `tenancy.CacheKey` → `t{id}:` prefix); size the instance up first. Split cache vs queue (or Redis DB indexes) only if noisy-neighbor becomes real.
+
+**Capacity formula (tenant DBs):**
+
+`registered tenant pools in process × TENANCY_POOL_MAX_OPEN_CONNS × API instances` ≪ DB `max_connections` (leave headroom for platform DB, backups, ops).
+
+"Registered pools" ≈ tenants with recent traffic that have not been Forgotten — **not** the row count of `tenants`. Multiple `tenant_*` databases on one MySQL/PG host still share that host's connection limit.
+
+| Active tenants (rule of thumb) | Tenant pool | Queue / processes | Redis |
+|--------------------------------|-------------|-------------------|-------|
+| &lt; 50 | Defaults `IDLE=2` / `OPEN=20` OK; low traffic can use `OPEN=10` | Worker may share the API host; `QUEUE_CONNECTION=redis` | Single or small managed Redis |
+| 50–200 | `IDLE=1–2`, `OPEN=3–5`; shorter idle/lifetime (e.g. 120 / 600) | Split **API vs Worker** roles (see [Production](/deploy/production) §4.1); keep `QUEUE_LONG_RUNNING_CONCURRENT` low and scale Worker nodes | Managed Redis; watch `used_memory` and queue backlog |
+| 200+ | Tighten `OPEN` further or raise `max_connections`; do not ship default 20 unchanged | Dedicated Workers for `default` + `long-running`; set `QUEUE_ALERT_BACKLOG_THRESHOLD` | Larger tier / Cluster; watch export/import noisy neighbors |
+
+Example starting point (~100 active tenants, 2 API instances):
+
+```ini
+TENANCY_POOL_MAX_IDLE_CONNS=1
+TENANCY_POOL_MAX_OPEN_CONNS=5
+TENANCY_POOL_CONN_MAX_IDLETIME=120
+TENANCY_POOL_CONN_MAX_LIFETIME=600
+
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+QUEUE_CONCURRENT=2
+QUEUE_LONG_RUNNING_CONCURRENT=1
+# API nodes: APP_DISABLED_RUNNERS=queue-*
+```
+
+**Watch:** MySQL/PG `Threads_connected` (or equivalent), queue pending / `queue:alert-backlog`, Redis memory and connections. Near limits, lower `TENANCY_POOL_*` or scale the DB before blindly adding API replicas (replicas multiply connection usage).
 
 ## 运维增强
 

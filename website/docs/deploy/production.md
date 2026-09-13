@@ -79,7 +79,7 @@ readinessProbe:
 | 5xx 比例升高 | 网关/日志告警 |
 | 队列堆积 / failed_jobs 增长 | Worker 存活、Redis、导出/导入任务；可选 `queue:alert-backlog`（见下） |
 | 磁盘（日志、`storage/backups`） | 备份与日志轮转 |
-| MySQL `Threads_connected` 接近 `max_connections` | 下调 `TENANCY_POOL_*` 或扩容 |
+| MySQL `Threads_connected` 接近 `max_connections` | 下调 `TENANCY_POOL_*` 或扩容；量级建议见 [多租户 · 规模与推荐配置](/advanced/tenancy#规模与推荐配置) |
 | 证书到期 | HTTPS |
 
 可选：配置 `OTEL_*` 接入 Jaeger/Grafana（见 OPENSOURCE 进阶段）。
