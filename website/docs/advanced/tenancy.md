@@ -361,3 +361,4 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
 16. 商户独立域名用边缘改写 Host（见上文）；勿为每个独立域改应用 env 或独立部署。
+17. 业务目录（`app/services` / `http` / `jobs` / `console`）禁止 `facades.Orm().Query()`；CI 跑 `bash scripts/check-tenant-orm.sh`（租户运维白名单除外）。

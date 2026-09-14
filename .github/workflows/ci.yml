@@ -37,6 +37,9 @@ jobs:
       - name: Download modules
         run: go mod download
 
+      - name: Tenant ORM guard (no Orm().Query in business dirs)
+        run: bash scripts/check-tenant-orm.sh
+
       - name: Unit tests (no external services)
         run: |
           set -euo pipefail
