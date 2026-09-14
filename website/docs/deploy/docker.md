@@ -200,6 +200,8 @@ docker inspect --format='{{.State.Health.Status}}' goravel-admin-blue
 
 ## 🔄 回滚
 
+> **前端单独静态托管：** 回滚用版本目录 + `current` 软链（见 [生产清单](/deploy/production) §6）；本节脚本针对 **API 蓝绿**。百分比灰度需 Nginx/LB/Cloudflare，不是 `rollback.sh` 的职责。
+
 ### 快速回滚（推荐）
 
 如果刚部署的版本有问题，快速回滚到上一个版本：

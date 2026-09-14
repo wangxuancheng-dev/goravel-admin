@@ -204,6 +204,8 @@ docker inspect --format='{{.State.Health.Status}}' goravel-admin-blue
 
 ## 🔄 回滚
 
+> **Static SPA only:** use versioned dirs + `current` symlink (see [Production](/en/deploy/production) Admin SPA). This section is **API blue/green**. Percentage canary belongs to Nginx/LB/Cloudflare, not `rollback.sh`.
+
 ### 快速回滚（推荐）
 
 如果刚部署的版本有问题，快速回滚到上一个版本：

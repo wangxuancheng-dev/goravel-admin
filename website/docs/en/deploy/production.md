@@ -106,6 +106,31 @@ docker build --build-arg BUILD_FRONTEND=1 -t goravel-admin .
 
 Full Chinese detail: [生产清单](/deploy/production) §6.
 
+### Frontend static release: rollback & canary
+
+The admin UI is a Vite static SPA (`html-react/dist` or `html/dist`). There is **no** built-in percentage canary switch; use the release method:
+
+| Method | Rollback | Canary |
+|--------|----------|--------|
+| Nginx hosting `dist` | Keep previous release dir; flip symlink | Dual dirs / LB weighted split |
+| Cloudflare Workers | Dashboard / wrangler previous version | Platform gradual deployments |
+| Docker blue/green (`BUILD_FRONTEND=1`) | `scripts/deploy/rollback.sh` | **Full cutover** after health checks, not % traffic |
+
+Server layout:
+
+```text
+/var/www/admin/
+  current -> releases/20260914_1020
+  releases/
+    20260914_1000/
+    20260914_1020/
+```
+
+Ship: unpack `dist` into `releases/<stamp>` → point `current` → `nginx -s reload`.  
+Rollback: repoint `current` → reload. Keep the **whole** directory (hashed assets); do not replace only `index.html`.
+
+Percentage canary needs Nginx/LB weights or Cloudflare Gradual Deployments. Repo blue/green scripts cover the **API container** (optional embedded SPA); see [Docker](/en/deploy/docker).
+
 ## Related
 
 - Tenant scale / pool starting points: [Tenancy · Scale and recommended settings](/en/advanced/tenancy#scale-and-recommended-settings)

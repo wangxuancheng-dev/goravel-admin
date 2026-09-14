@@ -167,6 +167,31 @@ docker build -t goravel-admin .
 docker build --build-arg BUILD_FRONTEND=1 -t goravel-admin .
 ```
 
+### 前端静态发布：回滚与灰度
+
+管理端是 Vite 静态 SPA（`html-react/dist` 或 `html/dist`），**没有**内置「百分比灰度」开关；回滚/灰度靠发布方式：
+
+| 方式 | 回滚 | 灰度 |
+|------|------|------|
+| 服务器 Nginx 托管 `dist` | 保留上一版目录，切软链即可 | 需自配双目录 / LB 按比例分流 |
+| Cloudflare Workers | 控制台 / wrangler 回上一版 | 可用平台分批发布能力 |
+| Docker 蓝绿（`BUILD_FRONTEND=1` 内嵌 SPA） | `scripts/deploy/rollback.sh` | 脚本是**整流量切换**（先起新版、健康检查再切），不是按比例放量 |
+
+服务器静态目录推荐：
+
+```text
+/var/www/admin/
+  current -> releases/20260914_1020
+  releases/
+    20260914_1000/    # 上一版（整目录保留，含带 hash 的 js/css）
+    20260914_1020/    # 当前
+```
+
+发布：解压新 `dist` 到 `releases/<时间戳>` → `current` 指向新目录 → `nginx -s reload`。  
+回滚：`current` 指回上一目录 → reload（秒级）。**不要只替换 `index.html`**，旧 html 必须仍能访问到对应资源文件。
+
+百分比灰度：用 Nginx `split_clients` / 网关权重，或 Cloudflare Gradual Deployments，把部分请求指到新 `releases/`；确认后再切 `current`。仓库蓝绿脚本覆盖的是 **API 容器**（可选同镜像 SPA），细节见 [Docker 生产](/deploy/docker)。
+
 健康检查使用 **`GET /ready`**（就绪，含 DB/Redis），Dockerfile `HEALTHCHECK` 与 blue/green compose 已对齐；存活仍可用 `GET /health`。
 
 通知渠道（邮件 / Webhook）见环境变量：`NOTIFICATION_MAIL_ENABLED`、`NOTIFICATION_WEBHOOK_ENABLED`、`NOTIFICATION_WEBHOOK_URL`；类型白名单 `NOTIFICATION_MAIL_TYPES` / `NOTIFICATION_WEBHOOK_TYPES`（逗号分隔，空=全部）。就绪失败告警：`READY_ALERT_WEBHOOK_URL`（`/ready` 非 200 时 POST JSON，缓存防抖 5 分钟）。
