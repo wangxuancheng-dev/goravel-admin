@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
@@ -26,16 +27,17 @@ func LoadPlatformTenantStorageLimit(tenantID uint) (int64, error) {
 }
 
 // SumTenantAttachmentBytes sums attachments.size on the current (tenant) ORM connection.
+// Empty table / no matching rows: SUM returns NULL — treat as 0 (do not scan into bare int64).
 func SumTenantAttachmentBytes(ctx context.Context) (int64, error) {
-	var total int64
+	var total sql.NullInt64
 	err := appfacades.OrmQuery(ctx).Model(&models.Attachment{}).Where("status", 1).Sum("size", &total)
 	if err != nil {
 		return 0, err
 	}
-	if total < 0 {
-		total = 0
+	if !total.Valid || total.Int64 < 0 {
+		return 0, nil
 	}
-	return total, nil
+	return total.Int64, nil
 }
 
 // EnsureTenantStorageQuota fails when used+additional would exceed storage_limit_bytes (0=unlimited).
