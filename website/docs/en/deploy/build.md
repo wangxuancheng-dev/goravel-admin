@@ -113,10 +113,10 @@ cd /www/goravel-admin
 ./main artisan migrate
 
 # 数据库填充（可选，仅首次初始化建议完整 seed）
-./main artisan db:seed
+./main artisan db:seed --force
 
 # 增量部署：仅同步代码生成器模块的菜单与权限（幂等）
-# ./main artisan db:seed --seeder=GeneratedModulesSeeder
+# ./main artisan db:seed --force --seeder=GeneratedModulesSeeder
 ```
 
 详见 [代码生成器](/guide/code-generator)。
@@ -319,10 +319,10 @@ cd /www/goravel-admin/v1
 ./main artisan migrate
 
 # 数据库填充（可选，仅首次初始化建议完整 seed）
-./main artisan db:seed
+./main artisan db:seed --force
 
 # 增量部署：仅同步代码生成器模块的菜单与权限（幂等）
-# ./main artisan db:seed --seeder=GeneratedModulesSeeder
+# ./main artisan db:seed --force --seeder=GeneratedModulesSeeder
 ```
 
 详见 [代码生成器](/guide/code-generator)。

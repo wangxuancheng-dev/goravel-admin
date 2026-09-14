@@ -56,13 +56,14 @@ go run . artisan db:seed --seeder=GeneratedModulesSeeder
 ### 命令写法
 
 生产使用编译后的二进制，**不要**依赖 `go run .`：
+`APP_ENV=production` 时 `db:seed` **必须**加 `--force`（Goravel 生产确认），否则命令会被拒绝。
 
 ```bash
 # 容器内示例
-/www/main artisan db:seed --seeder=GeneratedModulesSeeder
+/www/main artisan db:seed --force --seeder=GeneratedModulesSeeder
 
 # 裸机示例
-./main artisan db:seed --seeder=GeneratedModulesSeeder
+./main artisan db:seed --force --seeder=GeneratedModulesSeeder
 ```
 
 Docker 部署可参考 `scripts/deploy/seed.sh`（默认跑**完整** `db:seed`，见下文注意）。
@@ -71,7 +72,7 @@ Docker 部署可参考 `scripts/deploy/seed.sh`（默认跑**完整** `db:seed`�
 
 1. 发布新代码（含 `database/seeders/modules/*.json`）
 2. `./main artisan migrate`
-3. `./main artisan db:seed --seeder=GeneratedModulesSeeder`
+3. `./main artisan db:seed --force --seeder=GeneratedModulesSeeder`
 
 ### 注意
 

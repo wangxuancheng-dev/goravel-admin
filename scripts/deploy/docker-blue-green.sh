@@ -135,7 +135,8 @@ fi
 
 if [ "$RUN_SEED" = "true" ]; then
     echo "执行数据填充..."
-    if docker exec goravel-admin-${NEXT_COLOR} /www/main artisan db:seed; then
+    # APP_ENV=production requires --force (Goravel db:seed ConfirmToProceed).
+    if docker exec goravel-admin-${NEXT_COLOR} /www/main artisan db:seed --force; then
         echo -e "${GREEN}✓ 数据填充成功${NC}"
     else
         echo -e "${YELLOW}警告: 数据填充失败，但继续部署${NC}"

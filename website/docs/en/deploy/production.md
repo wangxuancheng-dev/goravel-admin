@@ -30,12 +30,12 @@ After shipping versions with import/export Task Center, confirm menu + permissio
 go run . artisan db:seed --seeder=MenuSeeder
 go run . artisan db:seed --seeder=PermissionSeeder
 
-# Production binary
-./main artisan db:seed --seeder=MenuSeeder
-./main artisan db:seed --seeder=PermissionSeeder
+# Production binary (APP_ENV=production requires --force)
+./main artisan db:seed --force --seeder=MenuSeeder
+./main artisan db:seed --force --seeder=PermissionSeeder
 ```
 
-`PermissionSeeder` upserts import permissions under the export menu; `MenuSeeder` keeps `Component: export/TaskCenter`. Full `db:seed` is for first-time init only. Non-super roles must be granted the new slugs in Role management.
+`PermissionSeeder` upserts import permissions under the export menu; `MenuSeeder` keeps `Component: export/TaskCenter`. Full `db:seed` is for first-time init only. Non-super roles must be granted the new slugs in Role management. When `APP_ENV=production`, Goravel requires `--force` on `db:seed`.
 
 ## Health
 

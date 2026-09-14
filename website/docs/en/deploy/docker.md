@@ -183,7 +183,7 @@ export RUN_SEED=false
 ./scripts/deploy/seed.sh
 
 # 仅同步代码生成器模块菜单/权限（生产增量部署推荐）
-# docker exec <container> /www/main artisan db:seed --seeder=GeneratedModulesSeeder
+# docker exec <container> /www/main artisan db:seed --force --seeder=GeneratedModulesSeeder
 ```
 
 详见 [代码生成器](/guide/code-generator)。

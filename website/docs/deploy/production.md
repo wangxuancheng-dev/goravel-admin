@@ -32,12 +32,12 @@
 go run . artisan db:seed --seeder=MenuSeeder
 go run . artisan db:seed --seeder=PermissionSeeder
 
-# 生产二进制
-./main artisan db:seed --seeder=MenuSeeder
-./main artisan db:seed --seeder=PermissionSeeder
+# production binary (APP_ENV=production requires --force)
+./main artisan db:seed --force --seeder=MenuSeeder
+./main artisan db:seed --force --seeder=PermissionSeeder
 ```
 
-`PermissionSeeder` 会按 slug 幂等写入导入相关权限并挂到「导入导出」菜单；`MenuSeeder` 确保 `Component: export/TaskCenter`。完整 `db:seed` 仅适合首次初始化。非超管角色需在 **角色管理** 中手动勾选新权限。
+`PermissionSeeder` 会按 slug 幂等写入导入相关权限并挂到「导入导出」菜单；`MenuSeeder` 确保 `Component: export/TaskCenter`。完整 `db:seed` 仅适合首次初始化。非超管角色需在 **角色管理** 中手动勾选新权限。生产环境 `APP_ENV=production` 时必须加 `--force`，否则 Goravel 会拒绝执行。
 
 开源边界与上线总览见 [开源定位](/guide/opensource)。
 

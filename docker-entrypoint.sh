@@ -22,7 +22,8 @@ fi
 
 if [ "$RUN_SEED" = "true" ]; then
     echo "执行数据库填充 (RUN_SEED=true)..."
-    if /www/main artisan db:seed; then
+    # APP_ENV=production requires --force (Goravel db:seed ConfirmToProceed).
+    if /www/main artisan db:seed --force; then
         echo "✓ 数据库填充完成"
     else
         echo "⚠ 数据库填充失败（可能已填充过），继续启动"

@@ -62,7 +62,8 @@ fi
 
 # 执行填充
 echo "执行数据填充..."
-if docker exec $CONTAINER_NAME /www/main artisan db:seed; then
+# APP_ENV=production requires --force (Goravel db:seed ConfirmToProceed).
+if docker exec $CONTAINER_NAME /www/main artisan db:seed --force; then
     echo -e "${GREEN}✓ 数据填充成功${NC}"
     exit 0
 else
