@@ -128,6 +128,51 @@ PLATFORM_ADMIN_NAME=平台管理员
 4. **Connection pool**: per-tenant `TENANCY_POOL_MAX_*` (default idle 2 / open 20); at higher tenant counts, tighten using [Scale and recommended settings](#scale-and-recommended-settings) so MySQL is not exhausted.
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
+
+
+## Custom domains (edge Host rewrite)
+
+The app does **not** resolve tenants by vanity apex domains. Public resolution is still the first label of `{code}.your-apex`. When a few merchants need `shop.com`, **rewrite Host at Nginx/Caddy** to the matching subdomain. Same process: no app `.env` change, no API restart, no separate deploy per domain.
+
+| Case | Approach |
+|------|----------|
+| Most tenants | Wildcard `*.example.com` |
+| Few enterprise vanity domains | Edge Host rewrite (this section) |
+| Self-serve bind + ACME for almost every tenant | Product `custom_domain` later (**not built-in today**) |
+
+```nginx
+# Most tenants: forward Host as-is
+server {
+  server_name *.example.com;
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+  }
+}
+
+# Vanity domain -> {code}.example.com
+server {
+  server_name shop-acme.com www.shop-acme.com;
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host acme.example.com;  # tenant code = acme
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+  }
+}
+```
+
+Notes:
+
+1. DNS/TLS terminate at the edge; `nginx -t && nginx -s reload` is enough.
+2. `proxy_set_header Host` **must** be `{code}.apex`, not the vanity hostname.
+3. Scale mappings with `include /etc/nginx/tenants/*.conf;` aligned to platform `code`.
+4. Keep `TENANCY_ALLOW_HEADER_FALLBACK` empty on the public internet; do not trust client Headers for tenant binding.
+5. New tenants: create + migrate, then use the subdomain; add a proxy block only when they need a vanity domain — **no** app restart.
+
 ## Scale and recommended settings
 
 These are **starting points**, not hard quotas — tune from monitoring. With many tenants the first bottleneck is usually the **per-tenant DB pool**, not Redis. Redis is shared cluster-wide (cache keys use `tenancy.CacheKey` → `t{id}:` prefix); size the instance up first. Split cache vs queue (or Redis DB indexes) only if noisy-neighbor becomes real.
@@ -318,3 +363,4 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 13. 平台表迁移不得落在租户库（`SkipOnTenantConnection`）；migrate 失败须可在平台侧看到 `last_migrate_error`。
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
+16. Vanity domains: edge Host rewrite (see above); do not add per-domain app env or separate deploys.

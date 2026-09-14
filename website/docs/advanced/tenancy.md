@@ -125,6 +125,51 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20）；户多时按下方 [规模与推荐配置](#规模与推荐配置) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
+
+
+## 商户独立域名（边缘改写 Host）
+
+应用**不**按独立顶级域名查租户；公网解析仍是 `{code}.主域` 的第一段。少数商户需要 `shop.com` 时，**推荐在 Nginx/Caddy 把 Host 改写成对应子域**，共用同一套进程：不必改应用 `.env`、不必重启 API、不必为域名单独部署。
+
+| 场景 | 建议 |
+|------|------|
+| 大多数商户 | `*.example.com` 泛解析即可 |
+| 少数大客户要独立域 | 边缘改写 Host（本节） |
+| 几乎每户自助绑域 / 自动签证书 | 再考虑产品级 `custom_domain`（**当前未内置**） |
+
+```nginx
+# 大多数商户：泛子域（Host 原样转发）
+server {
+  server_name *.example.com;
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+  }
+}
+
+# 个别商户独立域 -> 改写成 {code}.example.com
+server {
+  server_name shop-acme.com www.shop-acme.com;
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host acme.example.com;  # tenant code = acme
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+  }
+}
+```
+
+要点：
+
+1. DNS/证书在边缘配置；`nginx -t && nginx -s reload` 即可生效。
+2. `proxy_set_header Host` **必须**是 `{code}.主域`，不能填独立域名本身。
+3. 多户可用 `include /etc/nginx/tenants/*.conf;`，每户一个小文件，与平台租户 `code` 对齐。
+4. 公网保持 `TENANCY_ALLOW_HEADER_FALLBACK` 为空；勿靠客户端 Header 指租户。
+5. 新建商户：平台开户 + migrate 后即可用子域访问；有独立域时再加一条反代，**无需**重启应用。
+
 ## 规模与推荐配置
 
 以下为**经验起点**，需按监控回调，不是硬性配额。户多时首要瓶颈通常是**租户库连接池**（不是 Redis）。Redis 全站共用（缓存键经 `tenancy.CacheKey` 加 `t{id}:` 前缀），一般升规格即可；队列与缓存吵邻居时再考虑拆实例或分 DB。
@@ -315,3 +360,4 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 13. 平台表迁移不得落在租户库（`SkipOnTenantConnection`）；migrate 失败须可在平台侧看到 `last_migrate_error`。
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
+16. 商户独立域名用边缘改写 Host（见上文）；勿为每个独立域改应用 env 或独立部署。
