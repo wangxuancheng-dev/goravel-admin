@@ -109,12 +109,11 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Upload, Delete, Crop } from '@element-plus/icons-vue'
 import { markRaw } from 'vue'
 import axios from 'axios'
-import Storage from '../utils/storage'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import 'vue-cropper/dist/index.css'
 import { VueCropper } from 'vue-cropper'
 
@@ -147,8 +146,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'change'])
-
-const { locale } = useI18n()
 
 const imagePath = ref(props.modelValue)
 const cropDialogVisible = ref(false)
@@ -240,13 +237,7 @@ const uploadAction = computed(() => {
   return `${apiPrefix}/attachments/upload`
 })
 
-const uploadHeaders = computed(() => {
-  const token = Storage.getItem('token', '') || ''
-  return {
-    'Authorization': `Bearer ${typeof token === 'string' ? token.trim() : ''}`,
-    'Accept-Language': locale.value === 'en-US' ? 'en-US' : 'zh-CN'
-  }
-})
+const uploadHeaders = computed(() => buildAdminAuthHeaders())
 
 const uploadData = computed(() => {
   return {}

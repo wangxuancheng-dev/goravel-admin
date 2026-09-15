@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/stores/app'
 import { getApiBaseURL } from '@/utils/env'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
-import Storage from '@/utils/storage'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import AttachmentImageField, {
   type AttachmentImageFieldRef,
   type AttachmentSelectPayload,
@@ -51,7 +51,7 @@ export default function WangEditor({
   placeholder,
   excludeToolbarKeys = ['group-video'],
 }: WangEditorProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { message } = App.useApp()
   const darkMode = useAppStore((s) => s.darkMode)
   const [editor, setEditor] = useState<IDomEditor | null>(null)
@@ -79,16 +79,7 @@ export default function WangEditor({
 
   const uploadAction = getApiBaseURL() + '/attachments/upload'
 
-  const uploadHeaders = useMemo(
-    () => {
-      const token = String(Storage.getItem('token', '') ?? '').trim()
-      return {
-        Authorization: `Bearer ${token}`,
-        'Accept-Language': i18n.language === 'en-US' ? 'en-US' : 'zh-CN',
-      }
-    },
-    [i18n.language],
-  )
+  const uploadHeaders = useMemo(() => buildAdminAuthHeaders(), [])
 
   const toolbarConfig = useMemo<Partial<IToolbarConfig>>(
     () => ({

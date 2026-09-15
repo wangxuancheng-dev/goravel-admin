@@ -1,6 +1,6 @@
 import { onBeforeUnmount, ref } from 'vue'
 import axios from 'axios'
-import Storage from '@/utils/storage'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import { isPrivateAttachmentPreviewPath, isPublicAttachmentPath } from '@/utils/attachmentUrl'
 
 function isPreviewableMedia(fileType) {
@@ -65,12 +65,7 @@ export function useAttachmentImagePreview() {
     }
 
     try {
-      const token = Storage.getItem('token', '') || ''
-      const tokenStr = typeof token === 'string' ? token.trim() : ''
-      const headers = {}
-      if (requiresAuth || tokenStr) {
-        headers.Authorization = `Bearer ${tokenStr}`
-      }
+      const headers = buildAdminAuthHeaders()
       const response = await axios.get(fullUrl, {
         responseType: 'blob',
         headers

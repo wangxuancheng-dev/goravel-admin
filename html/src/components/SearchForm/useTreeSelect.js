@@ -1,6 +1,6 @@
 import { ref, computed, watch, watchEffect, nextTick } from 'vue'
-import Storage from '../../utils/storage'
 import { getOptions } from '../../api/option'
+import { buildAdminAuthHeaders } from '../../utils/authHeaders'
 
 export function useTreeSelect({ field, modelValue, onUpdate }) {
   const popoverVisible = ref(false)
@@ -314,11 +314,10 @@ export function useTreeSelect({ field, modelValue, onUpdate }) {
           }
         }
       } else {
-        const token = Storage.getItem('token', '') || ''
         const res = await fetch(field.apiUrl, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${typeof token === 'string' ? token.trim() : ''}`,
+            ...buildAdminAuthHeaders(),
             'Content-Type': 'application/json'
           }
         })

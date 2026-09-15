@@ -30,11 +30,11 @@ import { ref, watch, computed } from 'vue'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ElMessage } from 'element-plus'
-import Storage from '../utils/storage'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../store/app'
 import axios from 'axios'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import { sanitizeHtml } from '@/utils/markdown'
 import AttachmentImageField from './AttachmentImageField.vue'
 
@@ -102,13 +102,7 @@ const uploadAction = computed(() => {
   return `${apiPrefix}/attachments/upload`
 })
 
-const uploadHeaders = computed(() => {
-  const token = Storage.getItem('token', '') || ''
-  return {
-    'Authorization': `Bearer ${typeof token === 'string' ? token.trim() : ''}`,
-    'Accept-Language': locale.value === 'en-US' ? 'en-US' : 'zh-CN'
-  }
-})
+const uploadHeaders = computed(() => buildAdminAuthHeaders())
 
 // 处理图片上传
 const handleUploadImg = async (files, callback) => {

@@ -31,13 +31,13 @@ import '@wangeditor/editor/dist/css/style.css' // 引入 css
 import { onBeforeUnmount, ref, shallowRef, onMounted, watch, computed } from 'vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import { ElMessage } from 'element-plus'
-import Storage from '../utils/storage'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../store/app'
 import AttachmentImageField from './AttachmentImageField.vue'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const appStore = useAppStore()
 
 const props = defineProps({
@@ -115,13 +115,7 @@ const uploadAction = computed(() => {
   return `${apiPrefix}/attachments/upload`
 })
 
-const uploadHeaders = computed(() => {
-  const token = Storage.getItem('token', '') || ''
-  return {
-    'Authorization': `Bearer ${typeof token === 'string' ? token.trim() : ''}`,
-    'Accept-Language': locale.value === 'en-US' ? 'en-US' : 'zh-CN'
-  }
-})
+const uploadHeaders = computed(() => buildAdminAuthHeaders())
 
 const toolbarConfig = computed(() => ({
     excludeKeys: props.excludeToolbarKeys

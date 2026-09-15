@@ -28,7 +28,7 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import Storage from '../utils/storage'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 
 const props = defineProps({
   modelValue: {
@@ -137,12 +137,7 @@ const uploadAction = computed(() => {
   return `${apiPrefix}/attachments/upload`
 })
 
-const uploadHeaders = computed(() => {
-  const token = Storage.getItem('token', '') || ''
-  return {
-    Authorization: `Bearer ${typeof token === 'string' ? token.trim() : ''}`
-  }
-})
+const uploadHeaders = computed(() => buildAdminAuthHeaders())
 
 const uploadData = computed(() => ({}))
 

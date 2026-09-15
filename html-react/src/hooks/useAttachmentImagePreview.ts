@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import Storage from '@/utils/storage'
 import { getApiBaseURL } from '@/utils/env'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import { isPrivateAttachmentPreviewPath, isPublicAttachmentPath } from '@/utils/attachmentUrl'
 
 type LoadingState = 'loading' | 'loaded' | 'error' | ''
@@ -85,14 +85,9 @@ export function useAttachmentImagePreview() {
       }
 
       try {
-        const token = String(Storage.getItem('token', '') ?? '').trim()
-        const headers: Record<string, string> = {}
-        if (requiresAuth || token) {
-          headers.Authorization = `Bearer ${token}`
-        }
         const response = await axios.get(fullUrl, {
           responseType: 'blob',
-          headers,
+          headers: buildAdminAuthHeaders(),
         })
         const blobUrl = URL.createObjectURL(new Blob([response.data]))
         blobUrlsRef.current.push(blobUrl)

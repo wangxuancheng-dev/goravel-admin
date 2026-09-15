@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import Storage from '@/utils/storage'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import {
   initChunkUpload,
   uploadChunk,
@@ -261,18 +262,10 @@ export function useAttachmentUploadConfig(locale) {
     return `${apiPrefix}/attachments/upload`
   })
 
-  const uploadHeaders = computed(() => {
-    const token = Storage.getItem('token', '') || ''
-    return {
-      Authorization: `Bearer ${typeof token === 'string' ? token.trim() : ''}`
-    }
-  })
+  const uploadHeaders = computed(() => buildAdminAuthHeaders())
 
   const uploadData = computed(() => {
-    const currentLocale = locale.value || Storage.getItem('language', 'zh-CN') || 'zh-CN'
-    return {
-      'Accept-Language': currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
-    }
+    return {}
   })
 
   return {
