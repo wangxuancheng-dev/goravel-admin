@@ -49,6 +49,15 @@
         </el-button>
         <el-button
           size="small"
+          type="primary"
+          :loading="batchLoading"
+          :disabled="selectedRows.length < 1"
+          @click="batchMigrateSelected"
+        >
+          {{ $t('tenant.batch_migrate') }}
+        </el-button>
+        <el-button
+          size="small"
           :loading="batchLoading"
           :disabled="selectedRows.length < 1"
           @click="batchSeedSelected"
@@ -1057,6 +1066,36 @@ const onMoreCommand = (cmd, row) => {
       break
     default:
       break
+  }
+}
+
+const batchMigrateSelected = async () => {
+  const ids = selectedRows.value.map((r) => r.id).filter(Boolean)
+  if (!ids.length) {
+    ElMessage.warning(t('tenant.batch_need_selection'))
+    return
+  }
+  try {
+    await ElMessageBox.confirm(t('tenant.batch_migrate_confirm', { n: ids.length }), {
+      type: 'warning',
+      title: t('tenant.batch_migrate')
+    })
+  } catch {
+    return
+  }
+  batchLoading.value = true
+  try {
+    const res = await opsPlatformTenantBatch({ op: 'migrate', ids, with_seed: false })
+    const n = res?.data?.queued_count ?? 0
+    const batch = res?.data?.batch_id ? t('tenant.batch_id_suffix', { id: res.data.batch_id }) : ''
+    ElMessage.success(t('tenant.batch_queued', { n, batch }))
+    selectedRows.value = []
+    await loadData()
+    await refreshOpsSummary()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    batchLoading.value = false
   }
 }
 

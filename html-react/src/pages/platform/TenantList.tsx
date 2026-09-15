@@ -550,6 +550,7 @@ export default function PlatformTenantList() {
           const n = Number(data?.queued_count ?? 0)
           const batch = data?.batch_id ? t('tenant.batch_id_suffix', { id: data.batch_id }) : ''
           message.success(t('tenant.batch_queued', { n, batch }))
+          setSelectedRowKeys([])
           await refresh()
           await refreshOpsSummary()
           await refreshHealthBanner()
@@ -1111,6 +1112,21 @@ export default function PlatformTenantList() {
               </Button>
               {isOwner ? (
                 <>
+                  <Button
+                    type="primary"
+                    loading={batchLoading}
+                    disabled={selectedRowKeys.length < 1}
+                    onClick={() =>
+                      runBatchOps(
+                        'migrate',
+                        { ids: selectedRowKeys.map((id) => Number(id)), with_seed: false },
+                        t('tenant.batch_migrate'),
+                        t('tenant.batch_migrate_confirm', { n: selectedRowKeys.length }),
+                      )
+                    }
+                  >
+                    {t('tenant.batch_migrate')}
+                  </Button>
                   <Button
                     loading={batchLoading}
                     disabled={selectedRowKeys.length < 1}

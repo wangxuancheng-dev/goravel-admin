@@ -1219,7 +1219,9 @@
     "filter_schema_unknown": "Unknown waterline",
     "ops_total": "Tenants",
     "queue_pending": "Queue pending",
-    "ops_queue_pending": "Queue pending"
+    "ops_queue_pending": "Queue pending",
+    "batch_migrate": "Batch migrate",
+    "batch_migrate_confirm": "Enqueue migrate for {n} selected tenant(s)?"
   },
   "platform": {
     "title": "Tenant Ops",

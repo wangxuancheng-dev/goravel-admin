@@ -1154,8 +1154,8 @@
     "ping_fail": "租户库不可达",
     "batch_seed": "批量种子",
     "batch_backup": "批量备份",
-    "batch_seed_confirm": "确认为选中的 {n} 个租户入队 seed？",
-    "batch_backup_confirm": "确认为选中的 {n} 个租户入队 backup？",
+    "batch_seed_confirm": "确认为选中的 {n} 个租户执行种子数据填充？",
+    "batch_backup_confirm": "确认为选中的 {n} 个租户执行备份？",
     "export_csv": "导出 CSV",
     "queue_status": "队列 {conn} · pending {pending}",
     "backup_keep_label": "保留最近 {n} 份",
@@ -1228,7 +1228,9 @@
     "filter_schema_unknown": "未知水位",
     "ops_total": "租户总数",
     "queue_pending": "队列积压",
-    "ops_queue_pending": "队列积压"
+    "ops_queue_pending": "队列积压",
+    "batch_migrate": "批量迁移",
+    "batch_migrate_confirm": "确认为选中的 {n} 个租户执行迁移？"
   },
   "platform": {
     "title": "租户运维",
