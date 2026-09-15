@@ -4,6 +4,36 @@
  */
 
 import Storage from './storage'
+import { getTenantCode, resolveTenantCodeFromLocation } from './tenant'
+
+/**
+ * Match applyTenantHeader: send whenever a tenant hint exists, even if VITE_TENANCY_* is unset.
+ * @returns {string}
+ */
+function resolveSSETenantHint() {
+  return getTenantCode() || resolveTenantCodeFromLocation()
+}
+
+/**
+ * EventSource cannot set headers; pass JWT and tenant via query (matches Tenant middleware ClientHint).
+ * @param {string} fullURL
+ * @param {string} token
+ * @returns {string}
+ */
+export function buildSSEUrl(fullURL, token) {
+  const abs = new URL(fullURL, 'http://local.invalid')
+  abs.searchParams.set('_token', token.trim())
+  const code = resolveSSETenantHint()
+  if (code && !abs.searchParams.get('tenant_code') && !abs.searchParams.get('tenant_id')) {
+    // Backend ClientHint reads tenant_id then tenant_code; set both for SSE (no custom headers).
+    abs.searchParams.set('tenant_code', code)
+    abs.searchParams.set('tenant_id', code)
+  }
+  if (fullURL.startsWith('http')) {
+    return abs.toString()
+  }
+  return `${abs.pathname}${abs.search}${abs.hash}`
+}
 
 /**
  * 创建 SSE 连接
@@ -47,13 +77,8 @@ export function createSSEConnection(url, options = {}) {
     throw new Error('Token is required for SSE connection')
   }
 
-  // 构建带认证的 URL（SSE 不支持自定义 headers，需要通过 URL 参数传递 token）
-  // 后端 JWT 中间件已支持从 URL 参数 _token 读取 token
-  const separator = fullURL.includes('?') ? '&' : '?'
-  const urlWithToken = `${fullURL}${separator}_token=${encodeURIComponent(token.trim())}`
-
   // 创建 EventSource
-  const eventSource = new EventSource(urlWithToken)
+  const eventSource = new EventSource(buildSSEUrl(fullURL, token))
 
   // 设置事件监听器
   if (onOpen) {

@@ -1,4 +1,5 @@
 import Storage from '@/utils/storage'
+import { getTenantCode, resolveTenantCodeFromLocation } from '@/utils/tenant'
 
 export interface SSEOptions {
   onMessage?: (data: unknown, event: MessageEvent) => void
@@ -19,6 +20,27 @@ function getBaseURL() {
   return apiPrefix
 }
 
+function resolveSSETenantHint(): string {
+  // Match applyTenantHeader: send whenever a tenant hint exists, even if VITE_TENANCY_* is unset.
+  return getTenantCode() || resolveTenantCodeFromLocation()
+}
+
+/** EventSource cannot set headers; pass JWT and tenant via query (matches Tenant middleware ClientHint). */
+export function buildSSEUrl(fullURL: string, token: string): string {
+  const abs = new URL(fullURL, 'http://local.invalid')
+  abs.searchParams.set('_token', token.trim())
+  const code = resolveSSETenantHint()
+  if (code && !abs.searchParams.get('tenant_code') && !abs.searchParams.get('tenant_id')) {
+    // Backend ClientHint reads tenant_id then tenant_code; set both for SSE (no custom headers).
+    abs.searchParams.set('tenant_code', code)
+    abs.searchParams.set('tenant_id', code)
+  }
+  if (fullURL.startsWith('http')) {
+    return abs.toString()
+  }
+  return `${abs.pathname}${abs.search}${abs.hash}`
+}
+
 export function createSSEConnection(url: string, options: SSEOptions = {}) {
   const { onMessage, onError, onOpen, onClose } = options
   const baseURL = getBaseURL()
@@ -29,9 +51,7 @@ export function createSSEConnection(url: string, options: SSEOptions = {}) {
     throw new Error('Token is required for SSE connection')
   }
 
-  const separator = fullURL.includes('?') ? '&' : '?'
-  const urlWithToken = `${fullURL}${separator}_token=${encodeURIComponent(token.trim())}`
-  const eventSource = new EventSource(urlWithToken)
+  const eventSource = new EventSource(buildSSEUrl(fullURL, token))
 
   if (onOpen) eventSource.onopen = onOpen
 
