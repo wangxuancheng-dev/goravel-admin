@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
@@ -19,6 +20,8 @@ type TenantAdminFilters struct {
 	Name            string
 	Status          string
 	ProvisionStatus string
+	// SchemaStatus: aligned|behind|failed|running|unknown (computed vs current binary).
+	SchemaStatus string
 	// Trashed: "" = exclude soft-deleted (default); "only" = recycle bin; "with" = include both.
 	Trashed string
 }
@@ -29,6 +32,7 @@ func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
 		Name:            strings.TrimSpace(ctx.Request().Query("name", "")),
 		Status:          strings.TrimSpace(ctx.Request().Query("status", "")),
 		ProvisionStatus: strings.TrimSpace(ctx.Request().Query("provision_status", "")),
+		SchemaStatus:    strings.TrimSpace(ctx.Request().Query("schema_status", "")),
 		Trashed:         strings.TrimSpace(ctx.Request().Query("trashed", "")),
 	}
 }
@@ -101,6 +105,7 @@ func (s *TenantAdminService) GetList(filters TenantAdminFilters, page, pageSize 
 	if filters.ProvisionStatus != "" {
 		query = query.Where("provision_status", filters.ProvisionStatus)
 	}
+	query = applySchemaStatusFilter(query, filters.SchemaStatus)
 	total, err := query.Count()
 	if err != nil {
 		return nil, 0, err
@@ -110,6 +115,64 @@ func (s *TenantAdminService) GetList(filters TenantAdminFilters, page, pageSize 
 		return nil, 0, err
 	}
 	return list, total, nil
+}
+
+func applySchemaStatusFilter(query orm.Query, schemaStatus string) orm.Query {
+	status := strings.ToLower(strings.TrimSpace(schemaStatus))
+	if status == "" {
+		return query
+	}
+	expected := ExpectedSchemaMigrationCount()
+	switch status {
+	case TenantSchemaRunning:
+		return query.Where(
+			"(provision_status = ? OR (last_op = ? AND last_op_status IN (?, ?)))",
+			models.TenantProvisionMigrating,
+			models.TenantOpMigrate,
+			models.TenantOpStatusQueued,
+			models.TenantOpStatusRunning,
+		)
+	case TenantSchemaFailed:
+		return query.Where(
+			"((last_migrate_error IS NOT NULL AND last_migrate_error != '') OR provision_status = ? OR (last_op = ? AND last_op_status = ?))",
+			models.TenantProvisionFailed,
+			models.TenantOpMigrate,
+			models.TenantOpStatusFailed,
+		)
+	case TenantSchemaAligned:
+		return query.Where("provision_status = ?", models.TenantProvisionReady).
+			Where("schema_migration_count >= ?", expected).
+			Where("(last_migrate_error IS NULL OR last_migrate_error = '')")
+	case TenantSchemaUnknown:
+		return query.Where("provision_status = ?", models.TenantProvisionReady).
+			Where("schema_migration_count = ?", 0).
+			Where("(last_migrate_error IS NULL OR last_migrate_error = '')")
+	case TenantSchemaBehind:
+		// Pending, or count below waterline, excluding failed/running/unknown-aligned cases.
+		return query.Where(
+			`(
+				provision_status = ?
+				OR (
+					schema_migration_count < ?
+					AND provision_status = ?
+					AND schema_migration_count > 0
+					AND (last_migrate_error IS NULL OR last_migrate_error = '')
+				)
+			)
+			AND provision_status NOT IN (?, ?)
+			AND NOT (last_op = ? AND last_op_status IN (?, ?))`,
+			models.TenantProvisionPending,
+			expected,
+			models.TenantProvisionReady,
+			models.TenantProvisionMigrating,
+			models.TenantProvisionFailed,
+			models.TenantOpMigrate,
+			models.TenantOpStatusQueued,
+			models.TenantOpStatusRunning,
+		)
+	default:
+		return query
+	}
 }
 
 func (s *TenantAdminService) GetByID(id uint) (*models.Tenant, error) {
@@ -362,13 +425,20 @@ func (s *TenantAdminService) ListAll() ([]models.Tenant, error) {
 
 // TenantOpsSummary aggregates provision / op status counts for the platform console.
 type TenantOpsSummary struct {
-	Total           int64            `json:"total"`
-	ByProvision     map[string]int64 `json:"by_provision"`
-	ByLastOpStatus  map[string]int64 `json:"by_last_op_status"`
-	FailedProvision int64            `json:"failed_provision"`
-	Busy            int64            `json:"busy"`
-	Deleted         int64            `json:"deleted"`
-	FailedPurge     int64            `json:"failed_purge"`
+	Total                  int64             `json:"total"`
+	ByProvision            map[string]int64  `json:"by_provision"`
+	ByLastOpStatus         map[string]int64  `json:"by_last_op_status"`
+	FailedProvision        int64             `json:"failed_provision"`
+	Busy                   int64             `json:"busy"`
+	Deleted                int64             `json:"deleted"`
+	FailedPurge            int64             `json:"failed_purge"`
+	ExpectedMigrationCount int64             `json:"expected_migration_count"`
+	SchemaAligned          int64             `json:"schema_aligned"`
+	SchemaBehind           int64             `json:"schema_behind"`
+	SchemaFailed           int64             `json:"schema_failed"`
+	SchemaRunning          int64             `json:"schema_running"`
+	SchemaUnknown          int64             `json:"schema_unknown"`
+	BySchemaStatus         map[string]int64  `json:"by_schema_status"`
 }
 
 func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
@@ -377,7 +447,7 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 	}
 	var tenants []models.Tenant
 	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).
-		Select("id", "provision_status", "last_op_status").
+		Select("id", "provision_status", "last_op", "last_op_status", "last_migrate_error", "schema_migration_count").
 		Get(&tenants); err != nil {
 		return nil, err
 	}
@@ -405,6 +475,15 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 			sum.Busy++
 		}
 	}
+	schema := CountSchemaStatuses(tenants)
+	sum.ExpectedMigrationCount = schema.Expected
+	sum.SchemaAligned = schema.Aligned
+	sum.SchemaBehind = schema.Behind
+	sum.SchemaFailed = schema.Failed
+	sum.SchemaRunning = schema.Running
+	sum.SchemaUnknown = schema.Unknown
+	sum.BySchemaStatus = schema.ByStatus
+
 	deleted, _ := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).WithTrashed().Where("deleted_at IS NOT NULL").Count()
 	sum.Deleted = deleted
 	failedPurge, _ := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).WithTrashed().
@@ -450,33 +529,37 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 	if t.DeletedAt.Valid {
 		deletedAt = t.DeletedAt.Time
 	}
+	expected := ExpectedSchemaMigrationCount()
 	return map[string]any{
-		"id":                 t.ID,
-		"code":               t.Code,
-		"name":               t.Name,
-		"status":             t.Status,
-		"provision_status":   t.ProvisionStatus,
-		"driver":             t.Driver,
-		"isolation":          t.Isolation,
-		"host":               t.Host,
-		"port":               t.Port,
-		"database":           t.Database,
-		"schema":             t.Schema,
-		"username":           t.Username,
-		"has_password":       TenantHasPassword(t.Password),
-		"connection_name":    t.ConnectionName,
-		"last_migrate_error": t.LastMigrateError,
-		"migrated_at":        t.MigratedAt,
-		"last_op":            t.LastOp,
-		"last_op_status":     t.LastOpStatus,
-		"last_op_message":    t.LastOpMessage,
-		"last_op_at":         t.LastOpAt,
-		"last_backup_path":    t.LastBackupPath,
-		"backup_dir":          TenantBackupDir(t.Code),
-		"storage_limit_bytes": t.StorageLimitBytes,
-		"deleted_at":          deletedAt,
-		"trashed":             TenantIsTrashed(t),
-		"created_at":          t.CreatedAt,
-		"updated_at":          t.UpdatedAt,
+		"id":                     t.ID,
+		"code":                   t.Code,
+		"name":                   t.Name,
+		"status":                 t.Status,
+		"provision_status":       t.ProvisionStatus,
+		"driver":                 t.Driver,
+		"isolation":              t.Isolation,
+		"host":                   t.Host,
+		"port":                   t.Port,
+		"database":               t.Database,
+		"schema":                 t.Schema,
+		"username":               t.Username,
+		"has_password":           TenantHasPassword(t.Password),
+		"connection_name":        t.ConnectionName,
+		"last_migrate_error":     t.LastMigrateError,
+		"migrated_at":            t.MigratedAt,
+		"schema_migration_count": t.SchemaMigrationCount,
+		"expected_migration_count": expected,
+		"schema_status":          ResolveTenantSchemaStatus(t, expected),
+		"last_op":                t.LastOp,
+		"last_op_status":         t.LastOpStatus,
+		"last_op_message":        t.LastOpMessage,
+		"last_op_at":             t.LastOpAt,
+		"last_backup_path":       t.LastBackupPath,
+		"backup_dir":             TenantBackupDir(t.Code),
+		"storage_limit_bytes":    t.StorageLimitBytes,
+		"deleted_at":             deletedAt,
+		"trashed":                TenantIsTrashed(t),
+		"created_at":             t.CreatedAt,
+		"updated_at":             t.UpdatedAt,
 	}
 }

@@ -78,6 +78,11 @@ export default function PlatformLayout() {
             selectedKeys={[location.pathname]}
             items={[
               {
+                key: '/platform/overview',
+                label: t('menu.platform_overview'),
+                onClick: () => navigate('/platform/overview'),
+              },
+              {
                 key: '/platform/tenants',
                 label: t('menu.tenant'),
                 onClick: () => navigate('/platform/tenants'),

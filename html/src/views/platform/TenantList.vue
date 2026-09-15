@@ -8,6 +8,14 @@
       :title="$t('platform.cli_ops_title')"
       :description="healthDesc"
     />
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="ops-banner"
+      :title="$t('platform.migrate_current_binary_title')"
+      :description="$t('platform.migrate_current_binary_desc')"
+    />
     <div class="list-mode-bar">
       <el-radio-group :model-value="isRecycleView ? 'recycle' : 'active'" size="default" @change="onListModeChange">
         <el-radio-button label="active">{{ $t('tenant.list_active') }}</el-radio-button>
@@ -18,6 +26,14 @@
       </el-radio-group>
       <span v-if="opsSummary" class="ops-inline">
         {{ $t('tenant.ops_summary', { failed: opsSummary.failed_provision || 0, busy: opsSummary.busy || 0, total: opsSummary.total || 0 }) }}
+        <template v-if="(opsSummary.schema_behind || 0) > 0 || (opsSummary.schema_failed || 0) > 0">
+          · {{ $t('tenant.schema_summary', {
+            aligned: opsSummary.schema_aligned || 0,
+            behind: opsSummary.schema_behind || 0,
+            failed: opsSummary.schema_failed || 0,
+            unknown: opsSummary.schema_unknown || 0
+          }) }}
+        </template>
         <template v-if="(opsSummary.failed_purge || 0) > 0">
           · {{ $t('tenant.failed_purge_count', { n: opsSummary.failed_purge }) }}
         </template>
@@ -91,6 +107,16 @@
       <el-tooltip :content="row.last_migrate_error || row.last_op_message || ''" :disabled="!(row.last_migrate_error || row.last_op_message)">
         <el-tag :type="provisionTagType(row.provision_status)" size="small">
           {{ provisionLabel(row.provision_status) }}
+        </el-tag>
+      </el-tooltip>
+    </template>
+    <template #schema_status="{ row }">
+      <el-tooltip
+        :content="schemaStatusTip(row)"
+        :disabled="!schemaStatusTip(row)"
+      >
+        <el-tag :type="schemaTagType(row.schema_status)" size="small" effect="plain">
+          {{ schemaLabel(row.schema_status) }}
         </el-tag>
       </el-tooltip>
     </template>
@@ -436,6 +462,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ListPage from '@/components/ListPage.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
@@ -469,6 +496,7 @@ import {
 import { isPlatformOwner } from '@/utils/platformRequest'
 
 const { t } = useI18n()
+const route = useRoute()
 const isOwner = computed(() => isPlatformOwner())
 const listPageRef = ref(null)
 const formRef = ref(null)
@@ -558,20 +586,7 @@ const refreshSettings = async () => {
   }
 }
 
-onMounted(async () => {
-  try {
-    const res = await platformHealth()
-    health.value = res?.data || null
-    if (res?.data?.queue) queueInfo.value = res.data.queue
-    if (res?.data?.backup_keep) settingsKeep.value = res.data.backup_keep
-  } catch {
-    // ignore — list still usable
-  }
-  await refreshOpsSummary()
-  await refreshSettings()
-})
-
-const initialSearchForm = { code: '', name: '', status: '', provision_status: '', trashed: '' }
+const initialSearchForm = { code: '', name: '', status: '', provision_status: '', schema_status: '', trashed: '' }
 
 const {
   pagination,
@@ -587,6 +602,26 @@ const {
   fetchApi: getPlatformTenantList,
   initialSearchForm,
   defaultSort: 'id:desc'
+})
+
+onMounted(async () => {
+  const schemaFromQuery = String(route.query.schema_status || '').trim()
+  if (schemaFromQuery) {
+    searchForm.schema_status = schemaFromQuery
+  }
+  try {
+    const res = await platformHealth()
+    health.value = res?.data || null
+    if (res?.data?.queue) queueInfo.value = res.data.queue
+    if (res?.data?.backup_keep) settingsKeep.value = res.data.backup_keep
+  } catch {
+    // ignore — list still usable
+  }
+  await refreshOpsSummary()
+  await refreshSettings()
+  if (schemaFromQuery) {
+    await loadData()
+  }
 })
 
 const isRecycleView = computed(() => searchForm.trashed === 'only')
@@ -690,6 +725,48 @@ const provisionTagType = (status) => {
   }
 }
 
+const schemaLabel = (status) => {
+  switch (status) {
+    case 'aligned':
+      return t('tenant.schema_aligned')
+    case 'behind':
+      return t('tenant.schema_behind')
+    case 'failed':
+      return t('tenant.schema_failed')
+    case 'running':
+      return t('tenant.schema_running')
+    case 'unknown':
+      return t('tenant.schema_unknown')
+    default:
+      return status || '—'
+  }
+}
+
+const schemaTagType = (status) => {
+  switch (status) {
+    case 'aligned':
+      return 'success'
+    case 'behind':
+      return 'warning'
+    case 'failed':
+      return 'danger'
+    case 'running':
+      return 'warning'
+    default:
+      return 'info'
+  }
+}
+
+const schemaStatusTip = (row) => {
+  if (!row) return ''
+  const parts = []
+  if (row.schema_migration_count != null || row.expected_migration_count != null) {
+    parts.push(`${row.schema_migration_count ?? 0}/${row.expected_migration_count ?? '?'}`)
+  }
+  if (row.last_migrate_error) parts.push(row.last_migrate_error)
+  return parts.join(' · ')
+}
+
 const searchFields = computed(() => {
   const base = [
     { prop: 'code', label: t('tenant.code'), type: 'input', width: '180px' },
@@ -698,6 +775,19 @@ const searchFields = computed(() => {
   if (isRecycleView.value) return base
   return [
     ...base,
+    {
+      prop: 'schema_status',
+      label: t('tenant.schema_status'),
+      type: 'select',
+      width: '160px',
+      options: [
+        { label: t('tenant.schema_aligned'), value: 'aligned' },
+        { label: t('tenant.schema_behind'), value: 'behind' },
+        { label: t('tenant.schema_failed'), value: 'failed' },
+        { label: t('tenant.schema_running'), value: 'running' },
+        { label: t('tenant.schema_unknown'), value: 'unknown' }
+      ]
+    },
     {
       prop: 'provision_status',
       label: t('tenant.provision_status_filter'),
@@ -758,6 +848,7 @@ const tableColumns = computed(() => {
     { field: 'driver', title: t('tenant.driver'), width: 90, key: 'driver' },
     { field: 'database', title: t('tenant.database'), width: 140, key: 'database' },
     { field: 'provision_status', title: t('tenant.provision_status'), width: 110, slot: 'provision_status', key: 'provision_status' },
+    { field: 'schema_status', title: t('tenant.schema_status'), width: 110, slot: 'schema_status', key: 'schema_status' },
     { field: 'last_op', title: t('tenant.last_op'), width: 160, slot: 'last_op', key: 'last_op' }
   )
   if (isRecycleView.value) {

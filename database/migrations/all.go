@@ -1,0 +1,85 @@
+package migrations
+
+import (
+	"github.com/goravel/framework/contracts/database/schema"
+)
+
+// All returns migrations shipped in this binary (single registry for bootstrap + schema waterline).
+func All() []schema.Migration {
+	return []schema.Migration{
+		&M20210101000002CreateJobsTable{},
+		&M20250101000001CreateDepartmentsTable{},
+		&M20250101000002CreateAdminsTable{},
+		&M20250101000003CreateRolesTable{},
+		&M20250101000004CreatePermissionsTable{},
+		&M20250101000005CreateMenusTable{},
+		&M20250101000006CreateDictionariesTable{},
+		&M20250101000015CreateConfigsTable{},
+		&M20250101000016CreateBlacklistsTable{},
+		&M20250101000007CreateAdminRoleTable{},
+		&M20250101000008CreateRolePermissionTable{},
+		&M20250101000009CreateRoleMenuTable{},
+		&M20250101000010CreateOperationLogsTable{},
+		&M20250101000018AddTitleToOperationLogs{},
+		&M20250101000011CreateLoginLogsTable{},
+		&M20250101000019AddRequestToLoginLogsTable{},
+		&M20250101000012CreateSystemLogsTable{},
+		&M20250201000016AddTraceIdToSystemLogsTable{},
+		&M20250101000014CreatePersonalAccessTokensTable{},
+		&M20250101000017AddOnlineAdminFieldsToPersonalAccessTokens{},
+		&M20250201000003CreateNotificationsTable{},
+		&M20250301000021CreateExportsTable{},
+		&M20250130000006AddErrorMsgToExportsTable{},
+		&M20250301000024AddTypeToExportsTable{},
+		&M20250301000022CreateAttachmentsTable{},
+		&M20250301000023AddDisplayNameToAttachments{},
+		&M20250101000024AddGoogleSecretToAdmins{},
+		&M20250101000025AddLinkTypeToMenus{},
+		&M20250101000026ModifyMenusPathLength{},
+		&M20251227063517AddFulltextIndexToOperationLogsRequest{},
+		&M20250128000001CreateOrdersTable{},
+		&M20251228004525AddPaymentMethodToOrdersShardingTables{},
+		&M20250105000001AddCompositeIndexesToOrders{},
+		&M20250130000003CreateCurrenciesTable{},
+		&M20250130000005AddDecimalPlacesToCurrenciesTable{},
+		&M20250130000001CreateUsersTable{},
+		&M20250130000004AddCurrencyIdToUsersTable{},
+		&M20250130000002CreateUserBalanceLogsTable{},
+		&M20250131000003AddTransactionHashToUserBalanceLogsShardingTables{},
+		&M20250131000001CreatePaymentMethodsTable{},
+		&M20250131000002CreatePaymentsTable{},
+		&M20250110000001CreatePaymentsShardingTable{},
+		&M20250301000025AddTranslationKeyToDictionaries{},
+		&M20250131000020AddNoCacheToMenus{},
+		&M20260328000001AddChangesToOperationLogs{},
+		&M20260404000001CreatePositionsTable{},
+		&M20260404000002AddPositionIdToAdminsTable{},
+		&M20260423000100AddTraceIdToOperationLogsTable{},
+		&M20260423000200CreateSlowQueryLogsTable{},
+		&M20260426021000CreateApiEndpointMetricsTable{},
+		&M20260115152848ArticleTable{},
+		&M20260710000001AdjustSoftDeleteUniqueIndexes{},
+		&M20260711000001CreateSearchSyncOutboxTable{},
+		&M20260716000001CreateAttachmentCategoriesTable{},
+		&M20260717000001AddIsPublicToAttachmentsTable{},
+		&M20260911000001CreateTenantsTable{},
+		&M20260911000002CreatePlatformAdminsTable{},
+		&M20260912000001AddProvisionStatusToTenants{},
+		&M20260912000002AddMigrateMetaToTenants{},
+		&M20260912000003AddDataScopeToRoles{},
+		&M20260913000001AddTenantOpsMeta{},
+		&M20260913000002AddMustChangePasswordToAdmins{},
+		&M20260913000003CreateImportsTable{},
+		&M20260913210000CreateTenantOpLogsTable{},
+		&M20260913223000AddTenantOpLogMeta{},
+		&M20260913240000AddTenantQuotaMeta{},
+		&M20260913250000DropTenantTrafficLimit{},
+		&M20260914000001AddRoleToPlatformAdmins{},
+		&M20260915140000AddTenantSchemaMigrationCount{},
+	}
+}
+
+// RegisteredCount is the schema waterline for the running binary.
+func RegisteredCount() int64 {
+	return int64(len(All()))
+}

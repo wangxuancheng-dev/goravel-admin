@@ -85,6 +85,27 @@ vim scripts/deploy/git-deploy.sh
 7. **切换流量** - 更新 Nginx 配置（如果存在）
 8. **停止旧版本** - 停止旧版本容器
 
+## Multi-tenant (TENANCY_DRIVER=database)
+
+When new application code requires new columns/tables:
+
+1. Build the **new** image first (do not switch traffic yet).
+2. Run migrations with the **new** image CLI (not the old running container):
+
+```bash
+docker run --rm --env-file .env <new-image> /www/main artisan migrate
+docker run --rm --env-file .env <new-image> /www/main artisan tenant:migrate-all
+```
+
+3. Confirm tenants are aligned (platform console Ops overview / schema status).
+4. Then blue/green switch traffic to the new containers.
+
+Notes:
+
+- `migrate.sh` against the **currently running** container only has the **old** migrations if you have not switched yet.
+- Platform UI migrate also uses the **running** binary only.
+- Prefer migrate-before-cutover when code is not backward-compatible with old schema.
+
 ## 数据库迁移和填充
 
 ### 自动迁移（容器启动时执行）

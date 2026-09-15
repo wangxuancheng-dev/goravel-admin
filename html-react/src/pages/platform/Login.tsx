@@ -22,7 +22,7 @@ export default function PlatformLogin() {
       })
       completePlatformLogin(res as { data?: { token?: string; admin?: unknown } })
       message.success(t('login.login_success'))
-      navigate('/platform/tenants', { replace: true })
+      navigate('/platform/overview', { replace: true })
     } catch (error) {
       showError(error, t('common.operation_failed'))
     } finally {

@@ -168,6 +168,25 @@ func (c *TenantController) OpsSummary(ctx http.Context) http.Response {
 	return response.Success(ctx, map[string]any{"summary": sum})
 }
 
+// OpsOverview aggregates health-style fields + ops summary for the ops home page.
+func (c *TenantController) OpsOverview(ctx http.Context) http.Response {
+	sum, err := c.service().OpsSummary()
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+	}
+	return response.Success(ctx, map[string]any{
+		"app_version":              facades.Config().GetString("app.version", ""),
+		"expected_migration_count": services.ExpectedSchemaMigrationCount(),
+		"summary":                  sum,
+		"queue":                    services.BuildPlatformQueueStatus(),
+		"backup_keep":              facades.Config().GetInt("tenancy.backup_keep", 10),
+		"deploy_tips": []string{
+			"Release cutover: run NEW image CLI migrate + tenant:migrate-all before switching traffic",
+			"Platform UI migrate uses the currently running binary only",
+		},
+	})
+}
+
 type tenantMigrateBatchBody struct {
 	IDs             []uint `json:"ids" form:"ids"`
 	ProvisionStatus string `json:"provision_status" form:"provision_status"`
@@ -751,9 +770,11 @@ func (c *TenantController) Export(ctx http.Context) http.Response {
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
 	_ = w.Write([]string{
-		"id", "code", "name", "status", "provision_status", "driver", "isolation",
+		"id", "code", "name", "status", "provision_status", "schema_status", "schema_migration_count",
+		"driver", "isolation",
 		"host", "port", "database", "schema", "last_op", "last_op_status", "last_backup_path",
 	})
+	expected := services.ExpectedSchemaMigrationCount()
 	for i := range list {
 		t := &list[i]
 		_ = w.Write([]string{
@@ -762,6 +783,8 @@ func (c *TenantController) Export(ctx http.Context) http.Response {
 			t.Name,
 			strconv.FormatUint(uint64(t.Status), 10),
 			t.ProvisionStatus,
+			services.ResolveTenantSchemaStatus(t, expected),
+			strconv.FormatInt(t.SchemaMigrationCount, 10),
 			t.Driver,
 			t.Isolation,
 			t.Host,

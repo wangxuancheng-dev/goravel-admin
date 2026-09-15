@@ -22,6 +22,10 @@ export function platformHealth() {
   return platformRequest.get('/health')
 }
 
+export function getPlatformOpsOverview() {
+  return platformRequest.get('/ops/overview')
+}
+
 export function updatePlatformPassword(data) {
   return platformRequest.put('/password', data)
 }

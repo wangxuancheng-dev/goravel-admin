@@ -781,6 +781,7 @@ func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...s
 
 // MigrateTenant 在租户连接上执行 migrate，成功后标记 provision_status=ready。
 func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
+	var migCount int64
 	err := s.WithTenantConnection(tenant, func() error {
 		// Call Migrator.Run directly: Artisan migrate returns nil even on failure.
 		migrator := migration.NewMigrator(facades.Artisan(), facades.Schema(), "migrations")
@@ -789,6 +790,13 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 		}
 		if !facades.Schema().HasTable("admins") {
 			return fmt.Errorf("migrate failed: admins table missing on %s", facades.Schema().Orm().DatabaseName())
+		}
+		if facades.Schema().HasTable("migrations") {
+			n, countErr := facades.Orm().Query().Table("migrations").Count()
+			if countErr != nil {
+				return countErr
+			}
+			migCount = n
 		}
 		return nil
 	})
@@ -817,15 +825,17 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 		return err
 	}
 	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
-		"last_migrate_error": "",
-		"migrated_at":        now,
-		"last_op":            models.TenantOpMigrate,
-		"last_op_status":     models.TenantOpStatusSuccess,
-		"last_op_message":    "migrate ok",
-		"last_op_at":         now,
+		"last_migrate_error":     "",
+		"migrated_at":            now,
+		"schema_migration_count": migCount,
+		"last_op":                models.TenantOpMigrate,
+		"last_op_status":         models.TenantOpStatusSuccess,
+		"last_op_message":        "migrate ok",
+		"last_op_at":             now,
 	})
 	tenant.LastMigrateError = ""
 	tenant.MigratedAt = &now
+	tenant.SchemaMigrationCount = migCount
 	tenant.LastOp = models.TenantOpMigrate
 	tenant.LastOpStatus = models.TenantOpStatusSuccess
 	tenant.LastOpMessage = "migrate ok"

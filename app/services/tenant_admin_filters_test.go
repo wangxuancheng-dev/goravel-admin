@@ -12,9 +12,11 @@ func TestTenantAdminFiltersIncludeProvisionStatus(t *testing.T) {
 		Name:            "Acme",
 		Status:          "1",
 		ProvisionStatus: "failed",
+		SchemaStatus:    "behind",
 	}
 	assert.Equal(t, "failed", f.ProvisionStatus)
 	assert.Equal(t, "acme", f.Code)
+	assert.Equal(t, "behind", f.SchemaStatus)
 }
 
 func TestWebsiteBrandingPublicKeys(t *testing.T) {

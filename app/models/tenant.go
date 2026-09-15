@@ -52,8 +52,9 @@ type Tenant struct {
 	Username         string     `gorm:"size:128;comment:空则回落平台用户" json:"username"`
 	Password         string     `gorm:"type:text;comment:空则回落平台密码；APP_KEY 加密" json:"-"`
 	ConnectionName   string     `gorm:"size:64;uniqueIndex;not null;comment:运行时 connection 名" json:"connection_name"`
-	LastMigrateError string     `gorm:"type:text;comment:最近一次 migrate 错误" json:"last_migrate_error"`
-	MigratedAt       *time.Time `gorm:"comment:最近一次 migrate 成功时间" json:"migrated_at"`
+	LastMigrateError       string     `gorm:"type:text;comment:最近一次 migrate 错误" json:"last_migrate_error"`
+	MigratedAt             *time.Time `gorm:"comment:最近一次 migrate 成功时间" json:"migrated_at"`
+	SchemaMigrationCount   int64      `gorm:"default:0;comment:租户库 migrations 表行数(最近成功 migrate)" json:"schema_migration_count"`
 	LastOp           string     `gorm:"size:32;comment:最近平台运维操作" json:"last_op"`
 	LastOpStatus     string     `gorm:"size:32;comment:idle|queued|running|success|failed" json:"last_op_status"`
 	LastOpMessage    string     `gorm:"type:text;comment:最近运维结果" json:"last_op_message"`

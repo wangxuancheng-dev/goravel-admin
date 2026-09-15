@@ -86,9 +86,15 @@ const staticRoutes = [
     path: '/platform',
     name: 'PlatformLayout',
     component: () => lazyLoad(() => import('../views/platform/Layout.vue')),
-    redirect: '/platform/tenants',
+    redirect: '/platform/overview',
     meta: { requiresAuth: true, platform: true },
     children: [
+      {
+        path: 'overview',
+        name: 'PlatformOverview',
+        component: () => lazyLoad(() => import('../views/platform/Overview.vue')),
+        meta: { titleKey: 'menu.platform_overview', platform: true, requiresAuth: true }
+      },
       {
         path: 'tenants',
         name: 'PlatformTenants',
@@ -445,7 +451,7 @@ router.beforeEach((to, from, next) => {
     const platformToken = getPlatformToken()
     if (to.meta.requiresAuth === false || to.path === '/platform/login') {
       if (platformToken && to.path === '/platform/login') {
-        next('/platform/tenants')
+        next('/platform/overview')
       } else {
         next()
       }

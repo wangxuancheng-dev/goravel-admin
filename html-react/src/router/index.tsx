@@ -25,6 +25,7 @@ import PlatformLoginPage from '../pages/platform/Login'
 import PlatformLayout from '../pages/platform/Layout'
 import PlatformTenantListPage from '../pages/platform/TenantList'
 import PlatformTenantOpLogListPage from '../pages/platform/TenantOpLogList'
+import PlatformOverviewPage from '../pages/platform/Overview'
 import { getPlatformToken } from '@/utils/platformRequest'
 
 function PageFallback({ fullscreen = false }: { fullscreen?: boolean }) {
@@ -117,7 +118,7 @@ function PlatformAuthGuard() {
 
 function PlatformGuestGuard() {
   const token = getPlatformToken()
-  if (token) return <Navigate to="/platform/tenants" replace />
+  if (token) return <Navigate to="/platform/overview" replace />
   return (
     <>
       <NavigatorBridge />
@@ -161,7 +162,12 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
           element: <PlatformLayout />,
           errorElement: <RouteErrorFallback />,
           children: [
-            { index: true, element: <Navigate to="/platform/tenants" replace /> },
+            { index: true, element: <Navigate to="/platform/overview" replace /> },
+            {
+              path: 'overview',
+              element: <PlatformOverviewPage />,
+              handle: { titleKey: 'menu.platform_overview', platform: true },
+            },
             {
               path: 'tenants',
               element: <PlatformTenantListPage />,

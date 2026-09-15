@@ -27,6 +27,7 @@ func Platform() {
 			router.Get("info", authController.Info)
 			router.Post("logout", authController.Logout)
 			router.Get("health", healthController.Index)
+			router.Get("ops/overview", tenantController.OpsOverview)
 			router.Put("password", passwordController.Update)
 
 			router.Get("tenants", tenantController.Index)

@@ -192,7 +192,7 @@
     "config": "配置",
     "blacklist": "IP黑名单",
     "online_admin": "在线管理员",
-    "tenant": "租户管理",
+    "tenant": "租户",
     "export": "导入导出",
     "attachment": "附件",
     "order": "订单",
@@ -218,7 +218,8 @@
     "form_demo": "表单组件演示",
     "ai_lab": "AI 实验室",
     "observability-lite": "运行观测",
-    "tenant_op_log": "运维执行记录"
+    "tenant_op_log": "运维执行记录",
+    "platform_overview": "运维总览"
   },
   "monitor_runtime": {
     "title": "运行观测",
@@ -1213,11 +1214,25 @@
     "purge_status_running": "清理中",
     "purge_status_failed": "清理失败",
     "purge_status_done": "已清理文件",
-    "op_busy": "任务进行中"
+    "op_busy": "任务进行中",
+    "schema_status": "更新状态",
+    "schema_aligned": "已对齐",
+    "schema_behind": "未更新",
+    "schema_failed": "失败",
+    "schema_running": "进行中",
+    "schema_unknown": "未知",
+    "schema_expected": "期望迁移数",
+    "schema_summary": "Schema 成功 {aligned} · 未更新 {behind} · 失败 {failed} · 未知 {unknown}",
+    "filter_schema_behind": "未更新租户",
+    "filter_schema_failed": "更新失败",
+    "filter_schema_unknown": "未知水位",
+    "ops_total": "租户总数",
+    "queue_pending": "队列积压",
+    "ops_queue_pending": "队列积压"
   },
   "platform": {
-    "title": "平台控制台",
-    "login_hint": "管理租户开户与数据库连接（Landlord）",
+    "title": "租户运维",
+    "login_hint": "开户、迁移、备份与租户库运维（Landlord）",
     "back_tenant_login": "返回租户后台登录",
     "moved_title": "租户管理已迁移",
     "moved_hint": "请使用平台控制台账号登录后管理租户",
@@ -1233,10 +1248,16 @@
     "health_db_bad": "数据库异常",
     "health_tenants": "租户 {active}/{total} 启用",
     "cli_ops_title": "租户运维",
-    "cli_ops_hint": "单户迁移/种子/备份/恢复可在列表操作（异步队列）；可查看备份、库概览与运维时间线；migrate-all 等仍可用 CLI",
+    "cli_ops_hint": "单户迁移/种子/备份可在列表操作（异步队列）；发新版请先新镜像 CLI 迁库再切流量",
     "role_viewer": "只读",
     "role_owner": "管理员",
-    "readonly_hint": "当前为只读账号，仅可查看"
+    "readonly_hint": "当前为只读账号，仅可查看",
+    "deploy_tip_title": "发版顺序",
+    "deploy_tip_desc": "新代码依赖新字段时：先用【新镜像 CLI】执行平台 migrate 与 tenant:migrate-all，确认全部成功后再切换/重启服务。平台页迁移仅使用当前运行中的二进制。",
+    "migrate_current_binary_title": "迁移范围说明",
+    "migrate_current_binary_desc": "列表中的迁移/批量迁移使用当前服务进程内的 migration；发新版请先用新包 CLI 迁完再切流量。",
+    "app_version": "应用版本",
+    "overview_actions": "快捷操作"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",

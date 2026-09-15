@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FocusEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Alert,
   App,
@@ -75,6 +76,9 @@ interface TenantRow {
   has_password?: boolean
   status?: number
   provision_status?: string
+  schema_status?: string
+  schema_migration_count?: number
+  expected_migration_count?: number
   last_op?: string
   last_op_status?: string
   last_op_message?: string
@@ -191,6 +195,7 @@ interface PlatformQueueStatus {
 
 export default function PlatformTenantList() {
   const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
   const { message, modal } = App.useApp()
   const showError = useUnhandledError()
   const isOwner = isPlatformOwner()
@@ -212,6 +217,10 @@ export default function PlatformTenantList() {
     total?: number
     deleted?: number
     failed_purge?: number
+    schema_aligned?: number
+    schema_behind?: number
+    schema_failed?: number
+    schema_unknown?: number
   } | null>(null)
   const [batchLoading, setBatchLoading] = useState(false)
   const [detailRow, setDetailRow] = useState<TenantRow | null>(null)
@@ -271,6 +280,10 @@ export default function PlatformTenantList() {
           total: Number(summary.total ?? 0),
           deleted: Number(summary.deleted ?? 0),
           failed_purge: Number(summary.failed_purge ?? 0),
+          schema_aligned: Number(summary.schema_aligned ?? 0),
+          schema_behind: Number(summary.schema_behind ?? 0),
+          schema_failed: Number(summary.schema_failed ?? 0),
+          schema_unknown: Number(summary.schema_unknown ?? 0),
         })
       }
     } catch {
@@ -327,7 +340,7 @@ export default function PlatformTenantList() {
     refresh,
   } = useListPage<TenantRow>({
     fetchApi: getPlatformTenantList,
-    initialSearchForm: { code: '', name: '', status: '', provision_status: '', trashed: '' },
+    initialSearchForm: { code: '', name: '', status: '', provision_status: '', schema_status: '', trashed: '' },
     defaultSort: 'id:desc',
     normalizeRows: false,
     transformData: (row) => {
@@ -346,6 +359,9 @@ export default function PlatformTenantList() {
         has_password: Boolean(entityField(record, 'has_password', false)),
         status: Number(entityField(record, 'status', 0) ?? 0),
         provision_status: String(entityField(record, 'provision_status', '') ?? ''),
+        schema_status: String(entityField(record, 'schema_status', '') ?? ''),
+        schema_migration_count: Number(entityField(record, 'schema_migration_count', 0) ?? 0),
+        expected_migration_count: Number(entityField(record, 'expected_migration_count', 0) ?? 0),
         last_op: String(entityField(record, 'last_op', '') ?? ''),
         last_op_status: String(entityField(record, 'last_op_status', '') ?? ''),
         last_op_message: String(entityField(record, 'last_op_message', '') ?? ''),
@@ -364,6 +380,16 @@ export default function PlatformTenantList() {
   })
 
   const isRecycleView = searchForm.trashed === 'only'
+
+  useEffect(() => {
+    const schemaFromQuery = String(searchParams.get('schema_status') || '').trim()
+    if (!schemaFromQuery) return
+    if (String(searchForm.schema_status || '') === schemaFromQuery) return
+    onSearchFormChange({ ...searchForm, schema_status: schemaFromQuery })
+    window.setTimeout(() => handleSearch(), 0)
+    // Apply once from URL when landing from overview shortcuts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const setListMode = (mode: 'active' | 'recycle') => {
     const next = mode === 'recycle' ? 'only' : ''
@@ -740,6 +766,37 @@ export default function PlatformTenantList() {
     }
   }
 
+  const schemaLabel = (status?: string) => {
+    switch (status) {
+      case 'aligned':
+        return t('tenant.schema_aligned')
+      case 'behind':
+        return t('tenant.schema_behind')
+      case 'failed':
+        return t('tenant.schema_failed')
+      case 'running':
+        return t('tenant.schema_running')
+      case 'unknown':
+        return t('tenant.schema_unknown')
+      default:
+        return status || '—'
+    }
+  }
+
+  const schemaColor = (status?: string) => {
+    switch (status) {
+      case 'aligned':
+        return 'success'
+      case 'behind':
+      case 'running':
+        return 'warning'
+      case 'failed':
+        return 'error'
+      default:
+        return 'default'
+    }
+  }
+
   const runQueued = async (fn: () => Promise<unknown>) => {
     try {
       await fn()
@@ -765,6 +822,25 @@ export default function PlatformTenantList() {
         render: (status: string, row) => (
           <Tooltip title={row.last_migrate_error || row.last_op_message || undefined}>
             <Tag color={provisionColor(status)}>{provisionLabel(status)}</Tag>
+          </Tooltip>
+        ),
+      },
+      {
+        title: t('tenant.schema_status'),
+        dataIndex: 'schema_status',
+        key: 'schema_status',
+        width: 110,
+        render: (status: string, row) => (
+          <Tooltip
+            title={
+              row.schema_migration_count != null || row.expected_migration_count != null
+                ? `${row.schema_migration_count ?? 0}/${row.expected_migration_count ?? '?'}${
+                    row.last_migrate_error ? ` · ${row.last_migrate_error}` : ''
+                  }`
+                : row.last_migrate_error || undefined
+            }
+          >
+            <Tag color={schemaColor(status)}>{schemaLabel(status)}</Tag>
           </Tooltip>
         ),
       },
@@ -1104,6 +1180,13 @@ export default function PlatformTenantList() {
         message={t('platform.cli_ops_title')}
         description={healthDesc}
       />
+      <Alert
+        type="warning"
+        showIcon
+        style={{ marginBottom: 12 }}
+        message={t('platform.migrate_current_binary_title')}
+        description={t('platform.migrate_current_binary_desc')}
+      />
       <Space wrap style={{ marginBottom: 12 }} size="middle">
         <Segmented
           value={isRecycleView ? 'recycle' : 'active'}
@@ -1130,6 +1213,14 @@ export default function PlatformTenantList() {
               busy: opsSummary.busy ?? 0,
               total: opsSummary.total ?? 0,
             })}
+            {(opsSummary.schema_behind ?? 0) > 0 || (opsSummary.schema_failed ?? 0) > 0
+              ? ` · ${t('tenant.schema_summary', {
+                  aligned: opsSummary.schema_aligned ?? 0,
+                  behind: opsSummary.schema_behind ?? 0,
+                  failed: opsSummary.schema_failed ?? 0,
+                  unknown: opsSummary.schema_unknown ?? 0,
+                })}`
+              : ''}
             {(opsSummary.failed_purge ?? 0) > 0
               ? ` · ${t('tenant.failed_purge_count', { n: opsSummary.failed_purge })}`
               : ''}
@@ -1155,6 +1246,18 @@ export default function PlatformTenantList() {
             : [
                 { name: 'code', label: t('tenant.code') },
                 { name: 'name', label: t('tenant.name') },
+                {
+                  name: 'schema_status',
+                  label: t('tenant.schema_status'),
+                  type: 'select',
+                  options: [
+                    { label: t('tenant.schema_aligned'), value: 'aligned' },
+                    { label: t('tenant.schema_behind'), value: 'behind' },
+                    { label: t('tenant.schema_failed'), value: 'failed' },
+                    { label: t('tenant.schema_running'), value: 'running' },
+                    { label: t('tenant.schema_unknown'), value: 'unknown' },
+                  ],
+                },
                 {
                   name: 'provision_status',
                   label: t('tenant.provision_status_filter'),
@@ -1187,6 +1290,7 @@ export default function PlatformTenantList() {
             name: '',
             status: '',
             provision_status: '',
+            schema_status: '',
             trashed: keep,
           })
           window.setTimeout(() => handleSearch(), 0)

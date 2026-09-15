@@ -57,7 +57,7 @@ const submit = async () => {
       })
       await completePlatformLogin(res)
       ElMessage.success(t('login.login_success') || t('common.success'))
-      router.replace('/platform/tenants')
+      router.replace('/platform/overview')
     } catch (error) {
       if (!error?.__handled) {
         ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))

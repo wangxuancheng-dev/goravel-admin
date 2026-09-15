@@ -44,13 +44,21 @@ func (c *HealthController) Index(ctx http.Context) http.Response {
 
 	return response.Success(ctx, map[string]any{
 		"driver":      facades.Config().GetString("tenancy.driver", "off"),
+		"app_version": facades.Config().GetString("app.version", ""),
 		"database_ok": databaseOK,
 		"tenants": map[string]any{
 			"total":  total,
 			"active": active,
 		},
-		"queue": services.BuildPlatformQueueStatus(),
+		"queue":       services.BuildPlatformQueueStatus(),
 		"backup_keep": facades.Config().GetInt("tenancy.backup_keep", 10),
+		"expected_migration_count": services.ExpectedSchemaMigrationCount(),
+		"deploy_tips": []string{
+			"Release cutover: run NEW image CLI migrate + tenant:migrate-all before switching traffic",
+			"Platform UI migrate uses the currently running binary only",
+			"go run . artisan tenant:migrate-all",
+			"go run . artisan tenant:migrate <code>",
+		},
 		"cli_tips": []string{
 			"go run . artisan platform:install -u <user> -p <pass>",
 			"go run . artisan tenant:create --code=<code> --name=<name> --migrate",

@@ -211,7 +211,8 @@
     "form_demo": "Form Demo",
     "ai_lab": "AI Lab",
     "observability-lite": "Runtime Observability",
-    "tenant_op_log": "Tenant ops logs"
+    "tenant_op_log": "Tenant ops logs",
+    "platform_overview": "Ops overview"
   },
   "monitor_runtime": {
     "title": "Runtime Observability",
@@ -1204,11 +1205,25 @@
     "purge_status_running": "Purging",
     "purge_status_failed": "Purge failed",
     "purge_status_done": "Files purged",
-    "op_busy": "Busy"
+    "op_busy": "Busy",
+    "schema_status": "Schema status",
+    "schema_aligned": "Aligned",
+    "schema_behind": "Behind",
+    "schema_failed": "Failed",
+    "schema_running": "Running",
+    "schema_unknown": "Unknown",
+    "schema_expected": "Expected migrations",
+    "schema_summary": "Schema ok {aligned} · behind {behind} · failed {failed} · unknown {unknown}",
+    "filter_schema_behind": "Behind tenants",
+    "filter_schema_failed": "Failed updates",
+    "filter_schema_unknown": "Unknown waterline",
+    "ops_total": "Tenants",
+    "queue_pending": "Queue pending",
+    "ops_queue_pending": "Queue pending"
   },
   "platform": {
-    "title": "Platform Console",
-    "login_hint": "Landlord console for tenant provisioning",
+    "title": "Tenant Ops",
+    "login_hint": "Provision, migrate, backup and tenant DB ops (Landlord)",
     "back_tenant_login": "Back to tenant admin login",
     "moved_title": "Tenant management moved",
     "moved_hint": "Use a platform admin account to manage tenants",
@@ -1224,10 +1239,16 @@
     "health_db_bad": "Database unreachable",
     "health_tenants": "Tenants {active}/{total} active",
     "cli_ops_title": "Tenant ops",
-    "cli_ops_hint": "Per-tenant migrate/seed/backup/restore run from the list (async queue); backups, overview and timeline available; migrate-all still via CLI",
+    "cli_ops_hint": "Per-tenant migrate/seed/backup from the list (async queue); for new releases migrate with the new image CLI before cutover",
     "role_viewer": "Viewer",
     "role_owner": "Owner",
-    "readonly_hint": "Read-only account: view only"
+    "readonly_hint": "Read-only account: view only",
+    "deploy_tip_title": "Release order",
+    "deploy_tip_desc": "When new code requires new columns: run platform migrate + tenant:migrate-all with the NEW image CLI first, then switch traffic. UI migrate uses the currently running binary only.",
+    "migrate_current_binary_title": "Migrate scope",
+    "migrate_current_binary_desc": "List/batch migrate uses migrations from the running process. For a new release, migrate with the new image CLI before cutover.",
+    "app_version": "App version",
+    "overview_actions": "Quick actions"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",
