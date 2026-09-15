@@ -169,7 +169,7 @@ export default function <<.ModelName>>List() {
       render: (status: number, row) => (
         <Switch
           checked={Number(status ?? 1) === 1}
-          disabled={getButtonState('<<.ModuleName>>.update').disabled}
+          disabled={getButtonState('<<$.ModuleName>>.update').disabled}
           onChange={(checked) => void handleStatusChange(row, checked)}
         />
       ),

@@ -86,7 +86,7 @@ export default function <<.ModelName>>List() {
   const columns: ColumnsType<< "<" >><<.ModelName>>Row> = [
 <<range .ListFields>>
 <<- if and .ShowInList (ne .Name "id") (ne .Name "created_at") (ne .Name "updated_at") (ne .Name "operation")>>
-      <<if and (eq .Name "status") (eq .FormType "switch") .HasEdit>>
+      <<if and (eq .Name "status") (eq .FormType "switch") $.HasEdit>>
       {
         title: t('common.status'),
         dataIndex: 'status',
@@ -94,7 +94,7 @@ export default function <<.ModelName>>List() {
         render: (status: number, row) => (
           <Switch
             checked={Number(status ?? 1) === 1}
-            disabled={getButtonState('<<.ModuleName>>.update').disabled}
+            disabled={getButtonState('<<$.ModuleName>>.update').disabled}
             onChange={(checked) => void handleStatusChange(row, checked)}
           />
         ),
