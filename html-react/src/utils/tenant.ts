@@ -56,10 +56,11 @@ const ATTACHMENT_PUBLIC_HINT = /\/api\/admin\/public\/images\/|\/api\/public\/fi
 
 /**
  * Append tenant_code query for public asset URLs (img/src cannot send custom headers).
+ * Apply whenever a local tenant code exists (same as applyTenantHeader), even if VITE_TENANCY_* is unset.
  */
 export function withTenantQuery(url: string): string {
   const value = String(url || '').trim()
-  if (!value || !isTenancyEnabled()) return value
+  if (!value) return value
   const code = getTenantCode()
   if (!code) return value
   if (!ATTACHMENT_PUBLIC_HINT.test(value)) return value

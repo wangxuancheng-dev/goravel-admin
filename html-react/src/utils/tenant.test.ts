@@ -69,4 +69,11 @@ describe('tenant helpers', () => {
     expect(url).toContain('tenant_code=demo')
     expect(withTenantQuery('/api/admin/admins')).toBe('/api/admin/admins')
   })
+
+  it('appends tenant_code even when VITE_TENANCY_* is unset', () => {
+    vi.stubEnv('VITE_TENANCY_ENABLED', '')
+    vi.stubEnv('VITE_TENANCY_DRIVER', '')
+    setTenantCode('acme')
+    expect(withTenantQuery('/api/admin/public/images/9')).toContain('tenant_code=acme')
+  })
 })

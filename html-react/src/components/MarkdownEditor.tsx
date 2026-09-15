@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import request from '@/utils/request'
 import { useAppStore } from '@/stores/app'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
+import { withTenantQuery } from '@/utils/tenant'
 import { markdownToHtml } from '@/utils/markdown'
 import AttachmentImageField, {
   type AttachmentImageFieldRef,
@@ -54,7 +55,7 @@ export default function MarkdownEditor({
     })
     const data = (res.data || {}) as Record<string, unknown>
     const nested = (data.data || data) as { id?: number; is_public?: number; file_url?: string }
-    return resolveUploadStorageUrl(nested) || ''
+    return withTenantQuery(resolveUploadStorageUrl(nested) || '')
   }
 
   const imageUploadCommand: ICommand = useMemo(
@@ -100,11 +101,12 @@ export default function MarkdownEditor({
   }
 
   const handleMediaSelect = ({ url, alt }: AttachmentSelectPayload) => {
-    if (!url) {
+    const displayUrl = withTenantQuery(url)
+    if (!displayUrl) {
       message.warning(t('attachment.editor_public_required'))
       return
     }
-    const snippet = `![${escapeMdAlt(alt)}](${url})`
+    const snippet = `![${escapeMdAlt(alt)}](${displayUrl})`
     if (textApiRef.current) {
       textApiRef.current.replaceSelection(snippet)
       return

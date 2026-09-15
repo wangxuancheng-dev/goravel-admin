@@ -35,6 +35,7 @@ import { useAppStore } from '../store/app'
 import axios from 'axios'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
 import { buildAdminAuthHeaders } from '@/utils/authHeaders'
+import { withTenantQuery } from '@/utils/tenant'
 import { sanitizeHtml } from '@/utils/markdown'
 import AttachmentImageField from './AttachmentImageField.vue'
 
@@ -136,7 +137,7 @@ const handleUploadImg = async (files, callback) => {
     })
 
     if (response.data.code === 200 && response.data.data) {
-      const url = resolveUploadStorageUrl(response.data.data)
+      const url = withTenantQuery(resolveUploadStorageUrl(response.data.data))
       callback(url ? [url] : [])
     } else {
       console.error('Upload error', response.data)
@@ -162,11 +163,12 @@ const openMediaPicker = () => {
 const escapeMdAlt = (value) => String(value || 'image').replace(/[[\]]/g, '')
 
 const handleMediaSelect = ({ url, alt }) => {
-  if (!url) {
+  const displayUrl = withTenantQuery(url)
+  if (!displayUrl) {
     ElMessage.warning(t('attachment.editor_public_required'))
     return
   }
-  const snippet = `![${escapeMdAlt(alt)}](${url})`
+  const snippet = `![${escapeMdAlt(alt)}](${displayUrl})`
   const editor = mdEditorRef.value
   if (editor && typeof editor.insert === 'function') {
     editor.insert(() => ({

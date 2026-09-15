@@ -33,6 +33,7 @@ import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import { ElMessage } from 'element-plus'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
 import { buildAdminAuthHeaders } from '@/utils/authHeaders'
+import { withTenantQuery } from '@/utils/tenant'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../store/app'
 import AttachmentImageField from './AttachmentImageField.vue'
@@ -138,7 +139,7 @@ const editorConfig = {
             },
             customInsert(res, insertFn) {
                 if (res.code === 200 && res.data) {
-                    const url = resolveUploadStorageUrl(res.data)
+                    const url = withTenantQuery(resolveUploadStorageUrl(res.data))
                     if (!url) {
                         console.error('Upload error: missing file url', res)
                         return
@@ -190,11 +191,12 @@ const escapeAttr = (value) =>
 const handleMediaSelect = ({ url, alt }) => {
   const editor = editorRef.value
   if (!editor) return
-  if (!url) {
+  const displayUrl = withTenantQuery(url)
+  if (!displayUrl) {
     ElMessage.warning(t('attachment.editor_public_required'))
     return
   }
-  const safeUrl = escapeAttr(url)
+  const safeUrl = escapeAttr(displayUrl)
   const safeAlt = escapeAttr(alt || 'image')
   editor.dangerouslyInsertHtml(`<img src="${safeUrl}" alt="${safeAlt}" />`)
 }

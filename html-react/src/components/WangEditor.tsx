@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/app'
 import { getApiBaseURL } from '@/utils/env'
 import { resolveUploadStorageUrl } from '@/utils/attachmentUrl'
 import { buildAdminAuthHeaders } from '@/utils/authHeaders'
+import { getTenantCode, withTenantQuery } from '@/utils/tenant'
 import AttachmentImageField, {
   type AttachmentImageFieldRef,
   type AttachmentSelectPayload,
@@ -78,8 +79,8 @@ export default function WangEditor({
   }, [editor])
 
   const uploadAction = getApiBaseURL() + '/attachments/upload'
-
-  const uploadHeaders = useMemo(() => buildAdminAuthHeaders(), [])
+  const tenantCode = getTenantCode()
+  const uploadHeaders = useMemo(() => buildAdminAuthHeaders(), [tenantCode])
 
   const toolbarConfig = useMemo<Partial<IToolbarConfig>>(
     () => ({
@@ -107,7 +108,7 @@ export default function WangEditor({
           },
           customInsert(res: UploadResponse, insertFn: (url: string, alt: string, href: string) => void) {
             if (res.code === 200 && res.data) {
-              const url = resolveUploadStorageUrl(res.data)
+              const url = withTenantQuery(resolveUploadStorageUrl(res.data))
               if (!url) {
                 console.error('Upload error: missing file url', res)
                 return
@@ -132,11 +133,14 @@ export default function WangEditor({
 
   const handleMediaSelect = ({ url, alt }: AttachmentSelectPayload) => {
     if (!editor) return
-    if (!url) {
+    const displayUrl = withTenantQuery(url)
+    if (!displayUrl) {
       message.warning(t('attachment.editor_public_required'))
       return
     }
-    editor.dangerouslyInsertHtml(`<img src="${escapeAttr(url)}" alt="${escapeAttr(alt || 'image')}" />`)
+    editor.dangerouslyInsertHtml(
+      `<img src="${escapeAttr(displayUrl)}" alt="${escapeAttr(alt || 'image')}" />`,
+    )
   }
 
   return (
