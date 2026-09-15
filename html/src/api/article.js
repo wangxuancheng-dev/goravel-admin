@@ -12,6 +12,18 @@ const articleApi = extendApi(baseArticleApi, {
       data: params,
     });
   },
+  import: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request({
+      url: "/articles/import",
+      method: "post",
+      data: formData,
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
 });
 
 export async function getArticleList(params) {
@@ -37,4 +49,8 @@ export function deleteArticle(id) {
 
 export function exportArticle(params) {
   return articleApi.export(params);
+}
+
+export function importArticle(file) {
+  return articleApi.import(file);
 }

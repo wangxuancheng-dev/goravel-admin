@@ -44,7 +44,6 @@ import FormField from "../../components/Form/FormField.vue";
 
 import WangEditor from "../../components/WangEditor.vue";
 
-// Relation field: admin_id -> admins
 import {
   createArticle,
   updateArticle,
@@ -73,10 +72,10 @@ const loading = ref(false);
 
 // Reusable function to build initial form values.
 const getFormInitialValue = () => ({
-  admin_id: null,
+  admin_id: 0,
   title: "",
   content: "",
-  status: null,
+  status: 0,
 });
 
 const dialogVisible = computed({
@@ -94,7 +93,7 @@ const formRules = computed(() => {
   const rules = {};
 
   rules["admin_id"] = [
-    { required: true, message: t("common.select_required"), trigger: "change" },
+    { required: true, message: t("common.required"), trigger: "blur" },
   ];
   rules["title"] = [
     { required: true, message: t("common.required"), trigger: "blur" },
@@ -112,8 +111,9 @@ const formFields = computed(() => {
   fields.push({
     prop: "admin_id",
     label: t("admin_id"),
-    type: "select",
+    type: "number",
     disabled: loading.value,
+    min: 0,
   });
   fields.push({
     prop: "title",
@@ -124,10 +124,12 @@ const formFields = computed(() => {
   fields.push({
     prop: "status",
     label: t("status"),
-    type: "select",
+    type: "switch",
     disabled: loading.value,
-    apiUrl: "/options?type=dictionary&dictionary_type=status",
-    clearable: true,
+    props: {
+      activeValue: 1,
+      inactiveValue: 0,
+    },
   });
   return fields;
 });
@@ -168,7 +170,6 @@ const loadData = async () => {
       const mapped = mapFields(data, getFormInitialValue());
       const normalizeRules = {};
 
-      normalizeRules["status"] = "string";
       const normalized = normalizeFormData(mapped, normalizeRules);
       Object.assign(formData, normalized);
     }

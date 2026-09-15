@@ -44,6 +44,7 @@ func (receiver *QueueServiceProvider) Jobs() []queue.Job {
 		&jobs.ExportArticles{},
 		&jobs.ImportOrders{},
 		&jobs.TenantOps{},
+		&jobs.ImportArticles{},
 		// 搜索引擎同步任务（订单；文章等后续同目录加 sync_*_search.go）
 		&jobs.SyncOrderSearch{},
 	}

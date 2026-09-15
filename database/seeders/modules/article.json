@@ -12,7 +12,7 @@
   "has_edit": true,
   "has_delete": true,
   "has_export": true,
-  "has_import": false,
+  "has_import": true,
   "permissions": [
     {
       "name": "article列表",
@@ -61,6 +61,14 @@
       "path": "/api/admin/articles/export",
       "description": "导出article列表",
       "sort": 6
+    },
+    {
+      "name": "article导入",
+      "slug": "article.import",
+      "method": "POST",
+      "path": "/api/admin/articles/import",
+      "description": "导入article CSV",
+      "sort": 7
     }
   ]
 }

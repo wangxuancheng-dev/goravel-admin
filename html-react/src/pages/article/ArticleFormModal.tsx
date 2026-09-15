@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { App, Form, Input, Modal, Select } from 'antd'
+import { App, Form, Input, Modal, InputNumber, Switch } from 'antd'
 import { useTranslation } from 'react-i18next'
 import {
   createArticle,
@@ -32,10 +32,10 @@ export default function ArticleFormModal({ open, editId, onClose, onSuccess }: A
     if (!editId) {
       form.setFieldsValue({
 
-        admin_id: '',
+        admin_id: 0,
         title: '',
         content: '',
-        status: '',
+        status: true,
       })
       return
     }
@@ -47,10 +47,10 @@ export default function ArticleFormModal({ open, editId, onClose, onSuccess }: A
         const data = (entityField(raw, 'article', raw) || {}) as Record<string, unknown>
         form.setFieldsValue({
 
-          admin_id: entityField(data, 'admin_id', ''),
+          admin_id: Number(entityField(data, 'admin_id', 0)),
           title: entityField(data, 'title', ''),
           content: entityField(data, 'content', ''),
-          status: entityField(data, 'status', ''),
+          status: (Number(entityField(data, 'status', 1)) === 1),
         })
       })
       .catch((error) => showError(error, t('common.query_failed')))
@@ -64,6 +64,7 @@ export default function ArticleFormModal({ open, editId, onClose, onSuccess }: A
       const payload = {
         ...values,
 
+        status: values.status ? 1 : 0,
       }
       if (editId) {
         
@@ -99,7 +100,7 @@ export default function ArticleFormModal({ open, editId, onClose, onSuccess }: A
       <Form form={form} layout="vertical" disabled={loading}>
 
         <Form.Item name="admin_id" label={t('admin_id', { defaultValue: '管理员ID' })} rules={[{ required: true }]}>
-          <Select allowClear />
+          <InputNumber style={{ width: '100%' }} />
         </Form.Item>
         
         <Form.Item name="title" label={t('title', { defaultValue: '标题' })} rules={[{ required: true }]}>
@@ -110,8 +111,8 @@ export default function ArticleFormModal({ open, editId, onClose, onSuccess }: A
           <WangEditor height={400} placeholder={t('content', { defaultValue: '内容' })} />
         </Form.Item>
         
-        <Form.Item name="status" label={t('status', { defaultValue: '0:未发布 1:发布' })} rules={[{ required: true }]}>
-          <Select allowClear />
+        <Form.Item name="status" label={t('status', { defaultValue: '0:未发布 1:发布' })} valuePropName="checked">
+          <Switch />
         </Form.Item>
         
       </Form>

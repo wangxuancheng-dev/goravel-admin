@@ -89,7 +89,14 @@ export function createArticleTableColumns(t, options = {}) {
       width: 220,
       key: "content",
     },
-    { field: "status", title: t("status"), sortable: false, key: "status" },
+    {
+      field: "status",
+      title: t("table.status"),
+      width: 100,
+      sortable: false,
+      slot: "status",
+      key: "status",
+    },
     {
       field: "updated_at",
       title: t("table.updated_at"),

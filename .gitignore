@@ -1,6 +1,10 @@
 .idea
 .DS_Store
+.vscode/
+.cursor/rules/
 storage/framework
+storage/app/tenants/
+storage/backups/
 launch.json
 .env
 .env.local

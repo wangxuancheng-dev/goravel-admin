@@ -23,6 +23,16 @@
   >
     <template #extra-buttons>
       <el-button
+        type="primary"
+        :disabled="getButtonState('article.import').disabled || isImporting"
+        :loading="isImporting"
+        @click="handleImport"
+      >
+        <el-icon><Upload /></el-icon>
+        {{ $t("common.import") }}
+      </el-button>
+
+      <el-button
         type="success"
         :disabled="getButtonState('article.export').disabled || isExporting"
         :loading="isExporting"
@@ -39,6 +49,13 @@
       <div class="text-truncate" :title="extractTextFromMarkdown(row.content)">
         {{ extractTextFromMarkdown(row.content).slice(0, 120) || "-" }}
       </div>
+    </template>
+    <template #status="{ row }">
+      <el-switch
+        :model-value="Number(row.status ?? 1) === 1"
+        :disabled="getButtonState('article.update').disabled"
+        @change="(val) => handleStatusChange(row, val)"
+      />
     </template>
 
     <template #operation="{ row }">
@@ -57,6 +74,14 @@
       />
     </template>
   </ListPage>
+
+  <input
+    ref="fileInputRef"
+    type="file"
+    accept=".csv"
+    style="display: none"
+    @change="handleFileChange"
+  />
 </template>
 
 <script setup>
@@ -73,6 +98,10 @@ import { createCrudActions } from "@/utils/listPageHelpers";
 import { extractTextFromMarkdown } from "@/utils/markdown";
 
 import { exportArticle } from "@/api/article";
+
+import { Upload } from "@element-plus/icons-vue";
+import { useCsvImport } from "@/composables/useCsvImport";
+import { importArticle } from "@/api/article";
 
 import { getArticleList, deleteArticle, updateArticle } from "@/api/article";
 import logger from "@/utils/logger";
@@ -119,11 +148,33 @@ const {
   normalizeRows: false,
 });
 
+const { fileInputRef, isImporting, handleImport, handleFileChange } =
+  useCsvImport({
+    importApi: importArticle,
+    onSuccess: () => loadData(),
+  });
+
 const hasSelection = computed(() => selectedIds.value.length > 0);
 const searchFields = computed(() => createArticleSearchFields(t));
 const tableColumns = computed(() =>
   createArticleTableColumns(t, { enableBatchActions: false }),
 );
+
+const handleStatusChange = async (row, newStatus) => {
+  try {
+    const statusValue = newStatus ? 1 : 0;
+    await updateArticle(row.id, { status: statusValue });
+    ElMessage.success(newStatus ? t("common.enabled") : t("common.disabled"));
+    const item = tableData.value.find((item) => item.id === row.id);
+    if (item) item.status = statusValue;
+  } catch (error) {
+    logger.error("Status change error:", error);
+    loadData();
+    if (!error.__handled) {
+      ElMessage.error(error.message || t("common.operation_failed"));
+    }
+  }
+};
 
 const operationActions = computed(() =>
   createCrudActions(t, "article", {

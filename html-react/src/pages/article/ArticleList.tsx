@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { Space, Table } from 'antd'
+import { Space, Switch, Table, App, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useTranslation } from 'react-i18next'
 import {
   deleteArticle,
   getArticleList,
-  
+  updateArticle,
   exportArticle,
+  importArticle,
 } from '@/api/article'
 import { useListPage } from '@/hooks/useListPage'
 import { handlePaginatedTableChange } from '@/utils/tableChange'
@@ -14,6 +15,9 @@ import { useCrudActions } from '@/hooks/useCrudActions'
 import { usePermission } from '@/hooks/usePermission'
 
 import { useQueuedExport } from '@/hooks/useQueuedExport'
+
+import { UploadOutlined } from '@ant-design/icons'
+import type { UploadProps } from 'antd/es/upload'
 
 import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
@@ -37,6 +41,8 @@ export default function ArticleList() {
   const { getButtonState } = usePermission()
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<string | number | null>(null)
+
+  const { message } = App.useApp()
 
   const {
     tableData,
@@ -73,6 +79,46 @@ export default function ArticleList() {
     redirectPath: '/exports',
   })
 
+  const [importing, setImporting] = useState(false)
+  const uploadProps: UploadProps = {
+    accept: '.csv',
+    showUploadList: false,
+    beforeUpload: (file) => {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        message.error(t('common.invalid_file_type'))
+        return false
+      }
+      setImporting(true)
+      void importArticle(file as File)
+        .then((res) => {
+          const payload = (res.data || {}) as Record<string, unknown>
+          const result = ((payload.data || payload) as Record<string, unknown>) || {}
+          if (result.async && result.import_id) {
+            message.success(t('export.task_submitted'))
+            return
+          }
+          const successCount = Number(result.success_count || 0)
+          const failedCount = Number(result.failed_count || 0)
+          const errors = Array.isArray(result.errors) ? (result.errors as string[]) : []
+          if (successCount > 0) {
+            message.success(t('common.import_success'))
+            if (failedCount > 0 && errors.length) {
+              message.warning(errors.slice(0, 10).join('\n'))
+            }
+            void refresh()
+          } else {
+            message.warning(t('common.import_no_data'))
+            if (errors.length) {
+              message.error(errors.slice(0, 10).join('\n'))
+            }
+          }
+        })
+        .catch(() => message.error(t('common.operation_failed')))
+        .finally(() => setImporting(false))
+      return false
+    },
+  }
+
   const columns: ColumnsType<ArticleRow> = [
     { title: t('table.id'), dataIndex: 'id', width: 80, sorter: true },
 
@@ -92,7 +138,18 @@ export default function ArticleList() {
       render: (value: unknown) => extractTextFromMarkdown(String(value ?? '')).slice(0, 120) || '-',
     },
     
-    { title: t('status', { defaultValue: '0:未发布 1:发布' }), dataIndex: 'status' },
+    {
+      title: t('common.status'),
+      dataIndex: 'status',
+      width: 100,
+      render: (status: number, row) => (
+        <Switch
+          checked={Number(status ?? 1) === 1}
+          disabled={getButtonState('article.update').disabled}
+          onChange={(checked) => void handleStatusChange(row, checked)}
+        />
+      ),
+    },
     
     { title: t('table.updated_at'), dataIndex: 'updated_at', width: 180, sorter: true },
     { title: t('table.created_at'), dataIndex: 'created_at', width: 180, sorter: true },
@@ -133,12 +190,23 @@ export default function ArticleList() {
     },
   ]
 
+  const handleStatusChange = async (row: ArticleRow, checked: boolean) => {
+    await updateArticle(row.id, { status: checked ? 1 : 0 })
+    await refresh()
+  }
+  
   return (
     <PageContainer
       title={t('menu.article')}
       extra={
         <Space>
           {toolbar}
+          
+          <Upload {...uploadProps}>
+            <PermissionButton permission="article.import" icon={<UploadOutlined />} loading={importing}>
+              {t('common.import')}
+            </PermissionButton>
+          </Upload>
           
           <PermissionButton
             permission="article.export"

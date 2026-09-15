@@ -3,6 +3,12 @@ package services
 import (
 	"context"
 
+	"encoding/csv"
+	"fmt"
+	"strings"
+
+	"github.com/spf13/cast"
+
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
 	appfacades "goravel/app/facades"
@@ -19,6 +25,8 @@ type ArticleService interface {
 	GetList(filters ArticleFilters, page, pageSize int) ([]models.Article, int64, error)
 
 	GetAllArticleForExport(filters ArticleFilters) ([]models.Article, error)
+
+	ImportFromCSV(csvContent string) (*ImportResult, error)
 
 	Create(req *admin.ArticleCreate) (*models.Article, error)
 
@@ -140,6 +148,67 @@ func (s *ArticleServiceImpl) GetAllArticleForExport(filters ArticleFilters) ([]m
 	}
 
 	return list, nil
+}
+
+// ImportFromCSV imports Article rows from CSV content.
+// Header names should match field names (case-insensitive). Customize as needed.
+func (s *ArticleServiceImpl) ImportFromCSV(csvContent string) (*ImportResult, error) {
+	reader := csv.NewReader(strings.NewReader(csvContent))
+	reader.TrimLeadingSpace = true
+	reader.LazyQuotes = true
+
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, apperrors.ErrInvalidCSVFormat.WithError(err)
+	}
+	if len(records) < 2 {
+		return nil, apperrors.ErrInvalidCSVFormat.WithMessage("CSV文件至少需要表头和数据行")
+	}
+
+	headerMap := make(map[string]int)
+	for i, header := range records[0] {
+		headerMap[strings.TrimSpace(strings.ToLower(header))] = i
+	}
+
+	result := &ImportResult{
+		TotalRows: len(records) - 1,
+		Errors:    []string{},
+	}
+
+	for rowIndex, row := range records[1:] {
+		lineNo := rowIndex + 2
+		if len(row) == 0 || (len(row) == 1 && strings.TrimSpace(row[0]) == "") {
+			result.TotalRows--
+			continue
+		}
+
+		item := &models.Article{}
+		if idx, ok := headerMap["admin_id"]; ok && idx < len(row) {
+			val := strings.TrimSpace(row[idx])
+			item.AdminId = cast.ToUint(val)
+		}
+		if idx, ok := headerMap["title"]; ok && idx < len(row) {
+			val := strings.TrimSpace(row[idx])
+			item.Title = val
+		}
+		if idx, ok := headerMap["content"]; ok && idx < len(row) {
+			val := strings.TrimSpace(row[idx])
+			item.Content = val
+		}
+		if idx, ok := headerMap["status"]; ok && idx < len(row) {
+			val := strings.TrimSpace(row[idx])
+			item.Status = uint8(cast.ToUint(val))
+		}
+
+		if err := appfacades.OrmQuery(s.ctx).Create(item); err != nil {
+			result.FailedCount++
+			result.Errors = append(result.Errors, fmt.Sprintf("第%d行：%v", lineNo, err))
+			continue
+		}
+		result.SuccessCount++
+	}
+
+	return result, nil
 }
 
 func (s *ArticleServiceImpl) Create(req *admin.ArticleCreate) (*models.Article, error) {

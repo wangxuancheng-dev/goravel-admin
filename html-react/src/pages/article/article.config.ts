@@ -80,11 +80,11 @@ export function transformArticleRow(row: Record<string, unknown>): ArticleRow {
   return {
     id: entityField(row, 'id', '')!,
 
-    admin_id: entityField(row, 'admin_id', ''),
+    admin_id: entityField(row, 'admin_id', 0),
     admin: entityField(row, 'admin', null),
     title: entityField(row, 'title', ''),
     content: entityField(row, 'content', ''),
-    status: entityField(row, 'status', ''),
+    status: entityField(row, 'status', 0),
     created_at: entityField(row, 'created_at', ''),
     updated_at: entityField(row, 'updated_at', ''),
   }
