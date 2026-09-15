@@ -48,6 +48,35 @@ func TestGenerateImportJobAndController(t *testing.T) {
 	assert.True(t, strings.Contains(svc, "headerMap"))
 }
 
+func TestGenerateImportBelongsToUsesUint(t *testing.T) {
+	s := &CodeGeneratorServiceImpl{}
+	fields := []FieldConfig{
+		{
+			Name: "admin_id", Label: "Admin", DBType: "bigInteger", GoType: "int64",
+			ShowInList: true, ShowInForm: true, FormType: "select",
+			Relation: &RelationConfig{
+				Table: "admins", ForeignKey: "admin_id", DisplayField: "name", RelationType: "belongsTo",
+			},
+		},
+		{Name: "title", GoType: "string", DBType: "string", Label: "Title", ShowInList: true, ShowInForm: true, FormType: "input"},
+	}
+	opts := map[string]bool{"has_import": true, "has_create": true}
+
+	files, err := s.Generate("article", "articles", fields, []string{"service"}, opts)
+	require.NoError(t, err)
+
+	var svc string
+	for _, f := range files {
+		if strings.HasSuffix(f.Path, "article_service.go") {
+			svc = f.Content
+			break
+		}
+	}
+	require.NotEmpty(t, svc)
+	assert.Contains(t, svc, "item.AdminId = cast.ToUint(val)")
+	assert.NotContains(t, svc, "item.AdminId = cast.ToInt64(val)")
+}
+
 func TestGenerateImportSyncSkipsJob(t *testing.T) {
 	s := &CodeGeneratorServiceImpl{}
 	fields := []FieldConfig{

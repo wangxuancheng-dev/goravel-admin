@@ -219,7 +219,9 @@ func (s *<<.ServiceName>>Impl) ImportFromCSV(csvContent string) (*ImportResult, 
 <<- if and (ne .Name "id") (ne .Name "created_at") (ne .Name "updated_at") (ne .Name "deleted_at") .ShowInForm>>
 		if idx, ok := headerMap["<<.Name>>"]; ok && idx < len(row) {
 			val := strings.TrimSpace(row[idx])
-			<<- if eq .GoType "string">>
+			<<- if and .Relation (eq .Relation.RelationType "belongsTo")>>
+			item.<<.FieldName>> = cast.ToUint(val)
+			<<- else if eq .GoType "string">>
 			item.<<.FieldName>> = val
 			<<- else if eq .GoType "uint8">>
 			item.<<.FieldName>> = uint8(cast.ToUint(val))
