@@ -272,7 +272,11 @@ export const useUserStore = create<UserState>((set, get) => {
         } else {
           const localCode = getTenantCode() || resolveTenantCodeFromLocation()
           if (localCode) {
-            get().setTenant({ code: localCode, ...(get().tenant?.name ? { name: get().tenant.name } : {}) })
+            const existingTenant = get().tenant
+            get().setTenant({
+              code: localCode,
+              ...(existingTenant?.name ? { name: existingTenant.name } : {}),
+            })
           } else if (!(res.data?.config as { tenancy_enabled?: boolean } | undefined)?.tenancy_enabled) {
             get().setTenant(null)
           }
