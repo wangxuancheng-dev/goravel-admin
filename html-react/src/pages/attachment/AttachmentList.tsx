@@ -46,8 +46,7 @@ import PageContainer from '@/components/PageContainer'
 import ColumnSettingDialog from '@/components/ColumnSettingDialog'
 import SearchForm from '@/components/SearchForm'
 import PermissionButton from '@/components/PermissionButton'
-import Storage from '@/utils/storage'
-import i18n from '@/i18n'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import {
   attachmentPreviewKind,
   canInlinePreviewAttachment,
@@ -244,16 +243,9 @@ export default function AttachmentList() {
 
     try {
       const previewUrl = getAttachmentPreviewUrl(row.id)
-      const token = String(Storage.getItem('token', '') ?? '').trim()
-      const currentLocale = i18n.language || Storage.getItem('language', 'zh-CN') || 'zh-CN'
-      const acceptLanguage = currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
-
       const response = await fetch(previewUrl, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Accept-Language': acceptLanguage,
-        },
+        headers: buildAdminAuthHeaders(),
       })
 
       if (!response.ok) {
@@ -290,16 +282,9 @@ export default function AttachmentList() {
 
     try {
       const downloadUrl = getAttachmentDownloadUrl(attachmentId)
-      const token = String(Storage.getItem('token', '') ?? '').trim()
-      const currentLocale = i18n.language || Storage.getItem('language', 'zh-CN') || 'zh-CN'
-      const acceptLanguage = currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
-
       const response = await fetch(downloadUrl, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Accept-Language': acceptLanguage,
-        },
+        headers: buildAdminAuthHeaders(),
       })
 
       if (!response.ok) {

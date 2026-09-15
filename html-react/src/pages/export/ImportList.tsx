@@ -12,8 +12,7 @@ import SearchForm from '@/components/SearchForm'
 import PermissionButton from '@/components/PermissionButton'
 import { entityField } from '@/utils/normalize'
 import { getApiBaseURL } from '@/utils/env'
-import Storage from '@/utils/storage'
-import i18n from '@/i18n'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 
 interface ImportRow {
   id: number | string
@@ -111,16 +110,9 @@ export default function ImportList() {
         fullUrl = `${apiBase.replace(/\/+$/, '')}${cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`}`
       }
 
-      const token = String(Storage.getItem('token', '') ?? '').trim()
-      const currentLocale = i18n.language || Storage.getItem('language', 'zh-CN') || 'zh-CN'
-      const acceptLanguage = currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
-
       const response = await fetch(fullUrl, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Accept-Language': acceptLanguage,
-        },
+        headers: buildAdminAuthHeaders(),
       })
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)

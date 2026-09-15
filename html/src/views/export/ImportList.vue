@@ -61,13 +61,13 @@ import { ElMessage } from 'element-plus'
 import ListPage from '@/components/ListPage.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import { getImportList, deleteImport } from '@/api/import'
-import Storage from '@/utils/storage'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 
 defineProps({
   embedded: { type: Boolean, default: true }
 })
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const listPageRef = ref(null)
 const downloadingIds = ref(new Set())
 
@@ -178,14 +178,9 @@ const handleDownloadError = async (row) => {
         fullUrl = `${apiBaseURL.replace(/\/+$/, '')}${apiPrefix.replace(/\/+$/, '')}${cleanUrl}`
       }
     }
-    const token = Storage.getItem('token') || ''
-    const acceptLanguage = locale.value === 'en-US' ? 'en-US' : 'zh-CN'
     const response = await fetch(fullUrl, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Accept-Language': acceptLanguage
-      }
+      headers: buildAdminAuthHeaders()
     })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const blob = await response.blob()

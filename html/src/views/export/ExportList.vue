@@ -74,8 +74,7 @@ import { Delete } from '@element-plus/icons-vue'
 import ListPage from '@/components/ListPage.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import { getExportList, deleteExport, batchDeleteExports } from '@/api/export'
-import i18n from '@/i18n'
-import Storage from '@/utils/storage'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import {
   exportInitialSearchForm,
   transformExportRow,
@@ -94,7 +93,7 @@ defineProps({
   embedded: { type: Boolean, default: false }
 })
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const listPageRef = ref(null)
 const downloadingIds = ref(new Set())
 
@@ -158,16 +157,9 @@ const handleDownload = async (row) => {
       }
     }
 
-    const token = Storage.getItem('token', '') || ''
-    const currentLocale = locale.value || i18n.global.locale.value || Storage.getItem('language', 'zh-CN') || 'zh-CN'
-    const acceptLanguage = currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
-
     const response = await fetch(fullUrl, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token.trim()}`,
-        'Accept-Language': acceptLanguage
-      }
+      headers: buildAdminAuthHeaders()
     })
 
     if (!response.ok) {

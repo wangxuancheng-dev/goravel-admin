@@ -365,8 +365,7 @@ import {
 } from '@/api/attachment'
 import AttachmentCategoryDialog from './AttachmentCategoryDialog.vue'
 import request from '@/utils/request'
-import i18n from '@/i18n'
-import Storage from '@/utils/storage'
+import { buildAdminAuthHeaders } from '@/utils/authHeaders'
 import {
   canInlinePreviewAttachment,
   attachmentPreviewKind
@@ -496,17 +495,9 @@ const handlePreview = async (row) => {
 
   try {
     const previewUrl = getAttachmentPreviewUrl(row.id)
-    const token = Storage.getItem('token', '') || ''
-    const tokenStr = typeof token === 'string' ? token.trim() : ''
-    const currentLocale = locale.value || i18n.global.locale.value || Storage.getItem('language', 'zh-CN') || 'zh-CN'
-    const acceptLanguage = currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
-
     const response = await fetch(previewUrl, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${tokenStr}`,
-        'Accept-Language': acceptLanguage
-      }
+      headers: buildAdminAuthHeaders()
     })
 
     if (!response.ok) {
@@ -753,21 +744,10 @@ const handleDownload = async (row) => {
       downloadUrl = `${base}${downloadUrl}`
     }
     
-    // 获取 token
-    const token = Storage.getItem('token', '') || ''
-    const tokenStr = typeof token === 'string' ? token.trim() : ''
-    
-    // 获取当前语言设置
-    const currentLocale = locale.value || i18n.global.locale.value || Storage.getItem('language', 'zh-CN') || 'zh-CN'
-    const acceptLanguage = currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
-    
-    // 使用 fetch 请求下载文件，这样可以携带认证 token
+    // Use fetch so we can send auth + tenant headers
     const response = await fetch(downloadUrl, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${tokenStr}`,
-        'Accept-Language': acceptLanguage
-      }
+      headers: buildAdminAuthHeaders()
     })
     
     if (!response.ok) {
