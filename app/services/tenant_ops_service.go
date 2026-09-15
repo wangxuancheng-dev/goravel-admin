@@ -299,6 +299,7 @@ func RunTenantOp(args TenantOpsArgs) error {
 		tenant.LastOpMessage = msg
 		tenant.LastOpAt = &failAt
 		UpdateTenantOpLog(args.OpLogID, tenant, op, models.TenantOpStatusFailed, msg, &failAt)
+		AlertTenantOpFailedIfNeeded(tenant, op, msg)
 		return runErr
 	}
 

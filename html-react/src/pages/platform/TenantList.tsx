@@ -50,6 +50,7 @@ import {
   seedPlatformTenant,
   undeletePlatformTenant,
   updatePlatformTenant,
+  updatePlatformTenantMaintenance,
   updatePlatformTenantStatus,
 } from '@/api/platform'
 import { useListPage } from '@/hooks/useListPage'
@@ -79,6 +80,8 @@ interface TenantRow {
   schema_status?: string
   schema_migration_count?: number
   expected_migration_count?: number
+  maintenance?: boolean
+  maintenance_message?: string
   last_op?: string
   last_op_status?: string
   last_op_message?: string
@@ -221,6 +224,7 @@ export default function PlatformTenantList() {
     schema_behind?: number
     schema_failed?: number
     schema_unknown?: number
+    maintenance?: number
   } | null>(null)
   const [batchLoading, setBatchLoading] = useState(false)
   const [detailRow, setDetailRow] = useState<TenantRow | null>(null)
@@ -284,6 +288,7 @@ export default function PlatformTenantList() {
           schema_behind: Number(summary.schema_behind ?? 0),
           schema_failed: Number(summary.schema_failed ?? 0),
           schema_unknown: Number(summary.schema_unknown ?? 0),
+          maintenance: Number(summary.maintenance ?? 0),
         })
       }
     } catch {
@@ -340,7 +345,7 @@ export default function PlatformTenantList() {
     refresh,
   } = useListPage<TenantRow>({
     fetchApi: getPlatformTenantList,
-    initialSearchForm: { code: '', name: '', status: '', provision_status: '', schema_status: '', trashed: '' },
+    initialSearchForm: { code: '', name: '', status: '', provision_status: '', schema_status: '', maintenance: '', trashed: '' },
     defaultSort: 'id:desc',
     normalizeRows: false,
     transformData: (row) => {
@@ -362,6 +367,8 @@ export default function PlatformTenantList() {
         schema_status: String(entityField(record, 'schema_status', '') ?? ''),
         schema_migration_count: Number(entityField(record, 'schema_migration_count', 0) ?? 0),
         expected_migration_count: Number(entityField(record, 'expected_migration_count', 0) ?? 0),
+        maintenance: Boolean(entityField(record, 'maintenance', false)),
+        maintenance_message: String(entityField(record, 'maintenance_message', '') ?? ''),
         last_op: String(entityField(record, 'last_op', '') ?? ''),
         last_op_status: String(entityField(record, 'last_op_status', '') ?? ''),
         last_op_message: String(entityField(record, 'last_op_message', '') ?? ''),
@@ -383,9 +390,20 @@ export default function PlatformTenantList() {
 
   useEffect(() => {
     const schemaFromQuery = String(searchParams.get('schema_status') || '').trim()
-    if (!schemaFromQuery) return
-    if (String(searchForm.schema_status || '') === schemaFromQuery) return
-    onSearchFormChange({ ...searchForm, schema_status: schemaFromQuery })
+    const maintenanceFromQuery = String(searchParams.get('maintenance') || '').trim()
+    if (!schemaFromQuery && !maintenanceFromQuery) return
+    const next = { ...searchForm }
+    let changed = false
+    if (schemaFromQuery && String(searchForm.schema_status || '') !== schemaFromQuery) {
+      next.schema_status = schemaFromQuery
+      changed = true
+    }
+    if (maintenanceFromQuery && String(searchForm.maintenance || '') !== maintenanceFromQuery) {
+      next.maintenance = maintenanceFromQuery
+      changed = true
+    }
+    if (!changed) return
+    onSearchFormChange(next)
     window.setTimeout(() => handleSearch(), 0)
     // Apply once from URL when landing from overview shortcuts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -907,6 +925,36 @@ export default function PlatformTenantList() {
           />
         ),
       },
+      {
+        title: t('tenant.maintenance'),
+        dataIndex: 'maintenance',
+        key: 'maintenance',
+        width: 100,
+        render: (maintenance, row) => (
+          <Switch
+            checked={!!maintenance}
+            disabled={!isOwner}
+            title={t('tenant.maintenance_hint')}
+            onChange={(checked) => {
+              modal.confirm({
+                title: t('tenant.maintenance'),
+                content: checked ? t('tenant.maintenance_confirm_on') : t('tenant.maintenance_confirm_off'),
+                onOk: async () => {
+                  try {
+                    await updatePlatformTenantMaintenance(row.id, { maintenance: !!checked })
+                    message.success(t('common.update_success'))
+                    await refresh()
+                    await refreshOpsSummary()
+                  } catch (error) {
+                    showError(error, t('common.operation_failed'))
+                    throw error
+                  }
+                },
+              })
+            }}
+          />
+        ),
+      },
       { title: t('table.created_at'), dataIndex: 'created_at', key: 'created_at', width: 170 },
       {
         title: t('common.operation'),
@@ -1038,7 +1086,7 @@ export default function PlatformTenantList() {
         },
       },
     ],
-    [t, message, modal, refresh, showError, form, copyText, openBackups, runQueued, openDetail, onPingRow, isRecycleView, isOwner],
+    [t, message, modal, refresh, refreshOpsSummary, showError, form, copyText, openBackups, runQueued, openDetail, onPingRow, isRecycleView, isOwner],
   )
 
   const {
@@ -1240,6 +1288,9 @@ export default function PlatformTenantList() {
             {(opsSummary.failed_purge ?? 0) > 0
               ? ` · ${t('tenant.failed_purge_count', { n: opsSummary.failed_purge })}`
               : ''}
+            {(opsSummary.maintenance ?? 0) > 0
+              ? ` · ${t('tenant.ops_maintenance')} ${opsSummary.maintenance}`
+              : ''}
           </Typography.Text>
         ) : null}
       </Space>
@@ -1294,6 +1345,15 @@ export default function PlatformTenantList() {
                     { label: t('common.disabled'), value: '0' },
                   ],
                 },
+                {
+                  name: 'maintenance',
+                  label: t('tenant.maintenance'),
+                  type: 'select',
+                  options: [
+                    { label: t('tenant.maintenance_on'), value: '1' },
+                    { label: t('tenant.maintenance_off'), value: '0' },
+                  ],
+                },
               ]
         }
         values={searchForm}
@@ -1307,6 +1367,7 @@ export default function PlatformTenantList() {
             status: '',
             provision_status: '',
             schema_status: '',
+            maintenance: '',
             trashed: keep,
           })
           window.setTimeout(() => handleSearch(), 0)
@@ -1364,6 +1425,10 @@ export default function PlatformTenantList() {
               </Descriptions.Item>
               <Descriptions.Item label={t('tenant.provision_status')}>
                 {provisionLabel(detailRow.provision_status)}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('tenant.maintenance')}>
+                {detailRow.maintenance ? t('tenant.maintenance_on') : t('tenant.maintenance_off')}
+                {detailRow.maintenance_message ? ` · ${detailRow.maintenance_message}` : ''}
               </Descriptions.Item>
               <Descriptions.Item label={t('tenant.last_op')}>
                 {detailRow.last_op || '—'} / {detailRow.last_op_status || '—'}

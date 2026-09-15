@@ -53,6 +53,13 @@ export function updatePlatformTenantStatus(id: string | number, status: number) 
   return platformRequest.put(`/tenants/${id}/status`, { status })
 }
 
+export function updatePlatformTenantMaintenance(
+  id: string | number,
+  data: { maintenance: boolean; maintenance_message?: string },
+) {
+  return platformRequest.put(`/tenants/${id}/maintenance`, data)
+}
+
 export function pingPlatformTenant(id: string | number) {
   return platformRequest.post(`/tenants/${id}/ping`)
 }

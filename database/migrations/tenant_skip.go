@@ -23,7 +23,8 @@ func IsLandlordOnlyMigration(signature string) bool {
 		"20260911000002_create_platform_admins_table",
 		"20260912000001_add_provision_status_to_tenants",
 		"20260912000002_add_migrate_meta_to_tenants",
-		"20260915140000_add_tenant_schema_migration_count":
+		"20260915140000_add_tenant_schema_migration_count",
+		"20260915160000_add_tenant_maintenance_meta":
 		return true
 	default:
 		return false

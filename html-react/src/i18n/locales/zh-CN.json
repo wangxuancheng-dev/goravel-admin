@@ -1130,7 +1130,20 @@
     "ops_total": "租户总数",
     "ops_queue_pending": "队列积压",
     "batch_migrate": "批量迁移",
-    "batch_migrate_confirm": "确认为选中的 {{n}} 个租户执行迁移？"
+    "batch_migrate_confirm": "确认为选中的 {{n}} 个租户执行迁移？",
+    "maintenance": "维护模式",
+    "maintenance_on": "维护中",
+    "maintenance_off": "正常",
+    "maintenance_hint": "开启后租户业务接口返回 503；平台运维不受影响",
+    "maintenance_confirm_on": "确认开启维护模式？租户用户将暂时无法访问业务接口。",
+    "maintenance_confirm_off": "确认关闭维护模式？",
+    "ops_maintenance": "维护中",
+    "filter_maintenance": "仅看维护中",
+    "alert_tenant_ops": "运维失败告警",
+    "alert_queue": "队列积压告警",
+    "alert_configured": "已配置",
+    "alert_not_configured": "未配置 webhook",
+    "alert_source": "来源"
   },
   "platform": {
     "title": "租户运维",
@@ -1160,7 +1173,9 @@
     "migrate_current_binary_title": "迁移范围说明",
     "migrate_current_binary_desc": "列表中的迁移/批量迁移使用当前服务进程内的 migration；发新版请先用新包 CLI 迁完再切流量。",
     "app_version": "应用版本",
-    "overview_actions": "快捷操作"
+    "overview_actions": "快捷操作",
+    "alerts_title": "告警配置",
+    "filter_maintenance": "维护中租户"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",

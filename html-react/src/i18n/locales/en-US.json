@@ -1126,7 +1126,20 @@
     "ops_total": "Tenants",
     "ops_queue_pending": "Queue pending",
     "batch_migrate": "Batch migrate",
-    "batch_migrate_confirm": "Enqueue migrate for {{n}} selected tenant(s)?"
+    "batch_migrate_confirm": "Enqueue migrate for {{n}} selected tenant(s)?",
+    "maintenance": "Maintenance",
+    "maintenance_on": "On",
+    "maintenance_off": "Off",
+    "maintenance_hint": "When on, tenant business APIs return 503; platform ops are unaffected",
+    "maintenance_confirm_on": "Enable maintenance mode? Tenant users cannot access business APIs until it is turned off.",
+    "maintenance_confirm_off": "Disable maintenance mode?",
+    "ops_maintenance": "In maintenance",
+    "filter_maintenance": "Maintenance only",
+    "alert_tenant_ops": "Ops failure alert",
+    "alert_queue": "Queue backlog alert",
+    "alert_configured": "Configured",
+    "alert_not_configured": "Webhook not set",
+    "alert_source": "Source"
   },
   "platform": {
     "title": "Tenant Ops",
@@ -1156,7 +1169,9 @@
     "migrate_current_binary_title": "Migrate scope",
     "migrate_current_binary_desc": "List/batch migrate uses migrations from the running process. For a new release, migrate with the new image CLI before cutover.",
     "app_version": "App version",
-    "overview_actions": "Quick actions"
+    "overview_actions": "Quick actions",
+    "alerts_title": "Alert config",
+    "filter_maintenance": "Tenants in maintenance"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

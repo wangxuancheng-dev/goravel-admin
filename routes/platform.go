@@ -51,6 +51,7 @@ func Platform() {
 				router.Post("tenants", tenantController.Store)
 				router.Put("tenants/{id}", tenantController.Update)
 				router.Put("tenants/{id}/status", tenantController.UpdateStatus)
+				router.Put("tenants/{id}/maintenance", tenantController.UpdateMaintenance)
 				router.Delete("tenants/{id}", tenantController.Destroy)
 				router.Post("tenants/{id}/undelete", tenantController.Undelete)
 				router.Delete("tenants/{id}/force", tenantController.ForceDestroy)

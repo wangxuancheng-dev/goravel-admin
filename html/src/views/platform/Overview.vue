@@ -30,9 +30,10 @@
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :md="6">
-        <el-card shadow="never" class="stat-card">
-          <div class="stat-label">{{ $t('tenant.ops_total') }}</div>
-          <div class="stat-value">{{ summary?.total ?? 0 }}</div>
+        <el-card shadow="hover" class="stat-card clickable" @click="goMaintenance">
+          <div class="stat-label">{{ $t('tenant.ops_maintenance') }}</div>
+          <div class="stat-value" :class="(summary?.maintenance || 0) > 0 ? 'warn' : ''">{{ summary?.maintenance ?? 0 }}</div>
+          <div class="stat-sub">{{ $t('tenant.ops_total') }} {{ summary?.total ?? 0 }}</div>
         </el-card>
       </el-col>
     </el-row>
@@ -46,6 +47,24 @@
       </el-col>
     </el-row>
 
+    <el-card shadow="never" class="action-card" style="margin-bottom: 16px">
+      <template #header>
+        <span>{{ $t('platform.alerts_title') }}</span>
+      </template>
+      <el-space wrap>
+        <el-tag :type="alerts?.tenant_ops?.configured ? 'success' : 'info'">
+          {{ $t('tenant.alert_tenant_ops') }}:
+          {{ alerts?.tenant_ops?.configured ? $t('tenant.alert_configured') : $t('tenant.alert_not_configured') }}
+          <span v-if="alerts?.tenant_ops?.source"> ({{ alerts.tenant_ops.source }})</span>
+        </el-tag>
+        <el-tag :type="alerts?.queue?.configured ? 'success' : 'info'">
+          {{ $t('tenant.alert_queue') }}:
+          {{ alerts?.queue?.configured ? $t('tenant.alert_configured') : $t('tenant.alert_not_configured') }}
+          <span v-if="alerts?.queue?.source"> ({{ alerts.queue.source }})</span>
+        </el-tag>
+      </el-space>
+    </el-card>
+
     <el-card shadow="never" class="action-card">
       <template #header>
         <span>{{ $t('platform.overview_actions') }}</span>
@@ -55,6 +74,7 @@
         <el-button type="primary" @click="goTenants('behind')">{{ $t('tenant.filter_schema_behind') }}</el-button>
         <el-button type="danger" plain @click="goTenants('failed')">{{ $t('tenant.filter_schema_failed') }}</el-button>
         <el-button @click="goTenants('unknown')">{{ $t('tenant.filter_schema_unknown') }}</el-button>
+        <el-button @click="goMaintenance">{{ $t('platform.filter_maintenance') }}</el-button>
         <el-button @click="$router.push('/platform/tenants')">{{ $t('menu.tenant') }}</el-button>
         <el-button @click="$router.push('/platform/tenant-op-logs')">{{ $t('menu.tenant_op_log') }}</el-button>
       </el-space>
@@ -75,6 +95,7 @@ const overview = ref(null)
 
 const summary = computed(() => overview.value?.summary || null)
 const queue = computed(() => overview.value?.queue || null)
+const alerts = computed(() => overview.value?.alerts || null)
 
 const schemaCards = computed(() => {
   const s = summary.value || {}
@@ -101,6 +122,10 @@ const load = async () => {
 
 const goTenants = (schemaStatus) => {
   router.push({ path: '/platform/tenants', query: schemaStatus ? { schema_status: schemaStatus } : {} })
+}
+
+const goMaintenance = () => {
+  router.push({ path: '/platform/tenants', query: { maintenance: '1' } })
 }
 
 onMounted(load)

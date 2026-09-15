@@ -22,6 +22,8 @@ type TenantAdminFilters struct {
 	ProvisionStatus string
 	// SchemaStatus: aligned|behind|failed|running|unknown (computed vs current binary).
 	SchemaStatus string
+	// Maintenance: "" = any; "1"/"true" = on; "0"/"false" = off.
+	Maintenance string
 	// Trashed: "" = exclude soft-deleted (default); "only" = recycle bin; "with" = include both.
 	Trashed string
 }
@@ -33,6 +35,7 @@ func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
 		Status:          strings.TrimSpace(ctx.Request().Query("status", "")),
 		ProvisionStatus: strings.TrimSpace(ctx.Request().Query("provision_status", "")),
 		SchemaStatus:    strings.TrimSpace(ctx.Request().Query("schema_status", "")),
+		Maintenance:     strings.TrimSpace(ctx.Request().Query("maintenance", "")),
 		Trashed:         strings.TrimSpace(ctx.Request().Query("trashed", "")),
 	}
 }
@@ -104,6 +107,12 @@ func (s *TenantAdminService) GetList(filters TenantAdminFilters, page, pageSize 
 	}
 	if filters.ProvisionStatus != "" {
 		query = query.Where("provision_status", filters.ProvisionStatus)
+	}
+	switch strings.ToLower(filters.Maintenance) {
+	case "1", "true", "yes", "on":
+		query = query.Where("maintenance", true)
+	case "0", "false", "no", "off":
+		query = query.Where("maintenance", false)
 	}
 	query = applySchemaStatusFilter(query, filters.SchemaStatus)
 	total, err := query.Count()
@@ -331,6 +340,36 @@ func (s *TenantAdminService) SetStatus(id uint, status uint8) (*models.Tenant, e
 	return tenant, nil
 }
 
+// SetMaintenance toggles per-tenant maintenance mode (blocks business BindHTTP/BindBackground).
+func (s *TenantAdminService) SetMaintenance(id uint, enabled bool, message string) (*models.Tenant, error) {
+	if err := s.requireEnabled(); err != nil {
+		return nil, err
+	}
+	tenant, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	msg := strings.TrimSpace(message)
+	if len(msg) > 500 {
+		msg = msg[:500]
+	}
+	if !enabled {
+		msg = ""
+	}
+	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+		"maintenance":         enabled,
+		"maintenance_message": msg,
+	}); err != nil {
+		return nil, err
+	}
+	tenant.Maintenance = enabled
+	tenant.MaintenanceMessage = msg
+	if enabled {
+		s.conn.Forget(tenant.ConnectionName)
+	}
+	return tenant, nil
+}
+
 func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) (*models.Tenant, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, err
@@ -439,6 +478,7 @@ type TenantOpsSummary struct {
 	SchemaRunning          int64             `json:"schema_running"`
 	SchemaUnknown          int64             `json:"schema_unknown"`
 	BySchemaStatus         map[string]int64  `json:"by_schema_status"`
+	Maintenance            int64             `json:"maintenance"`
 }
 
 func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
@@ -447,7 +487,7 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 	}
 	var tenants []models.Tenant
 	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).
-		Select("id", "provision_status", "last_op", "last_op_status", "last_migrate_error", "schema_migration_count").
+		Select("id", "provision_status", "last_op", "last_op_status", "last_migrate_error", "schema_migration_count", "maintenance").
 		Get(&tenants); err != nil {
 		return nil, err
 	}
@@ -473,6 +513,9 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 		sum.ByLastOpStatus[os]++
 		if ps == models.TenantProvisionMigrating || os == models.TenantOpStatusQueued || os == models.TenantOpStatusRunning {
 			sum.Busy++
+		}
+		if t.Maintenance {
+			sum.Maintenance++
 		}
 	}
 	schema := CountSchemaStatuses(tenants)
@@ -547,10 +590,12 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 		"connection_name":        t.ConnectionName,
 		"last_migrate_error":     t.LastMigrateError,
 		"migrated_at":            t.MigratedAt,
-		"schema_migration_count": t.SchemaMigrationCount,
+		"schema_migration_count":   t.SchemaMigrationCount,
 		"expected_migration_count": expected,
-		"schema_status":          ResolveTenantSchemaStatus(t, expected),
-		"last_op":                t.LastOp,
+		"schema_status":            ResolveTenantSchemaStatus(t, expected),
+		"maintenance":              t.Maintenance,
+		"maintenance_message":      t.MaintenanceMessage,
+		"last_op":                  t.LastOp,
 		"last_op_status":         t.LastOpStatus,
 		"last_op_message":        t.LastOpMessage,
 		"last_op_at":             t.LastOpAt,

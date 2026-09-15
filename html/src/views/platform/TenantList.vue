@@ -37,6 +37,9 @@
         <template v-if="(opsSummary.failed_purge || 0) > 0">
           · {{ $t('tenant.failed_purge_count', { n: opsSummary.failed_purge }) }}
         </template>
+        <template v-if="(opsSummary.maintenance || 0) > 0">
+          · {{ $t('tenant.ops_maintenance') }} {{ opsSummary.maintenance }}
+        </template>
       </span>
       <template v-if="!isRecycleView && isOwner">
         <el-button
@@ -151,6 +154,14 @@
         :model-value="Number(row.status) === 1"
         :disabled="!isOwner"
         @change="(val) => onToggleStatus(row, val)"
+      />
+    </template>
+    <template #maintenance="{ row }">
+      <el-switch
+        :model-value="!!row.maintenance"
+        :disabled="!isOwner"
+        :title="$t('tenant.maintenance_hint')"
+        @change="(val) => onToggleMaintenance(row, val)"
       />
     </template>
     <template #actions="{ row }">
@@ -326,6 +337,10 @@
         <el-descriptions-item :label="$t('tenant.host')">{{ detailRow.host || '—' }}:{{ detailRow.port || '—' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('tenant.connection_name')">{{ detailRow.connection_name || '—' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('tenant.provision_status')">{{ provisionLabel(detailRow.provision_status) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.maintenance')">
+          {{ detailRow.maintenance ? $t('tenant.maintenance_on') : $t('tenant.maintenance_off') }}
+          <span v-if="detailRow.maintenance_message"> · {{ detailRow.maintenance_message }}</span>
+        </el-descriptions-item>
         <el-descriptions-item :label="$t('tenant.last_op')">{{ detailRow.last_op || '—' }} / {{ detailRow.last_op_status || '—' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('tenant.last_op_at')">{{ detailRow.last_op_at || '—' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('tenant.op_message')">{{ detailRow.last_op_message || detailRow.last_migrate_error || '—' }}</el-descriptions-item>
@@ -500,6 +515,7 @@ import {
   seedPlatformTenant,
   undeletePlatformTenant,
   updatePlatformTenant,
+  updatePlatformTenantMaintenance,
   updatePlatformTenantStatus
 } from '@/api/platform'
 import { isPlatformOwner } from '@/utils/platformRequest'
@@ -595,7 +611,7 @@ const refreshSettings = async () => {
   }
 }
 
-const initialSearchForm = { code: '', name: '', status: '', provision_status: '', schema_status: '', trashed: '' }
+const initialSearchForm = { code: '', name: '', status: '', provision_status: '', schema_status: '', maintenance: '', trashed: '' }
 
 const {
   pagination,
@@ -618,6 +634,10 @@ onMounted(async () => {
   if (schemaFromQuery) {
     searchForm.schema_status = schemaFromQuery
   }
+  const maintenanceFromQuery = String(route.query.maintenance || '').trim()
+  if (maintenanceFromQuery) {
+    searchForm.maintenance = maintenanceFromQuery
+  }
   try {
     const res = await platformHealth()
     health.value = res?.data || null
@@ -628,7 +648,7 @@ onMounted(async () => {
   }
   await refreshOpsSummary()
   await refreshSettings()
-  if (schemaFromQuery) {
+  if (schemaFromQuery || maintenanceFromQuery) {
     await loadData()
   }
 })
@@ -818,6 +838,16 @@ const searchFields = computed(() => {
         { label: t('common.enabled'), value: '1' },
         { label: t('common.disabled'), value: '0' }
       ]
+    },
+    {
+      prop: 'maintenance',
+      label: t('tenant.maintenance'),
+      type: 'select',
+      width: '140px',
+      options: [
+        { label: t('tenant.maintenance_on'), value: '1' },
+        { label: t('tenant.maintenance_off'), value: '0' }
+      ]
     }
   ]
 })
@@ -866,6 +896,7 @@ const tableColumns = computed(() => {
     cols.push(
       { field: 'last_backup_path', title: t('tenant.backup_path'), minWidth: 180, slot: 'last_backup_path', key: 'last_backup_path' },
       { field: 'status', title: t('common.status'), width: 90, slot: 'status', key: 'status' },
+      { field: 'maintenance', title: t('tenant.maintenance'), width: 100, slot: 'maintenance', key: 'maintenance' },
       { field: 'created_at', title: t('table.created_at'), key: 'created_at' }
     )
   }
@@ -1017,6 +1048,31 @@ const onToggleStatus = async (row, enabled) => {
     await updatePlatformTenantStatus(row.id, status)
     row.status = status
     ElMessage.success(t('common.update_success'))
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+    loadData()
+  }
+}
+
+const onToggleMaintenance = async (row, enabled) => {
+  try {
+    await ElMessageBox.confirm(
+      enabled ? t('tenant.maintenance_confirm_on') : t('tenant.maintenance_confirm_off'),
+      t('tenant.maintenance'),
+      { type: 'warning' }
+    )
+  } catch {
+    loadData()
+    return
+  }
+  try {
+    await updatePlatformTenantMaintenance(row.id, { maintenance: !!enabled })
+    row.maintenance = !!enabled
+    if (!enabled) row.maintenance_message = ''
+    ElMessage.success(t('common.update_success'))
+    refreshOpsSummary()
   } catch (error) {
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))

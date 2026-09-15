@@ -14,6 +14,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
+	"goravel/app/health"
 	"goravel/app/http/controllers/admin"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
@@ -159,6 +160,29 @@ func (c *TenantController) UpdateStatus(ctx http.Context) http.Response {
 	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
 }
 
+type tenantMaintenanceBody struct {
+	Maintenance        *bool  `json:"maintenance" form:"maintenance"`
+	MaintenanceMessage string `json:"maintenance_message" form:"maintenance_message"`
+}
+
+// UpdateMaintenance toggles per-tenant maintenance mode.
+func (c *TenantController) UpdateMaintenance(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	var body tenantMaintenanceBody
+	_ = ctx.Request().Bind(&body)
+	if body.Maintenance == nil {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
+	}
+	tenant, err := c.service().SetMaintenance(id, *body.Maintenance, body.MaintenanceMessage)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
+	}
+	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
+}
+
 // OpsSummary returns provision/op status counts for the platform tenant console.
 func (c *TenantController) OpsSummary(ctx http.Context) http.Response {
 	sum, err := c.service().OpsSummary()
@@ -180,6 +204,10 @@ func (c *TenantController) OpsOverview(ctx http.Context) http.Response {
 		"summary":                  sum,
 		"queue":                    services.BuildPlatformQueueStatus(),
 		"backup_keep":              facades.Config().GetInt("tenancy.backup_keep", 10),
+		"alerts": map[string]any{
+			"tenant_ops": services.TenantOpsAlertConfigStatus(),
+			"queue":      health.QueueAlertConfigStatus(),
+		},
 		"deploy_tips": []string{
 			"Release cutover: run NEW image CLI migrate + tenant:migrate-all before switching traffic",
 			"Platform UI migrate uses the currently running binary only",

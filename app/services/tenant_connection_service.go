@@ -660,6 +660,12 @@ func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error 
 	if tenant.Status != models.TenantStatusActive {
 		return apperrors.ErrTenantDisabled
 	}
+	if tenant.Maintenance {
+		if msg := strings.TrimSpace(tenant.MaintenanceMessage); msg != "" {
+			return apperrors.ErrTenantMaintenance.WithMessage(msg)
+		}
+		return apperrors.ErrTenantMaintenance
+	}
 	if !tenant.IsProvisionReady() {
 		return apperrors.ErrTenantNotReady
 	}
@@ -681,6 +687,12 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 	}
 	if tenant.Status != models.TenantStatusActive {
 		return ctx, apperrors.ErrTenantDisabled
+	}
+	if tenant.Maintenance {
+		if msg := strings.TrimSpace(tenant.MaintenanceMessage); msg != "" {
+			return ctx, apperrors.ErrTenantMaintenance.WithMessage(msg)
+		}
+		return ctx, apperrors.ErrTenantMaintenance
 	}
 	if !tenant.IsProvisionReady() {
 		return ctx, apperrors.ErrTenantNotReady

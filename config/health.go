@@ -13,5 +13,7 @@ func init() {
 		"queue_alert_webhook_url": config.Env("QUEUE_ALERT_WEBHOOK_URL", ""),
 		// Pending job count threshold for queue:alert-backlog (default 100)
 		"queue_alert_backlog_threshold": config.Env("QUEUE_ALERT_BACKLOG_THRESHOLD", 100),
+		// Tenant migrate/seed/backup failure alerts; empty falls back to queue then ready webhook
+		"tenant_ops_alert_webhook_url": config.Env("TENANT_OPS_ALERT_WEBHOOK_URL", ""),
 	})
 }

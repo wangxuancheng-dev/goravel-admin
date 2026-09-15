@@ -105,6 +105,8 @@ Notes:
 - `migrate.sh` against the **currently running** container only has the **old** migrations if you have not switched yet.
 - Platform UI migrate also uses the **running** binary only.
 - Prefer migrate-before-cutover when code is not backward-compatible with old schema.
+- Optional: put a tenant into **maintenance** (platform console) to return 503 on business traffic while ops run; platform `/api/platform` is unaffected.
+- Ops failure alerts: set `TENANT_OPS_ALERT_WEBHOOK_URL` (falls back to `QUEUE_ALERT_WEBHOOK_URL` / `READY_ALERT_WEBHOOK_URL`). Queue backlog: `queue:alert-backlog`.
 
 ## 数据库迁移和填充
 

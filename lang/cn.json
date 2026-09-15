@@ -88,6 +88,7 @@
     "tenant_required": "请指定租户（Header X-Tenant-ID 或 Query tenant_id）",
     "tenant_not_found": "租户不存在",
     "tenant_disabled": "租户已禁用",
+    "tenant_maintenance": "租户维护中，请稍后再试",
     "tenant_connection_failed": "租户数据库连接失败",
     "tenancy_disabled": "未开启多租户（TENANCY_DRIVER=database）",
     "tenant_exists": "租户编码已存在",

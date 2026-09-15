@@ -55,7 +55,9 @@ type Tenant struct {
 	LastMigrateError       string     `gorm:"type:text;comment:最近一次 migrate 错误" json:"last_migrate_error"`
 	MigratedAt             *time.Time `gorm:"comment:最近一次 migrate 成功时间" json:"migrated_at"`
 	SchemaMigrationCount   int64      `gorm:"default:0;comment:租户库 migrations 表行数(最近成功 migrate)" json:"schema_migration_count"`
-	LastOp           string     `gorm:"size:32;comment:最近平台运维操作" json:"last_op"`
+	Maintenance            bool       `gorm:"default:false;index;comment:维护模式 挡业务流量" json:"maintenance"`
+	MaintenanceMessage     string     `gorm:"size:500;comment:维护提示文案" json:"maintenance_message"`
+	LastOp                 string     `gorm:"size:32;comment:最近平台运维操作" json:"last_op"`
 	LastOpStatus     string     `gorm:"size:32;comment:idle|queued|running|success|failed" json:"last_op_status"`
 	LastOpMessage    string     `gorm:"type:text;comment:最近运维结果" json:"last_op_message"`
 	LastOpAt         *time.Time `gorm:"comment:最近运维时间" json:"last_op_at"`

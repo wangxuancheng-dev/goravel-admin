@@ -76,6 +76,7 @@ func All() []schema.Migration {
 		&M20260913250000DropTenantTrafficLimit{},
 		&M20260914000001AddRoleToPlatformAdmins{},
 		&M20260915140000AddTenantSchemaMigrationCount{},
+		&M20260915160000AddTenantMaintenanceMeta{},
 	}
 }
 

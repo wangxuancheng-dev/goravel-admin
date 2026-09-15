@@ -132,6 +132,7 @@
     "tenant_required": "Tenant is required (Header X-Tenant-ID or Query tenant_id)",
     "tenant_not_found": "Tenant not found",
     "tenant_disabled": "Tenant is disabled",
+    "tenant_maintenance": "Tenant is under maintenance; try again later",
     "tenant_connection_failed": "Failed to connect to tenant database",
     "tenancy_disabled": "Multi-tenancy is off (set TENANCY_DRIVER=database)",
     "tenant_exists": "Tenant code already exists",

@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Col, Row, Space, Spin, Typography } from 'antd'
+import { Alert, Button, Card, Col, Row, Space, Spin, Tag, Typography } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,7 @@ export default function PlatformOverview() {
 
   const summary = overview?.summary || null
   const queue = overview?.queue || null
+  const alerts = overview?.alerts || null
 
   const schemaCards = useMemo(
     () => [
@@ -42,6 +43,10 @@ export default function PlatformOverview() {
 
   const goTenants = (schemaStatus?: string) => {
     navigate(schemaStatus ? `/platform/tenants?schema_status=${schemaStatus}` : '/platform/tenants')
+  }
+
+  const goMaintenance = () => {
+    navigate('/platform/tenants?maintenance=1')
   }
 
   return (
@@ -79,9 +84,20 @@ export default function PlatformOverview() {
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card size="small">
-              <Typography.Text type="secondary">{t('tenant.ops_total')}</Typography.Text>
-              <div style={{ fontSize: 22, fontWeight: 600 }}>{summary?.total ?? 0}</div>
+            <Card size="small" hoverable onClick={goMaintenance}>
+              <Typography.Text type="secondary">{t('tenant.ops_maintenance')}</Typography.Text>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 600,
+                  color: (summary?.maintenance || 0) > 0 ? '#d97706' : undefined,
+                }}
+              >
+                {summary?.maintenance ?? 0}
+              </div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('tenant.ops_total')} {summary?.total ?? 0}
+              </Typography.Text>
             </Card>
           </Col>
         </Row>
@@ -96,6 +112,21 @@ export default function PlatformOverview() {
             </Col>
           ))}
         </Row>
+
+        <Card size="small" title={t('platform.alerts_title')}>
+          <Space wrap>
+            <Tag color={alerts?.tenant_ops?.configured ? 'success' : 'default'}>
+              {t('tenant.alert_tenant_ops')}:{' '}
+              {alerts?.tenant_ops?.configured ? t('tenant.alert_configured') : t('tenant.alert_not_configured')}
+              {alerts?.tenant_ops?.source ? ` (${alerts.tenant_ops.source})` : ''}
+            </Tag>
+            <Tag color={alerts?.queue?.configured ? 'success' : 'default'}>
+              {t('tenant.alert_queue')}:{' '}
+              {alerts?.queue?.configured ? t('tenant.alert_configured') : t('tenant.alert_not_configured')}
+              {alerts?.queue?.source ? ` (${alerts.queue.source})` : ''}
+            </Tag>
+          </Space>
+        </Card>
 
         <Card
           size="small"
@@ -114,6 +145,7 @@ export default function PlatformOverview() {
               {t('tenant.filter_schema_failed')}
             </Button>
             <Button onClick={() => goTenants('unknown')}>{t('tenant.filter_schema_unknown')}</Button>
+            <Button onClick={goMaintenance}>{t('platform.filter_maintenance')}</Button>
             <Button onClick={() => navigate('/platform/tenants')}>{t('menu.tenant')}</Button>
             <Button onClick={() => navigate('/platform/tenant-op-logs')}>{t('menu.tenant_op_log')}</Button>
           </Space>
