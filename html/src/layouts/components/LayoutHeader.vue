@@ -17,6 +17,15 @@
       >
         <el-icon><Fold v-if="!appStore.sidebarCollapsed" /><Expand v-else /></el-icon>
       </el-button>
+      <el-tag
+        v-if="tenantLabel"
+        class="header-tenant-tag"
+        type="primary"
+        effect="plain"
+        :title="`${$t('header.current_tenant')}: ${tenantLabel}`"
+      >
+        {{ $t('header.current_tenant') }}: {{ tenantLabel }}
+      </el-tag>
       <BreadcrumbView :class="{ 'mobile-hidden': isXs }" />
     </div>
     <div class="header-right">
@@ -284,6 +293,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessageBox } from 'element-plus'
@@ -313,8 +323,9 @@ import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
 import BreadcrumbView from '@/components/BreadcrumbView.vue'
 import MenuSearch from '@/components/MenuSearch.vue'
 import { useLayoutAccount } from '@/composables/useLayoutAccount'
+import { getTenantCode, resolveTenantCodeFromLocation } from '@/utils/tenant'
 
-defineProps({
+const props = defineProps({
   isMobile: { type: Boolean, default: false },
   isXs: { type: Boolean, default: false },
   menuTree: { type: Array, default: () => [] }
@@ -336,6 +347,18 @@ const {
   userAccountRolePreview,
   userAccountShowAllPermissionsHint
 } = useLayoutAccount()
+
+const tenantLabel = computed(() => {
+  const code = String(
+    userStore.tenant?.code || getTenantCode() || resolveTenantCodeFromLocation() || '',
+  ).trim()
+  const name = String(userStore.tenant?.name || '').trim()
+  if (!code && !name) return ''
+  if (name && code && name.toLowerCase() !== code.toLowerCase()) {
+    return props.isXs ? code : `${name} (${code})`
+  }
+  return name || code
+})
 
 const handleLayoutSizeChange = (size) => {
   appStore.setLayoutSize(size)

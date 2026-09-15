@@ -3,6 +3,7 @@ import { compact, map } from 'lodash-es'
 import { getInfo, logout } from '../api/auth'
 import Storage from '../utils/storage'
 import logger from '../utils/logger'
+import { clearTenantCode, getTenantCode, resolveTenantCodeFromLocation, setTenantCode } from '../utils/tenant'
 
 export const useUserStore = defineStore('user', {
   state: () => {
@@ -10,6 +11,7 @@ export const useUserStore = defineStore('user', {
     return {
       token: Storage.getItem('token', ''),
       adminInfo: adminInfo,
+      tenant: Storage.getItem('tenantInfo', null),
       permissions: [],
       menus: [], // 菜单不缓存，每次刷新都从服务器重新获取
       isSuperAdmin: false, // 是否是超级管理员
@@ -29,7 +31,8 @@ export const useUserStore = defineStore('user', {
         codeGeneratorEnabled: false,
         searchEnabled: false,
         searchDriver: 'null',
-        otelEnabled: false
+        otelEnabled: false,
+        tenancyEnabled: false
       }
     }
   },
@@ -132,6 +135,24 @@ export const useUserStore = defineStore('user', {
       // 菜单不缓存到 localStorage，每次刷新都从服务器重新获取
     },
 
+    setTenant(tenant) {
+      if (!tenant || (!tenant.code && !tenant.name && tenant.id == null)) {
+        this.tenant = null
+        Storage.removeItem('tenantInfo')
+        return
+      }
+      const normalized = {
+        id: tenant.id,
+        code: tenant.code ? String(tenant.code).trim().toLowerCase() : undefined,
+        name: tenant.name ? String(tenant.name).trim() : undefined
+      }
+      this.tenant = normalized
+      Storage.setItem('tenantInfo', normalized)
+      if (normalized.code) {
+        setTenantCode(normalized.code)
+      }
+    },
+
     setConfig(config) {
       this.config = {
         showButtonsWithoutPermission: config?.show_buttons_without_permission || config?.showButtonsWithoutPermission || false,
@@ -148,7 +169,8 @@ export const useUserStore = defineStore('user', {
         codeGeneratorEnabled: config?.code_generator_enabled || config?.codeGeneratorEnabled || false,
         searchEnabled: !!config?.search_enabled,
         searchDriver: config?.search_driver || 'null',
-        otelEnabled: config?.otel_enabled || config?.otelEnabled || false
+        otelEnabled: config?.otel_enabled || config?.otelEnabled || false,
+        tenancyEnabled: !!(config?.tenancy_enabled || config?.tenancyEnabled)
       }
     },
 
@@ -164,6 +186,15 @@ export const useUserStore = defineStore('user', {
       
       // 如果已经获取过且不是强制刷新，且菜单不为空，直接返回
       if (this.userInfoFetched && !force && this.adminInfo && this.menus.length > 0) {
+        if (!this.tenant?.code) {
+          const localCode = getTenantCode() || resolveTenantCodeFromLocation()
+          if (localCode) {
+            this.setTenant({
+              code: localCode,
+              ...(this.tenant?.name ? { name: this.tenant.name } : {})
+            })
+          }
+        }
         return Promise.resolve()
       }
       
@@ -227,6 +258,19 @@ export const useUserStore = defineStore('user', {
         if (res.data && res.data.config) {
           this.setConfig(res.data.config)
         }
+        if (res.data && res.data.tenant) {
+          this.setTenant(res.data.tenant)
+        } else {
+          const localCode = getTenantCode() || resolveTenantCodeFromLocation()
+          if (localCode) {
+            this.setTenant({
+              code: localCode,
+              ...(this.tenant?.name ? { name: this.tenant.name } : {})
+            })
+          } else if (!res.data?.config?.tenancy_enabled && !res.data?.config?.tenancyEnabled) {
+            this.setTenant(null)
+          }
+        }
         return res
       } catch (error) {
         // fetchUserInfo 失败时，如果旧数据存在，恢复旧数据
@@ -261,6 +305,7 @@ export const useUserStore = defineStore('user', {
         // 清除所有状态（同步执行，不等待）
         this.token = ''
         this.adminInfo = null
+        this.tenant = null
         this.permissions = []
         this.menus = []
         this.isSuperAdmin = false
@@ -279,10 +324,13 @@ export const useUserStore = defineStore('user', {
           codeGeneratorEnabled: false,
           searchEnabled: false,
           searchDriver: 'null',
-          otelEnabled: false
+          otelEnabled: false,
+          tenancyEnabled: false
         }
         Storage.removeItem('token')
         Storage.removeItem('adminInfo')
+        Storage.removeItem('tenantInfo')
+        clearTenantCode()
         // 菜单不缓存，无需清除
       }
       // 返回 resolved promise 确保调用者可以继续

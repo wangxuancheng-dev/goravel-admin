@@ -37,11 +37,19 @@ export interface FeatureConfig {
   searchEnabled: boolean
   searchDriver: string
   otelEnabled: boolean
+  tenancyEnabled: boolean
+}
+
+export interface CurrentTenantInfo {
+  id?: number | string
+  code?: string
+  name?: string
 }
 
 export interface UserInfoPayload {
   admin: AdminInfo
   config?: Record<string, unknown>
+  tenant?: CurrentTenantInfo | null
 }
 
 export interface LoginPayload {

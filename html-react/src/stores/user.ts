@@ -3,7 +3,8 @@ import { compact, map } from 'lodash-es'
 import { getInfo, logout as logoutApi } from '@/api/auth'
 import Storage from '@/utils/storage'
 import logger from '@/utils/logger'
-import type { AdminInfo, FeatureConfig, MenuNode } from '@/types'
+import type { AdminInfo, CurrentTenantInfo, FeatureConfig, MenuNode } from '@/types'
+import { clearTenantCode, getTenantCode, resolveTenantCodeFromLocation, setTenantCode } from '@/utils/tenant'
 
 const defaultConfig: FeatureConfig = {
   showButtonsWithoutPermission: false,
@@ -19,6 +20,7 @@ const defaultConfig: FeatureConfig = {
   searchEnabled: false,
   searchDriver: 'null',
   otelEnabled: false,
+  tenancyEnabled: false,
 }
 
 function toBasicAdminInfo(adminInfo: AdminInfo): AdminInfo {
@@ -54,6 +56,7 @@ function detectSuperAdmin(adminInfo: AdminInfo): boolean {
 interface UserState {
   token: string
   adminInfo: AdminInfo | null
+  tenant: CurrentTenantInfo | null
   permissions: string[]
   menus: MenuNode[]
   isSuperAdmin: boolean
@@ -67,6 +70,7 @@ interface UserState {
 
   setToken: (token: string) => void
   setAdminInfo: (adminInfo: AdminInfo) => void
+  setTenant: (tenant: CurrentTenantInfo | null | undefined) => void
   setPermissions: (permissions: AdminInfo['permissions']) => void
   setMenus: (menus: MenuNode[]) => void
   setConfig: (config?: Record<string, unknown>) => void
@@ -80,6 +84,7 @@ export const useUserStore = create<UserState>((set, get) => {
   return {
     token: Storage.getItem<string>('token', '') || '',
     adminInfo: cachedAdmin,
+    tenant: Storage.getItem<CurrentTenantInfo>('tenantInfo', null),
     permissions: [],
     menus: [],
     isSuperAdmin: false,
@@ -128,6 +133,24 @@ export const useUserStore = create<UserState>((set, get) => {
       }
     },
 
+    setTenant: (tenant) => {
+      if (!tenant || (!tenant.code && !tenant.name && tenant.id == null)) {
+        set({ tenant: null })
+        Storage.removeItem('tenantInfo')
+        return
+      }
+      const normalized: CurrentTenantInfo = {
+        id: tenant.id,
+        code: tenant.code ? String(tenant.code).trim().toLowerCase() : undefined,
+        name: tenant.name ? String(tenant.name).trim() : undefined,
+      }
+      set({ tenant: normalized })
+      Storage.setItem('tenantInfo', normalized)
+      if (normalized.code) {
+        setTenantCode(normalized.code)
+      }
+    },
+
     setPermissions: (permissions) => {
       if (Array.isArray(permissions) && permissions.length > 0) {
         if (typeof permissions[0] === 'object' && permissions[0] !== null) {
@@ -170,6 +193,7 @@ export const useUserStore = create<UserState>((set, get) => {
           searchEnabled: !!(config?.search_enabled || config?.searchEnabled),
           searchDriver: (config?.search_driver || config?.searchDriver || 'null') as string,
           otelEnabled: !!(config?.otel_enabled || config?.otelEnabled),
+          tenancyEnabled: !!(config?.tenancy_enabled || config?.tenancyEnabled),
         },
       })
     },
@@ -185,6 +209,12 @@ export const useUserStore = create<UserState>((set, get) => {
       }
 
       if (state.userInfoFetched && !force && state.adminInfo && state.menus.length > 0) {
+        if (!state.tenant?.code) {
+          const localCode = getTenantCode() || resolveTenantCodeFromLocation()
+          if (localCode) {
+            get().setTenant({ code: localCode, ...(state.tenant?.name ? { name: state.tenant.name } : {}) })
+          }
+        }
         return
       }
 
@@ -236,6 +266,18 @@ export const useUserStore = create<UserState>((set, get) => {
           get().setConfig(res.data.config as Record<string, unknown>)
         }
 
+        const tenantPayload = (res.data as { tenant?: CurrentTenantInfo | null } | undefined)?.tenant
+        if (tenantPayload) {
+          get().setTenant(tenantPayload)
+        } else {
+          const localCode = getTenantCode() || resolveTenantCodeFromLocation()
+          if (localCode) {
+            get().setTenant({ code: localCode, ...(get().tenant?.name ? { name: get().tenant.name } : {}) })
+          } else if (!(res.data?.config as { tenancy_enabled?: boolean } | undefined)?.tenancy_enabled) {
+            get().setTenant(null)
+          }
+        }
+
         return res
       } catch (error) {
         if (oldMenus.length > 0 && !force) {
@@ -266,6 +308,7 @@ export const useUserStore = create<UserState>((set, get) => {
         set({
           token: '',
           adminInfo: null,
+          tenant: null,
           permissions: [],
           menus: [],
           isSuperAdmin: false,
@@ -275,6 +318,8 @@ export const useUserStore = create<UserState>((set, get) => {
         })
         Storage.removeItem('token')
         Storage.removeItem('adminInfo')
+        Storage.removeItem('tenantInfo')
+        clearTenantCode()
       }
     },
   }

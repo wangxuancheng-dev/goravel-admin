@@ -440,7 +440,7 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 	// 转换为前端格式
 	menuTreeData := utils.ConvertMenuTree(menuTree)
 
-	return response.Success(ctx, http.Json{
+	payload := http.Json{
 		"admin": http.Json{
 			"id":                   admin.ID,
 			"username":             admin.Username,
@@ -474,8 +474,39 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 			"search_enabled":                  utils.SearchEnabled(),
 			"search_driver":                   search.Driver(),
 			"otel_enabled":                    utils.OTELEnabled(),
+			"tenancy_enabled":                 tenancy.Enabled(),
 		},
-	})
+	}
+	if tenancy.Enabled() {
+		if tenantInfo := currentTenantInfoForAdmin(ctx); tenantInfo != nil {
+			payload["tenant"] = tenantInfo
+		}
+	}
+
+	return response.Success(ctx, payload)
+}
+
+// currentTenantInfoForAdmin returns platform tenant id/code/name for the bound request.
+func currentTenantInfoForAdmin(ctx http.Context) http.Json {
+	tenantID, ok := helpers.GetTenantIDFromContext(ctx)
+	if !ok || tenantID == 0 {
+		if code, ok := helpers.GetTenantCodeFromContext(ctx); ok {
+			return http.Json{"code": code}
+		}
+		return nil
+	}
+	var tenant models.Tenant
+	if err := appfacades.PlatformOrmQuery(ctx).Where("id", tenantID).First(&tenant); err != nil || tenant.ID == 0 {
+		if code, ok := helpers.GetTenantCodeFromContext(ctx); ok {
+			return http.Json{"id": tenantID, "code": code}
+		}
+		return http.Json{"id": tenantID}
+	}
+	return http.Json{
+		"id":   tenant.ID,
+		"code": tenant.Code,
+		"name": tenant.Name,
+	}
 }
 
 // UpdateProfile 更新个人信息

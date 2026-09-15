@@ -44,6 +44,13 @@ func GetTenantIDFromContext(ctx http.Context) (uint, bool) {
 	return tenancyctx.IDFrom(ctx)
 }
 
+func GetTenantCodeFromContext(ctx http.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	return tenancyctx.CodeFrom(ctx)
+}
+
 func GetTenantIDFromAnyContext(ctx context.Context) (uint, bool) {
 	return tenancyctx.IDFrom(ctx)
 }

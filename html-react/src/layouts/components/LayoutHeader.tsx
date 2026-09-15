@@ -1,4 +1,5 @@
-import { Avatar, Dropdown, Layout, Popover, Segmented, Space, Switch, theme, type MenuProps } from 'antd'
+import { useMemo } from 'react'
+import { Avatar, Dropdown, Layout, Popover, Segmented, Space, Switch, Tag, theme, type MenuProps } from 'antd'
 import {
   CheckOutlined,
   ColumnHeightOutlined,
@@ -23,6 +24,7 @@ import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import NotificationBell from '@/components/NotificationBell'
 import TimezoneSwitch from '@/components/TimezoneSwitch'
+import { getTenantCode, resolveTenantCodeFromLocation } from '@/utils/tenant'
 import './LayoutHeader.scss'
 
 const { Header } = Layout
@@ -56,9 +58,20 @@ export default function LayoutHeader({
   const themeColor = useAppStore((s) => s.themeColor)
   const setThemeColor = useAppStore((s) => s.setThemeColor)
   const adminInfo = useUserStore((s) => s.adminInfo)
+  const tenant = useUserStore((s) => s.tenant)
   const logout = useUserStore((s) => s.logout)
   const removeAllTabs = useTabsStore((s) => s.removeAllTabs)
   const disconnectNotifications = useNotificationStore((s) => s.disconnect)
+
+  const tenantLabel = useMemo(() => {
+    const code = String(tenant?.code || getTenantCode() || resolveTenantCodeFromLocation() || '').trim()
+    const name = String(tenant?.name || '').trim()
+    if (!code && !name) return ''
+    if (name && code && name.toLowerCase() !== code.toLowerCase()) {
+      return isXs ? code : `${name} (${code})`
+    }
+    return name || code
+  }, [tenant?.code, tenant?.name, isXs])
 
   const userMenu: MenuProps['items'] = [
     {
@@ -152,6 +165,15 @@ export default function LayoutHeader({
           <button type="button" className="layout-header__trigger" onClick={toggleSidebar}>
             {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </button>
+        ) : null}
+        {tenantLabel ? (
+          <Tag
+            className="layout-header__tenant"
+            title={`${t('header.current_tenant')}: ${tenantLabel}`}
+            color="blue"
+          >
+            {t('header.current_tenant')}: {tenantLabel}
+          </Tag>
         ) : null}
       </div>
       <Space size={4} className="layout-header__right" align="center">

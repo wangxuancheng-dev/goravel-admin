@@ -1549,7 +1549,8 @@
     "lock_password_required": "Please enter lock screen password",
     "lock_password_invalid": "Invalid lock screen password",
     "unlock": "Unlock",
-    "back_to_login": "Back to Login"
+    "back_to_login": "Back to Login",
+    "current_tenant": "Current tenant"
   },
   "profile": {
     "basic_info": "Basic Information",

@@ -10,6 +10,7 @@ export { ERROR_CODES } from './api'
 export type {
   AdminInfo,
   AdminRole,
+  CurrentTenantInfo,
   FeatureConfig,
   UserInfoPayload,
   LoginPayload,
