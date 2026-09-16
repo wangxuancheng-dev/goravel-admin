@@ -74,21 +74,35 @@ func Cors() http.Middleware {
 			return
 		}
 
-		if allowed && origin != "" {
-			ctx.Response().Header("Access-Control-Allow-Origin", allowedOrigin)
-			if supportsCredentials && allowedOrigin != "*" {
-				ctx.Response().Header("Access-Control-Allow-Credentials", "true")
-			}
-		} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" && origin != "" {
-			ctx.Response().Header("Access-Control-Allow-Origin", "*")
-		}
-
-		if len(exposedHeaders) > 0 {
-			ctx.Response().Header("Access-Control-Expose-Headers", strings.Join(exposedHeaders, ", "))
-		}
-
+		// Apply CORS on the way out so headers survive handler Render (set-before-Next is unreliable here).
 		ctx.Request().Next()
+		writeCorsActualHeaders(ctx, origin, allowed, allowedOrigin, allowedOrigins, exposedHeaders, supportsCredentials)
 	})
+}
+
+func writeCorsActualHeaders(
+	ctx http.Context,
+	origin string,
+	allowed bool,
+	allowedOrigin string,
+	allowedOrigins, exposedHeaders []string,
+	supportsCredentials bool,
+) {
+	if origin == "" {
+		return
+	}
+	response := ctx.Response()
+	if allowed {
+		response.Header("Access-Control-Allow-Origin", allowedOrigin)
+		if supportsCredentials && allowedOrigin != "*" {
+			response.Header("Access-Control-Allow-Credentials", "true")
+		}
+	} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
+		response.Header("Access-Control-Allow-Origin", "*")
+	}
+	if len(exposedHeaders) > 0 {
+		response.Header("Access-Control-Expose-Headers", strings.Join(exposedHeaders, ", "))
+	}
 }
 
 // WriteCorsPreflightResponse applies CORS headers for an OPTIONS request (middleware or Fallback).
