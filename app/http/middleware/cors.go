@@ -3,11 +3,11 @@ package middleware
 import (
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
-	"github.com/rs/cors"
 
 	"goravel/app/services"
 	"goravel/app/tenancy"
@@ -18,10 +18,6 @@ import (
 //  1. CORS_ALLOWED_ORIGINS exact match or wildcard host patterns (e.g. https://*.example.com)
 //  2. Any host under TENANCY_BASE_DOMAIN (tenant subdomains)
 //  3. Active vanity domains in tenant_domains (status=active)
-//
-// Framework gin Cors is disabled (empty cors.paths). This middleware uses rs/cors with
-// AllowOriginFunc so vanity hosts are allowed on both OPTIONS and real responses
-// (ResponseWriter wrapping), which plain Header()-before-Next cannot do reliably.
 func Cors() http.Middleware {
 	return newMiddleware("cors", func(ctx http.Context) {
 		path := ctx.Request().Path()
@@ -49,6 +45,7 @@ func Cors() http.Middleware {
 			}
 		}
 
+		// WebSocket has its own handshake; skip HTTP CORS headers here.
 		if isWebSocket {
 			ctx.Request().Next()
 			return
@@ -60,84 +57,106 @@ func Cors() http.Middleware {
 		}
 
 		allowedOrigins := configStringSlice("cors.allowed_origins", []string{"*"})
-		allowedMethods := configStringSlice("cors.allowed_methods", []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"})
+		allowedMethods := configStringSlice("cors.allowed_methods", []string{"*"})
 		allowedHeaders := configStringSlice("cors.allowed_headers", []string{"*"})
 		exposedHeaders := configStringSlice("cors.exposed_headers", nil)
 		maxAge := facades.Config().GetInt("cors.max_age", 0)
 		supportsCredentials := facades.Config().GetBool("cors.supports_credentials", false)
 
-		if len(allowedMethods) == 1 && allowedMethods[0] == "*" {
-			allowedMethods = []string{
-				http.MethodGet, http.MethodPost, http.MethodHead,
-				http.MethodPut, http.MethodDelete, http.MethodPatch, http.MethodOptions,
-			}
-		}
+		origin := ctx.Request().Header("Origin", "")
+		allowed, allowedOrigin := resolveCorsOrigin(origin, allowedOrigins)
 
-		opts := cors.Options{
-			AllowedMethods:      allowedMethods,
-			AllowedHeaders:      allowedHeaders,
-			ExposedHeaders:      exposedHeaders,
-			MaxAge:              maxAge,
-			AllowCredentials:    supportsCredentials,
-			AllowPrivateNetwork: true,
-		}
-		if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
-			opts.AllowedOrigins = []string{"*"}
-		} else {
-			origins := allowedOrigins
-			opts.AllowOriginFunc = func(origin string) bool {
-				ok, _ := resolveCorsOrigin(origin, origins)
-				return ok
-			}
-		}
-
-		cors.New(opts).HandlerFunc(ctx.Response().Writer(), ctx.Request().Origin())
-
-		// Match framework gin Cors: abort preflight so route Fallback is not hit.
-		if strings.EqualFold(ctx.Request().Method(), http.MethodOptions) &&
-			ctx.Request().Header("Access-Control-Request-Method", "") != "" {
+		// Preflight: set CORS headers then Abort (same as framework gin Cors).
+		// Do not call Next() after Abort — otherwise Fallback returns 404 without ACAO.
+		if strings.EqualFold(ctx.Request().Method(), http.MethodOptions) {
+			writeCorsPreflightHeaders(ctx, origin, allowed, allowedOrigin, allowedOrigins, allowedMethods, allowedHeaders, exposedHeaders, maxAge, supportsCredentials)
 			ctx.Request().Abort(http.StatusNoContent)
 			return
 		}
 
+		// Apply CORS on the way out so headers survive handler Render (set-before-Next is unreliable here).
 		ctx.Request().Next()
+		writeCorsActualHeaders(ctx, origin, allowed, allowedOrigin, allowedOrigins, exposedHeaders, supportsCredentials)
 	})
 }
 
-// WriteCorsPreflightResponse applies CORS for OPTIONS when Fallback is reached.
+func writeCorsActualHeaders(
+	ctx http.Context,
+	origin string,
+	allowed bool,
+	allowedOrigin string,
+	allowedOrigins, exposedHeaders []string,
+	supportsCredentials bool,
+) {
+	if origin == "" {
+		return
+	}
+	response := ctx.Response()
+	if allowed {
+		response.Header("Access-Control-Allow-Origin", allowedOrigin)
+		if supportsCredentials && allowedOrigin != "*" {
+			response.Header("Access-Control-Allow-Credentials", "true")
+		}
+	} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
+		response.Header("Access-Control-Allow-Origin", "*")
+	}
+	if len(exposedHeaders) > 0 {
+		response.Header("Access-Control-Expose-Headers", strings.Join(exposedHeaders, ", "))
+	}
+}
+
+// WriteCorsPreflightResponse applies CORS headers for an OPTIONS request (middleware or Fallback).
 func WriteCorsPreflightResponse(ctx http.Context) {
 	allowedOrigins := configStringSlice("cors.allowed_origins", []string{"*"})
-	allowedMethods := configStringSlice("cors.allowed_methods", []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"})
+	allowedMethods := configStringSlice("cors.allowed_methods", []string{"*"})
 	allowedHeaders := configStringSlice("cors.allowed_headers", []string{"*"})
 	exposedHeaders := configStringSlice("cors.exposed_headers", nil)
 	maxAge := facades.Config().GetInt("cors.max_age", 0)
 	supportsCredentials := facades.Config().GetBool("cors.supports_credentials", false)
+	origin := ctx.Request().Header("Origin", "")
+	allowed, allowedOrigin := resolveCorsOrigin(origin, allowedOrigins)
+	writeCorsPreflightHeaders(ctx, origin, allowed, allowedOrigin, allowedOrigins, allowedMethods, allowedHeaders, exposedHeaders, maxAge, supportsCredentials)
+}
 
-	if len(allowedMethods) == 1 && allowedMethods[0] == "*" {
-		allowedMethods = []string{
-			http.MethodGet, http.MethodPost, http.MethodHead,
-			http.MethodPut, http.MethodDelete, http.MethodPatch, http.MethodOptions,
+func writeCorsPreflightHeaders(
+	ctx http.Context,
+	origin string,
+	allowed bool,
+	allowedOrigin string,
+	allowedOrigins, allowedMethods, allowedHeaders, exposedHeaders []string,
+	maxAge int,
+	supportsCredentials bool,
+) {
+	response := ctx.Response()
+
+	if allowed && origin != "" {
+		response.Header("Access-Control-Allow-Origin", allowedOrigin)
+		if supportsCredentials && allowedOrigin != "*" {
+			response.Header("Access-Control-Allow-Credentials", "true")
 		}
+	} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
+		response.Header("Access-Control-Allow-Origin", "*")
 	}
 
-	opts := cors.Options{
-		AllowedMethods:      allowedMethods,
-		AllowedHeaders:      allowedHeaders,
-		ExposedHeaders:      exposedHeaders,
-		MaxAge:              maxAge,
-		AllowCredentials:    supportsCredentials,
-		AllowPrivateNetwork: true,
+	methodsStr := "*"
+	if len(allowedMethods) > 0 && allowedMethods[0] != "*" {
+		methodsStr = strings.Join(allowedMethods, ", ")
 	}
-	if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
-		opts.AllowedOrigins = []string{"*"}
-	} else {
-		origins := allowedOrigins
-		opts.AllowOriginFunc = func(origin string) bool {
-			ok, _ := resolveCorsOrigin(origin, origins)
-			return ok
-		}
+	response.Header("Access-Control-Allow-Methods", methodsStr)
+
+	headersStr := "*"
+	if len(allowedHeaders) > 0 && allowedHeaders[0] != "*" {
+		headersStr = strings.Join(allowedHeaders, ", ")
 	}
-	cors.New(opts).HandlerFunc(ctx.Response().Writer(), ctx.Request().Origin())
+	response.Header("Access-Control-Allow-Headers", headersStr)
+
+	if len(exposedHeaders) > 0 {
+		response.Header("Access-Control-Expose-Headers", strings.Join(exposedHeaders, ", "))
+	}
+
+	if maxAge > 0 {
+		response.Header("Access-Control-Max-Age", strconv.Itoa(maxAge))
+	}
 }
 
 // IsCorsOriginAllowed reports whether Origin passes the same rules as Cors middleware.
@@ -147,6 +166,8 @@ func IsCorsOriginAllowed(origin string) bool {
 }
 
 // resolveCorsOrigin returns whether Origin is allowed and the value for ACAO.
+// Dynamic matches (subdomain / vanity / wildcard) always echo the request Origin
+// so credentials mode works.
 func resolveCorsOrigin(origin string, allowedOrigins []string) (bool, string) {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
@@ -181,6 +202,7 @@ func resolveCorsOrigin(origin string, allowedOrigins []string) (bool, string) {
 	return false, ""
 }
 
+// isCorsBaseDomainHost allows apex and any subdomain of TENANCY_BASE_DOMAIN.
 func isCorsBaseDomainHost(host string) bool {
 	host = tenancy.NormalizeHost(host)
 	base := tenancy.BaseDomain()
@@ -190,6 +212,8 @@ func isCorsBaseDomainHost(host string) bool {
 	return host == base || strings.HasSuffix(host, "."+base)
 }
 
+// matchCorsOriginPattern supports wildcard entries like https://*.example.com or *.example.com.
+// Exact origins (no *) are handled by slices.Contains in resolveCorsOrigin.
 func matchCorsOriginPattern(origin string, patterns []string) bool {
 	host := originHost(origin)
 	if host == "" {

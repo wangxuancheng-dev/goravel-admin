@@ -142,7 +142,7 @@ Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in
 
 Resolve order: `active` vanity Host → subdomain → Header/Query.
 
-Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). CORS also auto-allows every host under that apex, plus `tenant_domains` rows with `status=active`. Keep `CORS_ALLOWED_ORIGINS` for admin/local static origins only (wildcards like `https://*.example.com` are supported). Config auto-appends `https://*.{TENANCY_BASE_DOMAIN}` (and http); the app uses `rs/cors` with `AllowOriginFunc` for subdomains and `tenant_domains` hosts with `status=active` (preflight and real responses). Built-in framework Cors is off (`cors.paths` empty). C-end `/api/user` and `/api/public/*` share the same Host binding.
+Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). CORS also auto-allows every host under that apex (tenant subdomains). Keep `CORS_ALLOWED_ORIGINS` for admin/local static origins only (wildcards like `https://*.example.com` are supported). Config auto-appends `https://*.{TENANCY_BASE_DOMAIN}` (and http) to the CORS allowlist; framework `rs/cors` (`cors.paths=*`) handles tenant subdomain CORS on preflight and real responses. Vanity-domain CORS is not guaranteed (prefer same-Host or a later enhancement). C-end `/api/user` and `/api/public/*` share the same Host binding.
 
 ```ini
 TENANCY_BASE_DOMAIN=example.com
@@ -360,7 +360,7 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 5. 导出/搜索队列缺 `tenant_id` 时 fail-closed，禁止写到平台库。
 6. HTTP 手动跑定时任务自动带当前 `--tenant`，禁止扫全租户；cron 可遍历启用租户。
 7. 队列表 `jobs` / `failed_jobs` 读平台连接（`QUEUE_DATABASE_CONNECTION`）。
-8. Browser CORS: when using header tenant resolution, `CORS_ALLOWED_HEADERS` must include `X-Tenant-ID`; tenant subdomains and active vanity hosts are auto-allowed — do not append each tenant to `CORS_ALLOWED_ORIGINS`.
+8. Browser CORS: when using header tenant resolution, `CORS_ALLOWED_HEADERS` must include `X-Tenant-ID`; tenant subdomains are auto-allowed via `TENANCY_BASE_DOMAIN` wildcards — do not append each tenant to `CORS_ALLOWED_ORIGINS` (vanity CORS not guaranteed; see above).
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
 11. Only `provision_status=ready` tenants may bind traffic; HTTP create forbids sync migrate — use platform UI async migrate or CLI `tenant:migrate`.

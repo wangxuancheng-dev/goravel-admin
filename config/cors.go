@@ -141,18 +141,17 @@ func init() {
 		// To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 		//
 		// Environment Variables:
-		//   CORS_ALLOWED_ORIGINS: static allowlist (comma-separated). Also auto-allows:
-		//     - any host under TENANCY_BASE_DOMAIN (tenant subdomains)
-		//     - active vanity hosts in tenant_domains
-		//     - wildcard entries e.g. https://*.example.com or *.example.com
+		//   CORS_ALLOWED_ORIGINS: static allowlist (comma-separated). Also auto-appends:
+		//     - https://*.{TENANCY_BASE_DOMAIN} and http://*.{TENANCY_BASE_DOMAIN}
+		//     - wildcard entries already listed e.g. https://*.example.com
 		//   CORS_ALLOWED_METHODS: 允许的HTTP方法，多个用逗号分隔，默认: GET,POST,PUT,DELETE,PATCH,OPTIONS
 		//   CORS_ALLOWED_HEADERS: 允许的请求头，多个用逗号分隔
 		//   CORS_EXPOSED_HEADERS: 暴露的响应头，多个用逗号分隔
 		//   CORS_MAX_AGE: 预检请求缓存时间（秒），默认: 3600
 		//   CORS_SUPPORTS_CREDENTIALS: 是否支持凭证，默认: true
-		// paths: empty disables framework gin Cors. App middleware uses rs/cors +
-		// AllowOriginFunc (subdomain / active vanity) so ACAO is set on real responses.
-		"paths":                []string{},
+		// paths "*" enables framework gin Cors (rs/cors) so ACAO is applied on real GET/POST.
+		// TENANCY_BASE_DOMAIN wildcards are auto-appended for tenant subdomains.
+		"paths":                []string{"*"},
 		"allowed_methods":      allowedMethods,
 		"allowed_origins":      allowedOrigins,
 		"allowed_headers":      allowedHeaders,
