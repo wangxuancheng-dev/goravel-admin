@@ -1,12 +1,16 @@
 package middleware
 
 import (
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
+
+	"goravel/app/services"
+	"goravel/app/tenancy"
 )
 
 // Cors CORS 中间件，处理跨域请求
@@ -76,6 +80,9 @@ func Cors() http.Middleware {
 		} else if origin != "" {
 			// 检查是否在允许列表中
 			if slices.Contains(allowedOrigins, origin) {
+				allowed = true
+				allowedOrigin = origin
+			} else if host := originHost(origin); host != "" && services.NewTenantDomainService().IsActiveHost(host) {
 				allowed = true
 				allowedOrigin = origin
 			}
@@ -154,4 +161,16 @@ func Cors() http.Middleware {
 		// 继续处理请求
 		ctx.Request().Next()
 	})
+}
+
+func originHost(origin string) string {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return ""
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return tenancy.NormalizeHost(origin)
+	}
+	return tenancy.NormalizeHost(u.Host)
 }

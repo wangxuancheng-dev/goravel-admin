@@ -130,48 +130,28 @@ PLATFORM_ADMIN_NAME=平台管理员
 
 
 
-## Custom domains (edge Host rewrite)
+## Custom domains (`tenant_domains`)
 
-The app does **not** resolve tenants by vanity apex domains. Public resolution is still the first label of `{code}.your-apex`. When a few merchants need `shop.com`, **rewrite Host at Nginx/Caddy** to the matching subdomain. Same process: no app `.env` change, no API restart, no separate deploy per domain.
+Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in the **platform console** — no per-tenant Nginx edits or API restarts.
 
 | Case | Approach |
 |------|----------|
-| Most tenants | Wildcard `*.example.com` |
-| Few enterprise vanity domains | Edge Host rewrite (this section) |
-| Self-serve bind + ACME for almost every tenant | Product `custom_domain` later (**not built-in today**) |
+| Most tenants | Wildcard `*.example.com` + subdomain |
+| Vanity host, no CDN | `ssl_mode=edge`: CNAME to `TENANCY_DOMAIN_TARGET`; edge on-demand TLS |
+| Customer CDN + SSL | `ssl_mode=customer_cdn`: CDN origin to shared ingress; **keep Host as vanity domain** |
 
-```nginx
-# Most tenants: forward Host as-is
-server {
-  server_name *.example.com;
-  location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Real-IP $remote_addr;
-  }
-}
+Resolve order: `active` vanity Host → subdomain → Header/Query.
 
-# Vanity domain -> {code}.example.com
-server {
-  server_name shop-acme.com www.shop-acme.com;
-  location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host acme.example.com;  # tenant code = acme
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Real-IP $remote_addr;
-  }
-}
+```ini
+TENANCY_BASE_DOMAIN=example.com
+TENANCY_DOMAIN_TARGET=tenants.example.com
+TENANCY_DOMAIN_VERIFY_PREFIX=_goravel-tenant
+TENANCY_DOMAIN_CACHE_TTL=60
 ```
 
-Notes:
+Platform API: `GET/POST /api/platform/tenants/{id}/domains`, `POST .../verify`, `PUT .../primary|disable`, `DELETE`; edge ask `GET /api/platform/public/tls-allow?host=` (HTTP 200 only when edge+active).
 
-1. DNS/TLS terminate at the edge; `nginx -t && nginx -s reload` is enough.
-2. `proxy_set_header Host` **must** be `{code}.apex`, not the vanity hostname.
-3. Scale mappings with `include /etc/nginx/tenants/*.conf;` aligned to platform `code`.
-4. Keep `TENANCY_ALLOW_HEADER_FALLBACK` empty on the public internet; do not trust client Headers for tenant binding.
-5. New tenants: create + migrate, then use the subdomain; add a proxy block only when they need a vanity domain — **no** app restart.
+Legacy Nginx Host rewrite to `{code}.apex` still works; prefer `tenant_domains` for new setups.
 
 ## Scale and recommended settings
 

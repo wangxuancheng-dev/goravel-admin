@@ -12,6 +12,9 @@ func TestIsLandlordOnlyMigration(t *testing.T) {
 	if !IsLandlordOnlyMigration("20260912000002_add_migrate_meta_to_tenants") {
 		t.Fatal("migrate meta should be landlord-only")
 	}
+	if !IsLandlordOnlyMigration("20260916120000_create_tenant_domains_table") {
+		t.Fatal("tenant_domains should be landlord-only")
+	}
 	if IsLandlordOnlyMigration("20250101000002_create_admins_table") {
 		t.Fatal("admins should run on tenant DBs")
 	}

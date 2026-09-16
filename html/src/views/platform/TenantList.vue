@@ -359,6 +359,38 @@
           <span v-else>—</span>
         </el-descriptions-item>
       </el-descriptions>
+      <div class="domain-panel">
+        <div class="domain-title">{{ $t('tenant.domains_title') }}</div>
+        <p class="domain-hint">{{ $t('tenant.domains_hint') }}</p>
+        <div v-if="isOwner" class="domain-add">
+          <el-input v-model="domainHost" placeholder="crm.customer.com" clearable style="width: 200px" />
+          <el-select v-model="domainSslMode" style="width: 150px">
+            <el-option :label="$t('tenant.domain_ssl_edge')" value="edge" />
+            <el-option :label="$t('tenant.domain_ssl_cdn')" value="customer_cdn" />
+          </el-select>
+          <el-button type="primary" :loading="domainBusy" @click="addDomain">{{ $t('tenant.domain_add') }}</el-button>
+        </div>
+        <div v-for="d in detailDomains" :key="d.id" class="domain-item">
+          <div>
+            <strong>{{ d.host }}</strong>
+            <el-tag size="small" class="ml4">{{ d.status }}</el-tag>
+            <el-tag size="small" class="ml4">{{ d.ssl_mode }}</el-tag>
+            <el-tag v-if="d.is_primary" size="small" type="primary" class="ml4">{{ $t('tenant.domain_primary') }}</el-tag>
+          </div>
+          <div v-if="d.dns_guide?.txt_name" class="domain-dns">
+            TXT {{ d.dns_guide.txt_name }} = {{ d.dns_guide.txt_value }}
+            <span v-if="d.dns_guide.domain_target"> · CNAME → {{ d.dns_guide.domain_target }}</span>
+          </div>
+          <div v-if="d.last_check_error" class="domain-err">{{ d.last_check_error }}</div>
+          <div v-if="isOwner" class="domain-actions">
+            <el-button v-if="d.status !== 'active'" link type="primary" :loading="domainBusy" @click="verifyDomain(d)">{{ $t('tenant.domain_verify') }}</el-button>
+            <el-button v-else link type="primary" :loading="domainBusy" @click="setPrimaryDomain(d)">{{ $t('tenant.domain_set_primary') }}</el-button>
+            <el-button v-if="d.status !== 'disabled'" link :loading="domainBusy" @click="disableDomain(d)">{{ $t('tenant.domain_disable') }}</el-button>
+            <el-button link type="danger" :loading="domainBusy" @click="removeDomain(d)">{{ $t('common.delete') }}</el-button>
+          </div>
+        </div>
+        <el-empty v-if="!detailDomains.length" :description="$t('common.no_data')" :image-size="48" />
+      </div>
       <div class="drawer-actions">
         <el-button type="primary" @click="openBackups(detailRow)">{{ $t('tenant.op_backups') }}</el-button>
         <el-button @click="openOverview(detailRow)">{{ $t('tenant.op_overview') }}</el-button>
@@ -499,6 +531,12 @@ import {
   exportPlatformTenants,
   getPlatformTenantList,
   getPlatformTenantLoginLinks,
+  getPlatformTenantDomains,
+  createPlatformTenantDomain,
+  verifyPlatformTenantDomain,
+  setPrimaryPlatformTenantDomain,
+  disablePlatformTenantDomain,
+  deletePlatformTenantDomain,
   getPlatformTenantOpLogs,
   getPlatformTenantOpsSummary,
   getPlatformTenantOverview,
@@ -545,6 +583,10 @@ const batchLoading = ref(false)
 const selectedRows = ref([])
 const detailVisible = ref(false)
 const detailRow = ref(null)
+const detailDomains = ref([])
+const domainHost = ref('')
+const domainSslMode = ref('edge')
+const domainBusy = ref(false)
 const backupsVisible = ref(false)
 const backupsRow = ref(null)
 const backupsList = ref([])
@@ -1257,13 +1299,111 @@ const copyLoginLink = async (row) => {
   try {
     const res = await getPlatformTenantLoginLinks(row.id)
     const links = res?.data?.links
-    const text = links?.query_url || `/?tenant_code=${row.code}`
+    const text =
+      links?.primary_custom_url || links?.subdomain_url || links?.query_url || `/?tenant_code=${row.code}`
     await navigator.clipboard.writeText(text)
     ElMessage.success(t('tenant.login_link_copied', { hint: links?.hint || '' }))
   } catch (error) {
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
     }
+  }
+}
+
+const loadDetailDomains = async (row) => {
+  detailDomains.value = []
+  if (!row?.id) return
+  try {
+    const res = await getPlatformTenantDomains(row.id)
+    detailDomains.value = res?.data?.list || []
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  }
+}
+
+const addDomain = async () => {
+  if (!detailRow.value || !domainHost.value.trim()) return
+  domainBusy.value = true
+  try {
+    await createPlatformTenantDomain(detailRow.value.id, {
+      host: domainHost.value.trim(),
+      ssl_mode: domainSslMode.value
+    })
+    domainHost.value = ''
+    ElMessage.success(t('tenant.domain_add_success'))
+    await loadDetailDomains(detailRow.value)
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    domainBusy.value = false
+  }
+}
+
+const verifyDomain = async (d) => {
+  if (!detailRow.value) return
+  domainBusy.value = true
+  try {
+    await verifyPlatformTenantDomain(detailRow.value.id, d.id)
+    ElMessage.success(t('tenant.domain_verify_success'))
+    await loadDetailDomains(detailRow.value)
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    domainBusy.value = false
+  }
+}
+
+const setPrimaryDomain = async (d) => {
+  if (!detailRow.value) return
+  domainBusy.value = true
+  try {
+    await setPrimaryPlatformTenantDomain(detailRow.value.id, d.id)
+    ElMessage.success(t('common.success'))
+    await loadDetailDomains(detailRow.value)
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    domainBusy.value = false
+  }
+}
+
+const disableDomain = async (d) => {
+  if (!detailRow.value) return
+  domainBusy.value = true
+  try {
+    await disablePlatformTenantDomain(detailRow.value.id, d.id)
+    ElMessage.success(t('common.success'))
+    await loadDetailDomains(detailRow.value)
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    domainBusy.value = false
+  }
+}
+
+const removeDomain = async (d) => {
+  if (!detailRow.value) return
+  domainBusy.value = true
+  try {
+    await deletePlatformTenantDomain(detailRow.value.id, d.id)
+    ElMessage.success(t('common.success'))
+    await loadDetailDomains(detailRow.value)
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  } finally {
+    domainBusy.value = false
   }
 }
 
@@ -1484,6 +1624,9 @@ const copyText = async (text) => {
 const openDetail = (row) => {
   detailRow.value = row
   detailVisible.value = true
+  domainHost.value = ''
+  domainSslMode.value = 'edge'
+  void loadDetailDomains(row)
 }
 
 const openBackups = async (row) => {
@@ -1578,6 +1721,49 @@ const downloadBackup = async (file) => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.domain-panel {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+.domain-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.domain-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #64748b;
+}
+.domain-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.domain-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.domain-dns {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+  word-break: break-all;
+}
+.domain-err {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #dc2626;
+}
+.domain-actions {
+  margin-top: 6px;
+}
+.ml4 {
+  margin-left: 4px;
 }
 .ops-summary-row {
   display: flex;

@@ -1234,7 +1234,18 @@
     "alert_queue": "Queue backlog alert",
     "alert_configured": "Configured",
     "alert_not_configured": "Webhook not set",
-    "alert_source": "Source"
+    "alert_source": "Source",
+    "domains_title": "Custom domains",
+    "domains_hint": "Subdomain works by default. Bind a vanity host here; SSL can be edge (our ingress) or customer CDN.",
+    "domain_add": "Add domain",
+    "domain_add_success": "Domain added (pending verify)",
+    "domain_verify": "Verify & activate",
+    "domain_verify_success": "Domain verified and active",
+    "domain_set_primary": "Set primary",
+    "domain_disable": "Disable",
+    "domain_primary": "Primary",
+    "domain_ssl_edge": "Edge SSL",
+    "domain_ssl_cdn": "Customer CDN SSL"
   },
   "platform": {
     "title": "Tenant Ops",

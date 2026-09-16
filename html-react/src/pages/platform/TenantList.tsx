@@ -34,6 +34,12 @@ import {
   exportPlatformTenants,
   getPlatformTenantList,
   getPlatformTenantLoginLinks,
+  getPlatformTenantDomains,
+  createPlatformTenantDomain,
+  verifyPlatformTenantDomain,
+  setPrimaryPlatformTenantDomain,
+  disablePlatformTenantDomain,
+  deletePlatformTenantDomain,
   getPlatformTenantOpLogs,
   getPlatformTenantOpsSummary,
   getPlatformTenantOverview,
@@ -186,6 +192,25 @@ interface TenantLoginLinksData {
   header?: string
   resolver?: string
   tenant_code?: string
+  subdomain_url?: string
+  primary_custom_url?: string
+  active_custom_hosts?: string[]
+}
+
+interface TenantDomainRow {
+  id: number
+  host: string
+  status: string
+  ssl_mode: string
+  is_primary?: boolean
+  verify_token?: string
+  last_check_error?: string
+  dns_guide?: {
+    txt_name?: string
+    txt_value?: string
+    domain_target?: string
+    instruction?: string
+  }
 }
 
 interface PlatformQueueStatus {
@@ -245,6 +270,10 @@ export default function PlatformTenantList() {
   const [detailQuota, setDetailQuota] = useState<TenantQuotaData | null>(null)
   const [detailOpLogs, setDetailOpLogs] = useState<TenantOpLogRow[]>([])
   const [detailLoginLinks, setDetailLoginLinks] = useState<TenantLoginLinksData | null>(null)
+  const [detailDomains, setDetailDomains] = useState<TenantDomainRow[]>([])
+  const [domainHost, setDomainHost] = useState('')
+  const [domainSslMode, setDomainSslMode] = useState<'edge' | 'customer_cdn'>('edge')
+  const [domainBusy, setDomainBusy] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<TenantRow | null>(null)
   const [deleteConfirmCode, setDeleteConfirmCode] = useState('')
   const [deleteDropDb, setDeleteDropDb] = useState(false)
@@ -492,11 +521,14 @@ export default function PlatformTenantList() {
     setDetailQuota(null)
     setDetailOpLogs([])
     setDetailLoginLinks(null)
+    setDetailDomains([])
+    setDomainHost('')
     try {
-      const [overviewRes, logsRes, linksRes] = await Promise.all([
+      const [overviewRes, logsRes, linksRes, domainsRes] = await Promise.all([
         getPlatformTenantOverview(row.id),
         getPlatformTenantOpLogs(row.id, { limit: 40 }),
         getPlatformTenantLoginLinks(row.id),
+        getPlatformTenantDomains(row.id),
       ])
       setDetailOverview(
         (overviewRes as { data?: { overview?: TenantOverviewData } })?.data?.overview || null,
@@ -507,6 +539,9 @@ export default function PlatformTenantList() {
       setDetailOpLogs((logsRes as { data?: { list?: TenantOpLogRow[] } })?.data?.list || [])
       setDetailLoginLinks(
         (linksRes as { data?: { links?: TenantLoginLinksData } })?.data?.links || null,
+      )
+      setDetailDomains(
+        (domainsRes as { data?: { list?: TenantDomainRow[] } })?.data?.list || [],
       )
     } catch (error) {
       showError(error, t('common.operation_failed'))
@@ -526,6 +561,97 @@ export default function PlatformTenantList() {
     setDetailQuota(null)
     setDetailOpLogs([])
     setDetailLoginLinks(null)
+    setDetailDomains([])
+    setDomainHost('')
+  }
+
+  const reloadDetailDomains = async (tenantId: string | number) => {
+    try {
+      const domainsRes = await getPlatformTenantDomains(tenantId)
+      setDetailDomains(
+        (domainsRes as { data?: { list?: TenantDomainRow[] } })?.data?.list || [],
+      )
+      const linksRes = await getPlatformTenantLoginLinks(tenantId)
+      setDetailLoginLinks(
+        (linksRes as { data?: { links?: TenantLoginLinksData } })?.data?.links || null,
+      )
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    }
+  }
+
+  const onAddDomain = async () => {
+    if (!detailRow || !domainHost.trim()) return
+    setDomainBusy(true)
+    try {
+      await createPlatformTenantDomain(detailRow.id, {
+        host: domainHost.trim(),
+        ssl_mode: domainSslMode,
+      })
+      setDomainHost('')
+      message.success(t('tenant.domain_add_success'))
+      await reloadDetailDomains(detailRow.id)
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const onVerifyDomain = async (domainId: number) => {
+    if (!detailRow) return
+    setDomainBusy(true)
+    try {
+      await verifyPlatformTenantDomain(detailRow.id, domainId)
+      message.success(t('tenant.domain_verify_success'))
+      await reloadDetailDomains(detailRow.id)
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const onPrimaryDomain = async (domainId: number) => {
+    if (!detailRow) return
+    setDomainBusy(true)
+    try {
+      await setPrimaryPlatformTenantDomain(detailRow.id, domainId)
+      message.success(t('common.success'))
+      await reloadDetailDomains(detailRow.id)
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const onDisableDomain = async (domainId: number) => {
+    if (!detailRow) return
+    setDomainBusy(true)
+    try {
+      await disablePlatformTenantDomain(detailRow.id, domainId)
+      message.success(t('common.success'))
+      await reloadDetailDomains(detailRow.id)
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const onDeleteDomain = async (domainId: number) => {
+    if (!detailRow) return
+    setDomainBusy(true)
+    try {
+      await deletePlatformTenantDomain(detailRow.id, domainId)
+      message.success(t('common.success'))
+      await reloadDetailDomains(detailRow.id)
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setDomainBusy(false)
+    }
   }
 
   const onPingRow = async (row: TenantRow) => {
@@ -1496,9 +1622,33 @@ export default function PlatformTenantList() {
             {detailLoginLinks ? (
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Typography.Text type="secondary">{detailLoginLinks.hint}</Typography.Text>
+                {detailLoginLinks.primary_custom_url ? (
+                  <Space wrap>
+                    <Typography.Text code>{detailLoginLinks.primary_custom_url}</Typography.Text>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => void copyText(detailLoginLinks.primary_custom_url || '')}
+                    >
+                      {t('tenant.login_copy_url')}
+                    </Button>
+                  </Space>
+                ) : null}
+                {detailLoginLinks.subdomain_url ? (
+                  <Space wrap>
+                    <Typography.Text code>{detailLoginLinks.subdomain_url}</Typography.Text>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => void copyText(detailLoginLinks.subdomain_url || '')}
+                    >
+                      {t('tenant.login_copy_url')}
+                    </Button>
+                  </Space>
+                ) : null}
                 <Space wrap>
                   <Typography.Text code>{detailLoginLinks.query_url}</Typography.Text>
-                  <Button type="link" size="small" onClick={() => void copyText(detailLoginLinks.query_url)}>
+                  <Button type="link" size="small" onClick={() => void copyText(detailLoginLinks.query_url || '')}>
                     {t('tenant.login_copy_url')}
                   </Button>
                 </Space>
@@ -1507,6 +1657,82 @@ export default function PlatformTenantList() {
                     {t('tenant.login_header')}: {detailLoginLinks.header}
                   </Typography.Text>
                 ) : null}
+              </Space>
+            ) : (
+              <Typography.Text type="secondary">—</Typography.Text>
+            )}
+            <Divider>{t('tenant.domains_title')}</Divider>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+              {t('tenant.domains_hint')}
+            </Typography.Paragraph>
+            {isOwner ? (
+              <Space wrap style={{ marginBottom: 12 }}>
+                <Input
+                  style={{ width: 220 }}
+                  placeholder="crm.customer.com"
+                  value={domainHost}
+                  onChange={(e) => setDomainHost(e.target.value)}
+                />
+                <Select
+                  style={{ width: 160 }}
+                  value={domainSslMode}
+                  onChange={(v) => setDomainSslMode(v)}
+                  options={[
+                    { value: 'edge', label: t('tenant.domain_ssl_edge') },
+                    { value: 'customer_cdn', label: t('tenant.domain_ssl_cdn') },
+                  ]}
+                />
+                <Button type="primary" loading={domainBusy} onClick={() => void onAddDomain()}>
+                  {t('tenant.domain_add')}
+                </Button>
+              </Space>
+            ) : null}
+            {detailDomains.length > 0 ? (
+              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                {detailDomains.map((d) => (
+                  <div key={d.id} style={{ border: '1px solid var(--ant-color-border)', padding: 8, borderRadius: 6 }}>
+                    <Space wrap>
+                      <Typography.Text strong>{d.host}</Typography.Text>
+                      <Tag>{d.status}</Tag>
+                      <Tag>{d.ssl_mode}</Tag>
+                      {d.is_primary ? <Tag color="blue">{t('tenant.domain_primary')}</Tag> : null}
+                    </Space>
+                    {d.dns_guide?.txt_name ? (
+                      <div style={{ marginTop: 6 }}>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          TXT {d.dns_guide.txt_name} = {d.dns_guide.txt_value}
+                          {d.dns_guide.domain_target ? ` · CNAME → ${d.dns_guide.domain_target}` : ''}
+                        </Typography.Text>
+                      </div>
+                    ) : null}
+                    {d.last_check_error ? (
+                      <Typography.Text type="danger" style={{ fontSize: 12, display: 'block' }}>
+                        {d.last_check_error}
+                      </Typography.Text>
+                    ) : null}
+                    {isOwner ? (
+                      <Space wrap style={{ marginTop: 8 }}>
+                        {d.status !== 'active' ? (
+                          <Button size="small" loading={domainBusy} onClick={() => void onVerifyDomain(d.id)}>
+                            {t('tenant.domain_verify')}
+                          </Button>
+                        ) : (
+                          <Button size="small" loading={domainBusy} onClick={() => void onPrimaryDomain(d.id)}>
+                            {t('tenant.domain_set_primary')}
+                          </Button>
+                        )}
+                        {d.status !== 'disabled' ? (
+                          <Button size="small" loading={domainBusy} onClick={() => void onDisableDomain(d.id)}>
+                            {t('tenant.domain_disable')}
+                          </Button>
+                        ) : null}
+                        <Button size="small" danger loading={domainBusy} onClick={() => void onDeleteDomain(d.id)}>
+                          {t('common.delete')}
+                        </Button>
+                      </Space>
+                    ) : null}
+                  </div>
+                ))}
               </Space>
             ) : (
               <Typography.Text type="secondary">—</Typography.Text>

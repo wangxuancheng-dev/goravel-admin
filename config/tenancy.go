@@ -40,5 +40,13 @@ func init() {
 		"platform_admin_username": config.Env("PLATFORM_ADMIN_USERNAME", ""),
 		"platform_admin_password": config.Env("PLATFORM_ADMIN_PASSWORD", ""),
 		"platform_admin_name":     config.Env("PLATFORM_ADMIN_NAME", ""),
+		// Public apex for subdomain URLs (acme.{base_domain}); empty disables subdomain URL helpers
+		"base_domain": config.Env("TENANCY_BASE_DOMAIN", ""),
+		// Unified ingress hostname customers CNAME to (edge SSL mode)
+		"domain_target": config.Env("TENANCY_DOMAIN_TARGET", ""),
+		// DNS TXT host prefix: _{token_prefix}.{custom_host}
+		"domain_verify_prefix": config.Env("TENANCY_DOMAIN_VERIFY_PREFIX", "_goravel-tenant"),
+		// Cache TTL seconds for host -> tenant code (0 = 60)
+		"domain_cache_ttl": config.Env("TENANCY_DOMAIN_CACHE_TTL", 60),
 	})
 }

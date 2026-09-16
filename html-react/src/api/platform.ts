@@ -132,6 +132,33 @@ export function getPlatformTenantLoginLinks(id: string | number) {
   return platformRequest.get(`/tenants/${id}/login-links`)
 }
 
+export function getPlatformTenantDomains(id: string | number) {
+  return platformRequest.get(`/tenants/${id}/domains`)
+}
+
+export function createPlatformTenantDomain(
+  id: string | number,
+  data: { host: string; ssl_mode?: string; is_primary?: boolean },
+) {
+  return platformRequest.post(`/tenants/${id}/domains`, data)
+}
+
+export function verifyPlatformTenantDomain(id: string | number, domainId: string | number) {
+  return platformRequest.post(`/tenants/${id}/domains/${domainId}/verify`)
+}
+
+export function setPrimaryPlatformTenantDomain(id: string | number, domainId: string | number) {
+  return platformRequest.put(`/tenants/${id}/domains/${domainId}/primary`)
+}
+
+export function disablePlatformTenantDomain(id: string | number, domainId: string | number) {
+  return platformRequest.put(`/tenants/${id}/domains/${domainId}/disable`)
+}
+
+export function deletePlatformTenantDomain(id: string | number, domainId: string | number) {
+  return platformRequest.delete(`/tenants/${id}/domains/${domainId}`)
+}
+
 export function listPlatformTenantBackups(id: string | number) {
   return platformRequest.get(`/tenants/${id}/backups`)
 }

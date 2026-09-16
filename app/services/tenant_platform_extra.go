@@ -47,11 +47,14 @@ type TenantPingDetail struct {
 
 // TenantLoginLinks helps open the tenant admin UI.
 type TenantLoginLinks struct {
-	Resolver   string `json:"resolver"`
-	Header     string `json:"header"`
-	QueryURL   string `json:"query_url"`
-	Hint       string `json:"hint"`
-	TenantCode string `json:"tenant_code"`
+	Resolver          string   `json:"resolver"`
+	Header            string   `json:"header"`
+	QueryURL          string   `json:"query_url"`
+	Hint              string   `json:"hint"`
+	TenantCode        string   `json:"tenant_code"`
+	SubdomainURL      string   `json:"subdomain_url,omitempty"`
+	PrimaryCustomURL  string   `json:"primary_custom_url,omitempty"`
+	ActiveCustomHosts []string `json:"active_custom_hosts,omitempty"`
 }
 
 // PlatformQueueStatus reports long-running queue visibility for tenant ops.
@@ -101,6 +104,7 @@ func (s *TenantAdminService) DeleteTenant(id uint, confirmCode string, opts Tena
 			return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
 		}
 	}
+	_ = NewTenantDomainService().DisableAllForTenant(tenant.ID)
 	if _, err := appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).Delete(&models.Tenant{}); err != nil {
 		return nil, err
 	}
@@ -190,6 +194,7 @@ func (s *TenantAdminService) ForceDeleteTenant(id uint, confirmCode string) erro
 		return apperrors.ErrTenantOpInProgress
 	}
 	s.conn.Forget(tenant.ConnectionName)
+	_ = NewTenantDomainService().PurgeAllForTenant(tenant.ID)
 	if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
 		return err
 	}
@@ -358,25 +363,57 @@ func (s *TenantConnectionService) BuildPingDetail(tenant *models.Tenant) *Tenant
 // BuildTenantLoginLinks returns how to open the tenant admin UI.
 func BuildTenantLoginLinks(tenant *models.Tenant) TenantLoginLinks {
 	code := ""
+	var tenantID uint
 	if tenant != nil {
 		code = tenant.Code
+		tenantID = tenant.ID
 	}
 	resolver := strings.TrimSpace(facades.Config().GetString("tenancy.resolver", "header"))
 	header := strings.TrimSpace(facades.Config().GetString("tenancy.header", "X-Tenant-ID"))
-	appURL := strings.TrimRight(strings.TrimSpace(facades.Config().GetString("app.url", "http://localhost")), "/")
 	// Frontend is often on another port; query hint works for local SPA.
 	queryURL := fmt.Sprintf("/login?tenant_code=%s", code)
 	hint := "Open tenant admin with query tenant_code or header " + header
-	if resolver == "subdomain" && code != "" {
+	base := tenancy.BaseDomain()
+	subURL := ""
+	if base != "" && code != "" {
+		subURL = "https://" + code + "." + base + "/login"
+		if resolver == "subdomain" {
+			hint = "Prefer subdomain: " + code + "." + base + "; custom domains if bound"
+		}
+	} else if resolver == "subdomain" && code != "" {
 		hint = "Prefer subdomain: " + code + ".<your-domain>; header fallback may be disabled"
 	}
-	_ = appURL
+
+	primaryCustom := ""
+	var activeHosts []string
+	if tenantID > 0 {
+		list, _ := NewTenantDomainService().ListByTenant(tenantID)
+		for i := range list {
+			if list[i].Status != models.TenantDomainStatusActive {
+				continue
+			}
+			activeHosts = append(activeHosts, list[i].Host)
+			if list[i].IsPrimary && primaryCustom == "" {
+				primaryCustom = "https://" + list[i].Host + "/login"
+			}
+		}
+		if primaryCustom == "" && len(activeHosts) > 0 {
+			primaryCustom = "https://" + activeHosts[0] + "/login"
+		}
+		if primaryCustom != "" {
+			hint = "Prefer custom domain login; subdomain still available when TENANCY_BASE_DOMAIN is set"
+		}
+	}
+
 	return TenantLoginLinks{
-		Resolver:   resolver,
-		Header:     header,
-		QueryURL:   queryURL,
-		Hint:       hint,
-		TenantCode: code,
+		Resolver:          resolver,
+		Header:            header,
+		QueryURL:          queryURL,
+		Hint:              hint,
+		TenantCode:        code,
+		SubdomainURL:      subURL,
+		PrimaryCustomURL:  primaryCustom,
+		ActiveCustomHosts: activeHosts,
 	}
 }
 

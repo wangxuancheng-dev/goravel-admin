@@ -641,14 +641,31 @@ func ExtractTenantHint(ctx http.Context) string {
 }
 
 // BindHTTP 解析租户、注册连接并写入 HTTP context。
-// hint 可空；公网 subdomain 模式下 Host 优先，且与 client hint 冲突时拒绝。
+// hint 可空；优先级：active custom Host > subdomain/header ResolveHint。
 func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error {
 	if !tenancy.Enabled() {
 		return nil
 	}
-	raw, err := tenancy.ResolveHint(ctx, hint)
-	if err != nil {
-		return err
+	clientHint := strings.TrimSpace(hint)
+	if clientHint == "" {
+		clientHint = tenancy.ClientHint(ctx)
+	}
+	raw := ""
+	var err error
+	if ctx != nil {
+		host := tenancy.RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
+		if code := NewTenantDomainService().ResolveActiveCode(host); code != "" {
+			if clientHint != "" && !strings.EqualFold(clientHint, code) {
+				return apperrors.ErrTenantHintConflict
+			}
+			raw = code
+		}
+	}
+	if raw == "" {
+		raw, err = tenancy.ResolveHint(ctx, hint)
+		if err != nil {
+			return err
+		}
 	}
 	if strings.TrimSpace(raw) == "" {
 		return apperrors.ErrTenantRequired

@@ -1144,7 +1144,18 @@
     "alert_queue": "队列积压告警",
     "alert_configured": "已配置",
     "alert_not_configured": "未配置 webhook",
-    "alert_source": "来源"
+    "alert_source": "来源",
+    "domains_title": "自定义域名",
+    "domains_hint": "默认可用子域。此处绑定独立域名；SSL 可选边缘签发或客户 CDN 终结。",
+    "domain_add": "添加域名",
+    "domain_add_success": "已添加（待校验）",
+    "domain_verify": "校验并激活",
+    "domain_verify_success": "域名已校验并激活",
+    "domain_set_primary": "设为主域",
+    "domain_disable": "禁用",
+    "domain_primary": "主域",
+    "domain_ssl_edge": "边缘 SSL",
+    "domain_ssl_cdn": "客户 CDN SSL"
   },
   "platform": {
     "title": "租户运维",
