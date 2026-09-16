@@ -77,3 +77,16 @@ export function withTenantQuery(url) {
     return `${value}${sep}tenant_code=${encodeURIComponent(code)}`
   }
 }
+
+/**
+ * URL for "back to tenant admin login" from the platform console.
+ * Prefer VITE_TENANT_DEMO_LOGIN_URL; hosted demo host falls back to the public tenant demo.
+ */
+export function getTenantAdminLoginUrl() {
+  const fromEnv = String(import.meta.env.VITE_TENANT_DEMO_LOGIN_URL || '').trim()
+  if (fromEnv) return fromEnv
+  if (typeof window !== 'undefined' && window.location.hostname === 'admin.xuancheng888.top') {
+    return 'https://acme.xuancheng888.top/login?tenant_code=acme'
+  }
+  return '/login'
+}

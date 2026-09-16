@@ -19,10 +19,10 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ```
 
 > 文档：https://docs.xuancheng888.top/  
-> 演示站：https://acme.xuancheng888.top/login?tenant_code=acme
+> 租户后台：https://acme.xuancheng888.top/login?tenant_code=acme
+> 租户运维：https://admin.xuancheng888.top/platform/login
 
-账号: demo  
-密码: demo123
+账号/密码（两处相同）: demo / demo123
 
 ### 适用场景
 
@@ -329,6 +329,7 @@ npx wrangler deploy
 - **环境变量（变量和机密）：**
   - `VITE_API_BASE_URL`: `https://api.xuancheng888.top`
   - `VITE_API_PREFIX`: `/api/admin`
+  - `VITE_TENANT_DEMO_LOGIN_URL` (optional): `https://acme.xuancheng888.top/login?tenant_code=acme`
 - **自定义域名：** `admin.xuancheng888.top`
 
 **注意：** `worker.js` 会处理 SPA 路由，当路径不是静态资源时回退到 `index.html`。仅上传 `dist`、不带 Worker 时，刷新 `/admins` 等路径会 404。

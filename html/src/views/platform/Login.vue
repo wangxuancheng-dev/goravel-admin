@@ -21,8 +21,9 @@
           {{ $t('login.login') }}
         </el-button>
       </el-form>
+      <div class="footer hint">demo / demo123</div>
       <div class="footer">
-        <router-link to="/login">{{ $t('platform.back_tenant_login') }}</router-link>
+        <a :href="tenantLoginUrl">{{ $t('platform.back_tenant_login') }}</a>
       </div>
     </div>
   </div>
@@ -34,11 +35,13 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { completePlatformLogin, platformLogin } from '@/api/platform'
+import { getTenantAdminLoginUrl } from '@/utils/tenant'
 
 const { t } = useI18n()
 const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
+const tenantLoginUrl = getTenantAdminLoginUrl()
 const form = reactive({ username: '', password: '' })
 const rules = computed(() => ({
   username: [{ required: true, message: t('login.username'), trigger: 'blur' }],
@@ -103,5 +106,10 @@ const submit = async () => {
   margin-top: 18px;
   text-align: center;
   font-size: 13px;
+}
+.footer.hint {
+  margin-top: 16px;
+  margin-bottom: 0;
+  color: #94a3b8;
 }
 </style>

@@ -19,10 +19,10 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ```
 
 > Docs: https://docs.xuancheng888.top/  
-> Demo: https://acme.xuancheng888.top/login?tenant_code=acme
+> Tenant demo: https://acme.xuancheng888.top/login?tenant_code=acme  
+> Platform ops: https://admin.xuancheng888.top/platform/login
 
-username: demo  
-password: demo123
+username / password (both): demo / demo123
 
 ### Intended Use
 
@@ -332,6 +332,7 @@ npx wrangler deploy
 - **Environment variables (Variables & Secrets):**
   - `VITE_API_BASE_URL`: `https://api.xuancheng888.top`
   - `VITE_API_PREFIX`: `/api/admin`
+  - `VITE_TENANT_DEMO_LOGIN_URL` (optional): `https://acme.xuancheng888.top/login?tenant_code=acme`
 - **Custom domain:** `admin.xuancheng888.top`
 
 **Note:** `worker.js` handles SPA routing by falling back to `index.html` for non-asset paths. Uploading only `dist` without the Worker will 404 on refresh of routes like `/admins`.

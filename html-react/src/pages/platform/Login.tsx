@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { App, Button, Form, Input, Typography } from 'antd'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { completePlatformLogin, platformLogin } from '@/api/platform'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
+import { getTenantAdminLoginUrl } from '@/utils/tenant'
 
 export default function PlatformLogin() {
   const { t } = useTranslation()
@@ -73,7 +74,10 @@ export default function PlatformLogin() {
           </Button>
         </Form>
         <div style={{ marginTop: 16, textAlign: 'center' }}>
-          <Link to="/login">{t('platform.back_tenant_login')}</Link>
+          <Typography.Text type="secondary">demo / demo123</Typography.Text>
+        </div>
+        <div style={{ marginTop: 8, textAlign: 'center' }}>
+          <a href={getTenantAdminLoginUrl()}>{t('platform.back_tenant_login')}</a>
         </div>
       </div>
     </div>
