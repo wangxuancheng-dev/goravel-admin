@@ -63,6 +63,11 @@ type Tenant struct {
 	LastOpAt         *time.Time `gorm:"comment:最近运维时间" json:"last_op_at"`
 	LastBackupPath    string     `gorm:"size:512;comment:最近备份路径" json:"last_backup_path"`
 	StorageLimitBytes int64      `gorm:"default:0;comment:对象存储配额字节 0不限" json:"storage_limit_bytes"`
+	HealthStatus      string     `gorm:"size:32;default:unknown;index;comment:ok|warn|fail|unknown" json:"health_status"`
+	HealthCheckedAt   *time.Time `gorm:"comment:last health inspect" json:"health_checked_at"`
+	HealthIssues      string     `gorm:"type:text;comment:json issue codes" json:"health_issues"`
+	LastPingOK        bool       `gorm:"default:false;comment:last ping ok" json:"last_ping_ok"`
+	LastPingMs        int64      `gorm:"default:0;comment:last ping latency ms" json:"last_ping_ms"`
 	orm.SoftDeletes
 }
 

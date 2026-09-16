@@ -47,6 +47,24 @@
       </el-col>
     </el-row>
 
+    <el-row :gutter="16" class="stat-row">
+      <el-col :xs="12" :sm="8" :md="6" v-for="item in domainCards" :key="item.key">
+        <el-card shadow="hover" class="stat-card clickable" @click="goQuery(item.query)">
+          <div class="stat-label">{{ item.label }}</div>
+          <div class="stat-value" :class="item.tone">{{ item.value }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16" class="stat-row">
+      <el-col :xs="12" :sm="8" :md="6" v-for="item in healthCards" :key="item.key">
+        <el-card shadow="hover" class="stat-card clickable" @click="goQuery(item.query)">
+          <div class="stat-label">{{ item.label }}</div>
+          <div class="stat-value" :class="item.tone">{{ item.value }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-card shadow="never" class="action-card" style="margin-bottom: 16px">
       <template #header>
         <span>{{ $t('platform.alerts_title') }}</span>
@@ -56,6 +74,10 @@
           {{ $t('tenant.alert_tenant_ops') }}:
           {{ alerts?.tenant_ops?.configured ? $t('tenant.alert_configured') : $t('tenant.alert_not_configured') }}
           <span v-if="alerts?.tenant_ops?.source"> ({{ alerts.tenant_ops.source }})</span>
+        </el-tag>
+        <el-tag :type="(alerts?.tenant_health?.webhook_configured || alerts?.tenant_health?.mail_configured) ? 'success' : 'info'">
+          {{ $t('tenant.alert_tenant_health') }}:
+          {{ (alerts?.tenant_health?.webhook_configured || alerts?.tenant_health?.mail_configured) ? $t('tenant.alert_configured') : $t('tenant.alert_not_configured') }}
         </el-tag>
         <el-tag :type="alerts?.queue?.configured ? 'success' : 'info'">
           {{ $t('tenant.alert_queue') }}:
@@ -73,7 +95,9 @@
       <el-space wrap>
         <el-button type="primary" @click="goTenants('behind')">{{ $t('tenant.filter_schema_behind') }}</el-button>
         <el-button type="danger" plain @click="goTenants('failed')">{{ $t('tenant.filter_schema_failed') }}</el-button>
-        <el-button @click="goTenants('unknown')">{{ $t('tenant.filter_schema_unknown') }}</el-button>
+        <el-button @click="goQuery({ domain_status: 'verify_failed' })">{{ $t('tenant.filter_domain_failed') }}</el-button>
+        <el-button type="danger" plain @click="goQuery({ health_status: 'fail' })">{{ $t('tenant.filter_health_fail') }}</el-button>
+        <el-button :loading="inspectLoading" @click="runHealthInspect">{{ $t('tenant.health_inspect') }}</el-button>
         <el-button @click="goMaintenance">{{ $t('platform.filter_maintenance') }}</el-button>
         <el-button @click="$router.push('/platform/tenants')">{{ $t('menu.tenant') }}</el-button>
         <el-button @click="$router.push('/platform/tenant-op-logs')">{{ $t('menu.tenant_op_log') }}</el-button>
@@ -86,11 +110,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { getPlatformOpsOverview } from '@/api/platform'
+import { ElMessage } from 'element-plus'
+import { getPlatformOpsOverview, healthInspectPlatformTenants } from '@/api/platform'
 
 const { t } = useI18n()
 const router = useRouter()
 const loading = ref(false)
+const inspectLoading = ref(false)
 const overview = ref(null)
 
 const summary = computed(() => overview.value?.summary || null)
@@ -105,6 +131,26 @@ const schemaCards = computed(() => {
     { key: 'failed', label: t('tenant.schema_failed'), value: s.schema_failed || 0, tone: 'danger' },
     { key: 'running', label: t('tenant.schema_running'), value: s.schema_running || 0, tone: 'warn' },
     { key: 'unknown', label: t('tenant.schema_unknown'), value: s.schema_unknown || 0, tone: '' },
+  ]
+})
+
+const domainCards = computed(() => {
+  const s = summary.value || {}
+  return [
+    { key: 'unbound', label: t('tenant.domain_unbound'), value: s.domain_unbound || 0, tone: '', query: { domain_status: 'unbound' } },
+    { key: 'pending', label: t('tenant.domain_pending'), value: s.domain_pending || 0, tone: 'warn', query: { domain_status: 'pending' } },
+    { key: 'active', label: t('tenant.domain_active'), value: s.domain_active || 0, tone: 'ok', query: { domain_status: 'active' } },
+    { key: 'verify_failed', label: t('tenant.domain_verify_failed'), value: s.domain_verify_failed || 0, tone: 'danger', query: { domain_status: 'verify_failed' } },
+  ]
+})
+
+const healthCards = computed(() => {
+  const s = summary.value || {}
+  return [
+    { key: 'ok', label: t('tenant.health_ok'), value: s.health_ok || 0, tone: 'ok', query: { health_status: 'ok' } },
+    { key: 'warn', label: t('tenant.health_warn'), value: s.health_warn || 0, tone: 'warn', query: { health_status: 'warn' } },
+    { key: 'fail', label: t('tenant.health_fail'), value: s.health_fail || 0, tone: 'danger', query: { health_status: 'fail' } },
+    { key: 'unknown', label: t('tenant.health_unknown'), value: s.health_unknown || 0, tone: '', query: { health_status: 'unknown' } },
   ]
 })
 
@@ -124,8 +170,30 @@ const goTenants = (schemaStatus) => {
   router.push({ path: '/platform/tenants', query: schemaStatus ? { schema_status: schemaStatus } : {} })
 }
 
+const goQuery = (query) => {
+  router.push({ path: '/platform/tenants', query: query || {} })
+}
+
 const goMaintenance = () => {
   router.push({ path: '/platform/tenants', query: { maintenance: '1' } })
+}
+
+const runHealthInspect = async () => {
+  inspectLoading.value = true
+  try {
+    const res = await healthInspectPlatformTenants({ alert: true })
+    const report = res?.data?.report
+    ElMessage.success(t('tenant.health_inspect_done', {
+      ok: report?.ok ?? 0,
+      warn: report?.warn ?? 0,
+      fail: report?.fail ?? 0
+    }))
+    await load()
+  } catch {
+    // handled
+  } finally {
+    inspectLoading.value = false
+  }
 }
 
 onMounted(load)

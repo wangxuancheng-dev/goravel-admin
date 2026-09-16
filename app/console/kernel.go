@@ -28,6 +28,8 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		ScheduleTracked("queue:alert-backlog").Hourly().OnOneServer(),
 		// Beijing 04:00 = UTC 20:00: hard-delete expired soft-deleted tenants
 		ScheduleTracked("tenant:cleanup-deleted").DailyAt("20:00").OnOneServer(),
+		// Tenant health: ping / schema / quota / migrate fail → webhook/email
+		ScheduleTracked("tenant:health-inspect").Hourly().OnOneServer(),
 	}
 }
 
@@ -64,6 +66,7 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.TenantBackupAll{},
 		&commands.TenantRestore{},
 		&commands.TenantCleanupDeleted{},
+		&commands.TenantHealthInspect{},
 		&commands.PlatformAdminCreate{},
 		&commands.PlatformInstall{},
 	}

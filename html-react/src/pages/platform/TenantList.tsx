@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingOutlined } from '@ant-design/icons'
 import {
   backupPlatformTenant,
-  createPlatformTenant,
+  onboardPlatformTenant,
   deletePlatformTenant,
   forceDeletePlatformTenant,
   downloadPlatformTenantBackup,
@@ -100,6 +100,12 @@ interface TenantRow {
   deleted_at?: string
   trashed?: boolean
   storage_limit_bytes?: number
+  domain_status?: string
+  domain_primary_host?: string
+  health_status?: string
+  health_issues?: string[]
+  last_ping_ok?: boolean
+  last_ping_ms?: number
 }
 
 function isTenantBusy(row: TenantRow) {
@@ -228,6 +234,8 @@ export default function PlatformTenantList() {
   const showError = useUnhandledError()
   const isOwner = isPlatformOwner()
   const [createOpen, setCreateOpen] = useState(false)
+  const [onboardResultOpen, setOnboardResultOpen] = useState(false)
+  const [onboardLoginUrl, setOnboardLoginUrl] = useState('')
   const [editing, setEditing] = useState<TenantRow | null>(null)
   const [migrateTarget, setMigrateTarget] = useState<TenantRow | null>(null)
   const [passwordTouched, setPasswordTouched] = useState(false)
@@ -250,6 +258,13 @@ export default function PlatformTenantList() {
     schema_failed?: number
     schema_unknown?: number
     maintenance?: number
+    domain_unbound?: number
+    domain_pending?: number
+    domain_active?: number
+    domain_verify_failed?: number
+    health_ok?: number
+    health_warn?: number
+    health_fail?: number
   } | null>(null)
   const [batchLoading, setBatchLoading] = useState(false)
   const [detailRow, setDetailRow] = useState<TenantRow | null>(null)
@@ -320,6 +335,13 @@ export default function PlatformTenantList() {
           schema_failed: Number(summary.schema_failed ?? 0),
           schema_unknown: Number(summary.schema_unknown ?? 0),
           maintenance: Number(summary.maintenance ?? 0),
+          domain_unbound: Number(summary.domain_unbound ?? 0),
+          domain_pending: Number(summary.domain_pending ?? 0),
+          domain_active: Number(summary.domain_active ?? 0),
+          domain_verify_failed: Number(summary.domain_verify_failed ?? 0),
+          health_ok: Number(summary.health_ok ?? 0),
+          health_warn: Number(summary.health_warn ?? 0),
+          health_fail: Number(summary.health_fail ?? 0),
         })
       }
     } catch {
@@ -376,7 +398,18 @@ export default function PlatformTenantList() {
     refresh,
   } = useListPage<TenantRow>({
     fetchApi: getPlatformTenantList,
-    initialSearchForm: { code: '', name: '', status: '', provision_status: '', schema_status: '', maintenance: '', trashed: '' },
+    initialSearchForm: {
+      code: '',
+      name: '',
+      status: '',
+      provision_status: '',
+      schema_status: '',
+      maintenance: '',
+      domain_host: '',
+      domain_status: '',
+      health_status: '',
+      trashed: '',
+    },
     defaultSort: 'id:desc',
     normalizeRows: false,
     transformData: (row) => {
@@ -413,6 +446,12 @@ export default function PlatformTenantList() {
         deleted_at: String(entityField(record, 'deleted_at', '') ?? ''),
         trashed: Boolean(entityField(record, 'trashed', false)),
         storage_limit_bytes: Number(entityField(record, 'storage_limit_bytes', 0) ?? 0),
+        domain_status: String(entityField(record, 'domain_status', '') ?? ''),
+        domain_primary_host: String(entityField(record, 'domain_primary_host', '') ?? ''),
+        health_status: String(entityField(record, 'health_status', '') ?? ''),
+        health_issues: (entityField(record, 'health_issues', []) as string[]) || [],
+        last_ping_ok: Boolean(entityField(record, 'last_ping_ok', false)),
+        last_ping_ms: Number(entityField(record, 'last_ping_ms', 0) ?? 0),
       }
     },
   })
@@ -422,7 +461,9 @@ export default function PlatformTenantList() {
   useEffect(() => {
     const schemaFromQuery = String(searchParams.get('schema_status') || '').trim()
     const maintenanceFromQuery = String(searchParams.get('maintenance') || '').trim()
-    if (!schemaFromQuery && !maintenanceFromQuery) return
+    const domainFromQuery = String(searchParams.get('domain_status') || '').trim()
+    const healthFromQuery = String(searchParams.get('health_status') || '').trim()
+    if (!schemaFromQuery && !maintenanceFromQuery && !domainFromQuery && !healthFromQuery) return
     const next = { ...searchForm }
     let changed = false
     if (schemaFromQuery && String(searchForm.schema_status || '') !== schemaFromQuery) {
@@ -431,6 +472,14 @@ export default function PlatformTenantList() {
     }
     if (maintenanceFromQuery && String(searchForm.maintenance || '') !== maintenanceFromQuery) {
       next.maintenance = maintenanceFromQuery
+      changed = true
+    }
+    if (domainFromQuery && String(searchForm.domain_status || '') !== domainFromQuery) {
+      next.domain_status = domainFromQuery
+      changed = true
+    }
+    if (healthFromQuery && String(searchForm.health_status || '') !== healthFromQuery) {
+      next.health_status = healthFromQuery
       changed = true
     }
     if (!changed) return
@@ -959,6 +1008,62 @@ export default function PlatformTenantList() {
     }
   }
 
+  const domainLabel = (status?: string) => {
+    switch (status) {
+      case 'unbound':
+        return t('tenant.domain_unbound')
+      case 'pending':
+        return t('tenant.domain_pending')
+      case 'active':
+        return t('tenant.domain_active')
+      case 'verify_failed':
+        return t('tenant.domain_verify_failed')
+      case 'disabled':
+        return t('tenant.domain_disabled')
+      default:
+        return status || t('tenant.domain_unbound')
+    }
+  }
+
+  const domainColor = (status?: string) => {
+    switch (status) {
+      case 'active':
+        return 'success'
+      case 'pending':
+        return 'warning'
+      case 'verify_failed':
+        return 'error'
+      default:
+        return 'default'
+    }
+  }
+
+  const healthLabel = (status?: string) => {
+    switch (status) {
+      case 'ok':
+        return t('tenant.health_ok')
+      case 'warn':
+        return t('tenant.health_warn')
+      case 'fail':
+        return t('tenant.health_fail')
+      default:
+        return t('tenant.health_unknown')
+    }
+  }
+
+  const healthColor = (status?: string) => {
+    switch (status) {
+      case 'ok':
+        return 'success'
+      case 'warn':
+        return 'warning'
+      case 'fail':
+        return 'error'
+      default:
+        return 'default'
+    }
+  }
+
   const runQueued = async (fn: () => Promise<unknown>) => {
     try {
       await fn()
@@ -1003,6 +1108,31 @@ export default function PlatformTenantList() {
             }
           >
             <Tag color={schemaColor(status)}>{schemaLabel(status)}</Tag>
+          </Tooltip>
+        ),
+      },
+      {
+        title: t('tenant.domain_status'),
+        dataIndex: 'domain_status',
+        key: 'domain_status',
+        width: 110,
+        render: (status: string, row) => (
+          <Tooltip title={row.domain_primary_host || undefined}>
+            <Tag color={domainColor(status)}>{domainLabel(status)}</Tag>
+          </Tooltip>
+        ),
+      },
+      {
+        title: t('tenant.health_status'),
+        dataIndex: 'health_status',
+        key: 'health_status',
+        width: 120,
+        render: (status: string, row) => (
+          <Tooltip title={(row.health_issues || []).join(', ') || undefined}>
+            <Tag color={healthColor(status)}>
+              {healthLabel(status)}
+              {row.last_ping_ms != null && status ? ` · ${row.last_ping_ms}ms` : ''}
+            </Tag>
           </Tooltip>
         ),
       },
@@ -1248,14 +1378,26 @@ export default function PlatformTenantList() {
     try {
       const values = await form.validateFields()
       setSaving(true)
-      await createPlatformTenant({
+      const withMigrate = values.with_migrate !== false
+      const res = await onboardPlatformTenant({
         ...values,
         password: passwordTouched && values.password ? values.password : undefined,
         storage_limit_bytes: mbToBytes(values.storage_limit_mb) || undefined,
+        with_migrate: withMigrate,
+        with_seed: withMigrate && values.with_seed !== false,
+        domain_host: values.domain_host || undefined,
+        domain_ssl_mode: values.domain_ssl_mode || 'edge',
       })
-      message.success(t('common.create_success'))
+      const links = (res as { data?: { login_links?: TenantLoginLinksData } })?.data?.login_links
+      const url = links?.primary_custom_url || links?.subdomain_url || links?.query_url || ''
+      message.success(t('tenant.onboard_success'))
       setCreateOpen(false)
+      if (url) {
+        setOnboardLoginUrl(url)
+        setOnboardResultOpen(true)
+      }
       await refresh()
+      await refreshOpsSummary()
     } catch (error) {
       if ((error as { errorFields?: unknown })?.errorFields) return
       showError(error, t('common.operation_failed'))
@@ -1361,6 +1503,9 @@ export default function PlatformTenantList() {
                         driver: 'mysql',
                         isolation: 'database',
                         skip_create: false,
+                        with_migrate: true,
+                        with_seed: true,
+                        domain_ssl_mode: 'edge',
                         port: 0,
                         storage_limit_mb: 0,
                       })
@@ -1434,6 +1579,21 @@ export default function PlatformTenantList() {
             {(opsSummary.maintenance ?? 0) > 0
               ? ` · ${t('tenant.ops_maintenance')} ${opsSummary.maintenance}`
               : ''}
+            {opsSummary.domain_unbound != null
+              ? ` · ${t('tenant.domain_summary', {
+                  unbound: opsSummary.domain_unbound ?? 0,
+                  pending: opsSummary.domain_pending ?? 0,
+                  active: opsSummary.domain_active ?? 0,
+                  failed: opsSummary.domain_verify_failed ?? 0,
+                })}`
+              : ''}
+            {(opsSummary.health_fail ?? 0) > 0 || (opsSummary.health_warn ?? 0) > 0
+              ? ` · ${t('tenant.health_summary', {
+                  ok: opsSummary.health_ok ?? 0,
+                  warn: opsSummary.health_warn ?? 0,
+                  fail: opsSummary.health_fail ?? 0,
+                })}`
+              : ''}
           </Typography.Text>
         ) : null}
       </Space>
@@ -1497,6 +1657,29 @@ export default function PlatformTenantList() {
                     { label: t('tenant.maintenance_off'), value: '0' },
                   ],
                 },
+                { name: 'domain_host', label: t('tenant.domain_host') },
+                {
+                  name: 'domain_status',
+                  label: t('tenant.domain_status'),
+                  type: 'select',
+                  options: [
+                    { label: t('tenant.domain_unbound'), value: 'unbound' },
+                    { label: t('tenant.domain_pending'), value: 'pending' },
+                    { label: t('tenant.domain_active'), value: 'active' },
+                    { label: t('tenant.domain_verify_failed'), value: 'verify_failed' },
+                  ],
+                },
+                {
+                  name: 'health_status',
+                  label: t('tenant.health_status'),
+                  type: 'select',
+                  options: [
+                    { label: t('tenant.health_ok'), value: 'ok' },
+                    { label: t('tenant.health_warn'), value: 'warn' },
+                    { label: t('tenant.health_fail'), value: 'fail' },
+                    { label: t('tenant.health_unknown'), value: 'unknown' },
+                  ],
+                },
               ]
         }
         values={searchForm}
@@ -1511,6 +1694,9 @@ export default function PlatformTenantList() {
             provision_status: '',
             schema_status: '',
             maintenance: '',
+            domain_host: '',
+            domain_status: '',
+            health_status: '',
             trashed: keep,
           })
           window.setTimeout(() => handleSearch(), 0)
@@ -2183,8 +2369,26 @@ export default function PlatformTenantList() {
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message={t('tenant.migrate_cli_tip')}
+            message={t('tenant.onboard_section')}
+            description={t('tenant.onboard_hint')}
           />
+          <Form.Item name="with_migrate" label={t('tenant.onboard_migrate')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="with_seed" label={t('tenant.onboard_seed')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="domain_host" label={t('tenant.onboard_domain')}>
+            <Input placeholder="crm.customer.com" allowClear />
+          </Form.Item>
+          <Form.Item name="domain_ssl_mode" label={t('tenant.domain_ssl_edge')}>
+            <Select
+              options={[
+                { value: 'edge', label: t('tenant.domain_ssl_edge') },
+                { value: 'customer_cdn', label: t('tenant.domain_ssl_cdn') },
+              ]}
+            />
+          </Form.Item>
           <Form.Item
             name="skip_create"
             label={t('tenant.skip_create')}
@@ -2202,6 +2406,21 @@ export default function PlatformTenantList() {
             <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={t('tenant.onboard_done_title')}
+        open={onboardResultOpen}
+        onCancel={() => setOnboardResultOpen(false)}
+        onOk={() => {
+          void copyText(onboardLoginUrl)
+          setOnboardResultOpen(false)
+        }}
+        okText={t('tenant.backup_copy_path')}
+        destroyOnHidden
+      >
+        <Typography.Paragraph>{t('tenant.onboard_done_desc')}</Typography.Paragraph>
+        <Input value={onboardLoginUrl} readOnly />
       </Modal>
 
       <Modal

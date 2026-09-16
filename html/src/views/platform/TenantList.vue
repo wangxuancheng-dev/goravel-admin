@@ -40,6 +40,21 @@
         <template v-if="(opsSummary.maintenance || 0) > 0">
           · {{ $t('tenant.ops_maintenance') }} {{ opsSummary.maintenance }}
         </template>
+        <template v-if="opsSummary.domain_unbound != null">
+          · {{ $t('tenant.domain_summary', {
+            unbound: opsSummary.domain_unbound || 0,
+            pending: opsSummary.domain_pending || 0,
+            active: opsSummary.domain_active || 0,
+            failed: opsSummary.domain_verify_failed || 0
+          }) }}
+        </template>
+        <template v-if="(opsSummary.health_fail || 0) > 0 || (opsSummary.health_warn || 0) > 0">
+          · {{ $t('tenant.health_summary', {
+            ok: opsSummary.health_ok || 0,
+            warn: opsSummary.health_warn || 0,
+            fail: opsSummary.health_fail || 0
+          }) }}
+        </template>
       </span>
       <template v-if="!isRecycleView && isOwner">
         <el-button
@@ -129,6 +144,21 @@
       >
         <el-tag :type="schemaTagType(row.schema_status)" size="small" effect="plain">
           {{ schemaLabel(row.schema_status) }}
+        </el-tag>
+      </el-tooltip>
+    </template>
+    <template #domain_status="{ row }">
+      <el-tooltip :content="row.domain_primary_host || ''" :disabled="!row.domain_primary_host">
+        <el-tag :type="domainTagType(row.domain_status)" size="small" effect="plain">
+          {{ domainLabel(row.domain_status) }}
+        </el-tag>
+      </el-tooltip>
+    </template>
+    <template #health_status="{ row }">
+      <el-tooltip :content="(row.health_issues || []).join(', ')" :disabled="!(row.health_issues || []).length">
+        <el-tag :type="healthTagType(row.health_status)" size="small">
+          {{ healthLabel(row.health_status) }}
+          <span v-if="row.last_ping_ms != null && row.health_status"> · {{ row.last_ping_ms }}ms</span>
         </el-tag>
       </el-tooltip>
     </template>
@@ -279,18 +309,28 @@
           <el-form-item v-if="editingId" :label="$t('tenant.schema')">
             <el-input v-model="form.schema" />
           </el-form-item>
-          <el-alert
-            v-if="!editingId"
-            type="info"
-            :closable="false"
-            show-icon
-            class="migrate-tip"
-            :title="$t('tenant.migrate_cli_tip')"
-          />
-          <el-form-item v-if="!editingId" :label="$t('tenant.skip_create')">
-            <el-switch v-model="form.skip_create" />
-            <div class="form-tip">{{ $t('tenant.skip_create_tip') }}</div>
-          </el-form-item>
+          <template v-if="!editingId">
+            <el-divider content-position="left">{{ $t('tenant.onboard_section') }}</el-divider>
+            <el-form-item :label="$t('tenant.onboard_migrate')">
+              <el-switch v-model="form.with_migrate" />
+            </el-form-item>
+            <el-form-item :label="$t('tenant.onboard_seed')">
+              <el-switch v-model="form.with_seed" :disabled="!form.with_migrate" />
+            </el-form-item>
+            <el-form-item :label="$t('tenant.onboard_domain')">
+              <el-input v-model="form.domain_host" placeholder="crm.customer.com" clearable />
+            </el-form-item>
+            <el-form-item v-if="form.domain_host" :label="$t('tenant.domain_ssl_edge')">
+              <el-select v-model="form.domain_ssl_mode" style="width: 100%">
+                <el-option :label="$t('tenant.domain_ssl_edge')" value="edge" />
+                <el-option :label="$t('tenant.domain_ssl_cdn')" value="customer_cdn" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('tenant.skip_create')">
+              <el-switch v-model="form.skip_create" />
+              <div class="form-tip">{{ $t('tenant.skip_create_tip') }}</div>
+            </el-form-item>
+          </template>
           <el-divider content-position="left">{{ $t('tenant.quota_section') }}</el-divider>
           <el-form-item :label="$t('tenant.storage_limit_mb')">
             <el-input-number v-model="form.storage_limit_mb" :min="0" :max="1048576" controls-position="right" style="width: 100%" />
@@ -300,6 +340,18 @@
         <template #footer>
           <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
           <el-button type="primary" :loading="saving" @click="submitForm">{{ $t('common.confirm') }}</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="onboardResultVisible" :title="$t('tenant.onboard_done_title')" width="520px" destroy-on-close>
+        <p>{{ $t('tenant.onboard_done_desc') }}</p>
+        <el-input :model-value="onboardLoginUrl" readonly>
+          <template #append>
+            <el-button @click="copyText(onboardLoginUrl)">{{ $t('tenant.backup_copy_path') }}</el-button>
+          </template>
+        </el-input>
+        <template #footer>
+          <el-button type="primary" @click="onboardResultVisible = false">{{ $t('common.confirm') }}</el-button>
         </template>
       </el-dialog>
     </template>
@@ -545,7 +597,8 @@ import ListPage from '@/components/ListPage.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import {
   backupPlatformTenant,
-  createPlatformTenant,
+  createPlatformTenantDomain,
+  onboardPlatformTenant,
   deletePlatformTenant,
   forceDeletePlatformTenant,
   downloadPlatformTenantBackup,
@@ -681,7 +734,20 @@ const refreshSettings = async () => {
   }
 }
 
-const initialSearchForm = { code: '', name: '', status: '', provision_status: '', schema_status: '', maintenance: '', trashed: '' }
+const initialSearchForm = {
+  code: '',
+  name: '',
+  status: '',
+  provision_status: '',
+  schema_status: '',
+  maintenance: '',
+  domain_host: '',
+  domain_status: '',
+  health_status: '',
+  trashed: ''
+}
+const onboardResultVisible = ref(false)
+const onboardLoginUrl = ref('')
 
 const {
   pagination,
@@ -708,6 +774,14 @@ onMounted(async () => {
   if (maintenanceFromQuery) {
     searchForm.maintenance = maintenanceFromQuery
   }
+  const domainFromQuery = String(route.query.domain_status || '').trim()
+  if (domainFromQuery) {
+    searchForm.domain_status = domainFromQuery
+  }
+  const healthFromQuery = String(route.query.health_status || '').trim()
+  if (healthFromQuery) {
+    searchForm.health_status = healthFromQuery
+  }
   try {
     const res = await platformHealth()
     health.value = res?.data || null
@@ -718,7 +792,7 @@ onMounted(async () => {
   }
   await refreshOpsSummary()
   await refreshSettings()
-  if (schemaFromQuery || maintenanceFromQuery) {
+  if (schemaFromQuery || maintenanceFromQuery || domainFromQuery || healthFromQuery) {
     await loadData()
   }
 })
@@ -856,6 +930,62 @@ const schemaTagType = (status) => {
   }
 }
 
+const domainLabel = (status) => {
+  switch (status) {
+    case 'unbound':
+      return t('tenant.domain_unbound')
+    case 'pending':
+      return t('tenant.domain_pending')
+    case 'active':
+      return t('tenant.domain_active')
+    case 'verify_failed':
+      return t('tenant.domain_verify_failed')
+    case 'disabled':
+      return t('tenant.domain_disabled')
+    default:
+      return status || t('tenant.domain_unbound')
+  }
+}
+
+const domainTagType = (status) => {
+  switch (status) {
+    case 'active':
+      return 'success'
+    case 'pending':
+      return 'warning'
+    case 'verify_failed':
+      return 'danger'
+    default:
+      return 'info'
+  }
+}
+
+const healthLabel = (status) => {
+  switch (status) {
+    case 'ok':
+      return t('tenant.health_ok')
+    case 'warn':
+      return t('tenant.health_warn')
+    case 'fail':
+      return t('tenant.health_fail')
+    default:
+      return t('tenant.health_unknown')
+  }
+}
+
+const healthTagType = (status) => {
+  switch (status) {
+    case 'ok':
+      return 'success'
+    case 'warn':
+      return 'warning'
+    case 'fail':
+      return 'danger'
+    default:
+      return 'info'
+  }
+}
+
 const schemaStatusTip = (row) => {
   if (!row) return ''
   const parts = []
@@ -918,6 +1048,31 @@ const searchFields = computed(() => {
         { label: t('tenant.maintenance_on'), value: '1' },
         { label: t('tenant.maintenance_off'), value: '0' }
       ]
+    },
+    { prop: 'domain_host', label: t('tenant.domain_host'), type: 'input', width: '180px' },
+    {
+      prop: 'domain_status',
+      label: t('tenant.domain_status'),
+      type: 'select',
+      width: '150px',
+      options: [
+        { label: t('tenant.domain_unbound'), value: 'unbound' },
+        { label: t('tenant.domain_pending'), value: 'pending' },
+        { label: t('tenant.domain_active'), value: 'active' },
+        { label: t('tenant.domain_verify_failed'), value: 'verify_failed' }
+      ]
+    },
+    {
+      prop: 'health_status',
+      label: t('tenant.health_status'),
+      type: 'select',
+      width: '140px',
+      options: [
+        { label: t('tenant.health_ok'), value: 'ok' },
+        { label: t('tenant.health_warn'), value: 'warn' },
+        { label: t('tenant.health_fail'), value: 'fail' },
+        { label: t('tenant.health_unknown'), value: 'unknown' }
+      ]
     }
   ]
 })
@@ -958,6 +1113,8 @@ const tableColumns = computed(() => {
     { field: 'database', title: t('tenant.database'), width: 140, key: 'database' },
     { field: 'provision_status', title: t('tenant.provision_status'), width: 110, slot: 'provision_status', key: 'provision_status' },
     { field: 'schema_status', title: t('tenant.schema_status'), width: 110, slot: 'schema_status', key: 'schema_status' },
+    { field: 'domain_status', title: t('tenant.domain_status'), width: 110, slot: 'domain_status', key: 'domain_status' },
+    { field: 'health_status', title: t('tenant.health_status'), width: 120, slot: 'health_status', key: 'health_status' },
     { field: 'last_op', title: t('tenant.last_op'), width: 160, slot: 'last_op', key: 'last_op' }
   )
   if (isRecycleView.value) {
@@ -991,6 +1148,10 @@ const form = reactive({
   password: '',
   has_password: false,
   skip_create: false,
+  with_migrate: true,
+  with_seed: true,
+  domain_host: '',
+  domain_ssl_mode: 'edge',
   storage_limit_mb: 0
 })
 
@@ -1060,6 +1221,10 @@ const resetForm = () => {
   form.password = ''
   form.has_password = false
   form.skip_create = false
+  form.with_migrate = true
+  form.with_seed = true
+  form.domain_host = ''
+  form.domain_ssl_mode = 'edge'
   form.storage_limit_mb = 0
 }
 
@@ -1084,7 +1249,7 @@ const submitForm = async () => {
         await updatePlatformTenant(editingId.value, payload)
         ElMessage.success(t('common.update_success'))
       } else {
-        await createPlatformTenant({
+        const res = await onboardPlatformTenant({
           code: form.code,
           name: form.name,
           driver: form.driver,
@@ -1096,12 +1261,23 @@ const submitForm = async () => {
           username: form.username || undefined,
           password: passwordTouched.value && form.password ? form.password : undefined,
           skip_create: form.skip_create,
+          with_migrate: !!form.with_migrate,
+          with_seed: !!form.with_migrate && !!form.with_seed,
+          domain_host: form.domain_host || undefined,
+          domain_ssl_mode: form.domain_ssl_mode || 'edge',
           storage_limit_bytes: mbToBytes(form.storage_limit_mb) || undefined
         })
-        ElMessage.success(t('common.create_success'))
+        const links = res?.data?.login_links || {}
+        onboardLoginUrl.value =
+          links.primary_custom_url || links.subdomain_url || links.query_url || ''
+        ElMessage.success(t('tenant.onboard_success'))
+        if (onboardLoginUrl.value) {
+          onboardResultVisible.value = true
+        }
       }
       dialogVisible.value = false
       loadData()
+      refreshOpsSummary()
     } catch (error) {
       if (!error?.__handled) {
         ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))

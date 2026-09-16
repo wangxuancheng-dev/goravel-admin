@@ -15,5 +15,7 @@ func init() {
 		"queue_alert_backlog_threshold": config.Env("QUEUE_ALERT_BACKLOG_THRESHOLD", 100),
 		// Tenant migrate/seed/backup failure alerts; empty falls back to queue then ready webhook
 		"tenant_ops_alert_webhook_url": config.Env("TENANT_OPS_ALERT_WEBHOOK_URL", ""),
+		// Optional email for tenant:health-inspect (comma not supported; single address)
+		"tenant_health_alert_mail": config.Env("TENANT_HEALTH_ALERT_MAIL", ""),
 	})
 }

@@ -43,6 +43,14 @@ export function createPlatformTenant(data) {
   return platformRequest.post('/tenants', data)
 }
 
+export function onboardPlatformTenant(data) {
+  return platformRequest.post('/tenants/onboard', data)
+}
+
+export function healthInspectPlatformTenants(data = {}) {
+  return platformRequest.post('/tenants/health-inspect', data)
+}
+
 export function updatePlatformTenant(id, data) {
   return platformRequest.put(`/tenants/${id}`, data)
 }

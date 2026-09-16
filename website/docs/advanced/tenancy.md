@@ -343,3 +343,10 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
 16. 商户独立域名用边缘改写 Host（见上文）；勿为每个独立域改应用 env 或独立部署。
 17. 业务目录（`app/services` / `http` / `jobs` / `console`）禁止 `facades.Orm().Query()`；CI 跑 `bash scripts/check-tenant-orm.sh`（租户运维白名单除外）。
+
+## Platform ops: domain board / onboard / health
+
+- Tenant list: domain_status (unbound/pending/active/verify_failed) + domain_host search; health_status.
+- Onboard API: POST /api/platform/tenants/onboard (create → queue migrate[+seed] → optional domain → login_links).
+- Health: 	enant:health-inspect (hourly) writes health_* / last_ping_*; alerts via TENANT_OPS_ALERT_WEBHOOK_URL and optional TENANT_HEALTH_ALERT_MAIL.
+- Manual: POST /api/platform/tenants/health-inspect.

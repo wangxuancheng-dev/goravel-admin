@@ -40,11 +40,7 @@ func (c *TenantController) Index(ctx http.Context) http.Response {
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
 	}
-	rows := make([]map[string]any, 0, len(list))
-	for i := range list {
-		rows = append(rows, services.TenantToJSON(&list[i]))
-	}
-	return response.Paginate(ctx, rows, total, page, pageSize)
+	return response.Paginate(ctx, services.TenantsToJSONList(list), total, page, pageSize)
 }
 
 func (c *TenantController) Show(ctx http.Context) http.Response {
@@ -56,7 +52,8 @@ func (c *TenantController) Show(ctx http.Context) http.Response {
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
 	}
-	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSON(tenant)})
+	meta := services.LoadTenantDomainListMeta([]uint{tenant.ID})
+	return response.Success(ctx, map[string]any{"tenant": services.TenantToJSONWithDomain(tenant, meta[tenant.ID])})
 }
 
 type tenantStoreBody struct {
@@ -205,14 +202,121 @@ func (c *TenantController) OpsOverview(ctx http.Context) http.Response {
 		"queue":                    services.BuildPlatformQueueStatus(),
 		"backup_keep":              facades.Config().GetInt("tenancy.backup_keep", 10),
 		"alerts": map[string]any{
-			"tenant_ops": services.TenantOpsAlertConfigStatus(),
-			"queue":      health.QueueAlertConfigStatus(),
+			"tenant_ops":    services.TenantOpsAlertConfigStatus(),
+			"tenant_health": services.TenantHealthAlertConfigStatus(),
+			"queue":         health.QueueAlertConfigStatus(),
 		},
 		"deploy_tips": []string{
 			"Release cutover: run NEW image CLI migrate + tenant:migrate-all before switching traffic",
 			"Platform UI migrate uses the currently running binary only",
 		},
 	})
+}
+
+type tenantOnboardBody struct {
+	Code              string `json:"code" form:"code"`
+	Name              string `json:"name" form:"name"`
+	Driver            string `json:"driver" form:"driver"`
+	Isolation         string `json:"isolation" form:"isolation"`
+	Database          string `json:"database" form:"database"`
+	Schema            string `json:"schema" form:"schema"`
+	Host              string `json:"host" form:"host"`
+	Port              int    `json:"port" form:"port"`
+	Username          string `json:"username" form:"username"`
+	Password          string `json:"password" form:"password"`
+	SkipCreate        bool   `json:"skip_create" form:"skip_create"`
+	StorageLimitBytes *int64 `json:"storage_limit_bytes" form:"storage_limit_bytes"`
+	WithMigrate       *bool  `json:"with_migrate" form:"with_migrate"`
+	WithSeed          *bool  `json:"with_seed" form:"with_seed"`
+	DomainHost        string `json:"domain_host" form:"domain_host"`
+	DomainSSL         string `json:"domain_ssl_mode" form:"domain_ssl_mode"`
+}
+
+// Onboard creates a tenant, optionally queues migrate(+seed), optionally binds a domain, returns login links.
+func (c *TenantController) Onboard(ctx http.Context) http.Response {
+	var body tenantOnboardBody
+	_ = ctx.Request().Bind(&body)
+	if strings.TrimSpace(body.Code) == "" || strings.TrimSpace(body.Name) == "" {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
+	}
+	withMigrate := true
+	if body.WithMigrate != nil {
+		withMigrate = *body.WithMigrate
+	}
+	withSeed := true
+	if body.WithSeed != nil {
+		withSeed = *body.WithSeed
+	}
+	result, err := services.PrepareTenantOnboard(services.TenantOnboardInput{
+		Create: services.TenantCreateInput{
+			Code:              body.Code,
+			Name:              body.Name,
+			Driver:            body.Driver,
+			Isolation:         body.Isolation,
+			Database:          body.Database,
+			Schema:            body.Schema,
+			Host:              body.Host,
+			Port:              body.Port,
+			Username:          body.Username,
+			Password:          body.Password,
+			SkipCreate:        body.SkipCreate,
+			StorageLimitBytes: body.StorageLimitBytes,
+		},
+		WithMigrate: withMigrate,
+		WithSeed:    withSeed,
+		DomainHost:  body.DomainHost,
+		DomainSSL:   body.DomainSSL,
+		Actor:       platformActor(ctx),
+	})
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+	}
+	if result.QueuedArgs != nil {
+		payload, merr := json.Marshal(result.QueuedArgs)
+		if merr != nil {
+			_ = c.ops().MarkOpFailed(result.Tenant, merr.Error(), result.OpLogID)
+			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, merr, nil)
+		}
+		if qerr := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
+			Type:  "string",
+			Value: string(payload),
+		}}).OnQueue("long-running").Dispatch(); qerr != nil {
+			_ = c.ops().MarkOpFailed(result.Tenant, qerr.Error(), result.OpLogID)
+			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(qerr), nil)
+		}
+	}
+	out := map[string]any{
+		"tenant":      services.TenantToJSON(result.Tenant),
+		"queued":      result.Queued,
+		"op":          result.Op,
+		"op_log_id":   result.OpLogID,
+		"steps":       result.Steps,
+		"login_links": result.LoginLinks,
+	}
+	if result.Domain != nil {
+		out["domain"] = services.TenantDomainToJSON(result.Domain)
+	}
+	return response.Success(ctx, out)
+}
+
+type tenantHealthInspectBody struct {
+	Limit int  `json:"limit" form:"limit"`
+	Alert *bool `json:"alert" form:"alert"`
+}
+
+// HealthInspect runs a one-shot tenant health scan (owner only).
+func (c *TenantController) HealthInspect(ctx http.Context) http.Response {
+	var body tenantHealthInspectBody
+	_ = ctx.Request().Bind(&body)
+	alert := true
+	if body.Alert != nil {
+		alert = *body.Alert
+	}
+	report, err := services.RunTenantHealthInspect(body.Limit, alert)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+	}
+	return response.Success(ctx, map[string]any{"report": report})
 }
 
 type tenantMigrateBatchBody struct {

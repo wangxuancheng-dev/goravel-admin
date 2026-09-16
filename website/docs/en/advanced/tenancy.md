@@ -347,3 +347,10 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
 16. Vanity domains: edge Host rewrite (see above); do not add per-domain app env or separate deploys.
 17. Business dirs (`app/services` / `http` / `jobs` / `console`) must not call `facades.Orm().Query()`; CI runs `bash scripts/check-tenant-orm.sh` (tenant-maintenance allowlist excepted).
+
+## Platform ops: domain board / onboard / health
+
+- Tenant list: domain_status + domain_host search; health_status.
+- Onboard: POST /api/platform/tenants/onboard.
+- Health cron: 	enant:health-inspect hourly; webhook + optional TENANT_HEALTH_ALERT_MAIL.
+- Manual: POST /api/platform/tenants/health-inspect.

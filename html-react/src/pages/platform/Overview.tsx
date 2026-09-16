@@ -1,13 +1,15 @@
-import { Alert, Button, Card, Col, Row, Space, Spin, Tag, Typography } from 'antd'
+import { Alert, App, Button, Card, Col, Row, Space, Spin, Tag, Typography } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getPlatformOpsOverview } from '@/api/platform'
+import { getPlatformOpsOverview, healthInspectPlatformTenants } from '@/api/platform'
 
 export default function PlatformOverview() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { message } = App.useApp()
   const [loading, setLoading] = useState(false)
+  const [inspectLoading, setInspectLoading] = useState(false)
   const [overview, setOverview] = useState<Record<string, any> | null>(null)
 
   const summary = overview?.summary || null
@@ -21,6 +23,68 @@ export default function PlatformOverview() {
       { key: 'failed', label: t('tenant.schema_failed'), value: summary?.schema_failed || 0, color: '#dc2626' },
       { key: 'running', label: t('tenant.schema_running'), value: summary?.schema_running || 0, color: '#d97706' },
       { key: 'unknown', label: t('tenant.schema_unknown'), value: summary?.schema_unknown || 0, color: '#64748b' },
+    ],
+    [summary, t],
+  )
+
+  const domainCards = useMemo(
+    () => [
+      {
+        key: 'unbound',
+        label: t('tenant.domain_unbound'),
+        value: summary?.domain_unbound || 0,
+        color: '#64748b',
+        q: 'domain_status=unbound',
+      },
+      {
+        key: 'pending',
+        label: t('tenant.domain_pending'),
+        value: summary?.domain_pending || 0,
+        color: '#d97706',
+        q: 'domain_status=pending',
+      },
+      {
+        key: 'active',
+        label: t('tenant.domain_active'),
+        value: summary?.domain_active || 0,
+        color: '#16a34a',
+        q: 'domain_status=active',
+      },
+      {
+        key: 'verify_failed',
+        label: t('tenant.domain_verify_failed'),
+        value: summary?.domain_verify_failed || 0,
+        color: '#dc2626',
+        q: 'domain_status=verify_failed',
+      },
+    ],
+    [summary, t],
+  )
+
+  const healthCards = useMemo(
+    () => [
+      { key: 'ok', label: t('tenant.health_ok'), value: summary?.health_ok || 0, color: '#16a34a', q: 'health_status=ok' },
+      {
+        key: 'warn',
+        label: t('tenant.health_warn'),
+        value: summary?.health_warn || 0,
+        color: '#d97706',
+        q: 'health_status=warn',
+      },
+      {
+        key: 'fail',
+        label: t('tenant.health_fail'),
+        value: summary?.health_fail || 0,
+        color: '#dc2626',
+        q: 'health_status=fail',
+      },
+      {
+        key: 'unknown',
+        label: t('tenant.health_unknown'),
+        value: summary?.health_unknown || 0,
+        color: '#64748b',
+        q: 'health_status=unknown',
+      },
     ],
     [summary, t],
   )
@@ -45,8 +109,32 @@ export default function PlatformOverview() {
     navigate(schemaStatus ? `/platform/tenants?schema_status=${schemaStatus}` : '/platform/tenants')
   }
 
+  const goTenantsQuery = (query: string) => {
+    navigate(query ? `/platform/tenants?${query}` : '/platform/tenants')
+  }
+
   const goMaintenance = () => {
     navigate('/platform/tenants?maintenance=1')
+  }
+
+  const runHealthInspect = async () => {
+    setInspectLoading(true)
+    try {
+      const res = await healthInspectPlatformTenants({ alert: true })
+      const report = (res as any)?.data?.report
+      message.success(
+        t('tenant.health_inspect_done', {
+          ok: report?.ok ?? 0,
+          warn: report?.warn ?? 0,
+          fail: report?.fail ?? 0,
+        }),
+      )
+      await load()
+    } catch {
+      /* request wrapper handles toast */
+    } finally {
+      setInspectLoading(false)
+    }
   }
 
   return (
@@ -113,12 +201,46 @@ export default function PlatformOverview() {
           ))}
         </Row>
 
+        <Row gutter={[16, 16]}>
+          {domainCards.map((item) => (
+            <Col xs={12} sm={8} md={6} key={item.key}>
+              <Card size="small" hoverable onClick={() => goTenantsQuery(item.q)}>
+                <Typography.Text type="secondary">{item.label}</Typography.Text>
+                <div style={{ fontSize: 22, fontWeight: 600, color: item.color }}>{item.value}</div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
+        <Row gutter={[16, 16]}>
+          {healthCards.map((item) => (
+            <Col xs={12} sm={8} md={6} key={item.key}>
+              <Card size="small" hoverable onClick={() => goTenantsQuery(item.q)}>
+                <Typography.Text type="secondary">{item.label}</Typography.Text>
+                <div style={{ fontSize: 22, fontWeight: 600, color: item.color }}>{item.value}</div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
         <Card size="small" title={t('platform.alerts_title')}>
           <Space wrap>
             <Tag color={alerts?.tenant_ops?.configured ? 'success' : 'default'}>
               {t('tenant.alert_tenant_ops')}:{' '}
               {alerts?.tenant_ops?.configured ? t('tenant.alert_configured') : t('tenant.alert_not_configured')}
               {alerts?.tenant_ops?.source ? ` (${alerts.tenant_ops.source})` : ''}
+            </Tag>
+            <Tag
+              color={
+                alerts?.tenant_health?.webhook_configured || alerts?.tenant_health?.mail_configured
+                  ? 'success'
+                  : 'default'
+              }
+            >
+              {t('tenant.alert_tenant_health')}:{' '}
+              {alerts?.tenant_health?.webhook_configured || alerts?.tenant_health?.mail_configured
+                ? t('tenant.alert_configured')
+                : t('tenant.alert_not_configured')}
             </Tag>
             <Tag color={alerts?.queue?.configured ? 'success' : 'default'}>
               {t('tenant.alert_queue')}:{' '}
@@ -144,7 +266,15 @@ export default function PlatformOverview() {
             <Button danger onClick={() => goTenants('failed')}>
               {t('tenant.filter_schema_failed')}
             </Button>
-            <Button onClick={() => goTenants('unknown')}>{t('tenant.filter_schema_unknown')}</Button>
+            <Button onClick={() => goTenantsQuery('domain_status=verify_failed')}>
+              {t('tenant.filter_domain_failed')}
+            </Button>
+            <Button danger onClick={() => goTenantsQuery('health_status=fail')}>
+              {t('tenant.filter_health_fail')}
+            </Button>
+            <Button loading={inspectLoading} onClick={() => void runHealthInspect()}>
+              {t('tenant.health_inspect')}
+            </Button>
             <Button onClick={goMaintenance}>{t('platform.filter_maintenance')}</Button>
             <Button onClick={() => navigate('/platform/tenants')}>{t('menu.tenant')}</Button>
             <Button onClick={() => navigate('/platform/tenant-op-logs')}>{t('menu.tenant_op_log')}</Button>
