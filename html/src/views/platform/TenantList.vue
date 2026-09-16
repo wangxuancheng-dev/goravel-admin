@@ -597,7 +597,6 @@ import ListPage from '@/components/ListPage.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import {
   backupPlatformTenant,
-  createPlatformTenantDomain,
   onboardPlatformTenant,
   deletePlatformTenant,
   forceDeletePlatformTenant,
