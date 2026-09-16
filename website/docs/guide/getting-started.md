@@ -63,7 +63,7 @@ cp .env.example .env
 npm i && npm run dev
 ```
 
-`.env.example` 已放行 `3007` / `3008` 的 CORS。改 CORS 后需重启 Go 进程。
+`.env.example` 已放行 `3007` / `3008` 的 CORS。改 CORS 后需重启 Go 进程。多租户下子域与已激活独立域名的跨域见 [多租户](/advanced/tenancy)。
 
 > 默认**单库**（`TENANCY_DRIVER=off`）。多租户见 [多租户](/advanced/tenancy)。
 

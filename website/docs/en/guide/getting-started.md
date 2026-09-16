@@ -63,7 +63,7 @@ cp .env.example .env
 npm i && npm run dev
 ```
 
-`.env.example` already allows CORS for ports `3007` / `3008`. Restart Go after changing CORS.
+`.env.example` already allows CORS for ports `3007` / `3008`. Restart Go after changing CORS. For tenant subdomains and active vanity CORS, see [Tenancy](/en/advanced/tenancy).
 
 > Default is **single database** (`TENANCY_DRIVER=off`). Multi-tenancy: [Tenancy](/en/advanced/tenancy).
 

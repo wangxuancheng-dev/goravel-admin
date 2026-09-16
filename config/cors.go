@@ -121,7 +121,10 @@ func init() {
 		// To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 		//
 		// Environment Variables:
-		//   CORS_ALLOWED_ORIGINS: 允许的域名，多个用逗号分隔，例如: https://admin.example.com,http://localhost:3007
+		//   CORS_ALLOWED_ORIGINS: static allowlist (comma-separated). Also auto-allows:
+		//     - any host under TENANCY_BASE_DOMAIN (tenant subdomains)
+		//     - active vanity hosts in tenant_domains
+		//     - wildcard entries e.g. https://*.example.com or *.example.com
 		//   CORS_ALLOWED_METHODS: 允许的HTTP方法，多个用逗号分隔，默认: GET,POST,PUT,DELETE,PATCH,OPTIONS
 		//   CORS_ALLOWED_HEADERS: 允许的请求头，多个用逗号分隔
 		//   CORS_EXPOSED_HEADERS: 暴露的响应头，多个用逗号分隔

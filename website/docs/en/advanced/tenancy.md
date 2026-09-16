@@ -132,7 +132,7 @@ PLATFORM_ADMIN_NAME=平台管理员
 
 ## Custom domains (`tenant_domains`)
 
-Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in the **platform console** — no per-tenant Nginx edits or API restarts.
+Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in the **platform console** — no per-tenant Nginx edits, API restarts, or `CORS_ALLOWED_ORIGINS` entries.
 
 | Case | Approach |
 |------|----------|
@@ -142,7 +142,7 @@ Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in
 
 Resolve order: `active` vanity Host → subdomain → Header/Query.
 
-Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). C-end `/api/user` and `/api/public/*` share the same Host binding.
+Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). CORS also auto-allows every host under that apex, plus `tenant_domains` rows with `status=active`. Keep `CORS_ALLOWED_ORIGINS` for admin/local static origins only (wildcards like `https://*.example.com` are supported). C-end `/api/user` and `/api/public/*` share the same Host binding.
 
 ```ini
 TENANCY_BASE_DOMAIN=example.com
@@ -337,7 +337,7 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 5. 导出/搜索队列缺 `tenant_id` 时 fail-closed，禁止写到平台库。
 6. HTTP 手动跑定时任务自动带当前 `--tenant`，禁止扫全租户；cron 可遍历启用租户。
 7. 队列表 `jobs` / `failed_jobs` 读平台连接（`QUEUE_DATABASE_CONNECTION`）。
-8. 浏览器跨域 header 解析租户时，`CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`。
+8. Browser CORS: when using header tenant resolution, `CORS_ALLOWED_HEADERS` must include `X-Tenant-ID`; tenant subdomains and active vanity hosts are auto-allowed — do not append each tenant to `CORS_ALLOWED_ORIGINS`.
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
 11. Only `provision_status=ready` tenants may bind traffic; HTTP create forbids sync migrate — use platform UI async migrate or CLI `tenant:migrate`.
@@ -345,7 +345,7 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 13. 平台表迁移不得落在租户库（`SkipOnTenantConnection`）；migrate 失败须可在平台侧看到 `last_migrate_error`。
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
-16. Vanity domains: edge Host rewrite (see above); do not add per-domain app env or separate deploys.
+16. Vanity domains: edge Host rewrite (see above); do not add per-domain app env, CORS allowlist entries, or separate deploys.
 17. Business dirs (`app/services` / `http` / `jobs` / `console`) must not call `facades.Orm().Query()`; CI runs `bash scripts/check-tenant-orm.sh` (tenant-maintenance allowlist excepted).
 
 ## Platform ops: domain board / onboard / health

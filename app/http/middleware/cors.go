@@ -13,27 +13,25 @@ import (
 	"goravel/app/tenancy"
 )
 
-// Cors CORS 中间件，处理跨域请求
+// Cors CORS middleware for cross-origin requests.
+// Allowed origins:
+//  1. CORS_ALLOWED_ORIGINS exact match or wildcard host patterns (e.g. https://*.example.com)
+//  2. Any host under TENANCY_BASE_DOMAIN (tenant subdomains)
+//  3. Active vanity domains in tenant_domains (status=active)
 func Cors() http.Middleware {
 	return newMiddleware("cors", func(ctx http.Context) {
-		// 获取请求路径
 		path := ctx.Request().Path()
 
-		// 检查是否是 WebSocket 升级请求
 		isWebSocket := strings.ToLower(ctx.Request().Header("Upgrade", "")) == "websocket" ||
 			strings.ToLower(ctx.Request().Header("Connection", "")) == "upgrade"
 
-		// 获取 CORS 配置的路径列表
 		corsPaths := facades.Config().Get("cors.paths", []string{}).([]string)
 
-		// 检查当前路径是否需要 CORS 处理
 		needCors := false
 		if len(corsPaths) == 0 {
-			// 如果没有配置路径，默认对所有路径启用
 			needCors = true
 		} else {
 			for _, corsPath := range corsPaths {
-				// 支持通配符匹配
 				if strings.HasSuffix(corsPath, "*") {
 					prefix := strings.TrimSuffix(corsPath, "*")
 					if strings.HasPrefix(path, prefix) {
@@ -47,7 +45,7 @@ func Cors() http.Middleware {
 			}
 		}
 
-		// WebSocket 请求直接放行，不需要 CORS 处理（WebSocket 有自己的协议）
+		// WebSocket has its own handshake; skip HTTP CORS headers here.
 		if isWebSocket {
 			ctx.Request().Next()
 			return
@@ -58,7 +56,6 @@ func Cors() http.Middleware {
 			return
 		}
 
-		// 获取 CORS 配置
 		allowedOrigins := facades.Config().Get("cors.allowed_origins", []string{"*"}).([]string)
 		allowedMethods := facades.Config().Get("cors.allowed_methods", []string{"*"}).([]string)
 		allowedHeaders := facades.Config().Get("cors.allowed_headers", []string{"*"}).([]string)
@@ -66,27 +63,8 @@ func Cors() http.Middleware {
 		maxAge := facades.Config().GetInt("cors.max_age", 0)
 		supportsCredentials := facades.Config().GetBool("cors.supports_credentials", false)
 
-		// 获取请求的 Origin
 		origin := ctx.Request().Header("Origin", "")
-
-		// 检查是否允许该 Origin
-		allowed := false
-		var allowedOrigin string
-
-		if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
-			// 允许所有源
-			allowed = true
-			allowedOrigin = "*"
-		} else if origin != "" {
-			// 检查是否在允许列表中
-			if slices.Contains(allowedOrigins, origin) {
-				allowed = true
-				allowedOrigin = origin
-			} else if host := originHost(origin); host != "" && services.NewTenantDomainService().IsActiveHost(host) {
-				allowed = true
-				allowedOrigin = origin
-			}
-		}
+		allowed, allowedOrigin := resolveCorsOrigin(origin, allowedOrigins)
 
 		// Preflight: set CORS headers then Abort with 204 (no body).
 		// Do not use Json(204) — gin NoRoute/fallback can still run if the chain is not aborted cleanly.
@@ -128,25 +106,114 @@ func Cors() http.Middleware {
 			return
 		}
 
-		// 对于非预检请求，设置 CORS 响应头
 		if allowed && origin != "" {
 			ctx.Response().Header("Access-Control-Allow-Origin", allowedOrigin)
 			if supportsCredentials && allowedOrigin != "*" {
 				ctx.Response().Header("Access-Control-Allow-Credentials", "true")
 			}
 		} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" && origin != "" {
-			// 如果配置允许所有源，且请求有 origin，设置 CORS 头
 			ctx.Response().Header("Access-Control-Allow-Origin", "*")
 		}
 
-		// 设置暴露的响应头（非预检请求）
 		if len(exposedHeaders) > 0 {
 			ctx.Response().Header("Access-Control-Expose-Headers", strings.Join(exposedHeaders, ", "))
 		}
 
-		// 继续处理请求
 		ctx.Request().Next()
 	})
+}
+
+// IsCorsOriginAllowed reports whether Origin passes the same rules as Cors middleware.
+func IsCorsOriginAllowed(origin string) bool {
+	allowedOrigins, _ := facades.Config().Get("cors.allowed_origins", []string{"*"}).([]string)
+	ok, _ := resolveCorsOrigin(origin, allowedOrigins)
+	return ok
+}
+
+// resolveCorsOrigin returns whether Origin is allowed and the value for ACAO.
+// Dynamic matches (subdomain / vanity / wildcard) always echo the request Origin
+// so credentials mode works.
+func resolveCorsOrigin(origin string, allowedOrigins []string) (bool, string) {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return false, ""
+	}
+
+	if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
+		return true, "*"
+	}
+
+	if slices.Contains(allowedOrigins, origin) {
+		return true, origin
+	}
+
+	if matchCorsOriginPattern(origin, allowedOrigins) {
+		return true, origin
+	}
+
+	host := originHost(origin)
+	if host == "" {
+		return false, ""
+	}
+
+	if isCorsBaseDomainHost(host) {
+		return true, origin
+	}
+
+	if services.NewTenantDomainService().IsActiveHost(host) {
+		return true, origin
+	}
+
+	return false, ""
+}
+
+// isCorsBaseDomainHost allows apex and any subdomain of TENANCY_BASE_DOMAIN.
+func isCorsBaseDomainHost(host string) bool {
+	host = tenancy.NormalizeHost(host)
+	base := tenancy.BaseDomain()
+	if host == "" || base == "" {
+		return false
+	}
+	return host == base || strings.HasSuffix(host, "."+base)
+}
+
+// matchCorsOriginPattern supports wildcard entries like https://*.example.com or *.example.com.
+// Exact origins (no *) are handled by slices.Contains in resolveCorsOrigin.
+func matchCorsOriginPattern(origin string, patterns []string) bool {
+	host := originHost(origin)
+	if host == "" {
+		return false
+	}
+	ou, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+
+	for _, p := range patterns {
+		p = strings.TrimSpace(p)
+		if p == "" || p == "*" || !strings.Contains(p, "*") {
+			continue
+		}
+		if strings.Contains(p, "://") {
+			pu, err := url.Parse(p)
+			if err != nil || pu.Host == "" {
+				continue
+			}
+			if pu.Scheme != "" && ou.Scheme != "" && !strings.EqualFold(pu.Scheme, ou.Scheme) {
+				continue
+			}
+			patternHost := tenancy.NormalizeHost(pu.Host)
+			if host == patternHost || matchDomain(host, patternHost) {
+				return true
+			}
+			continue
+		}
+		patternHost := tenancy.NormalizeHost(p)
+		if host == patternHost || matchDomain(host, patternHost) {
+			return true
+		}
+	}
+	return false
 }
 
 func originHost(origin string) string {

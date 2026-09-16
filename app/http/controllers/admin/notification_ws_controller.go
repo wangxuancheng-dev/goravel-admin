@@ -17,6 +17,7 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
+	appmiddleware "goravel/app/http/middleware"
 	"goravel/app/http/response"
 	"goravel/app/models"
 	"goravel/app/services"
@@ -216,32 +217,17 @@ func (r *NotificationWsController) isOriginAllowed(req *http.Request) bool {
 		return false
 	}
 
-	originHost := strings.ToLower(parsed.Hostname())
+	originHost := tenancy.NormalizeHost(parsed.Hostname())
 	allowedAdminDomains := getConfigStringSlice("domains.admin")
 	if len(allowedAdminDomains) > 0 && !matchDomain(originHost, allowedAdminDomains) {
-		return false
-	}
-
-	allowedOrigins := getConfigStringSlice("cors.allowed_origins")
-	if len(allowedOrigins) == 0 {
-		return true
-	}
-
-	normalizedOrigin := strings.TrimRight(strings.ToLower(origin), "/")
-	for _, allowed := range allowedOrigins {
-		normalizedAllowed := strings.TrimSpace(strings.ToLower(allowed))
-		if normalizedAllowed == "" {
-			continue
-		}
-		if normalizedAllowed == "*" {
-			return true
-		}
-		if strings.TrimRight(normalizedAllowed, "/") == normalizedOrigin {
-			return true
+		base := tenancy.BaseDomain()
+		underBase := base != "" && (originHost == base || strings.HasSuffix(originHost, "."+base))
+		if !underBase && !services.NewTenantDomainService().IsActiveHost(originHost) {
+			return false
 		}
 	}
 
-	return false
+	return appmiddleware.IsCorsOriginAllowed(origin)
 }
 
 func matchDomain(host string, patterns []string) bool {

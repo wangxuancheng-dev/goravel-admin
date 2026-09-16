@@ -129,7 +129,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 
 ## 商户独立域名（tenant_domains）
 
-子域 `{code}.${TENANCY_BASE_DOMAIN}` 默认可用。独立域名在**平台控制台**绑定，无需按户改 Nginx / 重启 API。
+子域 `{code}.${TENANCY_BASE_DOMAIN}` 默认可用。独立域名在**平台控制台**绑定，无需按户改 Nginx / 重启 API，也无需把每个租户域名写进 `CORS_ALLOWED_ORIGINS`。
 
 | 场景 | 做法 |
 |------|------|
@@ -139,7 +139,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 
 解析优先级：`active` 自定义 Host → 子域 → Header/Query。
 
-公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。
+公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码；同时 CORS 会自动放行该主域下所有子域，以及 `tenant_domains` 中 `status=active` 的独立域名。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。`CORS_ALLOWED_ORIGINS` 只需写管理端/本地等静态来源（也可写通配符如 `https://*.example.com`）。
 
 ```ini
 TENANCY_BASE_DOMAIN=example.com
@@ -333,7 +333,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 5. 导出/搜索队列缺 `tenant_id` 时 fail-closed，禁止写到平台库。
 6. HTTP 手动跑定时任务自动带当前 `--tenant`，禁止扫全租户；cron 可遍历启用租户。
 7. 队列表 `jobs` / `failed_jobs` 读平台连接（`QUEUE_DATABASE_CONNECTION`）。
-8. 浏览器跨域 header 解析租户时，`CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`。
+8. 浏览器跨域：header 解析租户时 `CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`；子域与已激活独立域名由 CORS 中间件自动放行，勿为每户追加 `CORS_ALLOWED_ORIGINS`。
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
 11. 仅 `provision_status=ready` 的租户可绑定业务；HTTP 开户禁止同步 migrate，可走平台 UI 异步迁移或 CLI `tenant:migrate`。
@@ -341,7 +341,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 13. 平台表迁移不得落在租户库（`SkipOnTenantConnection`）；migrate 失败须可在平台侧看到 `last_migrate_error`。
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
-16. 商户独立域名用边缘改写 Host（见上文）；勿为每个独立域改应用 env 或独立部署。
+16. 商户独立域名用边缘改写 Host（见上文）；勿为每个独立域改应用 env、CORS 白名单或独立部署。
 17. 业务目录（`app/services` / `http` / `jobs` / `console`）禁止 `facades.Orm().Query()`；CI 跑 `bash scripts/check-tenant-orm.sh`（租户运维白名单除外）。
 
 ## Platform ops: domain board / onboard / health
