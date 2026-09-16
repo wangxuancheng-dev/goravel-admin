@@ -147,7 +147,7 @@ func (s *TenantDomainService) Create(tenantID uint, in TenantDomainCreateInput) 
 	}
 
 	var existing models.TenantDomain
-	if err := appfacades.PlatformOrmQuery(nil).Where("host", host).First(&existing); err == nil && existing.ID > 0 {
+	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("host", host).First(&existing); err == nil && existing.ID > 0 {
 		return nil, apperrors.ErrTenantDomainTaken
 	}
 
@@ -254,14 +254,14 @@ func (s *TenantDomainService) DisableAllForTenant(tenantID uint) error {
 
 // PurgeAllForTenant hard-deletes vanity domain rows and clears host cache.
 func (s *TenantDomainService) PurgeAllForTenant(tenantID uint) error {
-	list, err := s.ListByTenant(tenantID)
-	if err != nil {
+	var list []models.TenantDomain
+	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("tenant_id", tenantID).Find(&list); err != nil {
 		return err
 	}
 	for i := range list {
 		s.forgetCache(list[i].Host)
 	}
-	_, err = appfacades.PlatformOrmQuery(nil).Where("tenant_id", tenantID).ForceDelete(&models.TenantDomain{})
+	_, err := appfacades.PlatformOrmQuery(nil).Where("tenant_id", tenantID).ForceDelete(&models.TenantDomain{})
 	return err
 }
 

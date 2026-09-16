@@ -139,6 +139,8 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 
 解析优先级：`active` 自定义 Host → 子域 → Header/Query。
 
+公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。
+
 ```ini
 TENANCY_BASE_DOMAIN=example.com
 TENANCY_DOMAIN_TARGET=tenants.example.com

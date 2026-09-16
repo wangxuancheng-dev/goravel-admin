@@ -142,6 +142,8 @@ Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in
 
 Resolve order: `active` vanity Host → subdomain → Header/Query.
 
+Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). C-end `/api/user` and `/api/public/*` share the same Host binding.
+
 ```ini
 TENANCY_BASE_DOMAIN=example.com
 TENANCY_DOMAIN_TARGET=tenants.example.com

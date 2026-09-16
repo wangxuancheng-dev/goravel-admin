@@ -86,6 +86,12 @@ func TestPaymentNotifyPath(t *testing.T) {
 }
 
 func TestSubdomainHintReserved(t *testing.T) {
+	prevBase := facades.Config().GetString("tenancy.base_domain")
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.base_domain", prevBase)
+	})
+	facades.Config().Add("tenancy.base_domain", "")
+
 	if got := SubdomainHint("www.example.com"); got != "" {
 		t.Fatalf("reserved www: %q", got)
 	}
@@ -94,6 +100,24 @@ func TestSubdomainHintReserved(t *testing.T) {
 	}
 	if got := SubdomainHint("localhost"); got != "" {
 		t.Fatalf("localhost: %q", got)
+	}
+}
+
+func TestSubdomainHintRespectsBaseDomain(t *testing.T) {
+	prevBase := facades.Config().GetString("tenancy.base_domain")
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.base_domain", prevBase)
+	})
+	facades.Config().Add("tenancy.base_domain", "example.com")
+
+	if got := SubdomainHint("acme.example.com"); got != "acme" {
+		t.Fatalf("apex subdomain: %q", got)
+	}
+	if got := SubdomainHint("crm.customer.com"); got != "" {
+		t.Fatalf("vanity host must not be read as tenant code: %q", got)
+	}
+	if got := SubdomainHint("shop.com"); got != "" {
+		t.Fatalf("apex vanity: %q", got)
 	}
 }
 

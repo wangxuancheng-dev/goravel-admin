@@ -134,15 +134,18 @@ func MergeTenantHints(resolver, sub, clientHint string, allowHeaderFallback bool
 }
 
 // SubdomainHint extracts tenant code from host like acme.example.com.
+// When TENANCY_BASE_DOMAIN is set, only hosts under that apex are treated as
+// built-in subdomains (so vanity hosts like crm.customer.com are not misread).
 func SubdomainHint(host string) string {
-	host = strings.TrimSpace(host)
+	host = NormalizeHost(host)
 	if host == "" {
 		return ""
 	}
-	if i := strings.Index(host, ":"); i >= 0 {
-		host = host[:i]
+	if base := BaseDomain(); base != "" {
+		if !IsSubdomainOfBase(host) {
+			return ""
+		}
 	}
-	host = strings.ToLower(host)
 	parts := strings.Split(host, ".")
 	if len(parts) < 3 {
 		// localhost / bare domain — no tenant subdomain
