@@ -130,8 +130,10 @@ func init() {
 		//   CORS_EXPOSED_HEADERS: 暴露的响应头，多个用逗号分隔
 		//   CORS_MAX_AGE: 预检请求缓存时间（秒），默认: 3600
 		//   CORS_SUPPORTS_CREDENTIALS: 是否支持凭证，默认: true
-		// "*" enables framework gin Cors (rs/cors) and app Cors; empty paths skip framework Cors only.
-		"paths": []string{"*"},
+		// paths: empty disables framework gin Cors (rs/cors), which only supports a static
+		// allowlist and would abort OPTIONS before app/http/middleware.Cors can auto-allow
+		// TENANCY_BASE_DOMAIN / active vanity hosts. App Cors treats empty paths as "all".
+		"paths":                []string{},
 		"allowed_methods":      allowedMethods,
 		"allowed_origins":      allowedOrigins,
 		"allowed_headers":      allowedHeaders,
