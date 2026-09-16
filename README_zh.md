@@ -19,7 +19,7 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ```
 
 > 文档：https://docs.xuancheng888.top/  
-> 演示站：https://admin.xuancheng888.top
+> 演示站：https://acme.xuancheng888.top/login?tenant_code=acme
 
 账号: demo  
 密码: demo123

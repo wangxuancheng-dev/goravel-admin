@@ -36,4 +36,4 @@ features:
 | [Production](/en/deploy/production) | Before go-live |
 | [Advanced](/en/advanced/tenancy) / [Reference](/en/reference/api) | Tenancy, payments, sharding, DB notes |
 
-Demo: https://admin.xuancheng888.top (demo / demo123 — not for production)
+Demo: https://acme.xuancheng888.top/login?tenant_code=acme (demo / demo123 — not for production)

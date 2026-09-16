@@ -19,7 +19,7 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 ```
 
 > Docs: https://docs.xuancheng888.top/  
-> Demo: https://admin.xuancheng888.top
+> Demo: https://acme.xuancheng888.top/login?tenant_code=acme
 
 username: demo  
 password: demo123

@@ -36,4 +36,4 @@ features:
 | [生产清单](/deploy/production) | 上线前核对 |
 | [进阶](/advanced/tenancy) / [参考](/reference/api) | 租户、支付、分表、数据库等 |
 
-演示站：https://admin.xuancheng888.top （demo / demo123，勿用于生产）
+演示站：https://acme.xuancheng888.top/login?tenant_code=acme （demo / demo123，勿用于生产）
