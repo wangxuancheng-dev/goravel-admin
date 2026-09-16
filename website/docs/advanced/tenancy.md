@@ -136,6 +136,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 | 大多数商户 | 泛解析 `*.example.com` + 子域 |
 | 独立域（无 CDN） | `ssl_mode=edge`：CNAME 到 `TENANCY_DOMAIN_TARGET`，边缘 on-demand 出证 |
 | 自有 CDN+SSL | `ssl_mode=customer_cdn`：CDN 回源，**回源 Host 保持客户域名** |
+| Cloudflare Worker / Pages | `customer_cdn`：同一应用添加 Custom Domain；DNS **只需 TXT** 归属校验。勿橙云 CNAME 到 `TENANCY_DOMAIN_TARGET`（易 522） |
 
 解析优先级：`active` 自定义 Host → 子域 → Header/Query。
 

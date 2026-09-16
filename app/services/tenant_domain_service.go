@@ -310,19 +310,24 @@ func (s *TenantDomainService) checkDNS(row *models.TenantDomain) error {
 	}
 	// TXT: {prefix}.{host} contains token (works for both ssl modes as ownership proof).
 	txtName := tenancy.DomainVerifyPrefix() + "." + row.Host
+	want := strings.TrimSpace(row.VerifyToken)
 	txts, err := net.LookupTXT(txtName)
+	if err != nil {
+		return fmt.Errorf("DNS TXT lookup failed for %s: %v", txtName, err)
+	}
 	tokenOK := false
-	if err == nil {
-		want := row.VerifyToken
-		for _, t := range txts {
-			if strings.Contains(t, want) {
-				tokenOK = true
-				break
-			}
+	for _, t := range txts {
+		if want != "" && strings.Contains(t, want) {
+			tokenOK = true
+			break
 		}
 	}
 	if !tokenOK {
-		return fmt.Errorf("missing DNS TXT %s containing token", txtName)
+		got := strings.Join(txts, " | ")
+		if got == "" {
+			got = "(empty)"
+		}
+		return fmt.Errorf("DNS TXT %s found but token mismatch (want %s, got %s)", txtName, want, got)
 	}
 
 	switch row.SSLMode {
@@ -368,7 +373,7 @@ func (s *TenantDomainService) DNSGuide(row *models.TenantDomain) map[string]any 
 	case models.TenantDomainSSLEdge:
 		guide["instruction"] = "Add TXT for ownership; CNAME host to TENANCY_DOMAIN_TARGET; edge issues TLS (tls-allow)."
 	case models.TenantDomainSSLCustomerCDN:
-		guide["instruction"] = "Add TXT for ownership; point CDN to origin; keep Host as custom domain; TLS on customer CDN."
+		guide["instruction"] = "Add TXT for ownership. Cloudflare Worker/Pages: attach Custom Domain on the same app (TXT only; do not orange-cloud CNAME to TENANCY_DOMAIN_TARGET). Other CDN: point to origin and keep Host as the custom domain."
 	}
 	return guide
 }

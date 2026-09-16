@@ -1911,6 +1911,12 @@ export default function PlatformTenantList() {
                     {d.dns_guide?.txt_name ? (
                       <div className="domain-dns-panel">
                         <div className="domain-dns-title">{t('tenant.domain_dns_required')}</div>
+                        {d.ssl_mode === 'customer_cdn' ? (
+                          <p className="domain-dns-tip">{t('tenant.domain_dns_cf_hint')}</p>
+                        ) : null}
+                        {d.ssl_mode === 'edge' ? (
+                          <p className="domain-dns-tip">{t('tenant.domain_dns_edge_hint')}</p>
+                        ) : null}
                         <div className="domain-dns-row domain-dns-row--txt">
                           <div className="domain-dns-type">TXT</div>
                           <div className="domain-dns-body">
@@ -1928,7 +1934,7 @@ export default function PlatformTenantList() {
                             </div>
                           </div>
                         </div>
-                        {d.dns_guide.domain_target ? (
+                        {d.dns_guide.domain_target && d.ssl_mode === 'edge' ? (
                           <div className="domain-dns-row domain-dns-row--cname">
                             <div className="domain-dns-type">CNAME</div>
                             <div className="domain-dns-body">
@@ -1946,6 +1952,11 @@ export default function PlatformTenantList() {
                               </div>
                             </div>
                           </div>
+                        ) : null}
+                        {d.ssl_mode === 'customer_cdn' && d.dns_guide.domain_target ? (
+                          <p className="domain-dns-tip domain-dns-tip--muted">
+                            {t('tenant.domain_dns_cname_optional', { target: d.dns_guide.domain_target })}
+                          </p>
                         ) : null}
                       </div>
                     ) : null}
@@ -2525,6 +2536,14 @@ export default function PlatformTenantList() {
       <style>{`
         .domain-dns-panel { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
         .domain-dns-title { font-size: 12px; font-weight: 600; color: #334155; }
+        .domain-dns-tip {
+          margin: 0; padding: 8px 10px; border-radius: 6px;
+          background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a;
+          font-size: 12px; line-height: 1.5;
+        }
+        .domain-dns-tip--muted {
+          background: #f8fafc; border-color: #e2e8f0; color: #64748b;
+        }
         .domain-dns-row {
           display: flex; gap: 10px; align-items: stretch;
           border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; overflow: hidden;

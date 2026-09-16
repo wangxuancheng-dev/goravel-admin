@@ -139,6 +139,7 @@ Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in
 | Most tenants | Wildcard `*.example.com` + subdomain |
 | Vanity host, no CDN | `ssl_mode=edge`: CNAME to `TENANCY_DOMAIN_TARGET`; edge on-demand TLS |
 | Customer CDN + SSL | `ssl_mode=customer_cdn`: CDN origin to shared ingress; **keep Host as vanity domain** |
+| Cloudflare Worker / Pages | `customer_cdn`: add Custom Domain on the same app; DNS needs **TXT only** for ownership. Do not orange-cloud CNAME to `TENANCY_DOMAIN_TARGET` (often 522) |
 
 Resolve order: `active` vanity Host → subdomain → Header/Query.
 

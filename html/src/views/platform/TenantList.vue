@@ -439,6 +439,8 @@
           </div>
           <div v-if="d.dns_guide?.txt_name" class="domain-dns">
             <div class="domain-dns-title">{{ $t('tenant.domain_dns_required') }}</div>
+            <p v-if="d.ssl_mode === 'customer_cdn'" class="domain-dns-tip">{{ $t('tenant.domain_dns_cf_hint') }}</p>
+            <p v-else-if="d.ssl_mode === 'edge'" class="domain-dns-tip">{{ $t('tenant.domain_dns_edge_hint') }}</p>
             <div class="domain-dns-row domain-dns-row--txt">
               <div class="domain-dns-type">TXT</div>
               <div class="domain-dns-body">
@@ -454,7 +456,7 @@
                 </div>
               </div>
             </div>
-            <div v-if="d.dns_guide.domain_target" class="domain-dns-row domain-dns-row--cname">
+            <div v-if="d.dns_guide.domain_target && d.ssl_mode === 'edge'" class="domain-dns-row domain-dns-row--cname">
               <div class="domain-dns-type">CNAME</div>
               <div class="domain-dns-body">
                 <div class="domain-dns-line">
@@ -469,6 +471,9 @@
                 </div>
               </div>
             </div>
+            <p v-if="d.ssl_mode === 'customer_cdn' && d.dns_guide.domain_target" class="domain-dns-tip domain-dns-tip--muted">
+              {{ $t('tenant.domain_dns_cname_optional', { target: d.dns_guide.domain_target }) }}
+            </p>
           </div>
           <div v-if="d.last_check_error" class="domain-err">{{ d.last_check_error }}</div>
           <div v-if="isOwner" class="domain-actions">
@@ -2015,6 +2020,21 @@ const downloadBackup = async (file) => {
   font-size: 12px;
   font-weight: 600;
   color: #334155;
+}
+.domain-dns-tip {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.domain-dns-tip--muted {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
 }
 .domain-dns-row {
   display: flex;
