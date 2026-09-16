@@ -139,7 +139,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 
 解析优先级：`active` 自定义 Host → 子域 → Header/Query。
 
-公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码；同时 CORS 会自动放行该主域下所有子域，以及 `tenant_domains` 中 `status=active` 的独立域名。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。`CORS_ALLOWED_ORIGINS` 只需写管理端/本地等静态来源（也可写通配符如 `https://*.example.com`）。框架自带 `rs/cors` 已通过 `cors.paths` 置空关闭，跨域由应用中间件处理（否则静态白名单会先挡住子域预检）。
+公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码；同时 CORS 会自动放行该主域下所有子域，以及 `tenant_domains` 中 `status=active` 的独立域名。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。`CORS_ALLOWED_ORIGINS` 只需写管理端/本地等静态来源（也可写通配符如 `https://*.example.com`）。配置会自动追加 `https://*.{TENANCY_BASE_DOMAIN}`（及 http）到 CORS 白名单；框架 `rs/cors`（`cors.paths=*`）负责在真实响应上写入跨域头。
 
 ```ini
 TENANCY_BASE_DOMAIN=example.com

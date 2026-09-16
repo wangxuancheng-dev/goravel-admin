@@ -142,7 +142,7 @@ Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in
 
 Resolve order: `active` vanity Host → subdomain → Header/Query.
 
-Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). CORS also auto-allows every host under that apex, plus `tenant_domains` rows with `status=active`. Keep `CORS_ALLOWED_ORIGINS` for admin/local static origins only (wildcards like `https://*.example.com` are supported). Framework `rs/cors` is disabled via empty `cors.paths` so the app Cors middleware can auto-allow tenant hosts (otherwise the static allowlist rejects subdomain preflights first). C-end `/api/user` and `/api/public/*` share the same Host binding.
+Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). CORS also auto-allows every host under that apex, plus `tenant_domains` rows with `status=active`. Keep `CORS_ALLOWED_ORIGINS` for admin/local static origins only (wildcards like `https://*.example.com` are supported). Config auto-appends `https://*.{TENANCY_BASE_DOMAIN}` (and http) to the CORS allowlist; framework `rs/cors` (`cors.paths=*`) applies ACAO on real responses. C-end `/api/user` and `/api/public/*` share the same Host binding.
 
 ```ini
 TENANCY_BASE_DOMAIN=example.com
