@@ -38,6 +38,26 @@ func init() {
 		}
 	}
 
+	// Auto-append TENANCY_BASE_DOMAIN wildcards so framework rs/cors (if enabled)
+	// and static allowlists cover tenant subdomains without listing each host.
+	if baseRaw, ok := config.Env("TENANCY_BASE_DOMAIN", "").(string); ok {
+		base := strings.ToLower(strings.TrimSpace(baseRaw))
+		if base != "" && !(len(allowedOrigins) > 0 && allowedOrigins[0] == "*") {
+			for _, p := range []string{"https://*." + base, "http://*." + base} {
+				found := false
+				for _, o := range allowedOrigins {
+					if o == p {
+						found = true
+						break
+					}
+				}
+				if !found {
+					allowedOrigins = append(allowedOrigins, p)
+				}
+			}
+		}
+	}
+
 	// 从环境变量读取允许的方法，支持逗号分隔
 	corsMethodsEnv := config.Env("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,PATCH,OPTIONS")
 	var allowedMethods []string
@@ -130,9 +150,9 @@ func init() {
 		//   CORS_EXPOSED_HEADERS: 暴露的响应头，多个用逗号分隔
 		//   CORS_MAX_AGE: 预检请求缓存时间（秒），默认: 3600
 		//   CORS_SUPPORTS_CREDENTIALS: 是否支持凭证，默认: true
-		// paths: empty disables framework gin Cors (rs/cors), which only supports a static
-		// allowlist and would abort OPTIONS before app/http/middleware.Cors can auto-allow
-		// TENANCY_BASE_DOMAIN / active vanity hosts. App Cors treats empty paths as "all".
+		// paths: keep empty so framework gin Cors (rs/cors) does not abort OPTIONS first.
+		// App Cors + routes Fallback handle preflight (incl. TENANCY_BASE_DOMAIN / vanity).
+		// Config also auto-appends https://*.{TENANCY_BASE_DOMAIN} to allowed_origins.
 		"paths":                []string{},
 		"allowed_methods":      allowedMethods,
 		"allowed_origins":      allowedOrigins,

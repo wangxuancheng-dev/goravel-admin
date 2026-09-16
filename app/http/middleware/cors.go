@@ -25,7 +25,7 @@ func Cors() http.Middleware {
 		isWebSocket := strings.ToLower(ctx.Request().Header("Upgrade", "")) == "websocket" ||
 			strings.ToLower(ctx.Request().Header("Connection", "")) == "upgrade"
 
-		corsPaths := facades.Config().Get("cors.paths", []string{}).([]string)
+		corsPaths := configStringSlice("cors.paths", nil)
 
 		needCors := false
 		if len(corsPaths) == 0 {
@@ -56,53 +56,21 @@ func Cors() http.Middleware {
 			return
 		}
 
-		allowedOrigins := facades.Config().Get("cors.allowed_origins", []string{"*"}).([]string)
-		allowedMethods := facades.Config().Get("cors.allowed_methods", []string{"*"}).([]string)
-		allowedHeaders := facades.Config().Get("cors.allowed_headers", []string{"*"}).([]string)
-		exposedHeaders := facades.Config().Get("cors.exposed_headers", []string{}).([]string)
+		allowedOrigins := configStringSlice("cors.allowed_origins", []string{"*"})
+		allowedMethods := configStringSlice("cors.allowed_methods", []string{"*"})
+		allowedHeaders := configStringSlice("cors.allowed_headers", []string{"*"})
+		exposedHeaders := configStringSlice("cors.exposed_headers", nil)
 		maxAge := facades.Config().GetInt("cors.max_age", 0)
 		supportsCredentials := facades.Config().GetBool("cors.supports_credentials", false)
 
 		origin := ctx.Request().Header("Origin", "")
 		allowed, allowedOrigin := resolveCorsOrigin(origin, allowedOrigins)
 
-		// Preflight: set CORS headers then Abort with 204 (no body).
-		// Do not use Json(204) — gin NoRoute/fallback can still run if the chain is not aborted cleanly.
-		// Do not call Next() after Abort.
-		if ctx.Request().Method() == http.MethodOptions {
-			response := ctx.Response()
-
-			if allowed && origin != "" {
-				response.Header("Access-Control-Allow-Origin", allowedOrigin)
-				if supportsCredentials && allowedOrigin != "*" {
-					response.Header("Access-Control-Allow-Credentials", "true")
-				}
-			} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
-				response.Header("Access-Control-Allow-Origin", "*")
-			}
-
-			methodsStr := "*"
-			if len(allowedMethods) > 0 && allowedMethods[0] != "*" {
-				methodsStr = strings.Join(allowedMethods, ", ")
-			}
-			response.Header("Access-Control-Allow-Methods", methodsStr)
-
-			headersStr := "*"
-			if len(allowedHeaders) > 0 && allowedHeaders[0] != "*" {
-				headersStr = strings.Join(allowedHeaders, ", ")
-			}
-			response.Header("Access-Control-Allow-Headers", headersStr)
-
-			if len(exposedHeaders) > 0 {
-				response.Header("Access-Control-Expose-Headers", strings.Join(exposedHeaders, ", "))
-			}
-
-			if maxAge > 0 {
-				response.Header("Access-Control-Max-Age", strconv.Itoa(maxAge))
-			}
-
-			// NoContent.Abort -> gin AbortWithStatus(204); do not call Next().
-			_ = response.NoContent(http.StatusNoContent).Abort()
+		// Preflight: set CORS headers then Abort (same as framework gin Cors).
+		// Do not call Next() after Abort — otherwise Fallback returns 404 without ACAO.
+		if strings.EqualFold(ctx.Request().Method(), http.MethodOptions) {
+			writeCorsPreflightHeaders(ctx, origin, allowed, allowedOrigin, allowedOrigins, allowedMethods, allowedHeaders, exposedHeaders, maxAge, supportsCredentials)
+			ctx.Request().Abort(http.StatusNoContent)
 			return
 		}
 
@@ -123,10 +91,63 @@ func Cors() http.Middleware {
 	})
 }
 
+// WriteCorsPreflightResponse applies CORS headers for an OPTIONS request (middleware or Fallback).
+func WriteCorsPreflightResponse(ctx http.Context) {
+	allowedOrigins := configStringSlice("cors.allowed_origins", []string{"*"})
+	allowedMethods := configStringSlice("cors.allowed_methods", []string{"*"})
+	allowedHeaders := configStringSlice("cors.allowed_headers", []string{"*"})
+	exposedHeaders := configStringSlice("cors.exposed_headers", nil)
+	maxAge := facades.Config().GetInt("cors.max_age", 0)
+	supportsCredentials := facades.Config().GetBool("cors.supports_credentials", false)
+	origin := ctx.Request().Header("Origin", "")
+	allowed, allowedOrigin := resolveCorsOrigin(origin, allowedOrigins)
+	writeCorsPreflightHeaders(ctx, origin, allowed, allowedOrigin, allowedOrigins, allowedMethods, allowedHeaders, exposedHeaders, maxAge, supportsCredentials)
+}
+
+func writeCorsPreflightHeaders(
+	ctx http.Context,
+	origin string,
+	allowed bool,
+	allowedOrigin string,
+	allowedOrigins, allowedMethods, allowedHeaders, exposedHeaders []string,
+	maxAge int,
+	supportsCredentials bool,
+) {
+	response := ctx.Response()
+
+	if allowed && origin != "" {
+		response.Header("Access-Control-Allow-Origin", allowedOrigin)
+		if supportsCredentials && allowedOrigin != "*" {
+			response.Header("Access-Control-Allow-Credentials", "true")
+		}
+	} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
+		response.Header("Access-Control-Allow-Origin", "*")
+	}
+
+	methodsStr := "*"
+	if len(allowedMethods) > 0 && allowedMethods[0] != "*" {
+		methodsStr = strings.Join(allowedMethods, ", ")
+	}
+	response.Header("Access-Control-Allow-Methods", methodsStr)
+
+	headersStr := "*"
+	if len(allowedHeaders) > 0 && allowedHeaders[0] != "*" {
+		headersStr = strings.Join(allowedHeaders, ", ")
+	}
+	response.Header("Access-Control-Allow-Headers", headersStr)
+
+	if len(exposedHeaders) > 0 {
+		response.Header("Access-Control-Expose-Headers", strings.Join(exposedHeaders, ", "))
+	}
+
+	if maxAge > 0 {
+		response.Header("Access-Control-Max-Age", strconv.Itoa(maxAge))
+	}
+}
+
 // IsCorsOriginAllowed reports whether Origin passes the same rules as Cors middleware.
 func IsCorsOriginAllowed(origin string) bool {
-	allowedOrigins, _ := facades.Config().Get("cors.allowed_origins", []string{"*"}).([]string)
-	ok, _ := resolveCorsOrigin(origin, allowedOrigins)
+	ok, _ := resolveCorsOrigin(origin, configStringSlice("cors.allowed_origins", []string{"*"}))
 	return ok
 }
 
@@ -226,4 +247,22 @@ func originHost(origin string) string {
 		return tenancy.NormalizeHost(origin)
 	}
 	return tenancy.NormalizeHost(u.Host)
+}
+
+func configStringSlice(key string, fallback []string) []string {
+	value := facades.Config().Get(key, fallback)
+	switch v := value.(type) {
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return fallback
+	}
 }
