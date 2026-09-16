@@ -1093,7 +1093,7 @@
     "batch_backup_active_confirm": "Queue backup for up to 50 active tenants?",
     "export_success": "Export downloaded",
     "ping_detail": "Ping result",
-    "ping_latency": "{{ms}} ms",
+    "ping_latency": "Latency",
     "ping_failed": "Tenant DB unreachable",
     "backup_keep": "Retention (config)",
     "prune_backups": "Prune old backups",

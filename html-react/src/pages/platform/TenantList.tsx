@@ -1631,7 +1631,7 @@ export default function PlatformTenantList() {
                 </Descriptions.Item>
                 <Descriptions.Item label={t('tenant.ping_detail')}>
                   {detailOverview.ping_ok
-                    ? t('tenant.ping_latency', { ms: detailOverview.ping_ms ?? 0 })
+                    ? `${detailOverview.ping_ms ?? 0} ms`
                     : detailOverview.error || '—'}
                 </Descriptions.Item>
               </Descriptions>

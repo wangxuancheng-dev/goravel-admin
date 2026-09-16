@@ -1097,7 +1097,7 @@
     "batch_backup_active_confirm": "为最多 50 个启用租户入队 backup？",
     "export_success": "导出已开始下载",
     "ping_detail": "探测结果",
-    "ping_latency": "{{ms}} ms",
+    "ping_latency": "延迟",
     "ping_failed": "租户库不可达",
     "backup_keep": "保留份数（配置）",
     "prune_backups": "清理旧备份",
