@@ -148,6 +148,29 @@ TENANCY_DOMAIN_VERIFY_PREFIX=_goravel-tenant
 TENANCY_DOMAIN_CACHE_TTL=60
 ```
 
+### 运维：`TENANCY_DOMAIN_TARGET`（静态统一入口）
+
+该配置是**一个固定主机名**，不是客户域名列表，也与平台控制台子域（如 `admin.example.com`）无关。
+
+| 角色 | 做什么 |
+|------|--------|
+| 你（部署方） | 把 `tenants.example.com` **A/AAAA（或云厂商要求的记录）解析到边缘/反代/API 入口**，并让该入口按请求 **Host（客户域名）** 转发；edge 出证时调用 `GET /api/platform/public/tls-allow?host=` |
+| 商户 | 在平台控制台绑定独立域名并完成 TXT 验证；`ssl_mode=edge` 时把 **客户域名 CNAME 到 `TENANCY_DOMAIN_TARGET`**（所有商户共用这一个目标） |
+| 应用 | 查 `tenant_domains`（`status=active`）决定 Host 属于哪个租户；**不必**为每个客户域名改 env |
+
+示例 DNS：
+
+```text
+# 你的静态入口（只配一次）
+tenants.example.com.     A      203.0.113.10
+
+# 商户各自配置（可有很多条，目标相同）
+crm.customer-a.com.      CNAME  tenants.example.com.
+shop.customer-b.com.     CNAME  tenants.example.com.
+```
+
+仅用子域、或独立域全部走 `customer_cdn` 时，可不设 `TENANCY_DOMAIN_TARGET`；一旦启用 edge 独立域，必须保证该主机名真实可达。
+
 平台 API：`GET/POST /api/platform/tenants/{id}/domains`，`POST .../verify`，`PUT .../primary|disable`，`DELETE`；边缘询问 `GET /api/platform/public/tls-allow?host=`（仅 edge+active 返回 200）。
 
 旧方案（Nginx 改写 Host 为 `{code}.主域`）仍可用；新产品请用 `tenant_domains`。

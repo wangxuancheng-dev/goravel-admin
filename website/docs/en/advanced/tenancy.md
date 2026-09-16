@@ -151,6 +151,29 @@ TENANCY_DOMAIN_VERIFY_PREFIX=_goravel-tenant
 TENANCY_DOMAIN_CACHE_TTL=60
 ```
 
+### Ops: `TENANCY_DOMAIN_TARGET` (one static ingress)
+
+This is a **single fixed hostname**, not a list of customer domains, and it is unrelated to your platform console host (e.g. `admin.example.com`).
+
+| Role | What to do |
+|------|------------|
+| You (operator) | Point `tenants.example.com` with **A/AAAA (or your cloud's record)** at the edge / reverse proxy / API ingress that forwards by request **Host (vanity domain)**; for on-demand TLS call `GET /api/platform/public/tls-allow?host=` |
+| Merchant | Bind the vanity host in the platform console and pass TXT verify; with `ssl_mode=edge`, **CNAME the customer host to `TENANCY_DOMAIN_TARGET`** (every merchant shares this same target) |
+| App | Resolves tenant from `tenant_domains` (`status=active`); **do not** add each customer domain to env |
+
+Example DNS:
+
+```text
+# Your static ingress (configure once)
+tenants.example.com.     A      203.0.113.10
+
+# Each merchant (many records, same target)
+crm.customer-a.com.      CNAME  tenants.example.com.
+shop.customer-b.com.     CNAME  tenants.example.com.
+```
+
+If you only use subdomains, or all vanity hosts use `customer_cdn`, you may leave `TENANCY_DOMAIN_TARGET` empty. Once you enable edge vanity hosts, that hostname must resolve and accept traffic.
+
 Platform API: `GET/POST /api/platform/tenants/{id}/domains`, `POST .../verify`, `PUT .../primary|disable`, `DELETE`; edge ask `GET /api/platform/public/tls-allow?host=` (HTTP 200 only when edge+active).
 
 Legacy Nginx Host rewrite to `{code}.apex` still works; prefer `tenant_domains` for new setups.
