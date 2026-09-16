@@ -131,8 +131,8 @@ export default function ProfilePage() {
       setSavingPassword(true)
       await updatePassword({
         old_password: values.old_password,
-        password: values.password,
-        password_confirmation: values.password_confirmation,
+        new_password: values.new_password,
+        confirm_password: values.confirm_password,
       })
       message.success(t('common.update_success'))
       passwordForm.resetFields()
@@ -276,18 +276,18 @@ export default function ProfilePage() {
                   <Form.Item name="old_password" label={t('common.old_password')} rules={[{ required: true }]}>
                     <Input.Password />
                   </Form.Item>
-                  <Form.Item name="password" label={t('common.new_password')} rules={[{ required: true }]}>
+                  <Form.Item name="new_password" label={t('common.new_password')} rules={[{ required: true, min: 6 }]}>
                     <Input.Password />
                   </Form.Item>
                   <Form.Item
-                    name="password_confirmation"
+                    name="confirm_password"
                     label={t('common.confirm_password')}
-                    dependencies={['password']}
+                    dependencies={['new_password']}
                     rules={[
                       { required: true },
                       ({ getFieldValue }) => ({
                         validator(_, value) {
-                          if (!value || getFieldValue('password') === value) return Promise.resolve()
+                          if (!value || getFieldValue('new_password') === value) return Promise.resolve()
                           return Promise.reject(new Error(t('common.password_mismatch')))
                         },
                       }),

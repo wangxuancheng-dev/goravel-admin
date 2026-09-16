@@ -18,8 +18,8 @@ export function updateProfile(data: Record<string, unknown>) {
 
 export function updatePassword(data: {
   old_password: string
-  password: string
-  password_confirmation: string
+  new_password: string
+  confirm_password: string
 }) {
   return request({
     url: '/password',
