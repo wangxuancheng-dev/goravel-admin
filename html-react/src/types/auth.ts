@@ -63,6 +63,7 @@ export interface LoginPayload {
 export interface CaptchaInfo {
   captcha?: {
     enabled?: boolean
+    required?: boolean
     captcha_id?: string
     captcha_image?: string
   }

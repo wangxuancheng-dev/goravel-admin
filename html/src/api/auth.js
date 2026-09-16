@@ -27,10 +27,18 @@ export function logout() {
 
 // 获取登录验证码
 export function getLoginCaptcha(params) {
+  const query = {}
+  if (params?.check) {
+    query.check = 1
+  }
+  const username = typeof params?.username === 'string' ? params.username.trim() : ''
+  if (username) {
+    query.username = username
+  }
   return request({
     url: '/login/captcha',
     method: 'get',
-    params: params?.check ? { check: 1 } : undefined
+    params: Object.keys(query).length ? query : undefined
   })
 }
 

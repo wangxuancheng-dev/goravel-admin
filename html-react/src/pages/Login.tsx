@@ -81,11 +81,12 @@ export default function LoginPage() {
       if (tenancyEnabled) {
         setTenantCode(form.getFieldValue('tenant_code'))
       }
-      const res = await getLoginCaptcha({ check: true })
+      const username = String(form.getFieldValue('username') || '').trim()
+      const res = await getLoginCaptcha({ check: true, username: username || undefined })
       const info = res.data?.captcha
       setCaptcha((prev) => ({
         ...prev,
-        enabled: !!info?.enabled,
+        enabled: !!info?.enabled || !!info?.required,
         shouldShow: false,
         id: '',
         image: '',
@@ -101,13 +102,15 @@ export default function LoginPage() {
       if (tenancyEnabled) {
         setTenantCode(form.getFieldValue('tenant_code'))
       }
-      const res = await getLoginCaptcha()
+      const username = String(form.getFieldValue('username') || '').trim()
+      const res = await getLoginCaptcha({ username: username || undefined })
       const info = res.data?.captcha
+      const hasImage = !!(info?.captcha_id && info?.captcha_image)
       setCaptcha({
-        enabled: !!info?.enabled,
+        enabled: !!info?.enabled || !!info?.required || hasImage,
         id: info?.captcha_id || '',
         image: info?.captcha_image || '',
-        shouldShow: true,
+        shouldShow: hasImage,
       })
       form.setFieldValue('captcha_answer', undefined)
     } catch {
@@ -176,15 +179,13 @@ export default function LoginPage() {
         return
       }
 
-      // Show captcha after captcha errors or other login failures when captcha is enabled
+      // Adaptive captcha: after failures backend may require captcha even when captcha_enabled=false.
       const captchaError =
         code === ERROR_CODES.CAPTCHA_REQUIRED ||
         code === ERROR_CODES.CAPTCHA_INVALID ||
         code === ERROR_CODES.CAPTCHA_EXPIRED
 
-      if (captcha.enabled && !needGoogleCode && (!captcha.shouldShow || captchaError)) {
-        await fetchCaptcha()
-      } else if (captcha.shouldShow && !needGoogleCode) {
+      if (!needGoogleCode && (captchaError || captcha.enabled || captcha.shouldShow)) {
         await fetchCaptcha()
       }
 

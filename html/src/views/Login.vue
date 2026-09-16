@@ -243,9 +243,10 @@ const checkCaptchaEnabled = async () => {
     if (tenancyEnabled) {
       setTenantCode(loginForm.tenant_code)
     }
-    const res = await getLoginCaptcha({ check: true })
+    const username = String(loginForm.username || '').trim()
+    const res = await getLoginCaptcha({ check: true, username: username || undefined })
     const captcha = res.data?.captcha || {}
-    captchaInfo.enabled = !!captcha.enabled
+    captchaInfo.enabled = !!captcha.enabled || !!captcha.required
     // 不自动显示图形验证码，需要先验证账号密码
     captchaInfo.shouldShow = false
   } catch (error) {
@@ -261,12 +262,14 @@ const fetchCaptcha = async () => {
     if (tenancyEnabled) {
       setTenantCode(loginForm.tenant_code)
     }
-    const res = await getLoginCaptcha()
+    const username = String(loginForm.username || '').trim()
+    const res = await getLoginCaptcha({ username: username || undefined })
     const captcha = res.data?.captcha || {}
-    captchaInfo.enabled = !!captcha.enabled
+    const hasImage = !!(captcha.captcha_id && captcha.captcha_image)
+    captchaInfo.enabled = !!captcha.enabled || !!captcha.required || hasImage
     captchaInfo.captcha_id = captcha.captcha_id || ''
     captchaInfo.image = captcha.captcha_image || ''
-    captchaInfo.shouldShow = true
+    captchaInfo.shouldShow = hasImage
   } catch (error) {
     console.error('Fetch captcha error:', error)
     captchaInfo.enabled = false
@@ -385,10 +388,9 @@ const handleLogin = async () => {
           return
         }
         
-        // 检查是否是验证码相关的错误
+        // 检查是否是验证码相关的错误（含失败次数触发的自适应验证码）
         if (errorCode === ERROR_CODES.CAPTCHA_INVALID || errorCode === ERROR_CODES.CAPTCHA_REQUIRED) {
-          // 验证码错误，如果图形验证码开启且还没有显示，则显示图形验证码
-          if (captchaInfo.enabled && !captchaInfo.shouldShow && !needGoogleCode.value) {
+          if (!needGoogleCode.value) {
             await fetchCaptcha()
           }
           ElMessage.error(message)

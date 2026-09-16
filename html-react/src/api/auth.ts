@@ -23,11 +23,19 @@ export function logout() {
   }) as Promise<ApiResponse<unknown>>
 }
 
-export function getLoginCaptcha(params?: { check?: boolean }) {
+export function getLoginCaptcha(params?: { check?: boolean; username?: string }) {
+  const query: Record<string, string | number> = {}
+  if (params?.check) {
+    query.check = 1
+  }
+  const username = params?.username?.trim()
+  if (username) {
+    query.username = username
+  }
   return request({
     url: '/login/captcha',
     method: 'get',
-    params: params?.check ? { check: 1 } : undefined,
+    params: Object.keys(query).length ? query : undefined,
   }) as Promise<ApiResponse<CaptchaInfo>>
 }
 
