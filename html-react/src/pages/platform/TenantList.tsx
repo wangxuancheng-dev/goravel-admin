@@ -1388,9 +1388,14 @@ export default function PlatformTenantList() {
         domain_host: values.domain_host || undefined,
         domain_ssl_mode: values.domain_ssl_mode || 'edge',
       })
-      const links = (res as { data?: { login_links?: TenantLoginLinksData } })?.data?.login_links
+      const data = (res as { data?: { login_links?: TenantLoginLinksData; domain_error?: string } })?.data
+      const links = data?.login_links
       const url = links?.primary_custom_url || links?.subdomain_url || links?.query_url || ''
-      message.success(t('tenant.onboard_success'))
+      if (data?.domain_error) {
+        message.warning(t('tenant.onboard_domain_failed', { msg: data.domain_error }))
+      } else {
+        message.success(t('tenant.onboard_success'))
+      }
       setCreateOpen(false)
       if (url) {
         setOnboardLoginUrl(url)

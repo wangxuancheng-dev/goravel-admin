@@ -1184,7 +1184,8 @@
     "health_inspect_done": "巡检完成：ok {ok} · warn {warn} · fail {fail}",
     "filter_domain_unbound": "未绑域名",
     "filter_domain_failed": "域名校验失败",
-    "filter_health_fail": "健康异常"
+    "filter_health_fail": "健康异常",
+    "onboard_domain_failed": "绑域失败（已继续开户）: {msg}"
   },
   "platform": {
     "title": "租户运维",

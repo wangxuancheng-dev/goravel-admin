@@ -496,6 +496,7 @@ type TenantOpsSummary struct {
 	DomainPending          int64             `json:"domain_pending"`
 	DomainActive           int64             `json:"domain_active"`
 	DomainVerifyFailed     int64             `json:"domain_verify_failed"`
+	DomainDisabled         int64             `json:"domain_disabled"`
 	HealthOK               int64             `json:"health_ok"`
 	HealthWarn             int64             `json:"health_warn"`
 	HealthFail             int64             `json:"health_fail"`
@@ -569,6 +570,8 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 			sum.DomainPending++
 		case TenantDomainStatusVerifyFailed:
 			sum.DomainVerifyFailed++
+		case TenantDomainStatusDisabledView:
+			sum.DomainDisabled++
 		default:
 			sum.DomainUnbound++
 		}

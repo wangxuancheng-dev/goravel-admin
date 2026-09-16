@@ -19,17 +19,19 @@ type TenantOnboardInput struct {
 // TenantOnboardResult is returned after create (+ optional queue begin / domain bind).
 // Caller must Dispatch the queue job when QueuedArgs is set.
 type TenantOnboardResult struct {
-	Tenant     *models.Tenant
-	Queued     bool
-	Op         string
-	OpLogID    uint
-	QueuedArgs *TenantOpsArgs
-	Domain     *models.TenantDomain
-	LoginLinks TenantLoginLinks
-	Steps      []string
+	Tenant      *models.Tenant
+	Queued      bool
+	Op          string
+	OpLogID     uint
+	QueuedArgs  *TenantOpsArgs
+	Domain      *models.TenantDomain
+	DomainError error
+	LoginLinks  TenantLoginLinks
+	Steps       []string
 }
 
 // PrepareTenantOnboard creates a tenant, optionally begins migrate(+seed), optionally binds a vanity domain.
+// Domain bind failures are soft: migrate/seed still proceed and DomainError is set.
 func PrepareTenantOnboard(in TenantOnboardInput) (*TenantOnboardResult, error) {
 	admin := NewTenantAdminService()
 	createIn := in.Create
@@ -53,11 +55,11 @@ func PrepareTenantOnboard(in TenantOnboardInput) (*TenantOnboardResult, error) {
 		})
 		if derr != nil {
 			result.Steps = append(result.Steps, "domain_failed")
-			result.LoginLinks = BuildTenantLoginLinks(tenant)
-			return result, derr
+			result.DomainError = derr
+		} else {
+			result.Domain = dom
+			result.Steps = append(result.Steps, "domain_pending")
 		}
-		result.Domain = dom
-		result.Steps = append(result.Steps, "domain_pending")
 	}
 
 	ops := NewTenantOpsService()

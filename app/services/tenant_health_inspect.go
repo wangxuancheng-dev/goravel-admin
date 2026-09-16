@@ -60,9 +60,12 @@ func RunTenantHealthInspect(limit int, alert bool) (*TenantHealthInspectReport, 
 		limit = 500
 	}
 	var tenants []models.Tenant
+	// Prefer never-checked / oldest-checked so large fleets rotate past Limit.
 	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).
 		Where("status", models.TenantStatusActive).
-		Order("id asc").
+		Order("health_checked_at IS NULL DESC").
+		Order("health_checked_at ASC").
+		Order("id ASC").
 		Limit(limit).
 		Find(&tenants); err != nil {
 		return nil, err

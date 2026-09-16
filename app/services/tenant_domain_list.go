@@ -133,6 +133,7 @@ func applyDomainFilters(query orm.Query, domainHost, domainStatus string) orm.Qu
 			models.TenantDomainStatusActive,
 		)
 	case TenantDomainStatusPendingView:
+		// Match list meta: pending/verified only when no active and no verify-failed domains.
 		query = query.Where(
 			`id IN (
 				SELECT tenant_id FROM tenant_domains
@@ -140,16 +141,29 @@ func applyDomainFilters(query orm.Query, domainHost, domainStatus string) orm.Qu
 			) AND id NOT IN (
 				SELECT tenant_id FROM tenant_domains
 				WHERE deleted_at IS NULL AND status = ?
+			) AND id NOT IN (
+				SELECT tenant_id FROM tenant_domains
+				WHERE deleted_at IS NULL
+				  AND last_check_error IS NOT NULL AND last_check_error <> ''
+				  AND status <> ?
 			)`,
-			models.TenantDomainStatusPending, models.TenantDomainStatusVerified, models.TenantDomainStatusActive,
+			models.TenantDomainStatusPending, models.TenantDomainStatusVerified,
+			models.TenantDomainStatusActive,
+			models.TenantDomainStatusActive,
 		)
 	case TenantDomainStatusVerifyFailed:
+		// Match list meta: has failed non-active domain and no active domain.
 		query = query.Where(
 			`id IN (
 				SELECT tenant_id FROM tenant_domains
-				WHERE deleted_at IS NULL AND last_check_error IS NOT NULL AND last_check_error <> ''
+				WHERE deleted_at IS NULL
+				  AND last_check_error IS NOT NULL AND last_check_error <> ''
 				  AND status <> ?
+			) AND id NOT IN (
+				SELECT tenant_id FROM tenant_domains
+				WHERE deleted_at IS NULL AND status = ?
 			)`,
+			models.TenantDomainStatusActive,
 			models.TenantDomainStatusActive,
 		)
 	case TenantDomainStatusDisabledView:

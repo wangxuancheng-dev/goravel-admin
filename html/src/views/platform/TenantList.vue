@@ -1270,7 +1270,11 @@ const submitForm = async () => {
         const links = res?.data?.login_links || {}
         onboardLoginUrl.value =
           links.primary_custom_url || links.subdomain_url || links.query_url || ''
-        ElMessage.success(t('tenant.onboard_success'))
+        if (res?.data?.domain_error) {
+          ElMessage.warning(t('tenant.onboard_domain_failed', { msg: res.data.domain_error }))
+        } else {
+          ElMessage.success(t('tenant.onboard_success'))
+        }
         if (onboardLoginUrl.value) {
           onboardResultVisible.value = true
         }

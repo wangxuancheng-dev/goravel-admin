@@ -296,6 +296,9 @@ func (c *TenantController) Onboard(ctx http.Context) http.Response {
 	if result.Domain != nil {
 		out["domain"] = services.TenantDomainToJSON(result.Domain)
 	}
+	if result.DomainError != nil {
+		out["domain_error"] = result.DomainError.Error()
+	}
 	return response.Success(ctx, out)
 }
 

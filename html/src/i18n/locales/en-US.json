@@ -1274,7 +1274,8 @@
     "health_inspect_done": "Inspect done: ok {ok} · warn {warn} · fail {fail}",
     "filter_domain_unbound": "Unbound domains",
     "filter_domain_failed": "Domain verify failed",
-    "filter_health_fail": "Unhealthy tenants"
+    "filter_health_fail": "Unhealthy tenants",
+    "onboard_domain_failed": "Domain bind failed (onboarding continued): {msg}"
   },
   "platform": {
     "title": "Tenant Ops",
