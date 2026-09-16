@@ -150,10 +150,8 @@ func init() {
 		//   CORS_EXPOSED_HEADERS: 暴露的响应头，多个用逗号分隔
 		//   CORS_MAX_AGE: 预检请求缓存时间（秒），默认: 3600
 		//   CORS_SUPPORTS_CREDENTIALS: 是否支持凭证，默认: true
-		// paths: empty disables framework gin Cors (rs/cors). App Cors handles:
-		//   - static allowlist + auto-appended https://*.{TENANCY_BASE_DOMAIN}
-		//   - active vanity hosts (tenant_domains) via IsActiveHost on preflight + responses
-		// Framework rs/cors cannot check the DB and would reject vanity OPTIONS first.
+		// paths: empty disables framework gin Cors. App middleware uses rs/cors +
+		// AllowOriginFunc (subdomain / active vanity) so ACAO is set on real responses.
 		"paths":                []string{},
 		"allowed_methods":      allowedMethods,
 		"allowed_origins":      allowedOrigins,
