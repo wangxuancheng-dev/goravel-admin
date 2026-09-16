@@ -438,8 +438,37 @@
             <el-tag v-if="d.is_primary" size="small" type="primary" class="ml4">{{ $t('tenant.domain_primary') }}</el-tag>
           </div>
           <div v-if="d.dns_guide?.txt_name" class="domain-dns">
-            TXT {{ d.dns_guide.txt_name }} = {{ d.dns_guide.txt_value }}
-            <span v-if="d.dns_guide.domain_target"> · CNAME → {{ d.dns_guide.domain_target }}</span>
+            <div class="domain-dns-title">{{ $t('tenant.domain_dns_required') }}</div>
+            <div class="domain-dns-row domain-dns-row--txt">
+              <div class="domain-dns-type">TXT</div>
+              <div class="domain-dns-body">
+                <div class="domain-dns-line">
+                  <span class="domain-dns-label">{{ $t('tenant.domain_dns_name') }}</span>
+                  <code>{{ d.dns_guide.txt_name }}</code>
+                  <el-button link type="primary" @click="copyText(d.dns_guide.txt_name)">{{ $t('common.copy') }}</el-button>
+                </div>
+                <div class="domain-dns-line">
+                  <span class="domain-dns-label">{{ $t('tenant.domain_dns_value') }}</span>
+                  <code>{{ d.dns_guide.txt_value }}</code>
+                  <el-button link type="primary" @click="copyText(d.dns_guide.txt_value)">{{ $t('common.copy') }}</el-button>
+                </div>
+              </div>
+            </div>
+            <div v-if="d.dns_guide.domain_target" class="domain-dns-row domain-dns-row--cname">
+              <div class="domain-dns-type">CNAME</div>
+              <div class="domain-dns-body">
+                <div class="domain-dns-line">
+                  <span class="domain-dns-label">{{ $t('tenant.domain_dns_name') }}</span>
+                  <code>{{ d.host }}</code>
+                  <el-button link type="primary" @click="copyText(d.host)">{{ $t('common.copy') }}</el-button>
+                </div>
+                <div class="domain-dns-line">
+                  <span class="domain-dns-label">{{ $t('tenant.domain_dns_target') }}</span>
+                  <code>{{ d.dns_guide.domain_target }}</code>
+                  <el-button link type="primary" @click="copyText(d.dns_guide.domain_target)">{{ $t('common.copy') }}</el-button>
+                </div>
+              </div>
+            </div>
           </div>
           <div v-if="d.last_check_error" class="domain-err">{{ d.last_check_error }}</div>
           <div v-if="isOwner" class="domain-actions">
@@ -1977,9 +2006,79 @@ const downloadBackup = async (file) => {
   margin-bottom: 8px;
 }
 .domain-dns {
-  margin-top: 4px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.domain-dns-title {
   font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+.domain-dns-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+.domain-dns-row--txt {
+  border-left: 3px solid #2563eb;
+}
+.domain-dns-row--cname {
+  border-left: 3px solid #059669;
+}
+.domain-dns-type {
+  flex: 0 0 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+  background: #e2e8f0;
+}
+.domain-dns-row--txt .domain-dns-type {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.domain-dns-row--cname .domain-dns-type {
+  background: #d1fae5;
+  color: #047857;
+}
+.domain-dns-body {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.domain-dns-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+.domain-dns-label {
+  flex: 0 0 auto;
+  min-width: 36px;
   color: #64748b;
+}
+.domain-dns-line code {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
   word-break: break-all;
 }
 .domain-err {
