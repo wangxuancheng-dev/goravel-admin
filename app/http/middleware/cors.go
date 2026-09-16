@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
@@ -18,6 +19,11 @@ import (
 //  1. CORS_ALLOWED_ORIGINS exact match or wildcard host patterns (e.g. https://*.example.com)
 //  2. Any host under TENANCY_BASE_DOMAIN (tenant subdomains)
 //  3. Active vanity domains in tenant_domains (status=active)
+//
+// Framework gin Cors (rs/cors) is disabled via empty cors.paths so preflight is not
+// aborted by the static allowlist before vanity hosts can be checked. This middleware
+// wraps the gin ResponseWriter so ACAO is applied when the handler writes the body
+// (set-before-Next alone is unreliable with Goravel Render).
 func Cors() http.Middleware {
 	return newMiddleware("cors", func(ctx http.Context) {
 		path := ctx.Request().Path()
@@ -45,7 +51,6 @@ func Cors() http.Middleware {
 			}
 		}
 
-		// WebSocket has its own handshake; skip HTTP CORS headers here.
 		if isWebSocket {
 			ctx.Request().Next()
 			return
@@ -66,18 +71,101 @@ func Cors() http.Middleware {
 		origin := ctx.Request().Header("Origin", "")
 		allowed, allowedOrigin := resolveCorsOrigin(origin, allowedOrigins)
 
-		// Preflight: set CORS headers then Abort (same as framework gin Cors).
-		// Do not call Next() after Abort — otherwise Fallback returns 404 without ACAO.
 		if strings.EqualFold(ctx.Request().Method(), http.MethodOptions) {
 			writeCorsPreflightHeaders(ctx, origin, allowed, allowedOrigin, allowedOrigins, allowedMethods, allowedHeaders, exposedHeaders, maxAge, supportsCredentials)
 			ctx.Request().Abort(http.StatusNoContent)
 			return
 		}
 
-		// Apply CORS on the way out so headers survive handler Render (set-before-Next is unreliable here).
+		unwrap := wrapCorsWriter(ctx, origin, allowed, allowedOrigin, allowedOrigins, exposedHeaders, supportsCredentials)
+		defer unwrap()
 		ctx.Request().Next()
-		writeCorsActualHeaders(ctx, origin, allowed, allowedOrigin, allowedOrigins, exposedHeaders, supportsCredentials)
 	})
+}
+
+// wrapCorsWriter injects CORS headers at WriteHeader/Write time (like rs/cors).
+// Returns an unwrap func for defer.
+func wrapCorsWriter(
+	ctx http.Context,
+	origin string,
+	allowed bool,
+	allowedOrigin string,
+	allowedOrigins, exposedHeaders []string,
+	supportsCredentials bool,
+) func() {
+	if origin == "" {
+		return func() {}
+	}
+	acao := ""
+	creds := false
+	if allowed {
+		acao = allowedOrigin
+		creds = supportsCredentials && allowedOrigin != "*"
+	} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
+		acao = "*"
+	}
+	if acao == "" {
+		return func() {}
+	}
+
+	getter, ok := ctx.(ginInstance)
+	if !ok {
+		// Fallback: set headers before Next (best-effort without gin writer).
+		writeCorsActualHeaders(ctx, origin, true, acao, allowedOrigins, exposedHeaders, creds)
+		return func() {}
+	}
+
+	ginCtx := getter.Instance()
+	orig := ginCtx.Writer
+	w := &corsResponseWriter{
+		ResponseWriter: orig,
+		acao:           acao,
+		credentials:    creds,
+		exposed:        exposedHeaders,
+	}
+	ginCtx.Writer = w
+	return func() {
+		ginCtx.Writer = orig
+	}
+}
+
+type corsResponseWriter struct {
+	gin.ResponseWriter
+	acao        string
+	credentials bool
+	exposed     []string
+	applied     bool
+}
+
+func (w *corsResponseWriter) applyHeaders() {
+	if w.applied || w.acao == "" {
+		return
+	}
+	w.applied = true
+	h := w.ResponseWriter.Header()
+	h.Set("Access-Control-Allow-Origin", w.acao)
+	if w.credentials {
+		h.Set("Access-Control-Allow-Credentials", "true")
+	}
+	if len(w.exposed) > 0 {
+		h.Set("Access-Control-Expose-Headers", strings.Join(w.exposed, ", "))
+	}
+	h.Add("Vary", "Origin")
+}
+
+func (w *corsResponseWriter) WriteHeader(code int) {
+	w.applyHeaders()
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *corsResponseWriter) Write(b []byte) (int, error) {
+	w.applyHeaders()
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *corsResponseWriter) WriteString(s string) (int, error) {
+	w.applyHeaders()
+	return w.ResponseWriter.WriteString(s)
 }
 
 func writeCorsActualHeaders(
@@ -157,6 +245,8 @@ func writeCorsPreflightHeaders(
 	if maxAge > 0 {
 		response.Header("Access-Control-Max-Age", strconv.Itoa(maxAge))
 	}
+
+	response.Header("Vary", "Origin")
 }
 
 // IsCorsOriginAllowed reports whether Origin passes the same rules as Cors middleware.

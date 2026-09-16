@@ -150,12 +150,11 @@ func init() {
 		//   CORS_EXPOSED_HEADERS: 暴露的响应头，多个用逗号分隔
 		//   CORS_MAX_AGE: 预检请求缓存时间（秒），默认: 3600
 		//   CORS_SUPPORTS_CREDENTIALS: 是否支持凭证，默认: true
-		// paths "*" enables framework gin Cors (rs/cors), which wraps the ResponseWriter so
-		// ACAO is applied on real GET/POST responses (not only OPTIONS). Empty paths broke
-		// admin SPA cross-origin because app middleware headers set before Next() were lost.
-		// TENANCY_BASE_DOMAIN wildcards are auto-appended to allowed_origins above for tenants.
-		// App Cors still runs for dynamic vanity hosts on non-preflight when possible.
-		"paths":                []string{"*"},
+		// paths: empty disables framework gin Cors (rs/cors). App Cors handles:
+		//   - static allowlist + auto-appended https://*.{TENANCY_BASE_DOMAIN}
+		//   - active vanity hosts (tenant_domains) via IsActiveHost on preflight + responses
+		// Framework rs/cors cannot check the DB and would reject vanity OPTIONS first.
+		"paths":                []string{},
 		"allowed_methods":      allowedMethods,
 		"allowed_origins":      allowedOrigins,
 		"allowed_headers":      allowedHeaders,
