@@ -1245,7 +1245,8 @@
     "domain_disable": "Disable",
     "domain_primary": "Primary",
     "domain_ssl_edge": "Edge SSL",
-    "domain_ssl_cdn": "Customer CDN SSL"
+    "domain_ssl_cdn": "Customer CDN SSL",
+    "timeline_view_all": "View all logs"
   },
   "platform": {
     "title": "Tenant Ops",

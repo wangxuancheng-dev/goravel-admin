@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState, type FocusEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Alert,
   App,
   Button,
   Descriptions,
   Divider,
-  Drawer,
   Form,
   Input,
   InputNumber,
@@ -223,6 +222,7 @@ interface PlatformQueueStatus {
 
 export default function PlatformTenantList() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { message, modal } = App.useApp()
   const showError = useUnhandledError()
@@ -269,6 +269,8 @@ export default function PlatformTenantList() {
   const [detailOverview, setDetailOverview] = useState<TenantOverviewData | null>(null)
   const [detailQuota, setDetailQuota] = useState<TenantQuotaData | null>(null)
   const [detailOpLogs, setDetailOpLogs] = useState<TenantOpLogRow[]>([])
+  const [timelineRow, setTimelineRow] = useState<TenantRow | null>(null)
+  const [timelineLoading, setTimelineLoading] = useState(false)
   const [detailLoginLinks, setDetailLoginLinks] = useState<TenantLoginLinksData | null>(null)
   const [detailDomains, setDetailDomains] = useState<TenantDomainRow[]>([])
   const [domainHost, setDomainHost] = useState('')
@@ -519,14 +521,12 @@ export default function PlatformTenantList() {
     setDetailExtraLoading(true)
     setDetailOverview(null)
     setDetailQuota(null)
-    setDetailOpLogs([])
     setDetailLoginLinks(null)
     setDetailDomains([])
     setDomainHost('')
     try {
-      const [overviewRes, logsRes, linksRes, domainsRes] = await Promise.all([
+      const [overviewRes, linksRes, domainsRes] = await Promise.all([
         getPlatformTenantOverview(row.id),
-        getPlatformTenantOpLogs(row.id, { limit: 40 }),
         getPlatformTenantLoginLinks(row.id),
         getPlatformTenantDomains(row.id),
       ])
@@ -536,7 +536,6 @@ export default function PlatformTenantList() {
       setDetailQuota(
         (overviewRes as { data?: { quota?: TenantQuotaData } })?.data?.quota || null,
       )
-      setDetailOpLogs((logsRes as { data?: { list?: TenantOpLogRow[] } })?.data?.list || [])
       setDetailLoginLinks(
         (linksRes as { data?: { links?: TenantLoginLinksData } })?.data?.links || null,
       )
@@ -559,10 +558,28 @@ export default function PlatformTenantList() {
     setDetailRow(null)
     setDetailOverview(null)
     setDetailQuota(null)
-    setDetailOpLogs([])
     setDetailLoginLinks(null)
     setDetailDomains([])
     setDomainHost('')
+  }
+
+  const openTimeline = async (row: TenantRow) => {
+    setTimelineRow(row)
+    setDetailOpLogs([])
+    setTimelineLoading(true)
+    try {
+      const logsRes = await getPlatformTenantOpLogs(row.id, { limit: 20 })
+      setDetailOpLogs((logsRes as { data?: { list?: TenantOpLogRow[] } })?.data?.list || [])
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setTimelineLoading(false)
+    }
+  }
+
+  const closeTimeline = () => {
+    setTimelineRow(null)
+    setDetailOpLogs([])
   }
 
   const reloadDetailDomains = async (tenantId: string | number) => {
@@ -1526,12 +1543,15 @@ export default function PlatformTenantList() {
         }
       />
 
-      <Drawer
+      <Modal
         title={t('tenant.detail_title')}
         open={!!detailRow}
-        onClose={closeDetail}
-        width={520}
+        onCancel={closeDetail}
+        footer={null}
+        width={800}
+        centered
         destroyOnHidden
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
       >
         {detailRow ? (
           <>
@@ -1737,52 +1757,11 @@ export default function PlatformTenantList() {
             ) : (
               <Typography.Text type="secondary">—</Typography.Text>
             )}
-            <Divider>{t('tenant.op_timeline')}</Divider>
-            {detailOpLogs.length > 0 ? (
-              <Timeline
-                items={detailOpLogs.map((log) => ({
-                  color:
-                    log.status === 'success' ? 'green' : log.status === 'failed' ? 'red' : 'blue',
-                  children: (
-                    <div>
-                      <Typography.Text strong>
-                        {log.op} / {log.status}
-                      </Typography.Text>
-                      {log.operator_name ? (
-                        <div>
-                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            {t('tenant_op_log.operator')}: {log.operator_name}
-                          </Typography.Text>
-                        </div>
-                      ) : null}
-                      {log.batch_id ? (
-                        <div>
-                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            {t('tenant_op_log.batch_id')}: {log.batch_id}
-                          </Typography.Text>
-                        </div>
-                      ) : null}
-                      <div>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          {log.finished_at || log.started_at || log.created_at || '—'}
-                        </Typography.Text>
-                      </div>
-                      {log.message ? (
-                        <Typography.Paragraph style={{ marginBottom: 0, fontSize: 12 }}>
-                          {log.message}
-                        </Typography.Paragraph>
-                      ) : null}
-                    </div>
-                  ),
-                }))}
-              />
-            ) : (
-              <Typography.Text type="secondary">—</Typography.Text>
-            )}
             <Space style={{ marginTop: 16 }} wrap>
               <Button type="primary" onClick={() => void openBackups(detailRow)}>
                 {t('tenant.op_backups')}
               </Button>
+              <Button onClick={() => void openTimeline(detailRow)}>{t('tenant.op_timeline')}</Button>
               {isOwner ? (
                 <Button
                   danger
@@ -1799,7 +1778,82 @@ export default function PlatformTenantList() {
             </Space>
           </>
         ) : null}
-      </Drawer>
+      </Modal>
+
+      <Modal
+        title={
+          timelineRow
+            ? `${t('tenant.timeline_title')} · ${timelineRow.code || timelineRow.name || ''}`
+            : t('tenant.timeline_title')
+        }
+        open={!!timelineRow}
+        onCancel={closeTimeline}
+        footer={
+          <Space>
+            <Button
+              onClick={() => {
+                const code = timelineRow?.code
+                closeTimeline()
+                navigate(code ? `/platform/tenant-op-logs?code=${encodeURIComponent(code)}` : '/platform/tenant-op-logs')
+              }}
+            >
+              {t('tenant.timeline_view_all')}
+            </Button>
+            <Button type="primary" onClick={closeTimeline}>
+              {t('common.close')}
+            </Button>
+          </Space>
+        }
+        width={720}
+        centered
+        destroyOnHidden
+      >
+        <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
+          {timelineLoading ? (
+            <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+          ) : detailOpLogs.length > 0 ? (
+            <Timeline
+              items={detailOpLogs.map((log) => ({
+                color:
+                  log.status === 'success' ? 'green' : log.status === 'failed' ? 'red' : 'blue',
+                children: (
+                  <div>
+                    <Typography.Text strong>
+                      {log.op} / {log.status}
+                    </Typography.Text>
+                    {log.operator_name ? (
+                      <div>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {t('tenant_op_log.operator')}: {log.operator_name}
+                        </Typography.Text>
+                      </div>
+                    ) : null}
+                    {log.batch_id ? (
+                      <div>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {t('tenant_op_log.batch_id')}: {log.batch_id}
+                        </Typography.Text>
+                      </div>
+                    ) : null}
+                    <div>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {log.finished_at || log.started_at || log.created_at || '—'}
+                      </Typography.Text>
+                    </div>
+                    {log.message ? (
+                      <Typography.Paragraph style={{ marginBottom: 0, fontSize: 12 }}>
+                        {log.message}
+                      </Typography.Paragraph>
+                    ) : null}
+                  </div>
+                ),
+              }))}
+            />
+          ) : (
+            <Typography.Text type="secondary">{t('tenant.timeline_empty')}</Typography.Text>
+          )}
+        </div>
+      </Modal>
 
       <Modal
         title={t('tenant.backup_list_title')}

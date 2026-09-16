@@ -326,8 +326,16 @@
     </template>
   </el-dialog>
 
-  <el-drawer v-model="detailVisible" :title="$t('tenant.detail_title')" size="440px" destroy-on-close>
+  <el-dialog
+    v-model="detailVisible"
+    :title="$t('tenant.detail_title')"
+    width="800px"
+    align-center
+    destroy-on-close
+    class="tenant-detail-dialog"
+  >
     <template v-if="detailRow">
+      <div class="dialog-scroll-body">
       <el-descriptions :column="1" border size="small">
         <el-descriptions-item :label="$t('tenant.code')">{{ detailRow.code }}</el-descriptions-item>
         <el-descriptions-item :label="$t('tenant.name')">{{ detailRow.name }}</el-descriptions-item>
@@ -391,6 +399,7 @@
         </div>
         <el-empty v-if="!detailDomains.length" :description="$t('common.no_data')" :image-size="48" />
       </div>
+      </div>
       <div class="drawer-actions">
         <el-button type="primary" @click="openBackups(detailRow)">{{ $t('tenant.op_backups') }}</el-button>
         <el-button @click="openOverview(detailRow)">{{ $t('tenant.op_overview') }}</el-button>
@@ -398,7 +407,7 @@
         <el-button @click="copyLoginLink(detailRow)">{{ $t('tenant.op_login_link') }}</el-button>
       </div>
     </template>
-  </el-drawer>
+  </el-dialog>
 
   <el-dialog v-model="backupsVisible" :title="$t('tenant.backup_list_title')" width="780px" destroy-on-close>
     <el-alert type="info" :closable="false" show-icon class="migrate-tip" :title="$t('tenant.backup_hint')" />
@@ -425,7 +434,7 @@
     <el-empty v-if="!backupsLoading && backupsList.length === 0" :description="$t('tenant.backup_empty')" />
   </el-dialog>
 
-  <el-drawer v-model="overviewVisible" :title="$t('tenant.overview_title')" size="420px" destroy-on-close>
+  <el-dialog v-model="overviewVisible" :title="$t('tenant.overview_title')" width="520px" align-center destroy-on-close>
     <el-descriptions v-if="overviewData" :column="1" border size="small">
       <el-descriptions-item :label="$t('tenant.database')">{{ overviewData.database }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.driver')">{{ overviewData.driver }}</el-descriptions-item>
@@ -437,19 +446,31 @@
       <el-descriptions-item :label="$t('tenant.storage_used')">{{ formatQuota(quotaData?.storage_used_bytes, quotaData?.storage_limit_bytes) }}</el-descriptions-item>
       <el-descriptions-item v-if="overviewData.error" :label="$t('tenant.op_message')">{{ overviewData.error }}</el-descriptions-item>
     </el-descriptions>
-  </el-drawer>
+  </el-dialog>
 
-  <el-drawer v-model="timelineVisible" :title="$t('tenant.timeline_title')" size="520px" destroy-on-close>
-    <el-timeline v-if="opLogs.length">
-      <el-timeline-item v-for="item in opLogs" :key="item.id" :timestamp="item.finished_at || item.started_at || item.created_at" placement="top">
-        <div>{{ item.op }} / {{ item.status }}</div>
-        <div v-if="item.operator_name" class="op-meta">{{ $t('tenant_op_log.operator') }}: {{ item.operator_name }}</div>
-        <div v-if="item.batch_id" class="op-meta">{{ $t('tenant_op_log.batch_id') }}: {{ item.batch_id }}</div>
-        <div class="op-meta">{{ item.message || '—' }}</div>
-      </el-timeline-item>
-    </el-timeline>
-    <el-empty v-else :description="$t('tenant.timeline_empty')" />
-  </el-drawer>
+  <el-dialog
+    v-model="timelineVisible"
+    :title="timelineTitle"
+    width="720px"
+    align-center
+    destroy-on-close
+  >
+    <div v-loading="timelineLoading" class="timeline-scroll-body">
+      <el-timeline v-if="opLogs.length">
+        <el-timeline-item v-for="item in opLogs" :key="item.id" :timestamp="item.finished_at || item.started_at || item.created_at" placement="top">
+          <div>{{ item.op }} / {{ item.status }}</div>
+          <div v-if="item.operator_name" class="op-meta">{{ $t('tenant_op_log.operator') }}: {{ item.operator_name }}</div>
+          <div v-if="item.batch_id" class="op-meta">{{ $t('tenant_op_log.batch_id') }}: {{ item.batch_id }}</div>
+          <div class="op-meta">{{ item.message || '—' }}</div>
+        </el-timeline-item>
+      </el-timeline>
+      <el-empty v-else-if="!timelineLoading" :description="$t('tenant.timeline_empty')" />
+    </div>
+    <template #footer>
+      <el-button @click="goTenantOpLogs">{{ $t('tenant.timeline_view_all') }}</el-button>
+      <el-button type="primary" @click="timelineVisible = false">{{ $t('common.close') }}</el-button>
+    </template>
+  </el-dialog>
 
   <el-dialog v-model="deleteVisible" :title="$t('tenant.op_delete')" width="480px" destroy-on-close>
     <p>{{ $t('tenant.delete_confirm_hint', { code: deleteRow?.code || '' }) }}</p>
@@ -518,7 +539,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ListPage from '@/components/ListPage.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
@@ -560,6 +581,7 @@ import { isPlatformOwner } from '@/utils/platformRequest'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const isOwner = computed(() => isPlatformOwner())
 const listPageRef = ref(null)
 const formRef = ref(null)
@@ -600,7 +622,13 @@ const overviewVisible = ref(false)
 const overviewData = ref(null)
 const quotaData = ref(null)
 const timelineVisible = ref(false)
+const timelineRow = ref(null)
+const timelineLoading = ref(false)
 const opLogs = ref([])
+const timelineTitle = computed(() => {
+  const code = timelineRow.value?.code || timelineRow.value?.name || ''
+  return code ? `${t('tenant.timeline_title')} · ${code}` : t('tenant.timeline_title')
+})
 const deleteVisible = ref(false)
 const deleteRow = ref(null)
 const deleteConfirm = ref('')
@@ -1283,16 +1311,26 @@ const openOverview = async (row) => {
 }
 
 const openTimeline = async (row) => {
+  timelineRow.value = row
   timelineVisible.value = true
   opLogs.value = []
+  timelineLoading.value = true
   try {
-    const res = await getPlatformTenantOpLogs(row.id, { limit: 40 })
+    const res = await getPlatformTenantOpLogs(row.id, { limit: 20 })
     opLogs.value = res?.data?.list || []
   } catch (error) {
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
     }
+  } finally {
+    timelineLoading.value = false
   }
+}
+
+const goTenantOpLogs = () => {
+  const code = timelineRow.value?.code
+  timelineVisible.value = false
+  router.push(code ? { path: '/platform/tenant-op-logs', query: { code } } : '/platform/tenant-op-logs')
 }
 
 const copyLoginLink = async (row) => {
@@ -1721,6 +1759,17 @@ const downloadBackup = async (file) => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.dialog-scroll-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.timeline-scroll-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  min-height: 120px;
+  padding-right: 4px;
 }
 .domain-panel {
   margin-top: 16px;

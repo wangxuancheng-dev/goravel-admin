@@ -1254,7 +1254,8 @@
     "domain_disable": "禁用",
     "domain_primary": "主域",
     "domain_ssl_edge": "边缘 SSL",
-    "domain_ssl_cdn": "客户 CDN SSL"
+    "domain_ssl_cdn": "客户 CDN SSL",
+    "timeline_view_all": "查看全部日志"
   },
   "platform": {
     "title": "租户运维",

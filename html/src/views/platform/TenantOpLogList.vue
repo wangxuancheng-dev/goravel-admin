@@ -32,12 +32,20 @@
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import ListPage from '@/components/ListPage.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import { getPlatformTenantOpLogList } from '@/api/platform'
 
 const { t } = useI18n()
-const initialSearchForm = { code: '', op: '', status: '', batch_id: '', operator: '' }
+const route = useRoute()
+const initialSearchForm = {
+  code: String(route.query.code || ''),
+  op: '',
+  status: '',
+  batch_id: '',
+  operator: '',
+}
 
 const {
   pagination,

@@ -148,7 +148,15 @@ func (s *TenantDomainService) Create(tenantID uint, in TenantDomainCreateInput) 
 
 	var existing models.TenantDomain
 	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("host", host).First(&existing); err == nil && existing.ID > 0 {
-		return nil, apperrors.ErrTenantDomainTaken
+		// Soft-deleted rows still occupy the unique host index — reclaim them.
+		if existing.DeletedAt.Valid {
+			if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", existing.ID).ForceDelete(&models.TenantDomain{}); err != nil {
+				return nil, apperrors.ErrDeleteFailed.WithError(err)
+			}
+			s.forgetCache(host)
+		} else {
+			return nil, apperrors.ErrTenantDomainTaken
+		}
 	}
 
 	token, err := randomHex(16)
@@ -227,7 +235,8 @@ func (s *TenantDomainService) Delete(tenantID, id uint) error {
 		return err
 	}
 	host := row.Host
-	if _, err := appfacades.PlatformOrmQuery(nil).Where("id", row.ID).Delete(&models.TenantDomain{}); err != nil {
+	// Hard-delete so unique(host) is freed and the domain can be re-bound immediately.
+	if _, err := appfacades.PlatformOrmQuery(nil).Where("id", row.ID).ForceDelete(&models.TenantDomain{}); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
 	s.forgetCache(host)

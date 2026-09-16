@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Table, Tag, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { getPlatformTenantOpLogList } from '@/api/platform'
 import { useListPage } from '@/hooks/useListPage'
 import { handlePaginatedTableChange } from '@/utils/tableChange'
@@ -43,6 +44,8 @@ function shortMsg(msg?: string) {
 
 export default function PlatformTenantOpLogList() {
   const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
+  const initialCode = searchParams.get('code') || ''
   const {
     tableData,
     loading,
@@ -55,7 +58,7 @@ export default function PlatformTenantOpLogList() {
     handleSortChange,
   } = useListPage<OpLogRow>({
     fetchApi: getPlatformTenantOpLogList,
-    initialSearchForm: { code: '', op: '', status: '', batch_id: '', operator: '' },
+    initialSearchForm: { code: initialCode, op: '', status: '', batch_id: '', operator: '' },
     defaultSort: 'id:desc',
     normalizeRows: false,
     transformData: (row) => ({
