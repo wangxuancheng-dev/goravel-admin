@@ -10,6 +10,10 @@ export function platformLogin(data) {
   return platformRequest.post('/login', data)
 }
 
+export function getPlatformLoginCaptcha() {
+  return platformRequest.get('/login/captcha')
+}
+
 export function platformLogout() {
   return platformRequest.post('/logout')
 }

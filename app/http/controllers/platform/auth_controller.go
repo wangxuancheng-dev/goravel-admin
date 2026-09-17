@@ -25,8 +25,26 @@ func NewAuthController() *AuthController {
 }
 
 type platformLoginBody struct {
-	Username string `json:"username" form:"username"`
-	Password string `json:"password" form:"password"`
+	Username      string `json:"username" form:"username"`
+	Password      string `json:"password" form:"password"`
+	CaptchaID     string `json:"captcha_id" form:"captcha_id"`
+	CaptchaAnswer string `json:"captcha_answer" form:"captcha_answer"`
+}
+
+// Captcha always issues a login captcha for the platform console (forced).
+func (c *AuthController) Captcha(ctx http.Context) http.Response {
+	captchaID, image, err := services.NewCaptchaServiceImpl(ctx).Generate()
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "platform_captcha", http.StatusInternalServerError, err, nil)
+	}
+	return response.Success(ctx, map[string]any{
+		"captcha": map[string]any{
+			"enabled":       true,
+			"required":      true,
+			"captcha_id":    captchaID,
+			"captcha_image": image,
+		},
+	})
 }
 
 // Login authenticates a platform admin on the platform DB.
@@ -38,6 +56,13 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 	_ = ctx.Request().Bind(&body)
 	if strings.TrimSpace(body.Username) == "" || body.Password == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
+	}
+
+	if ok, messageKey := services.NewCaptchaServiceImpl(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
+		if messageKey == "" {
+			messageKey = "captcha_invalid"
+		}
+		return response.Error(ctx, http.StatusBadRequest, messageKey)
 	}
 
 	var adminUser models.PlatformAdmin

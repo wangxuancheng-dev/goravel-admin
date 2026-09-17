@@ -5,8 +5,17 @@ import platformRequest, {
 } from '@/utils/platformRequest'
 import { normalizeListResponse } from '@/utils/normalize'
 
-export function platformLogin(data: { username: string; password: string }) {
+export function platformLogin(data: {
+  username: string
+  password: string
+  captcha_id?: string
+  captcha_answer?: string
+}) {
   return platformRequest.post('/login', data)
+}
+
+export function getPlatformLoginCaptcha() {
+  return platformRequest.get('/login/captcha')
 }
 
 export function platformLogout() {

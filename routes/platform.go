@@ -19,6 +19,7 @@ func Platform() {
 
 	facades.Route().Prefix("api/platform").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy()).Group(func(router route.Router) {
+			router.Get("login/captcha", authController.Captcha)
 			router.Middleware(httpmiddleware.Throttle("login")).Post("login", authController.Login)
 			// Edge on-demand TLS ask (no JWT); host must be active + ssl_mode=edge.
 			router.Get("public/tls-allow", tenantController.TLSAllow)

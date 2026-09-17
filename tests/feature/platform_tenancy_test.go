@@ -43,8 +43,32 @@ func loginPlatformSmoke(t *testing.T) string {
 	t.Helper()
 	ensurePlatformSmokeAdmin(t)
 
-	body := fmt.Sprintf(`{"username":%q,"password":%q}`, platformSmokeUser, platformSmokePass)
 	testCase := tests.TestCase{}
+	captchaResp, err := testCase.Http(t).Get("/api/platform/login/captcha")
+	require.NoError(t, err)
+	captchaResp.AssertOk()
+	captchaContent, err := captchaResp.Content()
+	require.NoError(t, err)
+
+	var captchaPayload struct {
+		Code int `json:"code"`
+		Data struct {
+			Captcha struct {
+				CaptchaID string `json:"captcha_id"`
+			} `json:"captcha"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(captchaContent), &captchaPayload))
+	require.Equal(t, 200, captchaPayload.Code)
+	captchaID := captchaPayload.Data.Captcha.CaptchaID
+	require.NotEmpty(t, captchaID)
+	answer := services.PeekCaptchaAnswer(captchaID)
+	require.NotEmpty(t, answer)
+
+	body := fmt.Sprintf(
+		`{"username":%q,"password":%q,"captcha_id":%q,"captcha_answer":%q}`,
+		platformSmokeUser, platformSmokePass, captchaID, answer,
+	)
 	resp, err := testCase.Http(t).
 		WithHeader("Content-Type", "application/json").
 		Post("/api/platform/login", strings.NewReader(body))

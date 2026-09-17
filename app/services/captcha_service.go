@@ -115,3 +115,11 @@ func (s *CaptchaServiceImpl) Verify(id, answer string) (bool, string) {
 
 	return true, ""
 }
+
+// PeekCaptchaAnswer returns the stored answer without consuming it (feature tests).
+func PeekCaptchaAnswer(id string) string {
+	if strings.TrimSpace(id) == "" {
+		return ""
+	}
+	return sharedCaptchaStore(120).Get(id, false)
+}

@@ -66,7 +66,14 @@ const platformRequest = axios.create({
 
 function isAuthEndpointUrl(url = '') {
   const path = String(url).split('?')[0].replace(/\/+$/, '')
-  return path === 'login' || path === 'logout' || path.endsWith('/login') || path.endsWith('/logout')
+  return (
+    path === 'login' ||
+    path === 'login/captcha' ||
+    path === 'logout' ||
+    path.endsWith('/login') ||
+    path.endsWith('/login/captcha') ||
+    path.endsWith('/logout')
+  )
 }
 
 let isRedirecting = false

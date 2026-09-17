@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { App, Button, Form, Input, Typography } from 'antd'
+import { ReloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { completePlatformLogin, platformLogin } from '@/api/platform'
+import { completePlatformLogin, getPlatformLoginCaptcha, platformLogin } from '@/api/platform'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { getTenantAdminLoginUrl } from '@/utils/tenant'
 
@@ -12,19 +13,48 @@ export default function PlatformLogin() {
   const navigate = useNavigate()
   const showError = useUnhandledError()
   const [loading, setLoading] = useState(false)
+  const [captcha, setCaptcha] = useState({ id: '', image: '' })
   const [form] = Form.useForm()
 
-  const onFinish = async (values: { username: string; password: string }) => {
+  const fetchCaptcha = async () => {
+    try {
+      const res = await getPlatformLoginCaptcha()
+      const info = (res as { data?: { captcha?: { captcha_id?: string; captcha_image?: string } } })?.data
+        ?.captcha
+      setCaptcha({
+        id: info?.captcha_id || '',
+        image: info?.captcha_image || '',
+      })
+      form.setFieldValue('captcha_answer', undefined)
+    } catch (error) {
+      setCaptcha({ id: '', image: '' })
+      showError(error, t('common.operation_failed'))
+    }
+  }
+
+  useEffect(() => {
+    void fetchCaptcha()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, [])
+
+  const onFinish = async (values: {
+    username: string
+    password: string
+    captcha_answer?: string
+  }) => {
     setLoading(true)
     try {
       const res = await platformLogin({
         username: String(values.username || '').trim(),
         password: values.password,
+        captcha_id: captcha.id,
+        captcha_answer: values.captcha_answer,
       })
       completePlatformLogin(res as { data?: { token?: string; admin?: unknown } })
       message.success(t('login.login_success'))
       navigate('/platform/overview', { replace: true })
     } catch (error) {
+      await fetchCaptcha()
       showError(error, t('common.operation_failed'))
     } finally {
       setLoading(false)
@@ -68,6 +98,25 @@ export default function PlatformLogin() {
             rules={[{ required: true, message: t('login.password_required') }]}
           >
             <Input.Password size="large" placeholder={t('login.password')} />
+          </Form.Item>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            {captcha.image ? (
+              <img
+                src={captcha.image}
+                alt={t('login.captcha_alt')}
+                onClick={() => void fetchCaptcha()}
+                style={{ height: 40, borderRadius: 4, cursor: 'pointer', border: '1px solid #e2e8f0' }}
+              />
+            ) : null}
+            <Button type="link" icon={<ReloadOutlined />} onClick={() => void fetchCaptcha()}>
+              {t('login.refresh_captcha')}
+            </Button>
+          </div>
+          <Form.Item
+            name="captcha_answer"
+            rules={[{ required: true, message: t('login.captcha_required') }]}
+          >
+            <Input size="large" placeholder={t('login.captcha_placeholder')} />
           </Form.Item>
           <Button type="primary" htmlType="submit" size="large" block loading={loading}>
             {t('login.login')}
