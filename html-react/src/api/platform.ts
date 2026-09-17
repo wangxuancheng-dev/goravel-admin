@@ -161,6 +161,41 @@ export function getPlatformOperationLogDetail(id: string | number) {
   return platformRequest.get(`/operation-logs/${id}`)
 }
 
+export async function getPlatformAdminList(params?: Record<string, unknown>) {
+  return normalizeListResponse(await platformRequest.get('/admins', { params }))
+}
+
+export function getPlatformAdminDetail(id: string | number) {
+  return platformRequest.get(`/admins/${id}`)
+}
+
+export function createPlatformAdmin(data: {
+  username: string
+  password: string
+  name?: string
+  role?: string
+}) {
+  return platformRequest.post('/admins', data)
+}
+
+export function updatePlatformAdmin(
+  id: string | number,
+  data: { name?: string; role?: string; status?: number },
+) {
+  return platformRequest.put(`/admins/${id}`, data)
+}
+
+export function deletePlatformAdmin(id: string | number) {
+  return platformRequest.delete(`/admins/${id}`)
+}
+
+export function resetPlatformAdminPassword(
+  id: string | number,
+  data: { password: string; confirm_password?: string },
+) {
+  return platformRequest.post(`/admins/${id}/reset-password`, data)
+}
+
 export function getPlatformTenantLoginLinks(id: string | number) {
   return platformRequest.get(`/tenants/${id}/login-links`)
 }

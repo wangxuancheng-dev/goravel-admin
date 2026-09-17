@@ -352,6 +352,9 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | GET | `/api/platform/tenants/{id}/overview` | 库概览（表数、体积、管理员数等） |
 | GET | `/api/platform/tenant-op-logs` | 全平台运维执行记录（筛选 code/op/status/batch_id/operator） |
 | GET | `/api/platform/login-logs` | Platform login logs (landlord) |
+| GET/POST | `/api/platform/admins` | Platform admins list / create (owner write) |
+| GET/PUT/DELETE | `/api/platform/admins/{id}` | Platform admin detail / update / soft-delete |
+| POST | `/api/platform/admins/{id}/reset-password` | Reset platform admin password |
 | GET | `/api/platform/login-logs/{id}` | Platform login log detail |
 | GET | `/api/platform/operation-logs` | Platform operation logs (landlord) |
 | GET | `/api/platform/operation-logs/{id}` | Platform operation log detail |

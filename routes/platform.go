@@ -17,6 +17,7 @@ func Platform() {
 	healthController := platform.NewHealthController()
 	passwordController := platform.NewPasswordController()
 	auditController := platform.NewAuditController()
+	adminController := platform.NewAdminController()
 
 	facades.Route().Prefix("api/platform").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy()).Group(func(router route.Router) {
@@ -33,6 +34,9 @@ func Platform() {
 			router.Get("health", healthController.Index)
 			router.Get("ops/overview", tenantController.OpsOverview)
 			router.Put("password", passwordController.Update)
+
+			router.Get("admins", adminController.Index)
+			router.Get("admins/{id}", adminController.Show)
 
 			router.Get("login-logs", auditController.LoginLogs)
 			router.Get("login-logs/{id}", auditController.LoginLogShow)
@@ -56,6 +60,11 @@ func Platform() {
 
 			// Mutations require owner
 			router.Middleware(middleware.PlatformOwner()).Group(func(router route.Router) {
+				router.Post("admins", adminController.Store)
+				router.Put("admins/{id}", adminController.Update)
+				router.Delete("admins/{id}", adminController.Destroy)
+				router.Post("admins/{id}/reset-password", adminController.ResetPassword)
+
 				router.Post("tenants/migrate-batch", tenantController.MigrateBatch)
 				router.Post("tenants/ops-batch", tenantController.OpsBatch)
 				router.Post("tenants/onboard", tenantController.Onboard)

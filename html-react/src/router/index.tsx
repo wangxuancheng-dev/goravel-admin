@@ -24,6 +24,7 @@ import NotFoundPage from '../pages/NotFound'
 import PlatformLoginPage from '../pages/platform/Login'
 import PlatformLayout from '../pages/platform/Layout'
 import PlatformTenantListPage from '../pages/platform/TenantList'
+import PlatformAdminListPage from '../pages/platform/AdminList'
 import PlatformTenantOpLogListPage from '../pages/platform/TenantOpLogList'
 import PlatformLoginLogListPage from '../pages/platform/LoginLogList'
 import PlatformOperationLogListPage from '../pages/platform/OperationLogList'
@@ -175,6 +176,11 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
               path: 'tenants',
               element: <PlatformTenantListPage />,
               handle: { titleKey: 'menu.tenant', platform: true },
+            },
+            {
+              path: 'admins',
+              element: <PlatformAdminListPage />,
+              handle: { titleKey: 'menu.platform_admin', platform: true },
             },
             {
               path: 'tenant-op-logs',

@@ -285,6 +285,14 @@ func PlatformOperationTitle(method, path string) string {
 	switch {
 	case method == "PUT" && path == "/api/platform/password":
 		return "platform.password.update"
+	case method == "POST" && path == "/api/platform/admins":
+		return "platform.admin.create"
+	case strings.HasSuffix(path, "/reset-password") && strings.Contains(path, "/admins/") && method == "POST":
+		return "platform.admin.reset_password"
+	case strings.HasPrefix(path, "/api/platform/admins/") && method == "PUT":
+		return "platform.admin.update"
+	case strings.HasPrefix(path, "/api/platform/admins/") && method == "DELETE":
+		return "platform.admin.delete"
 	case method == "POST" && path == "/api/platform/logout":
 		return "platform.logout"
 	case method == "POST" && path == "/api/platform/tenants":

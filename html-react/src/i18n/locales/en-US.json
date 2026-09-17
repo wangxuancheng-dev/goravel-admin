@@ -100,7 +100,10 @@
     "ai_lab_rate_limited": "AI Lab rate limit exceeded. Please try again later",
     "ai_not_configured": "AI is not configured. Set AI_API_KEY in .env and restart the server",
     "file_required": "Please select a file",
-    "ai_lab_file_too_large": "Upload file is too large, please use a smaller file"
+    "ai_lab_file_too_large": "Upload file is too large, please use a smaller file",
+    "platform_last_owner": "Cannot remove the last active owner",
+    "platform_cannot_modify_self": "Cannot change your own role or status",
+    "admin_cannot_delete_self": "Cannot delete yourself"
   },
   "admin_id": "Admin ID",
   "title": "Title",
@@ -225,7 +228,8 @@
     "code_generator": "Code Generator",
     "form_demo": "Form Demo",
     "tenant_op_log": "Tenant ops logs",
-    "platform_overview": "Ops overview"
+    "platform_overview": "Ops overview",
+    "platform_admin": "Platform admins"
   },
   "table": {
     "id": "ID",
@@ -1661,7 +1665,10 @@
     "monitor_disk_usage_medium": "Disk usage elevated: {{value}}%",
     "monitor_cpu_usage_high": "CPU usage too high: {{value}}%",
     "monitor_cpu_usage_medium": "CPU usage elevated: {{value}}%",
-    "monitor_file_descriptors_usage_high": "File descriptor usage too high: {{value}}%"
+    "monitor_file_descriptors_usage_high": "File descriptor usage too high: {{value}}%",
+    "platform_last_owner": "Cannot remove the last active owner",
+    "platform_cannot_modify_self": "Cannot change your own role or status",
+    "admin_cannot_delete_self": "Cannot delete yourself"
   },
   "code_generator": {
     "title": "Code Generator",
@@ -1920,6 +1927,24 @@
     },
     "backup": {
       "prune": "Prune backups"
+    },
+    "admin": {
+      "create": "Create platform admin",
+      "update": "Update platform admin",
+      "delete": "Delete platform admin",
+      "reset_password": "Reset platform admin password"
     }
+  },
+  "platform_admin": {
+    "create": "Create admin",
+    "edit": "Edit admin",
+    "username": "Username",
+    "password": "Password",
+    "password_min": "Password must be at least 6 characters",
+    "name": "Display name",
+    "role": "Role",
+    "reset_password": "Reset password",
+    "delete_confirm": "Delete this platform admin?",
+    "self_edit_hint": "You cannot change your own role or status"
   }
 }

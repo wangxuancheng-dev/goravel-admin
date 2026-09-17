@@ -134,6 +134,31 @@ export function getPlatformOperationLogDetail(id) {
   return platformRequest.get(`/operation-logs/${id}`)
 }
 
+export async function getPlatformAdminList(params) {
+  const res = await platformRequest.get('/admins', { params })
+  return normalizeListResponse(res)
+}
+
+export function getPlatformAdminDetail(id) {
+  return platformRequest.get(`/admins/${id}`)
+}
+
+export function createPlatformAdmin(data) {
+  return platformRequest.post('/admins', data)
+}
+
+export function updatePlatformAdmin(id, data) {
+  return platformRequest.put(`/admins/${id}`, data)
+}
+
+export function deletePlatformAdmin(id) {
+  return platformRequest.delete(`/admins/${id}`)
+}
+
+export function resetPlatformAdminPassword(id, data) {
+  return platformRequest.post(`/admins/${id}/reset-password`, data)
+}
+
 export function getPlatformTenantLoginLinks(id) {
   return platformRequest.get(`/tenants/${id}/login-links`)
 }

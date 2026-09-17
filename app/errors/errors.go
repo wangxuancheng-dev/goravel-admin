@@ -209,6 +209,8 @@ var (
 	ErrTenantDomainVerifyFailed  = NewBusinessError("tenant_domain_verify_failed", "custom domain verification failed")
 	ErrTenantDomainNotActive     = NewBusinessError("tenant_domain_not_active", "custom domain is not active")
 	ErrPlatformReadonly          = NewBusinessError("platform_readonly", "平台只读账号无权执行此操作")
+	ErrPlatformLastOwner         = NewBusinessError("platform_last_owner", "cannot remove the last active owner")
+	ErrPlatformCannotModifySelf  = NewBusinessError("platform_cannot_modify_self", "cannot change own role or status")
 	ErrTokenRefreshFailed        = NewBusinessError("token_refresh_failed", "Token刷新失败")
 	ErrUserNotFound              = NewBusinessError("user_not_found", "用户不存在")
 

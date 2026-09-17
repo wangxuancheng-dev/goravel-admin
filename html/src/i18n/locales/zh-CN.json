@@ -101,7 +101,10 @@
     "ai_lab_rate_limited": "AI 实验室请求过于频繁，请稍后再试",
     "ai_not_configured": "AI 未配置，请在 .env 中设置 AI_API_KEY 后重启服务",
     "file_required": "请选择文件",
-    "ai_lab_file_too_large": "上传文件过大，请缩小后重试"
+    "ai_lab_file_too_large": "上传文件过大，请缩小后重试",
+    "platform_last_owner": "不能移除最后一个启用的管理员(owner)",
+    "platform_cannot_modify_self": "不能修改自己的角色或状态",
+    "admin_cannot_delete_self": "不能删除自己"
   },
   "login": {
     "title": "后台管理系统",
@@ -219,7 +222,8 @@
     "ai_lab": "AI 实验室",
     "observability-lite": "运行观测",
     "tenant_op_log": "运维执行记录",
-    "platform_overview": "运维总览"
+    "platform_overview": "运维总览",
+    "platform_admin": "平台管理员"
   },
   "monitor_runtime": {
     "title": "运行观测",
@@ -1986,7 +1990,10 @@
     "monitor_disk_usage_medium": "磁盘使用率较高: {value}%",
     "monitor_cpu_usage_high": "CPU使用率过高: {value}%",
     "monitor_cpu_usage_medium": "CPU使用率较高: {value}%",
-    "monitor_file_descriptors_usage_high": "文件描述符使用率过高: {value}%"
+    "monitor_file_descriptors_usage_high": "文件描述符使用率过高: {value}%",
+    "platform_last_owner": "不能移除最后一个启用的管理员(owner)",
+    "platform_cannot_modify_self": "不能修改自己的角色或状态",
+    "admin_cannot_delete_self": "不能删除自己"
   },
   "code_generator": {
     "title": "代码生成器",
@@ -2271,6 +2278,24 @@
     },
     "backup": {
       "prune": "清理备份"
+    },
+    "admin": {
+      "create": "创建平台管理员",
+      "update": "更新平台管理员",
+      "delete": "删除平台管理员",
+      "reset_password": "重置平台管理员密码"
     }
+  },
+  "platform_admin": {
+    "create": "新增管理员",
+    "edit": "编辑管理员",
+    "username": "用户名",
+    "password": "密码",
+    "password_min": "密码至少 6 位",
+    "name": "显示名",
+    "role": "角色",
+    "reset_password": "重置密码",
+    "delete_confirm": "确定删除该平台管理员吗？",
+    "self_edit_hint": "不能修改自己的角色或状态"
   }
 }

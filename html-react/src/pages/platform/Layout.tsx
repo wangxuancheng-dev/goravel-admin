@@ -88,6 +88,11 @@ export default function PlatformLayout() {
                 onClick: () => navigate('/platform/tenants'),
               },
               {
+                key: '/platform/admins',
+                label: t('menu.platform_admin'),
+                onClick: () => navigate('/platform/admins'),
+              },
+              {
                 key: '/platform/tenant-op-logs',
                 label: t('menu.tenant_op_log'),
                 onClick: () => navigate('/platform/tenant-op-logs'),

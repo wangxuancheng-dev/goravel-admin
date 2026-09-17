@@ -103,6 +103,12 @@ const staticRoutes = [
         meta: { titleKey: 'menu.tenant', platform: true, requiresAuth: true }
       },
       {
+        path: 'admins',
+        name: 'PlatformAdmins',
+        component: () => lazyLoad(() => import('../views/platform/AdminList.vue')),
+        meta: { titleKey: 'menu.platform_admin', platform: true, requiresAuth: true }
+      },
+      {
         path: 'tenant-op-logs',
         name: 'PlatformTenantOpLogs',
         component: () => lazyLoad(() => import('../views/platform/TenantOpLogList.vue')),

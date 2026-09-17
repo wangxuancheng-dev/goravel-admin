@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/goravel/framework/facades"
 	"github.com/stretchr/testify/assert"
@@ -283,6 +284,104 @@ func TestPlatformLoginLogAndOperationLog(t *testing.T) {
 	assert.Contains(t, opBody, "platform.password.update")
 	assert.Contains(t, opBody, platformSmokeUser)
 	assert.Contains(t, opBody, "***")
+}
+
+func TestPlatformAdminCRUD(t *testing.T) {
+	withTenancyDriver(t, "database")
+	token := loginPlatformSmoke(t)
+	testCase := tests.TestCase{}
+
+	listResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		Get("/api/platform/admins")
+	require.NoError(t, err)
+	listResp.AssertOk()
+	listBody, err := listResp.Content()
+	require.NoError(t, err)
+	assert.Contains(t, listBody, platformSmokeUser)
+
+	viewerUser := fmt.Sprintf("smoke_platform_viewer_%d", time.Now().UnixNano()%1000000)
+	viewerPass := "SmokeViewer123!"
+	createBody := fmt.Sprintf(
+		`{"username":%q,"password":%q,"name":"Viewer","role":"viewer"}`,
+		viewerUser, viewerPass,
+	)
+	createResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		WithHeader("Content-Type", "application/json").
+		Post("/api/platform/admins", strings.NewReader(createBody))
+	require.NoError(t, err)
+	createResp.AssertOk()
+	createContent, err := createResp.Content()
+	require.NoError(t, err)
+
+	var created struct {
+		Code int `json:"code"`
+		Data struct {
+			Admin struct {
+				ID       uint   `json:"id"`
+				Username string `json:"username"`
+				Role     string `json:"role"`
+			} `json:"admin"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(createContent), &created))
+	require.Equal(t, 200, created.Code)
+	require.NotZero(t, created.Data.Admin.ID)
+	assert.Equal(t, "viewer", created.Data.Admin.Role)
+	viewerID := created.Data.Admin.ID
+
+	// cannot demote/disable self
+	selfID := uint(0)
+	infoResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		Get("/api/platform/info")
+	require.NoError(t, err)
+	infoBody, err := infoResp.Content()
+	require.NoError(t, err)
+	var infoPayload struct {
+		Data struct {
+			Admin struct {
+				ID uint `json:"id"`
+			} `json:"admin"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(infoBody), &infoPayload))
+	selfID = infoPayload.Data.Admin.ID
+	require.NotZero(t, selfID)
+
+	badSelf := `{"role":"viewer"}`
+	selfResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		WithHeader("Content-Type", "application/json").
+		Put(fmt.Sprintf("/api/platform/admins/%d", selfID), strings.NewReader(badSelf))
+	require.NoError(t, err)
+	selfContent, err := selfResp.Content()
+	require.NoError(t, err)
+	assert.Contains(t, selfContent, "platform_cannot_modify_self")
+
+	resetBody := `{"password":"SmokeViewer123!X","confirm_password":"SmokeViewer123!X"}`
+	resetResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		WithHeader("Content-Type", "application/json").
+		Post(fmt.Sprintf("/api/platform/admins/%d/reset-password", viewerID), strings.NewReader(resetBody))
+	require.NoError(t, err)
+	resetResp.AssertOk()
+
+	delResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		Delete(fmt.Sprintf("/api/platform/admins/%d", viewerID), strings.NewReader(""))
+	require.NoError(t, err)
+	delResp.AssertOk()
+
+	// cannot delete self
+	delSelfResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		Delete(fmt.Sprintf("/api/platform/admins/%d", selfID), strings.NewReader(""))
+	require.NoError(t, err)
+	delSelfBody, err := delSelfResp.Content()
+	require.NoError(t, err)
+	assert.Contains(t, delSelfBody, "admin_cannot_delete_self")
 }
 
 func TestTenancyCacheAndSearchIndexIsolation(t *testing.T) {
