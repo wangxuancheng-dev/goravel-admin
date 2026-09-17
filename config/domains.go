@@ -79,5 +79,21 @@ func init() {
 			}
 			return parseDomains(domainsStr)
 		}(),
+
+		// When true (and tenancy is on), /api/admin rejects browser Origin hosts outside
+		// DOMAINS_ADMIN, TENANCY_BASE_DOMAIN (subdomains), and active tenant_domains.
+		// Empty Origin is allowed. Ignored when TENANCY_DRIVER=off.
+		"origin_guard_admin": func() bool {
+			raw := config.Env("ADMIN_ORIGIN_GUARD", false)
+			switch v := raw.(type) {
+			case bool:
+				return v
+			case string:
+				s := strings.ToLower(strings.TrimSpace(v))
+				return s == "1" || s == "true" || s == "yes" || s == "on"
+			default:
+				return false
+			}
+		}(),
 	})
 }

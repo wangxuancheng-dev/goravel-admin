@@ -155,6 +155,27 @@ Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only m
 
 App CORS middleware also tries to allow Origins whose host is an **active** row in `tenant_domains`. If preflight still fails (e.g. framework `rs/cors` only sees the static list), use empty/`*` or same-Host — **do not** edit env for every new merchant domain. Include `X-Tenant-ID` in `CORS_ALLOWED_HEADERS` when resolving tenants via header.
 
+### Origin guard (`ADMIN_ORIGIN_GUARD`)
+
+Only when multi-tenancy is enabled (`TENANCY_DRIVER` not `off`). On split deploys (e.g. Pages SPA + `api.*`), `CORS_ALLOWED_ORIGINS` is often empty/`*` for preflight. Set `ADMIN_ORIGIN_GUARD=true` so `/api/admin` checks the browser `Origin` host:
+
+| Source | Allowed |
+|------|----------|
+| `DOMAINS_ADMIN` (incl. `*.` wildcards) | yes |
+| `TENANCY_BASE_DOMAIN` and its subdomains | yes |
+| Active `tenant_domains` vanity hosts | yes |
+| Missing `Origin` (curl / native) | yes |
+| Anything else | no (403 `origin_not_allowed`) |
+
+```ini
+ADMIN_ORIGIN_GUARD=true
+DOMAINS_ADMIN=admin.example.com,platform.example.com
+TENANCY_BASE_DOMAIN=example.com
+```
+
+Default `false`; ignored when tenancy is off. Pairs with Host middleware `DomainAllowTenantVanity`: Host is where the request lands; Origin is where the SPA came from.
+
+
 ```ini
 TENANCY_BASE_DOMAIN=example.com
 TENANCY_DOMAIN_TARGET=tenants.example.com
@@ -371,7 +392,7 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 5. 导出/搜索队列缺 `tenant_id` 时 fail-closed，禁止写到平台库。
 6. HTTP 手动跑定时任务自动带当前 `--tenant`，禁止扫全租户；cron 可遍历启用租户。
 7. 队列表 `jobs` / `failed_jobs` 读平台连接（`QUEUE_DATABASE_CONNECTION`）。
-8. Browser CORS: `CORS_ALLOWED_HEADERS` must include `X-Tenant-ID`; subdomains use `TENANCY_BASE_DOMAIN` wildcards; for vanity hosts prefer same-Host or demo empty/`*` (see CORS above) — do not hand-edit the allowlist per merchant.
+8. Browser CORS: `CORS_ALLOWED_HEADERS` must include `X-Tenant-ID`; subdomains use `TENANCY_BASE_DOMAIN` wildcards; for vanity hosts prefer same-Host or demo empty/`*` (see CORS above); on split API set `ADMIN_ORIGIN_GUARD=true` (see Origin guard) — do not hand-edit the CORS allowlist per merchant.
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
 11. Only `provision_status=ready` tenants may bind traffic; HTTP create forbids sync migrate — use platform UI async migrate or CLI `tenant:migrate`.

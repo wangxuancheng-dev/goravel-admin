@@ -154,6 +154,7 @@
     "ip_blocked": "Your IP address has been blocked",
     "service_unavailable": "Service temporarily unavailable, please try again later",
     "domain_not_allowed": "Domain is not allowed",
+    "origin_not_allowed": "Origin is not allowed",
     "load_permissions_failed": "Failed to load permissions",
     "token_refresh_success": "Token refreshed successfully",
     "token_refresh_failed": "Token refresh failed",

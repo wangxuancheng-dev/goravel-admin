@@ -45,8 +45,11 @@ func Admin() {
 	formDemoController := admin.NewFormDemoController()
 	aiLabController := admin.NewAiLabController()
 
-	// Admin 路由组：统一前缀和域名限制（含 active 租户自定义域）
-	facades.Route().Prefix("api/admin").Middleware(middleware.DomainAllowTenantVanity(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
+	// Admin: Host allowlist (+ active vanity) + Origin guard (tenancy + ADMIN_ORIGIN_GUARD)
+	facades.Route().Prefix("api/admin").Middleware(
+		middleware.DomainAllowTenantVanity(facades.Config().Get("domains.admin")),
+		middleware.OriginAllowAdmin(),
+	).Group(func(router route.Router) {
 
 		// 登录：body 内解析租户；验证码 / 公开附件：Header 解析租户（off 时 Tenant 为 no-op）
 		router.Middleware(middleware.Lang()).Group(func(router route.Router) {
