@@ -141,9 +141,11 @@ func init() {
 		// To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 		//
 		// Environment Variables:
-		//   CORS_ALLOWED_ORIGINS: static allowlist (comma-separated). Also auto-appends:
+		//   CORS_ALLOWED_ORIGINS: comma-separated allowlist, or empty/* for any Origin.
+		//     Empty / invalid entries fall back to "*". When not "*", also auto-appends:
 		//     - https://*.{TENANCY_BASE_DOMAIN} and http://*.{TENANCY_BASE_DOMAIN}
-		//     - wildcard entries already listed e.g. https://*.example.com
+		//     App Cors middleware may also allow active tenant_domains hosts.
+		//     Vanity + split API: prefer same-Host /api; demos may use empty/*.
 		//   CORS_ALLOWED_METHODS: 允许的HTTP方法，多个用逗号分隔，默认: GET,POST,PUT,DELETE,PATCH,OPTIONS
 		//   CORS_ALLOWED_HEADERS: 允许的请求头，多个用逗号分隔
 		//   CORS_EXPOSED_HEADERS: 暴露的响应头，多个用逗号分隔

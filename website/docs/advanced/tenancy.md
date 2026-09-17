@@ -140,7 +140,17 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 
 解析优先级：`active` 自定义 Host → 子域 → Header/Query。
 
-公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码；同时 CORS 会自动放行该主域下所有子域。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。`CORS_ALLOWED_ORIGINS` 只需写管理端/本地等静态来源（也可写通配符如 `https://*.example.com`）。配置会自动追加 `https://*.{TENANCY_BASE_DOMAIN}`（及 http）到 CORS 白名单；框架 `rs/cors`（`cors.paths=*`）负责子域跨域（预检与真实响应）。独立域名跨域未保证（可同 Host 部署或后续增强）。
+公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。
+
+### CORS（`CORS_ALLOWED_ORIGINS`）
+
+| 设置 | 效果 |
+|------|------|
+| 空 / 仅有无效项 / `*` | 等价允许**任意 Origin**（演示站最省事；生产谨慎） |
+| 明确白名单 | 自动追加 `http(s)://*.{TENANCY_BASE_DOMAIN}`；**不用**为每个子域手写 |
+| 独立域 + 拆分 API | 优先：同 Host 反代 `/api`（无跨域）；演示可用空/`*`；或临时把该 Origin 写进白名单 |
+
+应用中间件也会尝试放行 `tenant_domains` 中 `status=active` 的独立域 Origin；若预检仍被拦（例如框架 `rs/cors` 只认静态列表），用上表「空/`*`」或同 Host 即可，**不必**每加一个商户域就改 env。`CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`（header 解析租户时）。
 
 ```ini
 TENANCY_BASE_DOMAIN=example.com
@@ -357,7 +367,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 5. 导出/搜索队列缺 `tenant_id` 时 fail-closed，禁止写到平台库。
 6. HTTP 手动跑定时任务自动带当前 `--tenant`，禁止扫全租户；cron 可遍历启用租户。
 7. 队列表 `jobs` / `failed_jobs` 读平台连接（`QUEUE_DATABASE_CONNECTION`）。
-8. 浏览器跨域：header 解析租户时 `CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`；租户子域由 `TENANCY_BASE_DOMAIN` 通配自动放行，勿为每户追加 `CORS_ALLOWED_ORIGINS`（独立域名跨域见上文，未保证）。
+8. 浏览器跨域：`CORS_ALLOWED_HEADERS` 须含 `X-Tenant-ID`；子域靠 `TENANCY_BASE_DOMAIN` 通配；独立域优先同 Host或演示站 `CORS_ALLOWED_ORIGINS` 空/`*`（见上文 CORS），勿为每户手改白名单。
 9. 订单搜索用 `search:*` / `SyncOrderSearch`（`SEARCH_*`），勿再接旧 ES outbox 链路。
 10. IP 黑名单：进程内短 TTL（约 30s）缓存启用名单；CRUD 后立即失效。查库失败时在约 5 分钟内回退最近成功缓存，超时仍 **fail-closed**（503）。
 11. 仅 `provision_status=ready` 的租户可绑定业务；HTTP 开户禁止同步 migrate，可走平台 UI 异步迁移或 CLI `tenant:migrate`。
