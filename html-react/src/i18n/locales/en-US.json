@@ -1886,5 +1886,40 @@
     "message": "Message",
     "started_at": "Started",
     "finished_at": "Finished"
+  },
+  "platform_op": {
+    "logout": "Logout",
+    "password": {
+      "update": "Change password"
+    },
+    "tenant": {
+      "create": "Create tenant",
+      "onboard": "Onboard tenant",
+      "migrate_batch": "Batch migrate",
+      "ops_batch": "Batch ops",
+      "health_inspect": "Health inspect",
+      "status": "Update tenant status",
+      "maintenance": "Maintenance mode",
+      "migrate": "Migrate tenant",
+      "seed": "Seed tenant",
+      "backup": "Backup tenant",
+      "restore": "Restore tenant",
+      "ping": "Ping tenant DB",
+      "undelete": "Undelete tenant",
+      "purge": "Purge tenant files",
+      "force_delete": "Force delete tenant",
+      "update": "Update tenant",
+      "delete": "Delete tenant"
+    },
+    "domain": {
+      "verify": "Verify domain",
+      "primary": "Set primary domain",
+      "disable": "Disable domain",
+      "create": "Add domain",
+      "delete": "Delete domain"
+    },
+    "backup": {
+      "prune": "Prune backups"
+    }
   }
 }

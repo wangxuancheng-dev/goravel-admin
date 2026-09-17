@@ -8,6 +8,7 @@ import { handlePaginatedTableChange } from '@/utils/tableChange'
 import { entityField } from '@/utils/normalize'
 import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
+import { translatePlatformOpTitle } from '@/utils/platformOpTitle'
 
 interface OperationLogRow {
   id: number | string
@@ -33,7 +34,9 @@ function formatRequest(raw?: string) {
 }
 
 export default function PlatformOperationLogList() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const translateTitle = (title?: string) =>
+    translatePlatformOpTitle(t, (key) => i18n.exists(key), title)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<OperationLogRow | null>(null)
   const {
@@ -71,7 +74,7 @@ export default function PlatformOperationLogList() {
       { title: t('table.id'), dataIndex: 'id', width: 70, sorter: true },
       { title: t('log.admin'), dataIndex: 'username', width: 120 },
       { title: t('log.method'), dataIndex: 'method', width: 90 },
-      { title: t('log.title'), dataIndex: 'title', ellipsis: true },
+      { title: t('log.title'), dataIndex: 'title', ellipsis: true, render: (v: string) => translateTitle(v) },
       { title: t('log.path'), dataIndex: 'path', ellipsis: true },
       { title: t('log.ip'), dataIndex: 'ip', width: 130 },
       {
@@ -111,7 +114,7 @@ export default function PlatformOperationLogList() {
         ),
       },
     ],
-    [t],
+    [t, i18n],
   )
 
   return (
@@ -175,7 +178,7 @@ export default function PlatformOperationLogList() {
             <Descriptions.Item label={t('table.id')}>{detail.id}</Descriptions.Item>
             <Descriptions.Item label={t('log.admin')}>{detail.username || '-'}</Descriptions.Item>
             <Descriptions.Item label={t('log.method')}>{detail.method || '-'}</Descriptions.Item>
-            <Descriptions.Item label={t('log.title')}>{detail.title || '-'}</Descriptions.Item>
+            <Descriptions.Item label={t('log.title')}>{translateTitle(detail.title)}</Descriptions.Item>
             <Descriptions.Item label={t('log.path')} span={2}>
               {detail.path || '-'}
             </Descriptions.Item>

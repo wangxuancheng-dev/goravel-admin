@@ -1890,5 +1890,40 @@
     "message": "结果/消息",
     "started_at": "开始时间",
     "finished_at": "结束时间"
+  },
+  "platform_op": {
+    "logout": "退出登录",
+    "password": {
+      "update": "修改密码"
+    },
+    "tenant": {
+      "create": "创建租户",
+      "onboard": "一键开户",
+      "migrate_batch": "批量迁移",
+      "ops_batch": "批量运维",
+      "health_inspect": "健康巡检",
+      "status": "启停租户",
+      "maintenance": "维护模式",
+      "migrate": "迁移租户",
+      "seed": "种子数据",
+      "backup": "备份租户",
+      "restore": "恢复租户",
+      "ping": "连通性探测",
+      "undelete": "恢复软删租户",
+      "purge": "清理租户文件",
+      "force_delete": "永久删除租户",
+      "update": "更新租户",
+      "delete": "删除租户"
+    },
+    "domain": {
+      "verify": "验证域名",
+      "primary": "设为主域名",
+      "disable": "禁用域名",
+      "create": "添加域名",
+      "delete": "删除域名"
+    },
+    "backup": {
+      "prune": "清理备份"
+    }
   }
 }
