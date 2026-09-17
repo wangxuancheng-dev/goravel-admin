@@ -52,7 +52,7 @@
     :title="editingId ? $t('platform_admin.edit') : $t('platform_admin.create')"
     width="480px"
     destroy-on-close
-    @closed="resetForm"
+    @closed="clearForm"
   >
     <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
       <el-form-item v-if="!editingId" :label="$t('platform_admin.username')" prop="username">
@@ -197,7 +197,7 @@ const formRules = computed(() => ({
   role: [{ required: true, message: () => t('platform_admin.role'), trigger: 'change' }],
 }))
 
-const resetForm = () => {
+const clearForm = () => {
   editingId.value = null
   form.username = ''
   form.password = ''
@@ -207,7 +207,7 @@ const resetForm = () => {
 }
 
 const openCreate = () => {
-  resetForm()
+  clearForm()
   formVisible.value = true
 }
 
