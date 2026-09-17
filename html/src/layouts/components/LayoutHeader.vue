@@ -323,7 +323,7 @@ import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
 import BreadcrumbView from '@/components/BreadcrumbView.vue'
 import MenuSearch from '@/components/MenuSearch.vue'
 import { useLayoutAccount } from '@/composables/useLayoutAccount'
-import { getTenantCode, resolveTenantCodeFromLocation, buildAdminLoginPath } from '@/utils/tenant'
+import { getTenantCode, resolveEffectiveTenantCode, resolveTenantCodeFromLocation, buildAdminLoginPath } from '@/utils/tenant'
 
 const props = defineProps({
   isMobile: { type: Boolean, default: false },
@@ -350,7 +350,7 @@ const {
 
 const tenantLabel = computed(() => {
   const code = String(
-    userStore.tenant?.code || getTenantCode() || resolveTenantCodeFromLocation() || '',
+    userStore.tenant?.code || resolveEffectiveTenantCode() || getTenantCode() || resolveTenantCodeFromLocation() || '',
   ).trim()
   const name = String(userStore.tenant?.name || '').trim()
   if (!code && !name) return ''

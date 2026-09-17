@@ -141,9 +141,9 @@ Subdomain `{code}.${TENANCY_BASE_DOMAIN}` works by default. Bind vanity hosts in
 | Customer CDN + SSL | `ssl_mode=customer_cdn`: CDN origin to shared ingress; **keep Host as vanity domain** |
 | Cloudflare Worker / Pages | `customer_cdn`: add Custom Domain on the same app; DNS needs **TXT only** for ownership. Do not orange-cloud CNAME to `TENANCY_DOMAIN_TARGET` (often 522) |
 
-Resolve order: `active` vanity Host → subdomain → Header/Query.
+Resolve order: `active` vanity Host → Origin host (split SPA/API) → subdomain → Header/Query.
 
-Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). C-end `/api/user` and `/api/public/*` share the same Host binding.
+Set `TENANCY_BASE_DOMAIN` when using vanity hosts so subdomain resolution only matches `{code}.that-apex` (avoids treating `crm.customer.com` as tenant code `crm`). C-end `/api/user` and `/api/public/*` share the same Host binding. Frontend builds should set `VITE_TENANCY_BASE_DOMAIN` to the same apex so subdomain login can hide the tenant code field.
 
 ### CORS (`CORS_ALLOWED_ORIGINS`)
 

@@ -29,6 +29,40 @@ func TestRequestHostPrefersForwarded(t *testing.T) {
 	}
 }
 
+func TestOriginHost(t *testing.T) {
+	if got := OriginHost("https://Acme.Example.COM"); got != "acme.example.com" {
+		t.Fatalf("got %q", got)
+	}
+	if got := OriginHost(""); got != "" {
+		t.Fatalf("empty: %q", got)
+	}
+}
+
+func TestPickTenantHostCodePrefersRequestThenOrigin(t *testing.T) {
+	resolve := func(host string) string {
+		switch host {
+		case "acme.example.com":
+			return "acme"
+		case "crm.customer.com":
+			return "acme"
+		default:
+			return ""
+		}
+	}
+	if got := PickTenantHostCode("acme.example.com", "https://other.example.com", resolve); got != "acme" {
+		t.Fatalf("request host: %q", got)
+	}
+	if got := PickTenantHostCode("api.example.com", "https://acme.example.com", resolve); got != "acme" {
+		t.Fatalf("origin subdomain: %q", got)
+	}
+	if got := PickTenantHostCode("api.example.com", "https://crm.customer.com", resolve); got != "acme" {
+		t.Fatalf("origin vanity: %q", got)
+	}
+	if got := PickTenantHostCode("api.example.com", "https://api.example.com", resolve); got != "" {
+		t.Fatalf("same host no tenant: %q", got)
+	}
+}
+
 func TestIsReservedOrPlatformHostWithBase(t *testing.T) {
 	prev := facades.Config().GetString("tenancy.base_domain")
 	t.Cleanup(func() {

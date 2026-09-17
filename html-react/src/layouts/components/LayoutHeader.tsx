@@ -24,7 +24,7 @@ import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import NotificationBell from '@/components/NotificationBell'
 import TimezoneSwitch from '@/components/TimezoneSwitch'
-import { getTenantCode, resolveTenantCodeFromLocation, buildAdminLoginPath } from '@/utils/tenant'
+import { getTenantCode, resolveEffectiveTenantCode, resolveTenantCodeFromLocation, buildAdminLoginPath } from '@/utils/tenant'
 import './LayoutHeader.scss'
 
 const { Header } = Layout
@@ -64,7 +64,7 @@ export default function LayoutHeader({
   const disconnectNotifications = useNotificationStore((s) => s.disconnect)
 
   const tenantLabel = useMemo(() => {
-    const code = String(tenant?.code || getTenantCode() || resolveTenantCodeFromLocation() || '').trim()
+    const code = String(tenant?.code || resolveEffectiveTenantCode() || getTenantCode() || resolveTenantCodeFromLocation() || '').trim()
     const name = String(tenant?.name || '').trim()
     if (!code && !name) return ''
     if (name && code && name.toLowerCase() !== code.toLowerCase()) {

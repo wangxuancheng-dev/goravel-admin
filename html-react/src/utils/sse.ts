@@ -1,5 +1,5 @@
 import Storage from '@/utils/storage'
-import { getTenantCode, resolveTenantCodeFromLocation } from '@/utils/tenant'
+import { resolveEffectiveTenantCode } from '@/utils/tenant'
 
 export interface SSEOptions {
   onMessage?: (data: unknown, event: MessageEvent) => void
@@ -22,7 +22,7 @@ function getBaseURL() {
 
 function resolveSSETenantHint(): string {
   // Match applyTenantHeader: send whenever a tenant hint exists, even if VITE_TENANCY_* is unset.
-  return getTenantCode() || resolveTenantCodeFromLocation()
+  return resolveEffectiveTenantCode()
 }
 
 /** EventSource cannot set headers; pass JWT and tenant via query (matches Tenant middleware ClientHint). */

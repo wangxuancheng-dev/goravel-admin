@@ -23,6 +23,10 @@ import {
   applyTenantHeader,
   buildAdminLoginPath,
   clearTenantCode,
+  isHostBoundTenantContext,
+  isLikelyVanityTenantHost,
+  resolveEffectiveTenantCode,
+  resolveTenantCodeFromHostname,
   resolveTenantCodeFromLocation,
   setTenantCode,
   withTenantQuery,
@@ -46,6 +50,9 @@ describe('tenant helpers', () => {
     vi.stubEnv('VITE_TENANCY_ENABLED', 'true')
     vi.stubEnv('VITE_TENANCY_DRIVER', '')
     vi.stubEnv('VITE_TENANCY_HEADER', '')
+    vi.stubEnv('VITE_TENANCY_BASE_DOMAIN', 'example.com')
+    vi.stubEnv('VITE_TENANCY_SUBDOMAIN_RESERVED', '')
+    vi.stubGlobal('window', { location: { hostname: 'localhost', search: '' } })
   })
 
   it('stores and applies X-Tenant-ID header', () => {
@@ -62,6 +69,29 @@ describe('tenant helpers', () => {
   it('resolves tenant from query string', () => {
     expect(resolveTenantCodeFromLocation('?tenant_code=Beta')).toBe('beta')
     expect(resolveTenantCodeFromLocation('?tenant=Gamma')).toBe('gamma')
+  })
+
+  it('resolves tenant from hostname subdomain', () => {
+    expect(resolveTenantCodeFromHostname('acme.example.com', 'example.com')).toBe('acme')
+    expect(resolveTenantCodeFromHostname('www.example.com', 'example.com')).toBe('')
+    expect(resolveTenantCodeFromHostname('api.example.com', 'example.com')).toBe('')
+    expect(resolveTenantCodeFromHostname('crm.customer.com', 'example.com')).toBe('')
+  })
+
+  it('detects host-bound tenant context', () => {
+    expect(isHostBoundTenantContext('acme.example.com', 'example.com')).toBe(true)
+    expect(isLikelyVanityTenantHost('crm.customer.com', 'example.com')).toBe(true)
+    expect(isHostBoundTenantContext('crm.customer.com', 'example.com')).toBe(true)
+    expect(isHostBoundTenantContext('platform.example.com', 'example.com')).toBe(false)
+    expect(isHostBoundTenantContext('localhost', 'example.com')).toBe(false)
+  })
+
+  it('applies header from hostname when storage empty', () => {
+    vi.stubGlobal('window', { location: { hostname: 'acme.example.com', search: '' } })
+    const headers: Record<string, unknown> = {}
+    applyTenantHeader(headers)
+    expect(headers['X-Tenant-ID']).toBe('acme')
+    expect(resolveEffectiveTenantCode()).toBe('acme')
   })
 
   it('builds admin login path with tenant_code', () => {

@@ -641,7 +641,7 @@ func ExtractTenantHint(ctx http.Context) string {
 }
 
 // BindHTTP 解析租户、注册连接并写入 HTTP context。
-// hint 可空；优先级：active custom Host > subdomain/header ResolveHint。
+// hint 可空；优先级：request Host (vanity > subdomain) > Origin host (split SPA/API) > ResolveHint。
 func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error {
 	if !tenancy.Enabled() {
 		return nil
@@ -653,12 +653,10 @@ func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error 
 	raw := ""
 	var err error
 	if ctx != nil {
-		host := tenancy.RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
-		if code := NewTenantDomainService().ResolveActiveCode(host); code != "" {
-			if clientHint != "" && !strings.EqualFold(clientHint, code) {
-				return apperrors.ErrTenantHintConflict
-			}
-			raw = code
+		reqHost := tenancy.RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
+		raw = tenancy.PickTenantHostCode(reqHost, ctx.Request().Header("Origin", ""), s.tenantCodeFromHost)
+		if raw != "" && clientHint != "" && !strings.EqualFold(clientHint, raw) {
+			return apperrors.ErrTenantHintConflict
 		}
 	}
 	if raw == "" {
@@ -691,6 +689,21 @@ func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error 
 	}
 	helpers.SetTenantContext(ctx, tenant.ID, tenant.ConnectionName, tenant.Code)
 	return nil
+}
+
+// tenantCodeFromHost resolves an active vanity domain, or a built-in subdomain label.
+func (s *TenantConnectionService) tenantCodeFromHost(host string) string {
+	host = tenancy.NormalizeHost(host)
+	if host == "" {
+		return ""
+	}
+	if code := NewTenantDomainService().ResolveActiveCode(host); code != "" {
+		return code
+	}
+	if tenancy.Resolver() == "subdomain" {
+		return tenancy.SubdomainHint(host)
+	}
+	return ""
 }
 
 // BindBackground 供队列任务切换到租户连接

@@ -11,7 +11,9 @@ import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import {
   getTenantCode,
+  isHostBoundTenantContext,
   isTenancyEnabled,
+  resolveTenantCodeFromHostname,
   resolveTenantCodeFromLocation,
   setTenantCode,
 } from '@/utils/tenant'
@@ -34,6 +36,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [needGoogleCode, setNeedGoogleCode] = useState(false)
   const tenancyEnabled = useMemo(() => isTenancyEnabled(), [])
+  const hostBoundTenant = useMemo(() => isHostBoundTenantContext(), [])
+  const showTenantField = tenancyEnabled && !hostBoundTenant
   const [captcha, setCaptcha] = useState<{
     enabled: boolean
     id: string
@@ -120,7 +124,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     const fromQuery = resolveTenantCodeFromLocation()
-    const initialTenant = fromQuery || getTenantCode()
+    const fromHost = resolveTenantCodeFromHostname()
+    const initialTenant = fromQuery || getTenantCode() || fromHost
     if (initialTenant) {
       form.setFieldValue('tenant_code', initialTenant)
       setTenantCode(initialTenant)
@@ -244,7 +249,7 @@ export default function LoginPage() {
             <Typography.Paragraph type="secondary">{t('login.page_description')}</Typography.Paragraph>
 
             <Form form={form} layout="vertical" size="large" onFinish={handleSubmit} requiredMark={false}>
-              {tenancyEnabled && (
+              {showTenantField && (
                 <Form.Item
                   name="tenant_code"
                   rules={[{ required: true, message: t('login.tenant_code_required') }]}

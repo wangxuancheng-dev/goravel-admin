@@ -138,9 +138,9 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 | 自有 CDN+SSL | `ssl_mode=customer_cdn`：CDN 回源，**回源 Host 保持客户域名** |
 | Cloudflare Worker / Pages | `customer_cdn`：同一应用添加 Custom Domain；DNS **只需 TXT** 归属校验。勿橙云 CNAME 到 `TENANCY_DOMAIN_TARGET`（易 522） |
 
-解析优先级：`active` 自定义 Host → 子域 → Header/Query。
+解析优先级：`active` 自定义 Host → Origin Host（拆分 SPA/API 时）→ 子域 → Header/Query。
 
-公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。
+公网启用独立域名时请设置 `TENANCY_BASE_DOMAIN`：子域解析仅认 `{code}.该主域`，避免把 `crm.客户域.com` 误当成租户短码。C 端 `/api/user`、`/api/public/*` 与后台共用 Host 绑定。前端构建请同步 `VITE_TENANCY_BASE_DOMAIN`，以便子域登录页隐藏租户码输入框。
 
 ### CORS（`CORS_ALLOWED_ORIGINS`）
 

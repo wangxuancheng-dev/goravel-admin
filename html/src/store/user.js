@@ -3,7 +3,7 @@ import { compact, map } from 'lodash-es'
 import { getInfo, logout } from '../api/auth'
 import Storage from '../utils/storage'
 import logger from '../utils/logger'
-import { clearTenantCode, getTenantCode, resolveTenantCodeFromLocation, setTenantCode } from '../utils/tenant'
+import { clearTenantCode, getTenantCode, resolveEffectiveTenantCode, resolveTenantCodeFromLocation, setTenantCode } from '../utils/tenant'
 
 export const useUserStore = defineStore('user', {
   state: () => {
@@ -187,7 +187,7 @@ export const useUserStore = defineStore('user', {
       // 如果已经获取过且不是强制刷新，且菜单不为空，直接返回
       if (this.userInfoFetched && !force && this.adminInfo && this.menus.length > 0) {
         if (!this.tenant?.code) {
-          const localCode = getTenantCode() || resolveTenantCodeFromLocation()
+          const localCode = resolveEffectiveTenantCode() || getTenantCode() || resolveTenantCodeFromLocation()
           if (localCode) {
             this.setTenant({
               code: localCode,
@@ -261,7 +261,7 @@ export const useUserStore = defineStore('user', {
         if (res.data && res.data.tenant) {
           this.setTenant(res.data.tenant)
         } else {
-          const localCode = getTenantCode() || resolveTenantCodeFromLocation()
+          const localCode = resolveEffectiveTenantCode() || getTenantCode() || resolveTenantCodeFromLocation()
           if (localCode) {
             this.setTenant({
               code: localCode,

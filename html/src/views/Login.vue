@@ -46,7 +46,7 @@
             :rules="loginRules"
             class="login-form"
           >
-            <el-form-item v-if="tenancyEnabled" prop="tenant_code">
+            <el-form-item v-if="showTenantField" prop="tenant_code">
               <el-input
                 v-model="loginForm.tenant_code"
                 :placeholder="$t('login.tenant_code')"
@@ -151,7 +151,9 @@ import { ERROR_CODES } from '../utils/request'
 import Storage from '../utils/storage'
 import {
   getTenantCode,
+  isHostBoundTenantContext,
   isTenancyEnabled,
+  resolveTenantCodeFromHostname,
   resolveTenantCodeFromLocation,
   setTenantCode
 } from '../utils/tenant'
@@ -164,6 +166,8 @@ const userStore = useUserStore()
 const { t } = useI18n()
 
 const tenancyEnabled = isTenancyEnabled()
+const hostBoundTenant = isHostBoundTenantContext()
+const showTenantField = tenancyEnabled && !hostBoundTenant
 const loginFormRef = ref(null)
 const loading = ref(false)
 
@@ -185,7 +189,7 @@ const captchaInfo = reactive({
 const needGoogleCode = ref(false)
 
 const loginRules = computed(() => ({
-  tenant_code: tenancyEnabled
+  tenant_code: showTenantField
     ? [{ required: true, message: t('login.tenant_code_required'), trigger: 'blur' }]
     : [],
   username: [
@@ -286,7 +290,8 @@ const fetchCaptcha = async () => {
 
 onMounted(() => {
   const fromQuery = resolveTenantCodeFromLocation()
-  const initialTenant = fromQuery || getTenantCode()
+  const fromHost = resolveTenantCodeFromHostname()
+  const initialTenant = fromQuery || getTenantCode() || fromHost
   if (initialTenant) {
     loginForm.tenant_code = initialTenant
     setTenantCode(initialTenant)

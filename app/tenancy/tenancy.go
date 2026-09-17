@@ -108,7 +108,9 @@ func ResolveHint(ctx http.Context, clientHint string) (string, error) {
 
 	sub := ""
 	if Resolver() == "subdomain" && ctx != nil {
-		sub = SubdomainHint(ctx.Request().Host())
+		// Prefer X-Forwarded-Host so reverse proxies that rewrite Host still bind by public hostname.
+		host := RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
+		sub = SubdomainHint(host)
 	}
 	return MergeTenantHints(Resolver(), sub, clientHint, AllowHeaderFallback())
 }

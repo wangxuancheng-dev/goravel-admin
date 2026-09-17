@@ -44,6 +44,28 @@ func RequestHost(hostHeader, forwardedHost string) string {
 	return NormalizeHost(host)
 }
 
+// OriginHost extracts the host from a browser Origin header (https://acme.example.com).
+func OriginHost(origin string) string {
+	return NormalizeHost(origin)
+}
+
+// PickTenantHostCode resolves tenant code from request Host first, then Origin host.
+// Origin is used for split SPA/API (Host=api.* while Origin=acme.* or a vanity domain).
+func PickTenantHostCode(reqHost, origin string, resolve func(string) string) string {
+	if resolve == nil {
+		return ""
+	}
+	reqHost = NormalizeHost(reqHost)
+	if code := resolve(reqHost); code != "" {
+		return code
+	}
+	originHost := OriginHost(origin)
+	if originHost != "" && originHost != reqHost {
+		return resolve(originHost)
+	}
+	return ""
+}
+
 // BaseDomain returns TENANCY_BASE_DOMAIN (normalized).
 func BaseDomain() string {
 	return NormalizeHost(facades.Config().GetString("tenancy.base_domain", ""))

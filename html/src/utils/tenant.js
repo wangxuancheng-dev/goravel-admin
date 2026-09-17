@@ -7,6 +7,8 @@ import Storage from './storage'
 
 const STORAGE_KEY = 'tenant_code'
 
+const DEFAULT_RESERVED = ['www', 'api', 'admin', 'platform', 'static', 'assets']
+
 export function isTenancyEnabled() {
   const enabled = String(import.meta.env.VITE_TENANCY_ENABLED || '').toLowerCase()
   const driver = String(import.meta.env.VITE_TENANCY_DRIVER || '').toLowerCase()
@@ -15,6 +17,22 @@ export function isTenancyEnabled() {
 
 export function getTenantHeaderName() {
   return import.meta.env.VITE_TENANCY_HEADER || 'X-Tenant-ID'
+}
+
+/** Matches backend TENANCY_BASE_DOMAIN (for {code}.base subdomain detection). */
+export function getTenancyBaseDomain() {
+  return String(import.meta.env.VITE_TENANCY_BASE_DOMAIN || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\.+|\.+$/g, '')
+}
+
+function reservedLabels() {
+  const raw = String(import.meta.env.VITE_TENANCY_SUBDOMAIN_RESERVED || '').trim()
+  const list = raw
+    ? raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : DEFAULT_RESERVED
+  return new Set(list)
 }
 
 export function getTenantCode() {
@@ -38,11 +56,15 @@ export function clearTenantCode() {
 /**
  * Admin login path; keep tenant_code on logout/401 so re-login does not lose the hint.
  * Pass an explicit code when calling after clearTenantCode().
+ * On a tenant subdomain, plain /login is enough (Host/Origin bind on the API).
  */
 export function buildAdminLoginPath(code) {
   const raw = code === undefined || code === null ? getTenantCode() : code
   const value = String(raw || '').trim().toLowerCase()
   if (!value) return '/login'
+  if (typeof window !== 'undefined' && resolveTenantCodeFromHostname() === value) {
+    return '/login'
+  }
   return `/login?tenant_code=${encodeURIComponent(value)}`
 }
 
@@ -56,9 +78,71 @@ export function resolveTenantCodeFromLocation(search = window.location.search) {
   }
 }
 
+/**
+ * Built-in tenant subdomain: acme.{VITE_TENANCY_BASE_DOMAIN}.
+ * Vanity hosts are not mapped to a code here (backend uses Origin/Host + tenant_domains).
+ */
+export function resolveTenantCodeFromHostname(
+  hostname = typeof window !== 'undefined' ? window.location.hostname : '',
+  baseDomain = getTenancyBaseDomain(),
+) {
+  const host = String(hostname || '').trim().toLowerCase()
+  const base = String(baseDomain || '').trim().toLowerCase()
+  if (!host || !base) return ''
+  const suffix = `.${base}`
+  if (!host.endsWith(suffix)) return ''
+  const label = host.slice(0, -suffix.length)
+  if (!label || label.includes('.')) return ''
+  if (reservedLabels().has(label)) return ''
+  return label
+}
+
+/** True when the browser host already identifies the tenant (subdomain or vanity). */
+export function isHostBoundTenantContext(
+  hostname = typeof window !== 'undefined' ? window.location.hostname : '',
+  baseDomain = getTenancyBaseDomain(),
+) {
+  if (resolveTenantCodeFromHostname(hostname, baseDomain)) return true
+  return isLikelyVanityTenantHost(hostname, baseDomain)
+}
+
+/**
+ * Host outside TENANCY_BASE_DOMAIN (or nested under it) that is not a platform reserved name.
+ * Requires VITE_TENANCY_BASE_DOMAIN so we do not treat localhost/dev hosts as vanity.
+ */
+export function isLikelyVanityTenantHost(
+  hostname = typeof window !== 'undefined' ? window.location.hostname : '',
+  baseDomain = getTenancyBaseDomain(),
+) {
+  const host = String(hostname || '').trim().toLowerCase()
+  const base = String(baseDomain || '').trim().toLowerCase()
+  if (!host || !base) return false
+  if (host === 'localhost' || host === '127.0.0.1') return false
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false
+  if (host === base) return false
+  for (const label of reservedLabels()) {
+    if (host === `${label}.${base}`) return false
+  }
+  if (host.endsWith(`.${base}`)) {
+    const label = host.slice(0, -(base.length + 1))
+    // Single-label under base is built-in subdomain space (handled elsewhere), not vanity.
+    return label.includes('.')
+  }
+  return host.includes('.')
+}
+
+/** Storage > query > hostname subdomain. */
+export function resolveEffectiveTenantCode() {
+  return (
+    getTenantCode() ||
+    resolveTenantCodeFromLocation() ||
+    resolveTenantCodeFromHostname()
+  )
+}
+
 export function applyTenantHeader(headers) {
   if (!headers) return
-  const code = getTenantCode()
+  const code = resolveEffectiveTenantCode()
   if (!code) return
   headers[getTenantHeaderName()] = code
 }
@@ -72,7 +156,7 @@ const ATTACHMENT_PUBLIC_HINT = /\/api\/admin\/public\/images\/|\/api\/public\/fi
 export function withTenantQuery(url) {
   const value = String(url || '').trim()
   if (!value) return value
-  const code = getTenantCode()
+  const code = resolveEffectiveTenantCode()
   if (!code) return value
   if (!ATTACHMENT_PUBLIC_HINT.test(value)) return value
   try {
@@ -97,7 +181,7 @@ export function getTenantAdminLoginUrl() {
   const fromEnv = String(import.meta.env.VITE_TENANT_DEMO_LOGIN_URL || '').trim()
   if (fromEnv) return fromEnv
   if (typeof window !== 'undefined' && window.location.hostname === 'admin.xuancheng888.top') {
-    return 'https://acme.xuancheng888.top/login?tenant_code=acme'
+    return 'https://acme.xuancheng888.top/login'
   }
   return '/login'
 }

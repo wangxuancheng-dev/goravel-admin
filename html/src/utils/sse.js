@@ -4,14 +4,14 @@
  */
 
 import Storage from './storage'
-import { getTenantCode, resolveTenantCodeFromLocation } from './tenant'
+import { resolveEffectiveTenantCode } from './tenant'
 
 /**
  * Match applyTenantHeader: send whenever a tenant hint exists, even if VITE_TENANCY_* is unset.
  * @returns {string}
  */
 function resolveSSETenantHint() {
-  return getTenantCode() || resolveTenantCodeFromLocation()
+  return resolveEffectiveTenantCode()
 }
 
 /**

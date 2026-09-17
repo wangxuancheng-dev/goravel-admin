@@ -4,7 +4,7 @@ import { getInfo, logout as logoutApi } from '@/api/auth'
 import Storage from '@/utils/storage'
 import logger from '@/utils/logger'
 import type { AdminInfo, CurrentTenantInfo, FeatureConfig, MenuNode } from '@/types'
-import { clearTenantCode, getTenantCode, resolveTenantCodeFromLocation, setTenantCode } from '@/utils/tenant'
+import { clearTenantCode, getTenantCode, resolveEffectiveTenantCode, resolveTenantCodeFromLocation, setTenantCode } from '@/utils/tenant'
 
 const defaultConfig: FeatureConfig = {
   showButtonsWithoutPermission: false,
@@ -210,7 +210,7 @@ export const useUserStore = create<UserState>((set, get) => {
 
       if (state.userInfoFetched && !force && state.adminInfo && state.menus.length > 0) {
         if (!state.tenant?.code) {
-          const localCode = getTenantCode() || resolveTenantCodeFromLocation()
+          const localCode = resolveEffectiveTenantCode() || getTenantCode() || resolveTenantCodeFromLocation()
           if (localCode) {
             get().setTenant({ code: localCode, ...(state.tenant?.name ? { name: state.tenant.name } : {}) })
           }
@@ -270,7 +270,7 @@ export const useUserStore = create<UserState>((set, get) => {
         if (tenantPayload) {
           get().setTenant(tenantPayload)
         } else {
-          const localCode = getTenantCode() || resolveTenantCodeFromLocation()
+          const localCode = resolveEffectiveTenantCode() || getTenantCode() || resolveTenantCodeFromLocation()
           if (localCode) {
             const existingTenant = get().tenant
             get().setTenant({
