@@ -7,7 +7,7 @@ import { useAppStore } from '../store/app'
 import i18n from '../i18n'
 import logger from './logger'
 import Storage from './storage'
-import { applyTenantHeader } from './tenant'
+import { applyTenantHeader, buildAdminLoginPath } from './tenant'
 import { isAuthEndpointUrl } from './authEndpoint'
 
 const { t } = i18n.global
@@ -108,6 +108,7 @@ const handle401Error = (message) => {
   isRedirecting = true
   const userStore = useUserStore()
   const tabsStore = useTabsStore()
+  const loginPath = buildAdminLoginPath()
   
   userStore.logout(true)
   tabsStore.removeAllTabs()
@@ -115,8 +116,8 @@ const handle401Error = (message) => {
   const currentPath = router.currentRoute.value.path
   if (currentPath !== '/login') {
     ElMessage.error(message || t('error.unauthorized'))
-    router.replace('/login').catch(() => {
-      window.location.href = '/login'
+    router.replace(loginPath).catch(() => {
+      window.location.href = loginPath
     })
   }
   

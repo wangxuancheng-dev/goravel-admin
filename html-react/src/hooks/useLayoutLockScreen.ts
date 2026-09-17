@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useUserStore } from '@/stores/user'
 import { useTabsStore } from '@/stores/tabs'
+import { buildAdminLoginPath } from '@/utils/tenant'
 
 export function useLayoutLockScreen() {
   const navigate = useNavigate()
@@ -71,6 +72,7 @@ export function useLayoutLockScreen() {
   }
 
   const goToLogin = async () => {
+    const loginPath = buildAdminLoginPath()
     try {
       await logout()
     } finally {
@@ -82,7 +84,7 @@ export function useLayoutLockScreen() {
       setPendingLockPassword('')
       setLockDialogError('')
       setLockDialogVisible(false)
-      navigate('/login')
+      navigate(loginPath)
     }
   }
 

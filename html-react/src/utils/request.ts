@@ -10,7 +10,7 @@ import { ERROR_CODES } from '@/types'
 import type { ApiError, ApiResponse } from '@/types'
 import { http } from './http'
 import type { RequestConfig } from './http'
-import { applyTenantHeader } from './tenant'
+import { applyTenantHeader, buildAdminLoginPath } from './tenant'
 import { isAuthEndpointUrl } from './authEndpoint'
 
 let isRedirecting = false
@@ -50,17 +50,19 @@ function handle401Error(msg?: string) {
   if (isRedirecting) return
   isRedirecting = true
 
+  const loginPath = buildAdminLoginPath()
   useUserStore.getState().logout(true)
   useTabsStore.getState().removeAllTabs()
 
   if (getCurrentPath() !== '/login') {
     antdMessage.error(msg || i18n.t('error.unauthorized'))
-    navigateTo('/login', { replace: true })
+    navigateTo(loginPath, { replace: true })
     // Hard fallback: AppRouter rebuilds when menus clear; soft navigate can no-op.
     setTimeout(() => {
       if (getCurrentPath() !== '/login') {
         const base = import.meta.env.BASE_URL || '/'
-        window.location.replace(new URL('login', `${window.location.origin}${base}`).href)
+        const rel = loginPath.replace(/^\//, '')
+        window.location.replace(new URL(rel, `${window.location.origin}${base}`).href)
       }
     }, 50)
   }

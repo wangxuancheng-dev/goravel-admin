@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/store/user'
 import { useTabsStore } from '@/store/tabs'
+import { buildAdminLoginPath } from '@/utils/tenant'
 
 export function useLayoutLockScreen() {
   const router = useRouter()
@@ -65,6 +66,7 @@ export function useLayoutLockScreen() {
   }
 
   const goToLogin = async () => {
+    const loginPath = buildAdminLoginPath()
     try {
       await userStore.logout()
     } finally {
@@ -76,7 +78,7 @@ export function useLayoutLockScreen() {
       pendingLockPassword.value = ''
       lockDialogError.value = ''
       lockDialogVisible.value = false
-      router.push('/login')
+      router.push(loginPath)
     }
   }
 

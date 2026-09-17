@@ -4,6 +4,7 @@ import { useUserStore } from '../store/user'
 import logger from '../utils/logger'
 import { flattenTree } from '../utils/tree'
 import { getPlatformToken } from '../utils/platformRequest'
+import { buildAdminLoginPath } from '../utils/tenant'
 
 /**
  * 带重试和错误处理的动态导入包装函数
@@ -483,7 +484,7 @@ router.beforeEach((to, from, next) => {
       if (dynamicRoutesAdded) {
         dynamicRoutesAdded = false
       }
-      next('/login')
+      next(buildAdminLoginPath())
     } else {
       // 优化：只在首次加载（从登录页或刷新页面）时才阻塞导航
       // 如果用户信息已获取过，允许导航继续，菜单可以在后台异步加载

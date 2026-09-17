@@ -27,6 +27,7 @@ import PlatformTenantListPage from '../pages/platform/TenantList'
 import PlatformTenantOpLogListPage from '../pages/platform/TenantOpLogList'
 import PlatformOverviewPage from '../pages/platform/Overview'
 import { getPlatformToken } from '@/utils/platformRequest'
+import { buildAdminLoginPath } from '@/utils/tenant'
 
 function PageFallback({ fullscreen = false }: { fullscreen?: boolean }) {
   return (
@@ -57,7 +58,7 @@ function AuthGuard() {
   const mustChange = useUserStore((s) => !!s.adminInfo?.must_change_password)
 
   if (!token) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+    return <Navigate to={buildAdminLoginPath()} replace state={{ from: location.pathname }} />
   }
 
   if (mustChange && location.pathname !== '/profile') {

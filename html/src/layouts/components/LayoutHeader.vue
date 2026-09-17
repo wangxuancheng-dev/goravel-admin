@@ -323,7 +323,7 @@ import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
 import BreadcrumbView from '@/components/BreadcrumbView.vue'
 import MenuSearch from '@/components/MenuSearch.vue'
 import { useLayoutAccount } from '@/composables/useLayoutAccount'
-import { getTenantCode, resolveTenantCodeFromLocation } from '@/utils/tenant'
+import { getTenantCode, resolveTenantCodeFromLocation, buildAdminLoginPath } from '@/utils/tenant'
 
 const props = defineProps({
   isMobile: { type: Boolean, default: false },
@@ -374,9 +374,10 @@ const handleCommand = async (command) => {
         cancelButtonText: t('common.cancel'),
         type: 'warning'
       })
+      const loginPath = buildAdminLoginPath()
       await userStore.logout()
       tabsStore.removeAllTabs()
-      router.push('/login')
+      router.push(loginPath)
     } catch {
       // cancelled
     }

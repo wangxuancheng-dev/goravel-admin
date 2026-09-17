@@ -35,6 +35,17 @@ export function clearTenantCode() {
   Storage.removeItem(STORAGE_KEY)
 }
 
+/**
+ * Admin login path; keep tenant_code on logout/401 so re-login does not lose the hint.
+ * Pass an explicit code when calling after clearTenantCode().
+ */
+export function buildAdminLoginPath(code) {
+  const raw = code === undefined || code === null ? getTenantCode() : code
+  const value = String(raw || '').trim().toLowerCase()
+  if (!value) return '/login'
+  return `/login?tenant_code=${encodeURIComponent(value)}`
+}
+
 /** Prefer ?tenant_code= / ?tenant= over stored value. */
 export function resolveTenantCodeFromLocation(search = window.location.search) {
   try {

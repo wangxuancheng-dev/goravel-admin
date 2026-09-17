@@ -24,7 +24,7 @@ import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import NotificationBell from '@/components/NotificationBell'
 import TimezoneSwitch from '@/components/TimezoneSwitch'
-import { getTenantCode, resolveTenantCodeFromLocation } from '@/utils/tenant'
+import { getTenantCode, resolveTenantCodeFromLocation, buildAdminLoginPath } from '@/utils/tenant'
 import './LayoutHeader.scss'
 
 const { Header } = Layout
@@ -88,8 +88,9 @@ export default function LayoutHeader({
       onClick: async () => {
         disconnectNotifications()
         removeAllTabs()
+        const loginPath = buildAdminLoginPath()
         await logout()
-        navigate('/login', { replace: true })
+        navigate(loginPath, { replace: true })
       },
     },
   ]

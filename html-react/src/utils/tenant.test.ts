@@ -21,6 +21,7 @@ vi.mock('./storage', () => {
 import Storage from './storage'
 import {
   applyTenantHeader,
+  buildAdminLoginPath,
   clearTenantCode,
   resolveTenantCodeFromLocation,
   setTenantCode,
@@ -61,6 +62,15 @@ describe('tenant helpers', () => {
   it('resolves tenant from query string', () => {
     expect(resolveTenantCodeFromLocation('?tenant_code=Beta')).toBe('beta')
     expect(resolveTenantCodeFromLocation('?tenant=Gamma')).toBe('gamma')
+  })
+
+  it('builds admin login path with tenant_code', () => {
+    expect(buildAdminLoginPath()).toBe('/login')
+    expect(buildAdminLoginPath('Acme')).toBe('/login?tenant_code=acme')
+    setTenantCode('demo')
+    expect(buildAdminLoginPath()).toBe('/login?tenant_code=demo')
+    clearTenantCode()
+    expect(buildAdminLoginPath('kept')).toBe('/login?tenant_code=kept')
   })
 
   it('appends tenant_code to public attachment URLs', () => {
