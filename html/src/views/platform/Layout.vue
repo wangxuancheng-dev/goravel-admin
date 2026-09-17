@@ -15,6 +15,8 @@
           <el-menu-item index="/platform/overview">{{ $t('menu.platform_overview') }}</el-menu-item>
           <el-menu-item index="/platform/tenants">{{ $t('menu.tenant') }}</el-menu-item>
           <el-menu-item index="/platform/tenant-op-logs">{{ $t('menu.tenant_op_log') }}</el-menu-item>
+          <el-menu-item index="/platform/login-logs">{{ $t('menu.login_log') }}</el-menu-item>
+          <el-menu-item index="/platform/operation-logs">{{ $t('menu.operation_log') }}</el-menu-item>
         </el-menu>
       </aside>
       <main class="platform-main">

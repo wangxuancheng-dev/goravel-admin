@@ -351,6 +351,10 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | DELETE | /api/platform/tenants/{id}/force | 永久删除回收站记录（confirm_code；释放 code） |
 | GET | `/api/platform/tenants/{id}/overview` | 库概览（表数、体积、管理员数等） |
 | GET | `/api/platform/tenant-op-logs` | 全平台运维执行记录（筛选 code/op/status/batch_id/operator） |
+| GET | `/api/platform/login-logs` | Platform login logs (landlord) |
+| GET | `/api/platform/login-logs/{id}` | Platform login log detail |
+| GET | `/api/platform/operation-logs` | Platform operation logs (landlord) |
+| GET | `/api/platform/operation-logs/{id}` | Platform operation log detail |
 | GET | `/api/platform/tenants/{id}/op-logs` | 运维时间线 |
 | GET | `/api/platform/tenants/{id}/login-links` | 租户后台登录方式 |
 | GET | `/api/platform/tenants/settings` | 控制台可见配置（`backup_keep`、队列） |

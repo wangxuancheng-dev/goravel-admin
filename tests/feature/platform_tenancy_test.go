@@ -204,6 +204,87 @@ func TestPlatformCreateRejectsSyncMigrate(t *testing.T) {
 	assert.Contains(t, content, "tenant_migrate_via_cli")
 }
 
+func TestPlatformLoginLogAndOperationLog(t *testing.T) {
+	withTenancyDriver(t, "database")
+	token := loginPlatformSmoke(t)
+	testCase := tests.TestCase{}
+
+	loginListResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		Get("/api/platform/login-logs?username=" + platformSmokeUser)
+	require.NoError(t, err)
+	loginListResp.AssertOk()
+	loginBody, err := loginListResp.Content()
+	require.NoError(t, err)
+	assert.Contains(t, loginBody, platformSmokeUser)
+	assert.Contains(t, loginBody, "login_success")
+
+	// wrong password -> failed login log
+	captchaResp, err := testCase.Http(t).Get("/api/platform/login/captcha")
+	require.NoError(t, err)
+	captchaResp.AssertOk()
+	captchaContent, err := captchaResp.Content()
+	require.NoError(t, err)
+	var captchaPayload struct {
+		Data struct {
+			Captcha struct {
+				CaptchaID string `json:"captcha_id"`
+			} `json:"captcha"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(captchaContent), &captchaPayload))
+	captchaID := captchaPayload.Data.Captcha.CaptchaID
+	answer := services.PeekCaptchaAnswer(captchaID)
+	require.NotEmpty(t, answer)
+	failBody := fmt.Sprintf(
+		`{"username":%q,"password":"wrong-password","captcha_id":%q,"captcha_answer":%q}`,
+		platformSmokeUser, captchaID, answer,
+	)
+	failResp, err := testCase.Http(t).
+		WithHeader("Content-Type", "application/json").
+		Post("/api/platform/login", strings.NewReader(failBody))
+	require.NoError(t, err)
+	failContent, err := failResp.Content()
+	require.NoError(t, err)
+	assert.Contains(t, failContent, "username_or_password_error")
+
+	failListResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		Get("/api/platform/login-logs?username=" + platformSmokeUser + "&status=0")
+	require.NoError(t, err)
+	failListResp.AssertOk()
+	failListBody, err := failListResp.Content()
+	require.NoError(t, err)
+	assert.Contains(t, failListBody, "password_error")
+
+	// write op -> operation log
+	pwdBody := fmt.Sprintf(
+		`{"old_password":%q,"new_password":%q,"confirm_password":%q}`,
+		platformSmokePass,
+		platformSmokePass+"Y",
+		platformSmokePass+"Y",
+	)
+	pwdResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		WithHeader("Content-Type", "application/json").
+		Put("/api/platform/password", strings.NewReader(pwdBody))
+	require.NoError(t, err)
+	pwdResp.AssertOk()
+	_, err = services.UpsertPlatformAdmin(platformSmokeUser, platformSmokePass, "Smoke Platform", "owner")
+	require.NoError(t, err)
+
+	opListResp, err := testCase.Http(t).
+		WithHeader("Authorization", "Bearer "+token).
+		Get("/api/platform/operation-logs?path=/api/platform/password")
+	require.NoError(t, err)
+	opListResp.AssertOk()
+	opBody, err := opListResp.Content()
+	require.NoError(t, err)
+	assert.Contains(t, opBody, "platform.password.update")
+	assert.Contains(t, opBody, platformSmokeUser)
+	assert.Contains(t, opBody, "***")
+}
+
 func TestTenancyCacheAndSearchIndexIsolation(t *testing.T) {
 	withTenancyDriver(t, "database")
 

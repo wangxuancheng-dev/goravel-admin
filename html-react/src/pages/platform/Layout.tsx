@@ -92,6 +92,16 @@ export default function PlatformLayout() {
                 label: t('menu.tenant_op_log'),
                 onClick: () => navigate('/platform/tenant-op-logs'),
               },
+              {
+                key: '/platform/login-logs',
+                label: t('menu.login_log'),
+                onClick: () => navigate('/platform/login-logs'),
+              },
+              {
+                key: '/platform/operation-logs',
+                label: t('menu.operation_log'),
+                onClick: () => navigate('/platform/operation-logs'),
+              },
             ]}
           />
         </Sider>

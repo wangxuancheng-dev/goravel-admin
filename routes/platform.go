@@ -16,6 +16,7 @@ func Platform() {
 	tenantController := platform.NewTenantController()
 	healthController := platform.NewHealthController()
 	passwordController := platform.NewPasswordController()
+	auditController := platform.NewAuditController()
 
 	facades.Route().Prefix("api/platform").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy()).Group(func(router route.Router) {
@@ -25,13 +26,18 @@ func Platform() {
 			router.Get("public/tls-allow", tenantController.TLSAllow)
 		})
 
-		router.Middleware(middleware.Lang(), middleware.RequireTenancy(), middleware.PlatformJwt()).Group(func(router route.Router) {
+		router.Middleware(middleware.Lang(), middleware.RequireTenancy(), middleware.PlatformJwt(), middleware.PlatformOperationLog()).Group(func(router route.Router) {
 			// Readable by owner + viewer
 			router.Get("info", authController.Info)
 			router.Post("logout", authController.Logout)
 			router.Get("health", healthController.Index)
 			router.Get("ops/overview", tenantController.OpsOverview)
 			router.Put("password", passwordController.Update)
+
+			router.Get("login-logs", auditController.LoginLogs)
+			router.Get("login-logs/{id}", auditController.LoginLogShow)
+			router.Get("operation-logs", auditController.OperationLogs)
+			router.Get("operation-logs/{id}", auditController.OperationLogShow)
 
 			router.Get("tenants", tenantController.Index)
 			router.Get("tenants/ops-summary", tenantController.OpsSummary)

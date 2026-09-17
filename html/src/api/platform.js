@@ -116,6 +116,24 @@ export async function getPlatformTenantOpLogList(params) {
   return normalizeListResponse(res)
 }
 
+export async function getPlatformLoginLogList(params) {
+  const res = await platformRequest.get('/login-logs', { params })
+  return normalizeListResponse(res)
+}
+
+export function getPlatformLoginLogDetail(id) {
+  return platformRequest.get(`/login-logs/${id}`)
+}
+
+export async function getPlatformOperationLogList(params) {
+  const res = await platformRequest.get('/operation-logs', { params })
+  return normalizeListResponse(res)
+}
+
+export function getPlatformOperationLogDetail(id) {
+  return platformRequest.get(`/operation-logs/${id}`)
+}
+
 export function getPlatformTenantLoginLinks(id) {
   return platformRequest.get(`/tenants/${id}/login-links`)
 }

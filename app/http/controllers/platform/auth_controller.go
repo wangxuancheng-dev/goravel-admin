@@ -54,7 +54,8 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 	}
 	var body platformLoginBody
 	_ = ctx.Request().Bind(&body)
-	if strings.TrimSpace(body.Username) == "" || body.Password == "" {
+	username := strings.TrimSpace(body.Username)
+	if username == "" || body.Password == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
 	}
 
@@ -62,17 +63,21 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		if messageKey == "" {
 			messageKey = "captcha_invalid"
 		}
+		services.RecordPlatformLoginLog(ctx, 0, username, 0, messageKey)
 		return response.Error(ctx, http.StatusBadRequest, messageKey)
 	}
 
 	var adminUser models.PlatformAdmin
-	if err := appfacades.PlatformOrmQuery(ctx).Where("username", strings.TrimSpace(body.Username)).First(&adminUser); err != nil {
+	if err := appfacades.PlatformOrmQuery(ctx).Where("username", username).First(&adminUser); err != nil {
+		services.RecordPlatformLoginLog(ctx, 0, username, 0, "username_not_found")
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
 	}
 	if adminUser.Status != models.PlatformAdminStatusActive {
+		services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "account_disabled")
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrAccountDisabled.Code)
 	}
 	if !facades.Hash().Check(body.Password, adminUser.Password) {
+		services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "password_error")
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
 	}
 
@@ -97,6 +102,8 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		return admin.HandleGeneratedServiceError(ctx, "platform_auth", http.StatusInternalServerError, err, nil)
 	}
 
+	services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 1, "login_success")
+
 	return response.Success(ctx, map[string]any{
 		"token": plainToken,
 		"admin": services.PlatformAdminToJSON(&adminUser),
@@ -116,6 +123,9 @@ func (c *AuthController) Info(ctx http.Context) http.Response {
 
 // Logout deletes the current platform token.
 func (c *AuthController) Logout(ctx http.Context) http.Response {
+	if adminUser, ok := ctx.Value("platform_admin").(models.PlatformAdmin); ok && adminUser.ID > 0 {
+		services.RecordPlatformLoginLog(ctx, adminUser.ID, adminUser.Username, 1, "logout_success")
+	}
 	token := ctx.Request().Header("Authorization", "")
 	token = str.Of(token).ChopStart("Bearer ").Trim().String()
 	if token != "" {

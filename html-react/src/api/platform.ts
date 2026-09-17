@@ -145,6 +145,22 @@ export async function getPlatformTenantOpLogList(params?: Record<string, unknown
   return normalizeListResponse(await platformRequest.get('/tenant-op-logs', { params }))
 }
 
+export async function getPlatformLoginLogList(params?: Record<string, unknown>) {
+  return normalizeListResponse(await platformRequest.get('/login-logs', { params }))
+}
+
+export function getPlatformLoginLogDetail(id: string | number) {
+  return platformRequest.get(`/login-logs/${id}`)
+}
+
+export async function getPlatformOperationLogList(params?: Record<string, unknown>) {
+  return normalizeListResponse(await platformRequest.get('/operation-logs', { params }))
+}
+
+export function getPlatformOperationLogDetail(id: string | number) {
+  return platformRequest.get(`/operation-logs/${id}`)
+}
+
 export function getPlatformTenantLoginLinks(id: string | number) {
   return platformRequest.get(`/tenants/${id}/login-links`)
 }

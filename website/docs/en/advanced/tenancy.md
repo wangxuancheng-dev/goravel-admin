@@ -355,6 +355,10 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | DELETE | /api/platform/tenants/{id}/force | Hard-delete recycle-bin row (confirm_code; frees code) |
 | GET | `/api/platform/tenants/{id}/overview` | DB snapshot stats |
 | GET | `/api/platform/tenant-op-logs` | Platform-wide ops execution logs (filter code/op/status/batch_id/operator) |
+| GET | `/api/platform/login-logs` | Platform login logs (landlord) |
+| GET | `/api/platform/login-logs/{id}` | Platform login log detail |
+| GET | `/api/platform/operation-logs` | Platform operation logs (landlord) |
+| GET | `/api/platform/operation-logs/{id}` | Platform operation log detail |
 | GET | `/api/platform/tenants/{id}/op-logs` | Ops timeline |
 | GET | `/api/platform/tenants/{id}/login-links` | How to open tenant admin |
 | GET | `/api/platform/tenants/settings` | Console settings (`backup_keep`, queue) |
