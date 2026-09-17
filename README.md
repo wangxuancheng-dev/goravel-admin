@@ -1,36 +1,56 @@
-<p align="center"><img src="https://www.goravel.dev/logo.png?v=1.14.x" width="300"></p>
+<p align="center">
+  <img src="https://www.goravel.dev/logo.png?v=1.14.x" width="200" alt="Goravel">
+</p>
 
-English | [中文](./README_zh.md)
+<h1 align="center">Goravel Admin</h1>
 
-## About Goravel
+<p align="center">
+  <b>Open-box admin starter</b> — Golang Goravel · Vue 3 / React · RBAC · Code generator · Multi-tenant · Docker in 3 minutes
+</p>
 
-Goravel is a web application framework with complete functions and good scalability. As a starting scaffolding to help Gopher quickly build their own applications.
+<p align="center">
+  <a href="https://github.com/wangxuancheng-dev/goravel-admin/stargazers"><img src="https://img.shields.io/github/stars/wangxuancheng-dev/goravel-admin?style=flat-square" alt="Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/wangxuancheng-dev/goravel-admin?style=flat-square" alt="License"></a>
+  <a href="https://docs.xuancheng888.top/en/"><img src="https://img.shields.io/badge/docs-online-blue?style=flat-square" alt="Docs"></a>
+  <a href="https://acme.xuancheng888.top/login?tenant_code=acme"><img src="https://img.shields.io/badge/demo-live-brightgreen?style=flat-square" alt="Demo"></a>
+</p>
 
-The framework style is consistent with [Laravel](https://github.com/laravel/laravel), let Phper don't need to learn a new framework, but also happy to play around Golang! Tribute Laravel!
+<p align="center">
+  English | <a href="./README_zh.md">中文</a>
+  &nbsp;·&nbsp;
+  <a href="https://docs.xuancheng888.top/en/">Docs</a>
+  ·
+  <a href="https://acme.xuancheng888.top/login?tenant_code=acme">Tenant demo</a>
+  ·
+  <a href="https://admin.xuancheng888.top/platform/login">Platform ops</a>
+  <br>
+  Demo login: <code>demo</code> / <code>demo123</code>
+</p>
 
-Welcome to star, PR and issues！
+### Why this repo
 
-## Admin System
+- **Dual frontend** — Vue 3 + Element Plus or React + Ant Design 6, same `/api/admin`
+- **Batteries included** — JWT / RBAC, menus, logs, export, WebSocket notices, code generator, AI Lab
+- **Optional SaaS path** — database-per-tenant + platform console (`TENANCY_DRIVER=database`)
 
-This project includes a complete admin management system built with Goravel framework.
+**Good fit:** internal admin panels, ops backends, Goravel secondary development.  
+**Not a drop-in:** financial trading cores or large commercial SaaS without extra ops. Module tiers: [Open-source scope](https://docs.xuancheng888.top/en/guide/opensource).
+
+### Three-minute Docker
 
 ```bash
 git clone https://github.com/wangxuancheng-dev/goravel-admin.git
+cd goravel-admin
+cp .env.docker.example .env
+docker compose up -d --build
+# http://localhost:3000  —  admin / admin123 (change ASAP)
 ```
 
-> Docs: https://docs.xuancheng888.top/  
-> Tenant demo: https://acme.xuancheng888.top/login?tenant_code=acme  
-> Platform ops: https://admin.xuancheng888.top/platform/login
+UI dev (optional): Vite Vue `html/` → `:3007`, React `html-react/` → `:3008`, API at `http://127.0.0.1:3000`.
 
-username / password (both): demo / demo123
-
-### Intended Use
-
-**Good fit:** internal admin panels, ops backends, Goravel + Vue / React starter for secondary development.
-
-**Not a drop-in fit:** financial trading cores or large-scale commercial SaaS platforms out of the box. Sharding / Elasticsearch / multi-queue drivers are **optional** and need extra ops.
-
-See module tiers and production configs: [Open-source scope](https://docs.xuancheng888.top/en/guide/opensource). Local docs preview: `cd website && npm run dev`.
+<p align="center">
+  <img src="./images/admin.png" alt="Admin Dashboard" width="800">
+</p>
 
 ### Screenshots
 
@@ -42,11 +62,6 @@ See module tiers and production configs: [Open-source scope](https://docs.xuanch
 <p align="center">
   <img src="./images/login.png" alt="Login Page" width="800">
   <p align="center">Login Page</p>
-</p>
-
-<p align="center">
-  <img src="./images/admin.png" alt="Admin Dashboard" width="800">
-  <p align="center">Admin Dashboard</p>
 </p>
 
 <p align="center">
@@ -74,10 +89,9 @@ See module tiers and production configs: [Open-source scope](https://docs.xuanch
   <p align="center">AI Lab (text, vision, image, audio; demo-ready with per-admin rate limits)</p>
 </p>
 
-
 <p align="center">
-  <img src="./images/pages.png" alt="cloudflare" width="800">
-  <p align="center">cloudflare</p>
+  <img src="./images/pages.png" alt="Cloudflare" width="800">
+  <p align="center">Cloudflare deploy</p>
 </p>
 
 ### Features
@@ -146,17 +160,6 @@ Enable only when needed (see [opensource](./website/docs/guide/opensource.md)):
 | Shared | Vite, Axios, ECharts, same Admin API | Vite, Axios, ECharts, same Admin API |
 
 Both frontends talk to `/api/admin` and **must ship new admin features together**. React covers the main modules (including code generator and AI Lab). Details: [html-react/README.md](./html-react/README.md).
-
-### Three-minute Docker (recommended)
-
-```bash
-cp .env.docker.example .env
-docker compose up -d --build
-# When healthy: http://localhost:3000
-# Default login: admin / admin123 (change ASAP)
-```
-
-For UI development, run Vite separately (Vue `html/` → `:3007`, React `html-react/` → `:3008`) against `http://127.0.0.1:3000`.
 
 ### Quick Start (local Go + your own database)
 
@@ -416,6 +419,10 @@ cd website && npm install && npm run dev
 | [Frontend Guide (React)](./html-react/README.md) | React frontend |
 
 > Root `docs/` now only holds Swagger artifacts (`docs.go` / `swagger.json` / `swagger.yaml`), not project guides.
+
+## About Goravel
+
+Built on [Goravel](https://github.com/goravel/goravel) — a Laravel-style Go web framework. See [https://www.goravel.dev](https://www.goravel.dev) for framework docs.
 
 ### Goravel Framework
 

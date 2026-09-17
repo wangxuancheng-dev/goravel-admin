@@ -1,36 +1,56 @@
-<p align="center"><img src="https://www.goravel.dev/logo.png?v=1.14.x" width="300"></p>
+<p align="center">
+  <img src="https://www.goravel.dev/logo.png?v=1.14.x" width="200" alt="Goravel">
+</p>
 
-[English](./README.md) | 中文
+<h1 align="center">Goravel Admin</h1>
 
-## 关于 Goravel 
+<p align="center">
+  <b>开箱可跑的后台管理系统</b> — Golang Goravel · Vue 3 / React · RBAC · 代码生成 · 多租户 · Docker 三分钟
+</p>
 
-Goravel 是一个功能完整、可扩展性良好的 Web 应用框架。作为起始脚手架，帮助 Gopher 快速构建自己的应用程序。
+<p align="center">
+  <a href="https://github.com/wangxuancheng-dev/goravel-admin/stargazers"><img src="https://img.shields.io/github/stars/wangxuancheng-dev/goravel-admin?style=flat-square" alt="Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/wangxuancheng-dev/goravel-admin?style=flat-square" alt="License"></a>
+  <a href="https://docs.xuancheng888.top/"><img src="https://img.shields.io/badge/docs-online-blue?style=flat-square" alt="Docs"></a>
+  <a href="https://acme.xuancheng888.top/login?tenant_code=acme"><img src="https://img.shields.io/badge/demo-live-brightgreen?style=flat-square" alt="Demo"></a>
+</p>
 
-框架风格与 [Laravel](https://github.com/laravel/laravel) 保持一致，让 Phper 无需学习新框架，也能愉快地使用 Golang！致敬 Laravel！
+<p align="center">
+  <a href="./README.md">English</a> | 中文
+  &nbsp;·&nbsp;
+  <a href="https://docs.xuancheng888.top/">文档</a>
+  ·
+  <a href="https://acme.xuancheng888.top/login?tenant_code=acme">租户演示</a>
+  ·
+  <a href="https://admin.xuancheng888.top/platform/login">平台运维</a>
+  <br>
+  演示账号：<code>demo</code> / <code>demo123</code>
+</p>
 
-欢迎 Star、PR 和 Issues！
+### 为什么选这个仓库
 
-## 后台管理系统
+- **双前端** — Vue 3 + Element Plus 或 React + Ant Design 6，共用同一套 `/api/admin`
+- **开箱能力** — JWT / RBAC、菜单、日志、导出、WebSocket 通知、代码生成器、AI 实验室
+- **可选 SaaS** — 一户一库多租户 + 平台控制台（`TENANCY_DRIVER=database`）
 
-本项目包含一个基于 Goravel 框架构建的完整后台管理系统。
+**适合：** 企业内部后台、运营管理端、Goravel 二次开发底座。  
+**不适合：** 金融交易核心，或未做运维就直接当超大规模商业 SaaS。模块分层见：[开源定位](https://docs.xuancheng888.top/guide/opensource)。
+
+### 三分钟 Docker
 
 ```bash
 git clone https://github.com/wangxuancheng-dev/goravel-admin.git
+cd goravel-admin
+cp .env.docker.example .env
+docker compose up -d --build
+# http://localhost:3000  —  admin / admin123（请尽快修改）
 ```
 
-> 文档：https://docs.xuancheng888.top/  
-> 租户后台：https://acme.xuancheng888.top/login?tenant_code=acme
-> 租户运维：https://admin.xuancheng888.top/platform/login
+前端本地开发（可选）：Vite Vue `html/` → `:3007`，React `html-react/` → `:3008`，API 指向 `http://127.0.0.1:3000`。
 
-账号/密码（两处相同）: demo / demo123
-
-### 适用场景
-
-**适合：** 企业内部后台、运营管理端、Goravel + Vue / React 二次开发底座。
-
-**不适合：** 直接当金融交易核心、超大规模商业 SaaS 中台；分表 / ES / 多队列需额外运维，请按需开启。
-
-模块分层、最小生产配置与进阶配置说明见：[开源定位与模块](https://docs.xuancheng888.top/guide/opensource)。本地预览文档：`cd website && npm run dev`。
+<p align="center">
+  <img src="./images/admin.png" alt="后台管理界面" width="800">
+</p>
 
 ### 截图展示
 
@@ -42,11 +62,6 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 <p align="center">
   <img src="./images/login.png" alt="登录页面" width="800">
   <p align="center">登录页面</p>
-</p>
-
-<p align="center">
-  <img src="./images/admin.png" alt="后台管理界面" width="800">
-  <p align="center">后台管理界面</p>
 </p>
 
 <p align="center">
@@ -75,11 +90,12 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 </p>
 
 <p align="center">
-  <img src="./images/pages.png" alt="cloudflare" width="800">
-  <p align="center">cloudflare</p>
+  <img src="./images/pages.png" alt="Cloudflare" width="800">
+  <p align="center">Cloudflare 部署</p>
 </p>
 
 ### 功能特性
+
 
 #### 核心模块
 - **认证与授权**
@@ -145,17 +161,6 @@ git clone https://github.com/wangxuancheng-dev/goravel-admin.git
 | 共用 | Vite、Axios、ECharts，同一套 Admin API | Vite、Axios、ECharts，同一套 Admin API |
 
 两套前端都对接 `/api/admin`，**新功能需 Vue + React 同发**。React 已覆盖主要管理模块（含代码生成器、AI 实验室等）。详情见 [html-react/README.md](./html-react/README.md)。
-
-### 三分钟 Docker 跑通（推荐）
-
-```bash
-cp .env.docker.example .env
-docker compose up -d --build
-# 等待健康检查通过后访问 http://localhost:3000
-# 默认账号 admin / admin123（请尽快修改）
-```
-
-前端本地开发仍用 Vite（Vue `html/` → `:3007`，React `html-react/` → `:3008`），API 指向 `http://127.0.0.1:3000`。
 
 ### 快速开始（本机 Go + 自备数据库）
 
@@ -412,6 +417,10 @@ cd website && npm install && npm run dev
 | [前端说明（React）](./html-react/README.md) | React 前端 |
 
 > 根目录 `docs/` 仅保留 Swagger 产物（`docs.go` / `swagger.json` / `swagger.yaml`），项目说明文档不在此维护。
+
+## 关于 Goravel
+
+基于 [Goravel](https://github.com/goravel/goravel)（Laravel 风格的 Go Web 框架）构建。框架文档见 [https://www.goravel.dev](https://www.goravel.dev)。
 
 ### Goravel 框架文档
 
