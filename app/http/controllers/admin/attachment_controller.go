@@ -48,11 +48,14 @@ func (r *AttachmentController) Index(ctx http.Context) http.Response {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, nil)
 	}
 
+	writeDisk := utils.ResolveFileDisk(ctx)
 	return response.Success(ctx, http.Json{
-		"list":      attachmentService.AttachmentListToJSON(attachments),
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
+		"list":                   attachmentService.AttachmentListToJSON(attachments),
+		"total":                  total,
+		"page":                   page,
+		"page_size":              pageSize,
+		"write_disk":             writeDisk,
+		"chunk_upload_supported": utils.IsLocalFilesystemDisk(writeDisk),
 	})
 }
 

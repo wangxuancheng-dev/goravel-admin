@@ -137,7 +137,7 @@ func OwnedExportStatusResponse(ctx http.Context) http.Response {
 		if exportRecord.Disk == "local" || exportRecord.Disk == "public" {
 			fileURL = fmt.Sprintf("/api/admin/exports/%d/download", exportRecord.ID)
 		} else {
-			fileURL = services.NewExportService(ctx).GetExportURL(exportRecord.Path)
+			fileURL = services.NewExportServiceForJob(ctx, exportRecord.Disk).GetExportURL(exportRecord.Path)
 		}
 	}
 

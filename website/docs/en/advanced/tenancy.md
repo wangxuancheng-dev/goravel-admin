@@ -246,7 +246,9 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 ## Object storage and quotas
 
-- **Shared disk**: one `FILESYSTEM_DISK` for the whole platform; paths are isolated with `tenants/{code}/`. Tenant admin **cannot** change `file_disk` (save rejected); export format remains editable.
+- **Default shared disk**: one platform `FILESYSTEM_DISK`; paths isolated with `tenants/{code}/`. Tenant admin **cannot** change `file_disk` (save rejected); export format remains editable.
+- **Optional BYOB (platform)**: set tenant `storage_mode=custom` with s3/oss/cos/minio credentials (secret sealed with `APP_KEY`). New uploads use disk `tenant_byob_{id}`; attachments store that disk name.
+- **Switching**: shared ↔ custom only changes **new** writes. Old objects remain on the disk recorded in `attachments.disk`. Keep BYOB credentials after switching back to shared so historical custom files stay readable. Purge cleans platform prefix and, if credentials exist, the BYOB prefix too.
 - **Delete tenant**: soft-delete into recycle bin; `drop_database` drops DB/schema only; **object storage is not purged here**.
 - **Recycle / force delete**: `GET /tenants?trashed=only`; `POST .../undelete`; `POST .../purge` optional retry; `DELETE .../force` defaults to async purge objects+backups then hard-delete (frees `code`). Retention `TENANCY_DELETED_RETENTION_DAYS`; schedule `tenant:cleanup-deleted`.
 - **Storage limit** `storage_limit_bytes` (0=unlimited): enforced from `SUM(attachments.size)` before upload.

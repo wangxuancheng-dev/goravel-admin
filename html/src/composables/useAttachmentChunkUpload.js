@@ -13,8 +13,9 @@ import { ATTACHMENT_CHUNK_SIZE, ATTACHMENT_LARGE_FILE_THRESHOLD } from '@/views/
 
 /**
  * Chunked/large file upload dialog state and handlers.
+ * @param {{ onUploaded?: Function, chunkUploadSupported?: import('vue').Ref<boolean> }} options
  */
-export function useAttachmentChunkUpload({ onUploaded }) {
+export function useAttachmentChunkUpload({ onUploaded, chunkUploadSupported }) {
   const { t } = useI18n()
 
   const chunkUploadVisible = ref(false)
@@ -28,7 +29,13 @@ export function useAttachmentChunkUpload({ onUploaded }) {
   const CHUNK_SIZE = ATTACHMENT_CHUNK_SIZE
   const LARGE_FILE_THRESHOLD = ATTACHMENT_LARGE_FILE_THRESHOLD
 
+  const isChunkSupported = () => chunkUploadSupported?.value !== false
+
   const handleLargeFileUpload = () => {
+    if (!isChunkSupported()) {
+      ElMessage.warning(t('attachment.chunk_upload_only_local_storage'))
+      return
+    }
     const input = document.createElement('input')
     input.type = 'file'
     input.onchange = (e) => {
@@ -47,6 +54,10 @@ export function useAttachmentChunkUpload({ onUploaded }) {
       return false
     }
     if (file.size > LARGE_FILE_THRESHOLD) {
+      if (!isChunkSupported()) {
+        ElMessage.warning(t('attachment.chunk_upload_only_local_storage'))
+        return false
+      }
       handleChunkUpload(file, false)
       return false
     }

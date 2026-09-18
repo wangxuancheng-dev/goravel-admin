@@ -242,10 +242,13 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 ## 对象存储与配额
 
-- **共用 disk**：S3/OSS/本地等仍是全站一份 `FILESYSTEM_DISK`；路径用 `tenants/{code}/` 前缀隔离。租户后台**不可**改 `file_disk`（保存会被拒绝），仅可改导出格式。
+- **默认共用盘**：全站一份 `FILESYSTEM_DISK`；路径用 `tenants/{code}/` 前缀隔离。租户后台**不可**改 `file_disk`（保存会被拒绝），仅可改导出格式。
+- **可选自有桶（平台配置）**：租户 `storage_mode=custom` 时可填 s3/oss/cos/minio 凭证（密钥用 `APP_KEY` 加密）。新上传写入磁盘名 `tenant_byob_{id}`，并由附件记录该 disk。
+- **切换**：shared ↔ custom **只影响新上传**。旧文件仍按 `attachments.disk` 读取。切回共享后请保留自有桶密钥，否则历史自定义文件可能无法访问。永久清理会删平台前缀，若仍有凭证也会清理自有桶前缀。
 - **删除租户**：平台元数据**软删**入回收站；drop_database 仅 DROP 库/Schema；**此时不清理对象存储**。
-- **回收站 / 永久删除**：GET /tenants?trashed=only；POST .../undelete 恢复；POST .../purge 可单独重试清理；DELETE .../force 默认异步清理对象+备份后再硬删并释放 code。保留 TENANCY_DELETED_RETENTION_DAYS；定时 	enant:cleanup-deleted。
+- **回收站 / 永久删除**：GET /tenants?trashed=only；POST .../undelete 恢复；POST .../purge 可单独重试清理；DELETE .../force 默认异步清理对象+备份后再硬删并释放 code。保留 TENANCY_DELETED_RETENTION_DAYS；定时 tenant:cleanup-deleted。
 - **存储限额** `storage_limit_bytes`（0=不限）：按租户库 `attachments.size` 汇总，上传前校验。
+
 
 ## 运维增强
 

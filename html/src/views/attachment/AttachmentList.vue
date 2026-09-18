@@ -56,6 +56,7 @@
           {{ $t('attachment.crop_upload') }}
         </el-button>
         <el-button
+          v-if="chunkUploadSupported"
           type="success"
           :disabled="getButtonState('attachment.chunk').disabled"
           @click="handleLargeFileUpload"
@@ -560,6 +561,8 @@ const {
   handleImageError
 } = useAttachmentImagePreview()
 
+const chunkUploadSupported = ref(true)
+
 const {
   pagination,
   tableData,
@@ -579,7 +582,10 @@ const {
   normalizeRows: false,
   transformData: transformAttachmentRow,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),
-  onLoadSuccess: () => {
+  onLoadSuccess: (res) => {
+    if (typeof res?.data?.chunk_upload_supported === 'boolean') {
+      chunkUploadSupported.value = res.data.chunk_upload_supported
+    }
     tableData.value.forEach((row) => {
       if (row.file_type === 'image' || row.file_type === 'video') {
         nextTick(() => loadImageAsBlob(row))
@@ -617,7 +623,7 @@ const {
   handleCancelChunkUpload,
   handleChunkUploadClose,
   handleRetryChunkUpload
-} = useAttachmentChunkUpload({ onUploaded: loadData })
+} = useAttachmentChunkUpload({ onUploaded: loadData, chunkUploadSupported })
 
 const handleUploadSuccess = () => {
   ElMessage.success(t('attachment.upload_success'))

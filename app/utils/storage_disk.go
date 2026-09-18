@@ -11,13 +11,17 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/tenancy"
+	"goravel/app/tenantstorage"
 )
 
-// ResolveFileDisk returns the active filesystem disk name.
-// When TENANCY_DRIVER=database, tenants share the platform default (FILESYSTEM_DISK / filesystems.default);
-// per-tenant configs.file_disk is ignored so purge/quota stay consistent.
+// ResolveFileDisk returns the active filesystem disk name for new writes.
+// Multi-tenant: optional per-tenant BYOB (storage_mode=custom); otherwise platform default.
+// Single-tenant: admin configs.file_disk (then storage_disk / export_disk / filesystems.default).
 func ResolveFileDisk(ctx context.Context) string {
 	if tenancy.Enabled() {
+		if byob := tenantstorage.ResolveWriteDisk(ctx); byob != "" {
+			return byob
+		}
 		disk := strings.TrimSpace(facades.Config().GetString("filesystems.default", ""))
 		if disk != "" {
 			return disk
@@ -43,6 +47,20 @@ func ResolveFileDisk(ctx context.Context) string {
 // ValidateFilesystemDisk 检查云存储磁盘的必填配置是否已写入 .env / config。
 // 未配置时返回业务错误，避免 Storage().Disk() 内部 panic。
 func ValidateFilesystemDisk(disk string) error {
+	if tenantstorage.IsByobDisk(disk) {
+		id, ok := tenantstorage.ParseTenantIDFromDisk(disk)
+		if !ok {
+			return storageDiskNotConfigured(disk)
+		}
+		t, err := tenantstorage.LoadTenant(id, true)
+		if err != nil {
+			return err
+		}
+		if !tenantstorage.CredentialsReady(t) {
+			return apperrors.ErrTenantStorageNotConfigured.WithParams(map[string]any{"disk": disk})
+		}
+		return nil
+	}
 	switch disk {
 	case "", "local", "public":
 		return nil
@@ -77,9 +95,13 @@ func storageDiskNotConfigured(disk string) *apperrors.BusinessError {
 }
 
 // StorageDisk 安全获取磁盘驱动：先校验配置，再用 NewDriver，避免 Disk() panic。
+// tenant_byob_{id} disks are registered from platform tenant credentials.
 func StorageDisk(disk string) (filesystem.Driver, error) {
 	if disk == "" {
 		disk = facades.Config().GetString("filesystems.default", "local")
+	}
+	if tenantstorage.IsByobDisk(disk) {
+		return tenantstorage.OpenDisk(disk)
 	}
 	if err := ValidateFilesystemDisk(disk); err != nil {
 		return nil, err
@@ -89,4 +111,10 @@ func StorageDisk(disk string) (filesystem.Driver, error) {
 		return nil, storageDiskNotConfigured(disk).WithError(err)
 	}
 	return driver, nil
+}
+
+// IsLocalFilesystemDisk reports disks that support local chunk merge paths.
+func IsLocalFilesystemDisk(disk string) bool {
+	disk = strings.TrimSpace(disk)
+	return disk == "local" || disk == "public"
 }

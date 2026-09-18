@@ -100,6 +100,17 @@ interface TenantRow {
   deleted_at?: string
   trashed?: boolean
   storage_limit_bytes?: number
+  storage_mode?: string
+  storage_driver?: string
+  storage_key?: string
+  storage_has_secret?: boolean
+  storage_region?: string
+  storage_bucket?: string
+  storage_url?: string
+  storage_endpoint?: string
+  storage_use_path_style?: boolean
+  storage_ssl?: boolean
+  storage_credentials_ok?: boolean
   domain_status?: string
   domain_primary_host?: string
   health_status?: string
@@ -239,6 +250,7 @@ export default function PlatformTenantList() {
   const [editing, setEditing] = useState<TenantRow | null>(null)
   const [migrateTarget, setMigrateTarget] = useState<TenantRow | null>(null)
   const [passwordTouched, setPasswordTouched] = useState(false)
+  const [storageSecretTouched, setStorageSecretTouched] = useState(false)
   const [withSeed, setWithSeed] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
@@ -1301,7 +1313,18 @@ export default function PlatformTenantList() {
                       database: row.database,
                       schema: row.schema,
                       storage_limit_mb: bytesToMb(row.storage_limit_bytes),
+                      storage_mode: row.storage_mode === 'custom' ? 'custom' : 'shared',
+                      storage_driver: row.storage_driver || 's3',
+                      storage_key: row.storage_key || '',
+                      storage_secret: '',
+                      storage_region: row.storage_region || '',
+                      storage_bucket: row.storage_bucket || '',
+                      storage_url: row.storage_url || '',
+                      storage_endpoint: row.storage_endpoint || '',
+                      storage_use_path_style: !!row.storage_use_path_style,
+                      storage_ssl: row.storage_ssl !== false,
                     })
+                    setStorageSecretTouched(false)
                   }}
                 >
                   {t('common.edit')}
@@ -1424,8 +1447,18 @@ export default function PlatformTenantList() {
         database: values.database,
         schema: values.schema,
         storage_limit_bytes: mbToBytes(values.storage_limit_mb),
+        storage_mode: values.storage_mode || 'shared',
+        storage_driver: values.storage_driver || '',
+        storage_key: values.storage_key || '',
+        storage_region: values.storage_region || '',
+        storage_bucket: values.storage_bucket || '',
+        storage_url: values.storage_url || '',
+        storage_endpoint: values.storage_endpoint || '',
+        storage_use_path_style: !!values.storage_use_path_style,
+        storage_ssl: values.storage_ssl !== false,
       }
       if (passwordTouched && values.password) payload.password = values.password
+      if (storageSecretTouched && values.storage_secret) payload.storage_secret = values.storage_secret
       await updatePlatformTenant(editing.id, payload)
       message.success(t('common.update_success'))
       setEditing(null)
@@ -1820,6 +1853,16 @@ export default function PlatformTenantList() {
                 <Descriptions.Item label={t('tenant.storage_used')}>
                   {formatQuota(detailQuota?.storage_used_bytes, detailQuota?.storage_limit_bytes)}
                 </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.storage_mode')}>
+                  {detailRow?.storage_mode === 'custom'
+                    ? t('tenant.storage_mode_custom')
+                    : t('tenant.storage_mode_shared')}
+                </Descriptions.Item>
+                {detailRow?.storage_mode === 'custom' ? (
+                  <Descriptions.Item label={t('tenant.storage_bucket')}>
+                    {detailRow.storage_bucket || '—'}
+                  </Descriptions.Item>
+                ) : null}
                 <Descriptions.Item label={t('tenant.ping_detail')}>
                   {detailOverview.ping_ok
                     ? `${detailOverview.ping_ms ?? 0} ms`
@@ -2530,6 +2573,74 @@ export default function PlatformTenantList() {
             extra={t('tenant.quota_zero_unlimited')}
           >
             <InputNumber min={0} max={1048576} style={{ width: '100%' }} />
+          </Form.Item>
+          <Divider>{t('tenant.storage_byob_section')}</Divider>
+          <Form.Item
+            name="storage_mode"
+            label={t('tenant.storage_mode')}
+            extra={t('tenant.storage_mode_tip')}
+            initialValue="shared"
+          >
+            <Select
+              options={[
+                { value: 'shared', label: t('tenant.storage_mode_shared') },
+                { value: 'custom', label: t('tenant.storage_mode_custom') },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.storage_mode !== cur.storage_mode || prev.storage_driver !== cur.storage_driver}>
+            {() =>
+              form.getFieldValue('storage_mode') === 'custom' ? (
+                <>
+                  <Form.Item name="storage_driver" label={t('tenant.storage_driver')} initialValue="s3">
+                    <Select
+                      options={[
+                        { value: 's3', label: 'S3' },
+                        { value: 'oss', label: 'OSS' },
+                        { value: 'cos', label: 'COS' },
+                        { value: 'minio', label: 'MinIO' },
+                      ]}
+                    />
+                  </Form.Item>
+                  <Form.Item name="storage_bucket" label={t('tenant.storage_bucket')}>
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="storage_key" label={t('tenant.storage_key')}>
+                    <Input autoComplete="off" />
+                  </Form.Item>
+                  <Form.Item name="storage_secret" label={t('tenant.storage_secret')}>
+                    <Input.Password
+                      autoComplete="new-password"
+                      onChange={() => setStorageSecretTouched(true)}
+                      placeholder={
+                        editing?.storage_has_secret
+                          ? t('tenant.storage_secret_keep')
+                          : t('tenant.storage_secret_placeholder')
+                      }
+                    />
+                  </Form.Item>
+                  <Form.Item name="storage_region" label={t('tenant.storage_region')}>
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="storage_endpoint" label={t('tenant.storage_endpoint')}>
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="storage_url" label={t('tenant.storage_url')}>
+                    <Input />
+                  </Form.Item>
+                  {form.getFieldValue('storage_driver') === 's3' ? (
+                    <Form.Item name="storage_use_path_style" label={t('tenant.storage_use_path_style')} valuePropName="checked">
+                      <Switch />
+                    </Form.Item>
+                  ) : null}
+                  {form.getFieldValue('storage_driver') === 'minio' ? (
+                    <Form.Item name="storage_ssl" label={t('tenant.storage_ssl')} valuePropName="checked">
+                      <Switch />
+                    </Form.Item>
+                  ) : null}
+                </>
+              ) : null
+            }
           </Form.Item>
         </Form>
       </Modal>

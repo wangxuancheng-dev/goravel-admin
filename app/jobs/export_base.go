@@ -291,8 +291,12 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 		exportFormat = "csv"
 	}
 
-	// 生成文件名和路径
-	exportService := services.NewExportService(nil)
+	diskHint := ""
+	var exportMeta models.Export
+	if err := appfacades.OrmQuery(ctx).Where("id", args.ExportID).First(&exportMeta); err == nil {
+		diskHint = strings.TrimSpace(exportMeta.Disk)
+	}
+	exportService := services.NewExportServiceForJob(ctx, diskHint)
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("%s_%d_%s.%s", e.config.FilePrefix, args.ExportID, timestamp, exportFormat)
 	filePath := path.Join("exports", filename)

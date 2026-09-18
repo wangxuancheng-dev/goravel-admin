@@ -81,6 +81,7 @@ func All() []schema.Migration {
 		&M20260916140000AddTenantHealthMeta{},
 		&M20260917220000CreatePlatformLoginLogsTable{},
 		&M20260917220001CreatePlatformOperationLogsTable{},
+		&M20260918180000AddTenantByobStorage{},
 	}
 }
 

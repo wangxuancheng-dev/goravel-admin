@@ -265,8 +265,5 @@ func (s *ExportRecordServiceImpl) exportFileURL(export *models.Export) string {
 	if export.Disk == "local" || export.Disk == "public" {
 		return fmt.Sprintf("/api/admin/exports/%d/download", export.ID)
 	}
-	if httpCtx, ok := s.ctx.(http.Context); ok {
-		return NewExportService(httpCtx).GetExportURL(export.Path)
-	}
-	return ""
+	return NewExportServiceForJob(s.ctx, export.Disk).GetExportURL(export.Path)
 }

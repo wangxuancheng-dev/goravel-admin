@@ -31,6 +31,7 @@ import (
 	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/tenancyctx"
+	"goravel/app/tenantstorage"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
@@ -75,23 +76,45 @@ type ExportService interface {
 
 type ExportServiceImpl struct {
 	ctx    http.Context
+	reqCtx context.Context
 	disk   string
 	path   string
 	format string
 }
 
 func NewExportService(ctx http.Context) ExportService {
-	disk := utils.ResolveFileDisk(ctx)
+	var reqCtx context.Context = ctx
+	if ctx == nil {
+		reqCtx = context.Background()
+	}
+	return newExportService(reqCtx, ctx, utils.ResolveFileDisk(reqCtx))
+}
 
-	// 文件路径默认使用 exports，不再从配置读取
+// NewExportServiceForJob builds an export service for queue workers (tenant-bound context.Context).
+// Prefer diskHint from the exports row created at enqueue time so BYOB switches mid-job stay consistent.
+func NewExportServiceForJob(ctx context.Context, diskHint string) ExportService {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	disk := strings.TrimSpace(diskHint)
+	if disk == "" {
+		disk = utils.ResolveFileDisk(ctx)
+	}
+	return newExportService(ctx, nil, disk)
+}
+
+func newExportService(reqCtx context.Context, httpCtx http.Context, disk string) ExportService {
+	if reqCtx == nil {
+		reqCtx = context.Background()
+	}
 	path := "exports"
-	format := strings.ToLower(strings.TrimSpace(utils.GetConfigValue(ctx, "storage", "export_format", "csv")))
+	format := strings.ToLower(strings.TrimSpace(utils.GetConfigValue(reqCtx, "storage", "export_format", "csv")))
 	if format != "xlsx" && format != "csv" {
 		format = "csv"
 	}
-
 	return &ExportServiceImpl{
-		ctx:    ctx,
+		ctx:    httpCtx,
+		reqCtx: reqCtx,
 		disk:   disk,
 		path:   path,
 		format: format,
@@ -101,10 +124,7 @@ func NewExportService(ctx http.Context) ExportService {
 // exportRelPath builds a storage-relative path under exports/, with tenant prefix when bound.
 func (s *ExportServiceImpl) exportRelPath(filename string) string {
 	filePath := path.Join(s.path, filename)
-	if s.ctx == nil {
-		return filePath
-	}
-	if p := helpers.TenantStoragePrefix(s.ctx); p != "" {
+	if p := helpers.TenantStoragePrefix(s.reqCtx); p != "" {
 		return path.Join(strings.TrimSuffix(p, "/"), filePath)
 	}
 	return filePath
@@ -112,10 +132,7 @@ func (s *ExportServiceImpl) exportRelPath(filename string) string {
 
 // persistCtx keeps tenant ORM routing after the HTTP request ends.
 func (s *ExportServiceImpl) persistCtx(timeout time.Duration) (context.Context, context.CancelFunc) {
-	base := context.Background()
-	if s.ctx != nil {
-		base = tenancyctx.Detach(s.ctx)
-	}
+	base := tenancyctx.Detach(s.reqCtx)
 	return context.WithTimeout(base, timeout)
 }
 
@@ -579,7 +596,11 @@ func (s *ExportServiceImpl) recordExportLogWithContext(ctx context.Context, file
 
 func (s *ExportServiceImpl) uploadLocalFileToCloudDisk(localFilePath string, destPath string) error {
 	destPath = strings.TrimPrefix(destPath, "/")
-	switch s.disk {
+	// Ensure BYOB disks are registered before reading filesystems.disks.* credentials.
+	if _, err := utils.StorageDisk(s.disk); err != nil {
+		return err
+	}
+	switch s.cloudDriverKind() {
 	case "s3":
 		return s.uploadToS3(localFilePath, destPath)
 	case "minio":
@@ -591,6 +612,27 @@ func (s *ExportServiceImpl) uploadLocalFileToCloudDisk(localFilePath string, des
 	default:
 		return fmt.Errorf("unsupported cloud disk for stream export: %s", s.disk)
 	}
+}
+
+// cloudDriverKind returns s3|oss|cos|minio for platform disks and tenant BYOB disks.
+func (s *ExportServiceImpl) cloudDriverKind() string {
+	disk := strings.TrimSpace(s.disk)
+	switch disk {
+	case "s3", "oss", "cos", "minio":
+		return disk
+	}
+	if tenantstorage.IsByobDisk(disk) {
+		id, ok := tenantstorage.ParseTenantIDFromDisk(disk)
+		if !ok {
+			return ""
+		}
+		t, err := tenantstorage.LoadTenant(id, true)
+		if err != nil {
+			return ""
+		}
+		return tenantstorage.NormalizeDriver(t.StorageDriver)
+	}
+	return ""
 }
 
 func (s *ExportServiceImpl) uploadToS3(localFilePath, key string) error {
@@ -728,35 +770,31 @@ func (s *ExportServiceImpl) ExportToFile(headers []string, data [][]string, file
 }
 
 func (s *ExportServiceImpl) GetExportURL(filePath string) string {
-	// 根据不同的存储类型从配置读取 URL
-	var configURL string
-	switch s.disk {
-	case "s3":
-		configURL = utils.GetConfigValue(s.ctx, "storage", "s3_url", "")
-	case "oss":
-		configURL = utils.GetConfigValue(s.ctx, "storage", "oss_url", "")
-	case "cos":
-		configURL = utils.GetConfigValue(s.ctx, "storage", "cos_url", "")
-	case "qiniu":
-		configURL = utils.GetConfigValue(s.ctx, "storage", "qiniu_domain", "")
-	case "minio":
-		configURL = utils.GetConfigValue(s.ctx, "storage", "minio_url", "")
-	}
-
-	if configURL != "" {
-		// 确保 URL 以 / 结尾，然后拼接文件路径
-		if !strings.HasSuffix(configURL, "/") {
-			configURL += "/"
+	// Platform cloud disks may use admin-configured public base URL.
+	// BYOB disks must not reuse platform s3_url/oss_url — use TemporaryUrl instead.
+	if !tenantstorage.IsByobDisk(s.disk) {
+		var configURL string
+		switch s.cloudDriverKind() {
+		case "s3":
+			configURL = utils.GetConfigValue(s.reqCtx, "storage", "s3_url", "")
+		case "oss":
+			configURL = utils.GetConfigValue(s.reqCtx, "storage", "oss_url", "")
+		case "cos":
+			configURL = utils.GetConfigValue(s.reqCtx, "storage", "cos_url", "")
+		case "qiniu":
+			configURL = utils.GetConfigValue(s.reqCtx, "storage", "qiniu_domain", "")
+		case "minio":
+			configURL = utils.GetConfigValue(s.reqCtx, "storage", "minio_url", "")
 		}
-		return configURL + filePath
+		if configURL != "" {
+			if !strings.HasSuffix(configURL, "/") {
+				configURL += "/"
+			}
+			return configURL + filePath
+		}
 	}
 
-	// 对于 local 和 public 存储，使用下载接口而不是直接文件路径
-	// 这样可以避免被前端路由拦截
 	if s.disk == "local" || s.disk == "public" {
-		// 返回下载接口 URL，需要从 context 中获取导出记录 ID
-		// 但这里没有 ID，所以需要修改调用方式
-		// 暂时返回一个占位符，实际 URL 在 ExportController.Index 中生成
 		return ""
 	}
 

@@ -10,6 +10,9 @@ import (
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
+	appfacades "goravel/app/facades"
+	"goravel/app/models"
+	"goravel/app/tenantstorage"
 	"goravel/app/utils"
 )
 
@@ -24,21 +27,38 @@ func TenantObjectStoragePrefix(code string) (string, error) {
 	return "tenants/" + code, nil
 }
 
-// PurgeTenantObjectStorage deletes tenants/{code}/ on the default filesystem disk (best-effort recursive).
+func purgePrefixOnDisk(disk, prefix string) error {
+	storage, err := utils.StorageDisk(disk)
+	if err != nil {
+		return err
+	}
+	if err := storage.DeleteDirectory(prefix); err != nil {
+		if storage.Exists(prefix) {
+			return apperrors.ErrDeleteFileFailed.WithError(fmt.Errorf("purge object storage %s on %s: %w", prefix, disk, err))
+		}
+	}
+	return nil
+}
+
+// PurgeTenantObjectStorage deletes tenants/{code}/ on the platform default disk and,
+// when BYOB credentials exist, on the tenant custom disk as well (covers mode switches).
 func PurgeTenantObjectStorage(code string) error {
 	prefix, err := TenantObjectStoragePrefix(code)
 	if err != nil {
 		return err
 	}
 	disk := facades.Config().GetString("filesystems.default", "local")
-	storage, err := utils.StorageDisk(disk)
-	if err != nil {
+	if err := purgePrefixOnDisk(disk, prefix); err != nil {
 		return err
 	}
-	if err := storage.DeleteDirectory(prefix); err != nil {
-		// Some drivers error when the directory is already missing; treat missing as success.
-		if storage.Exists(prefix) {
-			return apperrors.ErrDeleteFileFailed.WithError(fmt.Errorf("purge object storage %s: %w", prefix, err))
+
+	var tenant models.Tenant
+	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("code", code).First(&tenant); err == nil && tenant.ID > 0 {
+		if tenantstorage.CredentialsReady(&tenant) {
+			byob := tenantstorage.DiskName(tenant.ID)
+			if err := purgePrefixOnDisk(byob, prefix); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

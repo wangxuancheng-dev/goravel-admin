@@ -157,12 +157,9 @@ func parseAttachmentIsPublicInput(raw string, fileType string) uint8 {
 // InitChunkUpload 初始化分片上传
 // 注意：分片信息由客户端缓存，服务端只生成 chunkID
 func (s *AttachmentServiceImpl) InitChunkUpload(filename string, totalSize int64, chunkSize int64, totalChunks int) (string, error) {
-	// 检查存储驱动：大文件分片上传仅支持本地存储
-	cloudStorageDrivers := []string{"s3", "oss", "cos", "minio", "qiniu"}
-	for _, driver := range cloudStorageDrivers {
-		if s.disk == driver {
-			return "", apperrors.ErrChunkUploadOnlyLocalStorage.WithMessage(fmt.Sprintf("大文件分片上传仅支持本地存储，当前存储驱动为: %s", driver))
-		}
+	// Chunk merge uses local filesystem paths; cloud / BYOB disks are not supported.
+	if !utils.IsLocalFilesystemDisk(s.disk) {
+		return "", apperrors.ErrChunkUploadOnlyLocalStorage.WithMessage(fmt.Sprintf("大文件分片上传仅支持本地存储，当前存储驱动为: %s", s.disk))
 	}
 
 	// 生成唯一的分片ID

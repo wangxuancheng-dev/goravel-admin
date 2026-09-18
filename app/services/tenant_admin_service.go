@@ -12,6 +12,7 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/tenantstorage"
 )
 
 // TenantAdminFilters platform tenants list filters.
@@ -64,6 +65,16 @@ type TenantCreateInput struct {
 	Migrate           bool
 	SkipCreate        bool // remote DB already exists: skip CREATE DATABASE/SCHEMA
 	StorageLimitBytes *int64
+	StorageMode       string
+	StorageDriver     string
+	StorageKey        string
+	StorageSecret     string
+	StorageRegion     string
+	StorageBucket     string
+	StorageURL        string
+	StorageEndpoint   string
+	StorageUsePathStyle *bool
+	StorageSSL        *bool
 }
 
 // TenantUpdateInput updates connection metadata for an existing tenant.
@@ -76,6 +87,17 @@ type TenantUpdateInput struct {
 	Database          *string
 	Schema            *string
 	StorageLimitBytes *int64
+	StorageMode       *string
+	StorageDriver     *string
+	StorageKey        *string
+	StorageSecret     *string
+	StorageRegion     *string
+	StorageBucket     *string
+	StorageURL        *string
+	StorageEndpoint   *string
+	StorageUsePathStyle *bool
+	StorageSSL        *bool
+	ClearStorageSecret  *bool
 }
 
 type TenantAdminService struct {
@@ -295,6 +317,9 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	if input.StorageLimitBytes != nil && *input.StorageLimitBytes > 0 {
 		tenant.StorageLimitBytes = *input.StorageLimitBytes
 	}
+	if err := applyTenantStorageOnCreate(&tenant, input); err != nil {
+		return nil, err
+	}
 	if err := appfacades.PlatformOrmQuery(nil).Create(&tenant); err != nil {
 		return nil, err
 	}
@@ -440,6 +465,9 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 		updates["storage_limit_bytes"] = limit
 		tenant.StorageLimitBytes = limit
 	}
+	if err := mergeTenantStorageUpdates(tenant, input, updates); err != nil {
+		return nil, err
+	}
 	if len(updates) == 0 {
 		return tenant, nil
 	}
@@ -461,6 +489,7 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 		return nil, err
 	}
 	s.conn.Forget(tenant.ConnectionName)
+	tenantstorage.Invalidate(tenant.ID)
 	return tenant, nil
 }
 
@@ -634,7 +663,7 @@ func TenantToJSONWithDomain(t *models.Tenant, domain TenantDomainListMeta) map[s
 	if domain.Status == "" {
 		domain.Status = TenantDomainStatusUnbound
 	}
-	return map[string]any{
+	out := map[string]any{
 		"id":                       t.ID,
 		"code":                     t.Code,
 		"name":                     t.Name,
@@ -677,6 +706,10 @@ func TenantToJSONWithDomain(t *models.Tenant, domain TenantDomainListMeta) map[s
 		"created_at":               t.CreatedAt,
 		"updated_at":               t.UpdatedAt,
 	}
+	for k, v := range tenantstorage.PublicJSON(t) {
+		out[k] = v
+	}
+	return out
 }
 
 // TenantsToJSONList enriches rows with domain meta in one query.

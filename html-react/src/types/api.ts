@@ -14,6 +14,10 @@ export interface PaginatedData<T = unknown> {
   total: number
   page?: number
   page_size?: number
+  /** Effective write disk for current tenant/request (attachments Index). */
+  write_disk?: string
+  /** Whether large-file chunk upload is available (local/public only). */
+  chunk_upload_supported?: boolean
 }
 
 /**

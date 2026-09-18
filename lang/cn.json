@@ -374,5 +374,8 @@
     "tenant_domain_not_found": "自定义域名不存在",
     "tenant_domain_verify_failed": "自定义域名校验失败",
     "tenant_domain_not_active": "自定义域名未激活"
-  }
+  },
+  "tenant_storage_not_configured": "租户自定义对象存储未配置完整",
+  "tenant_storage_secret_corrupt": "租户对象存储密钥密文无效，请重新设置",
+  "tenant_storage_invalid_driver": "租户自定义存储驱动无效，仅支持 s3/oss/cos/minio"
 }

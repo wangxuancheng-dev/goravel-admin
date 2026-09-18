@@ -18,7 +18,10 @@ import type { ApiError } from '@/types'
 
 type ChunkStatus = '' | 'success' | 'exception'
 
-export function useAttachmentChunkUpload(onUploaded?: () => Promise<void> | void) {
+export function useAttachmentChunkUpload(
+  onUploaded?: () => Promise<void> | void,
+  chunkUploadSupported = true,
+) {
   const { t } = useTranslation()
   const { message } = App.useApp()
   const showError = useUnhandledError()
@@ -197,12 +200,16 @@ export function useAttachmentChunkUpload(onUploaded?: () => Promise<void> | void
         return false
       }
       if (uploadFile.size > ATTACHMENT_LARGE_FILE_THRESHOLD) {
+        if (!chunkUploadSupported) {
+          message.warning(t('attachment.chunk_upload_only_local_storage'))
+          return false
+        }
         void runChunkUpload(uploadFile, false)
         return false
       }
       return true
     },
-    [message, runChunkUpload, t],
+    [chunkUploadSupported, message, runChunkUpload, t],
   )
 
   const handleNormalUpload = useCallback(
@@ -220,6 +227,10 @@ export function useAttachmentChunkUpload(onUploaded?: () => Promise<void> | void
   )
 
   const handleLargeFileUpload = useCallback(() => {
+    if (!chunkUploadSupported) {
+      message.warning(t('attachment.chunk_upload_only_local_storage'))
+      return
+    }
     const input = document.createElement('input')
     input.type = 'file'
     input.onchange = (e) => {
@@ -227,7 +238,7 @@ export function useAttachmentChunkUpload(onUploaded?: () => Promise<void> | void
       if (selected) void runChunkUpload(selected, true)
     }
     input.click()
-  }, [runChunkUpload])
+  }, [chunkUploadSupported, message, runChunkUpload, t])
 
   const handleCancel = useCallback(() => {
     reset()

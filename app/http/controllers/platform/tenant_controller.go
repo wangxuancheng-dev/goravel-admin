@@ -70,6 +70,16 @@ type tenantStoreBody struct {
 	Migrate           *bool  `json:"migrate" form:"migrate"` // 若传 true 则拒绝，引导 CLI
 	SkipCreate        bool   `json:"skip_create" form:"skip_create"`
 	StorageLimitBytes *int64 `json:"storage_limit_bytes" form:"storage_limit_bytes"`
+	StorageMode       string `json:"storage_mode" form:"storage_mode"`
+	StorageDriver     string `json:"storage_driver" form:"storage_driver"`
+	StorageKey        string `json:"storage_key" form:"storage_key"`
+	StorageSecret     string `json:"storage_secret" form:"storage_secret"`
+	StorageRegion     string `json:"storage_region" form:"storage_region"`
+	StorageBucket     string `json:"storage_bucket" form:"storage_bucket"`
+	StorageURL        string `json:"storage_url" form:"storage_url"`
+	StorageEndpoint   string `json:"storage_endpoint" form:"storage_endpoint"`
+	StorageUsePathStyle *bool `json:"storage_use_path_style" form:"storage_use_path_style"`
+	StorageSSL        *bool  `json:"storage_ssl" form:"storage_ssl"`
 }
 
 func (c *TenantController) Store(ctx http.Context) http.Response {
@@ -82,19 +92,29 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrTenantMigrateViaCLI.Code)
 	}
 	tenant, err := c.service().Create(services.TenantCreateInput{
-		Code:              body.Code,
-		Name:              body.Name,
-		Driver:            body.Driver,
-		Isolation:         body.Isolation,
-		Database:          body.Database,
-		Schema:            body.Schema,
-		Host:              body.Host,
-		Port:              body.Port,
-		Username:          body.Username,
-		Password:          body.Password,
-		Migrate:           false,
-		SkipCreate:        body.SkipCreate,
-		StorageLimitBytes: body.StorageLimitBytes,
+		Code:                body.Code,
+		Name:                body.Name,
+		Driver:              body.Driver,
+		Isolation:           body.Isolation,
+		Database:            body.Database,
+		Schema:              body.Schema,
+		Host:                body.Host,
+		Port:                body.Port,
+		Username:            body.Username,
+		Password:            body.Password,
+		Migrate:             false,
+		SkipCreate:          body.SkipCreate,
+		StorageLimitBytes:   body.StorageLimitBytes,
+		StorageMode:         body.StorageMode,
+		StorageDriver:       body.StorageDriver,
+		StorageKey:          body.StorageKey,
+		StorageSecret:       body.StorageSecret,
+		StorageRegion:       body.StorageRegion,
+		StorageBucket:       body.StorageBucket,
+		StorageURL:          body.StorageURL,
+		StorageEndpoint:     body.StorageEndpoint,
+		StorageUsePathStyle: body.StorageUsePathStyle,
+		StorageSSL:          body.StorageSSL,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
@@ -103,14 +123,25 @@ func (c *TenantController) Store(ctx http.Context) http.Response {
 }
 
 type tenantUpdateBody struct {
-	Name              *string `json:"name" form:"name"`
-	Host              *string `json:"host" form:"host"`
-	Port              *int    `json:"port" form:"port"`
-	Username          *string `json:"username" form:"username"`
-	Password          *string `json:"password" form:"password"`
-	Database          *string `json:"database" form:"database"`
-	Schema            *string `json:"schema" form:"schema"`
-	StorageLimitBytes *int64  `json:"storage_limit_bytes" form:"storage_limit_bytes"`
+	Name                *string `json:"name" form:"name"`
+	Host                *string `json:"host" form:"host"`
+	Port                *int    `json:"port" form:"port"`
+	Username            *string `json:"username" form:"username"`
+	Password            *string `json:"password" form:"password"`
+	Database            *string `json:"database" form:"database"`
+	Schema              *string `json:"schema" form:"schema"`
+	StorageLimitBytes   *int64  `json:"storage_limit_bytes" form:"storage_limit_bytes"`
+	StorageMode         *string `json:"storage_mode" form:"storage_mode"`
+	StorageDriver       *string `json:"storage_driver" form:"storage_driver"`
+	StorageKey          *string `json:"storage_key" form:"storage_key"`
+	StorageSecret       *string `json:"storage_secret" form:"storage_secret"`
+	StorageRegion       *string `json:"storage_region" form:"storage_region"`
+	StorageBucket       *string `json:"storage_bucket" form:"storage_bucket"`
+	StorageURL          *string `json:"storage_url" form:"storage_url"`
+	StorageEndpoint     *string `json:"storage_endpoint" form:"storage_endpoint"`
+	StorageUsePathStyle *bool   `json:"storage_use_path_style" form:"storage_use_path_style"`
+	StorageSSL          *bool   `json:"storage_ssl" form:"storage_ssl"`
+	ClearStorageSecret  *bool   `json:"clear_storage_secret" form:"clear_storage_secret"`
 }
 
 func (c *TenantController) Update(ctx http.Context) http.Response {
@@ -121,14 +152,25 @@ func (c *TenantController) Update(ctx http.Context) http.Response {
 	var body tenantUpdateBody
 	_ = ctx.Request().Bind(&body)
 	tenant, err := c.service().UpdateConnection(id, services.TenantUpdateInput{
-		Name:              body.Name,
-		Host:              body.Host,
-		Port:              body.Port,
-		Username:          body.Username,
-		Password:          body.Password,
-		Database:          body.Database,
-		Schema:            body.Schema,
-		StorageLimitBytes: body.StorageLimitBytes,
+		Name:                body.Name,
+		Host:                body.Host,
+		Port:                body.Port,
+		Username:            body.Username,
+		Password:            body.Password,
+		Database:            body.Database,
+		Schema:              body.Schema,
+		StorageLimitBytes:   body.StorageLimitBytes,
+		StorageMode:         body.StorageMode,
+		StorageDriver:       body.StorageDriver,
+		StorageKey:          body.StorageKey,
+		StorageSecret:       body.StorageSecret,
+		StorageRegion:       body.StorageRegion,
+		StorageBucket:       body.StorageBucket,
+		StorageURL:          body.StorageURL,
+		StorageEndpoint:     body.StorageEndpoint,
+		StorageUsePathStyle: body.StorageUsePathStyle,
+		StorageSSL:          body.StorageSSL,
+		ClearStorageSecret:  body.ClearStorageSecret,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
@@ -214,22 +256,32 @@ func (c *TenantController) OpsOverview(ctx http.Context) http.Response {
 }
 
 type tenantOnboardBody struct {
-	Code              string `json:"code" form:"code"`
-	Name              string `json:"name" form:"name"`
-	Driver            string `json:"driver" form:"driver"`
-	Isolation         string `json:"isolation" form:"isolation"`
-	Database          string `json:"database" form:"database"`
-	Schema            string `json:"schema" form:"schema"`
-	Host              string `json:"host" form:"host"`
-	Port              int    `json:"port" form:"port"`
-	Username          string `json:"username" form:"username"`
-	Password          string `json:"password" form:"password"`
-	SkipCreate        bool   `json:"skip_create" form:"skip_create"`
-	StorageLimitBytes *int64 `json:"storage_limit_bytes" form:"storage_limit_bytes"`
-	WithMigrate       *bool  `json:"with_migrate" form:"with_migrate"`
-	WithSeed          *bool  `json:"with_seed" form:"with_seed"`
-	DomainHost        string `json:"domain_host" form:"domain_host"`
-	DomainSSL         string `json:"domain_ssl_mode" form:"domain_ssl_mode"`
+	Code                string `json:"code" form:"code"`
+	Name                string `json:"name" form:"name"`
+	Driver              string `json:"driver" form:"driver"`
+	Isolation           string `json:"isolation" form:"isolation"`
+	Database            string `json:"database" form:"database"`
+	Schema              string `json:"schema" form:"schema"`
+	Host                string `json:"host" form:"host"`
+	Port                int    `json:"port" form:"port"`
+	Username            string `json:"username" form:"username"`
+	Password            string `json:"password" form:"password"`
+	SkipCreate          bool   `json:"skip_create" form:"skip_create"`
+	StorageLimitBytes   *int64 `json:"storage_limit_bytes" form:"storage_limit_bytes"`
+	StorageMode         string `json:"storage_mode" form:"storage_mode"`
+	StorageDriver       string `json:"storage_driver" form:"storage_driver"`
+	StorageKey          string `json:"storage_key" form:"storage_key"`
+	StorageSecret       string `json:"storage_secret" form:"storage_secret"`
+	StorageRegion       string `json:"storage_region" form:"storage_region"`
+	StorageBucket       string `json:"storage_bucket" form:"storage_bucket"`
+	StorageURL          string `json:"storage_url" form:"storage_url"`
+	StorageEndpoint     string `json:"storage_endpoint" form:"storage_endpoint"`
+	StorageUsePathStyle *bool  `json:"storage_use_path_style" form:"storage_use_path_style"`
+	StorageSSL          *bool  `json:"storage_ssl" form:"storage_ssl"`
+	WithMigrate         *bool  `json:"with_migrate" form:"with_migrate"`
+	WithSeed            *bool  `json:"with_seed" form:"with_seed"`
+	DomainHost          string `json:"domain_host" form:"domain_host"`
+	DomainSSL           string `json:"domain_ssl_mode" form:"domain_ssl_mode"`
 }
 
 // Onboard creates a tenant, optionally queues migrate(+seed), optionally binds a domain, returns login links.
@@ -249,18 +301,28 @@ func (c *TenantController) Onboard(ctx http.Context) http.Response {
 	}
 	result, err := services.PrepareTenantOnboard(services.TenantOnboardInput{
 		Create: services.TenantCreateInput{
-			Code:              body.Code,
-			Name:              body.Name,
-			Driver:            body.Driver,
-			Isolation:         body.Isolation,
-			Database:          body.Database,
-			Schema:            body.Schema,
-			Host:              body.Host,
-			Port:              body.Port,
-			Username:          body.Username,
-			Password:          body.Password,
-			SkipCreate:        body.SkipCreate,
-			StorageLimitBytes: body.StorageLimitBytes,
+			Code:                body.Code,
+			Name:                body.Name,
+			Driver:              body.Driver,
+			Isolation:           body.Isolation,
+			Database:            body.Database,
+			Schema:              body.Schema,
+			Host:                body.Host,
+			Port:                body.Port,
+			Username:            body.Username,
+			Password:            body.Password,
+			SkipCreate:          body.SkipCreate,
+			StorageLimitBytes:   body.StorageLimitBytes,
+			StorageMode:         body.StorageMode,
+			StorageDriver:       body.StorageDriver,
+			StorageKey:          body.StorageKey,
+			StorageSecret:       body.StorageSecret,
+			StorageRegion:       body.StorageRegion,
+			StorageBucket:       body.StorageBucket,
+			StorageURL:          body.StorageURL,
+			StorageEndpoint:     body.StorageEndpoint,
+			StorageUsePathStyle: body.StorageUsePathStyle,
+			StorageSSL:          body.StorageSSL,
 		},
 		WithMigrate: withMigrate,
 		WithSeed:    withSeed,

@@ -87,6 +87,8 @@ export default function AttachmentList() {
   const { selectOptions: categoryOptions, reload: reloadCategories } = useOptions('attachment_category')
   const { loadImageAsBlob, getImageUrl, getImageLoadingState } = useAttachmentImagePreview()
 
+  const [chunkUploadSupported, setChunkUploadSupported] = useState(true)
+
   const {
     tableData,
     loading,
@@ -104,7 +106,10 @@ export default function AttachmentList() {
     defaultSort: 'id:desc',
     normalizeRows: false,
     transformData: (row) => transformAttachmentRow(row as unknown as Record<string, unknown>),
-    onLoadSuccess: (rows) => {
+    onLoadSuccess: (rows, res) => {
+      if (typeof res?.data?.chunk_upload_supported === 'boolean') {
+        setChunkUploadSupported(res.data.chunk_upload_supported)
+      }
       rows.forEach((row) => {
         if (row.file_type === 'image' || row.file_type === 'video') {
           void loadImageAsBlob(row)
@@ -113,7 +118,7 @@ export default function AttachmentList() {
     },
   })
 
-  const chunk = useAttachmentChunkUpload(refresh)
+  const chunk = useAttachmentChunkUpload(refresh, chunkUploadSupported)
 
   const { toolbar, confirmDelete } = useCrudActions({
     onRefresh: refresh,
@@ -590,7 +595,7 @@ export default function AttachmentList() {
               {t('attachment.crop_upload')}
             </PermissionButton>
           ) : null}
-          {getButtonState('attachment.chunk').show ? (
+          {getButtonState('attachment.chunk').show && chunkUploadSupported ? (
             <PermissionButton
               permission="attachment.chunk"
               icon={<UploadOutlined />}

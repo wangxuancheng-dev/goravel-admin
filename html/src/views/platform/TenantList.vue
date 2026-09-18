@@ -336,6 +336,55 @@
             <el-input-number v-model="form.storage_limit_mb" :min="0" :max="1048576" controls-position="right" style="width: 100%" />
             <div class="form-tip">{{ $t('tenant.quota_zero_unlimited') }}</div>
           </el-form-item>
+          <el-divider content-position="left">{{ $t('tenant.storage_byob_section') }}</el-divider>
+          <el-form-item :label="$t('tenant.storage_mode')">
+            <el-select v-model="form.storage_mode" style="width: 100%">
+              <el-option :label="$t('tenant.storage_mode_shared')" value="shared" />
+              <el-option :label="$t('tenant.storage_mode_custom')" value="custom" />
+            </el-select>
+            <div class="form-tip">{{ $t('tenant.storage_mode_tip') }}</div>
+          </el-form-item>
+          <template v-if="form.storage_mode === 'custom'">
+            <el-form-item :label="$t('tenant.storage_driver')">
+              <el-select v-model="form.storage_driver" style="width: 100%">
+                <el-option label="S3" value="s3" />
+                <el-option label="OSS" value="oss" />
+                <el-option label="COS" value="cos" />
+                <el-option label="MinIO" value="minio" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('tenant.storage_bucket')">
+              <el-input v-model="form.storage_bucket" />
+            </el-form-item>
+            <el-form-item :label="$t('tenant.storage_key')">
+              <el-input v-model="form.storage_key" autocomplete="off" />
+            </el-form-item>
+            <el-form-item :label="$t('tenant.storage_secret')">
+              <el-input
+                v-model="form.storage_secret"
+                type="password"
+                show-password
+                autocomplete="new-password"
+                :placeholder="form.storage_has_secret ? $t('tenant.storage_secret_keep') : $t('tenant.storage_secret_placeholder')"
+                @input="storageSecretTouched = true"
+              />
+            </el-form-item>
+            <el-form-item :label="$t('tenant.storage_region')">
+              <el-input v-model="form.storage_region" />
+            </el-form-item>
+            <el-form-item :label="$t('tenant.storage_endpoint')">
+              <el-input v-model="form.storage_endpoint" />
+            </el-form-item>
+            <el-form-item :label="$t('tenant.storage_url')">
+              <el-input v-model="form.storage_url" />
+            </el-form-item>
+            <el-form-item v-if="form.storage_driver === 's3'" :label="$t('tenant.storage_use_path_style')">
+              <el-switch v-model="form.storage_use_path_style" />
+            </el-form-item>
+            <el-form-item v-if="form.storage_driver === 'minio'" :label="$t('tenant.storage_ssl')">
+              <el-switch v-model="form.storage_ssl" />
+            </el-form-item>
+          </template>
         </el-form>
         <template #footer>
           <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -530,6 +579,8 @@
       <el-descriptions-item :label="$t('tenant.overview_admins')">{{ overviewData.admins_count }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.overview_migrations')">{{ overviewData.migrations_count }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.storage_used')">{{ formatQuota(quotaData?.storage_used_bytes, quotaData?.storage_limit_bytes) }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('tenant.storage_mode')">{{ storageModeLabel(overviewTenant) }}</el-descriptions-item>
+      <el-descriptions-item v-if="overviewTenant?.storage_mode === 'custom'" :label="$t('tenant.storage_bucket')">{{ overviewTenant.storage_bucket || '-' }}</el-descriptions-item>
       <el-descriptions-item v-if="overviewData.error" :label="$t('tenant.op_message')">{{ overviewData.error }}</el-descriptions-item>
     </el-descriptions>
   </el-dialog>
@@ -706,6 +757,7 @@ const queueInfo = ref(null)
 const settingsKeep = ref(0)
 const overviewVisible = ref(false)
 const overviewData = ref(null)
+const overviewTenant = ref(null)
 const quotaData = ref(null)
 const timelineVisible = ref(false)
 const timelineRow = ref(null)
@@ -1185,8 +1237,21 @@ const form = reactive({
   with_seed: true,
   domain_host: '',
   domain_ssl_mode: 'edge',
-  storage_limit_mb: 0
+  storage_limit_mb: 0,
+  storage_mode: 'shared',
+  storage_driver: 's3',
+  storage_key: '',
+  storage_secret: '',
+  storage_has_secret: false,
+  storage_region: '',
+  storage_bucket: '',
+  storage_url: '',
+  storage_endpoint: '',
+  storage_use_path_style: false,
+  storage_ssl: true
 })
+
+const storageSecretTouched = ref(false)
 
 const MB = 1024 * 1024
 const mbToBytes = (m) => Math.round((Number(m) || 0) * MB)
@@ -1200,6 +1265,41 @@ const formatQuota = (used, limit) => {
   const lim = Number(limit) || 0
   if (lim <= 0) return `${u} / ∞`
   return `${u} / ${formatSize(lim)}`
+}
+const storageModeLabel = (row) => {
+  if (!row) return '-'
+  return row.storage_mode === 'custom' ? t('tenant.storage_mode_custom') : t('tenant.storage_mode_shared')
+}
+const applyStorageFormFromRow = (row) => {
+  form.storage_mode = row?.storage_mode === 'custom' ? 'custom' : 'shared'
+  form.storage_driver = row?.storage_driver || 's3'
+  form.storage_key = row?.storage_key || ''
+  form.storage_secret = ''
+  form.storage_has_secret = !!row?.storage_has_secret
+  form.storage_region = row?.storage_region || ''
+  form.storage_bucket = row?.storage_bucket || ''
+  form.storage_url = row?.storage_url || ''
+  form.storage_endpoint = row?.storage_endpoint || ''
+  form.storage_use_path_style = !!row?.storage_use_path_style
+  form.storage_ssl = row?.storage_ssl !== false
+  storageSecretTouched.value = false
+}
+const buildStoragePayload = () => {
+  const payload = {
+    storage_mode: form.storage_mode || 'shared',
+    storage_driver: form.storage_driver || '',
+    storage_key: form.storage_key || '',
+    storage_region: form.storage_region || '',
+    storage_bucket: form.storage_bucket || '',
+    storage_url: form.storage_url || '',
+    storage_endpoint: form.storage_endpoint || '',
+    storage_use_path_style: !!form.storage_use_path_style,
+    storage_ssl: !!form.storage_ssl
+  }
+  if (storageSecretTouched.value && form.storage_secret) {
+    payload.storage_secret = form.storage_secret
+  }
+  return payload
 }
 
 const formRules = computed(() => {
@@ -1215,6 +1315,7 @@ const formRules = computed(() => {
 const openCreate = () => {
   editingId.value = null
   passwordTouched.value = false
+  storageSecretTouched.value = false
   dialogVisible.value = true
 }
 
@@ -1230,6 +1331,7 @@ const openEdit = (row) => {
   form.schema = row.schema || ''
   form.has_password = !!row.has_password
   form.storage_limit_mb = bytesToMb(row.storage_limit_bytes)
+  applyStorageFormFromRow(row)
   dialogVisible.value = true
 }
 
@@ -1259,6 +1361,7 @@ const resetForm = () => {
   form.domain_host = ''
   form.domain_ssl_mode = 'edge'
   form.storage_limit_mb = 0
+  applyStorageFormFromRow(null)
 }
 
 const submitForm = async () => {
@@ -1275,7 +1378,8 @@ const submitForm = async () => {
           username: form.username,
           database: form.database,
           schema: form.schema,
-          storage_limit_bytes: mbToBytes(form.storage_limit_mb)
+          storage_limit_bytes: mbToBytes(form.storage_limit_mb),
+          ...buildStoragePayload()
         }
         // Ignore browser-autofilled password unless the user edited the field.
         if (passwordTouched.value && form.password) payload.password = form.password
@@ -1298,7 +1402,8 @@ const submitForm = async () => {
           with_seed: !!form.with_migrate && !!form.with_seed,
           domain_host: form.domain_host || undefined,
           domain_ssl_mode: form.domain_ssl_mode || 'edge',
-          storage_limit_bytes: mbToBytes(form.storage_limit_mb) || undefined
+          storage_limit_bytes: mbToBytes(form.storage_limit_mb) || undefined,
+          ...buildStoragePayload()
         })
         const links = res?.data?.login_links || {}
         onboardLoginUrl.value =
@@ -1511,6 +1616,7 @@ const exportCsv = async () => {
 const openOverview = async (row) => {
   overviewVisible.value = true
   overviewData.value = null
+  overviewTenant.value = row || null
   quotaData.value = null
   try {
     const res = await getPlatformTenantOverview(row.id)

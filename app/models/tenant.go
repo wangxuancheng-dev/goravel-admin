@@ -34,6 +34,10 @@ const (
 	TenantOpStatusRunning = "running"
 	TenantOpStatusSuccess = "success"
 	TenantOpStatusFailed  = "failed"
+
+	// Object storage: shared platform disk vs tenant BYOB bucket.
+	TenantStorageModeShared = "shared"
+	TenantStorageModeCustom = "custom"
 )
 
 // Tenant 平台库中的租户元数据（一户一库 / 一 schema）
@@ -62,8 +66,18 @@ type Tenant struct {
 	LastOpMessage    string     `gorm:"type:text;comment:最近运维结果" json:"last_op_message"`
 	LastOpAt         *time.Time `gorm:"comment:最近运维时间" json:"last_op_at"`
 	LastBackupPath    string     `gorm:"size:512;comment:最近备份路径" json:"last_backup_path"`
-	StorageLimitBytes int64      `gorm:"default:0;comment:对象存储配额字节 0不限" json:"storage_limit_bytes"`
-	HealthStatus      string     `gorm:"size:32;default:unknown;index;comment:ok|warn|fail|unknown" json:"health_status"`
+	StorageLimitBytes    int64  `gorm:"default:0;comment:对象存储配额字节 0不限" json:"storage_limit_bytes"`
+	StorageMode          string `gorm:"size:16;default:shared;comment:shared|custom" json:"storage_mode"`
+	StorageDriver        string `gorm:"size:20;comment:s3|oss|cos|minio" json:"storage_driver"`
+	StorageKey           string `gorm:"size:255;comment:access key id" json:"storage_key"`
+	StorageSecret        string `gorm:"type:text;comment:sealed secret" json:"-"`
+	StorageRegion        string `gorm:"size:64;comment:region" json:"storage_region"`
+	StorageBucket        string `gorm:"size:255;comment:bucket" json:"storage_bucket"`
+	StorageURL           string `gorm:"size:512;comment:public url" json:"storage_url"`
+	StorageEndpoint      string `gorm:"size:512;comment:endpoint" json:"storage_endpoint"`
+	StorageUsePathStyle  bool   `gorm:"default:false;comment:s3 path style" json:"storage_use_path_style"`
+	StorageSSL           bool   `gorm:"default:true;comment:minio ssl" json:"storage_ssl"`
+	HealthStatus         string `gorm:"size:32;default:unknown;index;comment:ok|warn|fail|unknown" json:"health_status"`
 	HealthCheckedAt   *time.Time `gorm:"comment:last health inspect" json:"health_checked_at"`
 	HealthIssues      string     `gorm:"type:text;comment:json issue codes" json:"health_issues"`
 	LastPingOK        bool       `gorm:"default:false;comment:last ping ok" json:"last_ping_ok"`
