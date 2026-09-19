@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/goravel/framework/facades"
 
@@ -67,39 +69,70 @@ func (s *ShardingServiceImpl) CreateShardingTable(tableName, baseTableName strin
 			"base_table_name": baseTableName,
 		})
 	}
-	// DDL 走 Schema；HTTP 路径需按 ctx 切到租户连接
-	return appfacades.WithSchemaContext(s.ctx, func() error {
+	// DDL via Schema; HTTP path must bind tenant connection from ctx.
+	err := appfacades.WithSchemaContext(s.ctx, func() error {
 		return creator(tableName)
 	})
+	if err != nil {
+		// Concurrent create is OK only if the table exists on THIS tenant connection.
+		// Error 1050 on the platform DB must not be treated as success.
+		if isShardingTableAlreadyExistsError(err) && appfacades.SchemaHasTable(s.ctx, tableName) {
+			return nil
+		}
+		return err
+	}
+	if !appfacades.SchemaHasTable(s.ctx, tableName) {
+		return fmt.Errorf("sharding table %s create reported ok but missing on tenant connection", tableName)
+	}
+	return nil
 }
 
 func (s *ShardingServiceImpl) EnsureShardingTable(tableName, baseTableName string) error {
+	// Prefer live Schema check: negative cache must not block create fallback.
+	if appfacades.SchemaHasTable(s.ctx, tableName) {
+		utils.MarkShardingTableExistsCtx(s.ctx, tableName)
+		return nil
+	}
 	if utils.ShardingTableExistsCtx(s.ctx, tableName) {
 		return nil
 	}
 
 	return utils.WithShardingTableCreateLockCtx(s.ctx, tableName, func() error {
-		if utils.ShardingTableExistsCtx(s.ctx, tableName) {
+		if appfacades.SchemaHasTable(s.ctx, tableName) {
+			utils.MarkShardingTableExistsCtx(s.ctx, tableName)
 			return nil
 		}
 
 		if err := s.CreateShardingTable(tableName, baseTableName); err != nil {
-			if utils.ShardingTableExistsCtx(s.ctx, tableName) || appfacades.SchemaHasTable(s.ctx, tableName) {
+			utils.InvalidateShardingTableCacheCtx(s.ctx, tableName)
+			if appfacades.SchemaHasTable(s.ctx, tableName) {
 				utils.MarkShardingTableExistsCtx(s.ctx, tableName)
 				return nil
 			}
-			errorlog.Record(s.ctx, "sharding", "创建分表失败", map[string]any{
+			errorlog.Record(s.ctx, "sharding", "create sharding table failed", map[string]any{
 				"table_name":      tableName,
 				"base_table_name": baseTableName,
 				"error":           err.Error(),
-			}, "创建分表 %s 失败: %v", tableName, err)
+			}, "create sharding table %s failed: %v", tableName, err)
 			return apperrors.ErrCreateShardingTableFailed.WithError(err).WithParams(map[string]any{
 				"table_name": tableName,
 			})
 		}
 
 		utils.MarkShardingTableExistsCtx(s.ctx, tableName)
-		facades.Log().Infof("自动创建分表: %s", tableName)
+		facades.Log().Infof("auto-created sharding table: %s", tableName)
 		return nil
 	})
+}
+
+// isShardingTableAlreadyExistsError detects concurrent/prebuilt CREATE races (MySQL 1050, etc.).
+func isShardingTableAlreadyExistsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "already exists") ||
+		strings.Contains(msg, "1050") ||
+		strings.Contains(msg, "42s01") ||
+		strings.Contains(msg, "duplicate table")
 }

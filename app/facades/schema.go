@@ -2,6 +2,7 @@ package facades
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/goravel/framework/contracts/database/schema"
@@ -65,6 +66,10 @@ func SchemaConnectionKeyFrom(ctx context.Context) string {
 // WithSchemaContext runs fn with Schema (and DDL) bound to the tenant connection from ctx.
 // Concurrent callers are serialized. If Schema is already on the target connection
 // (e.g. inside WithTenantConnection), fn runs without re-locking to avoid deadlock.
+//
+// Also rebinds root Orm.Query and database.default for the duration: Schema.Create
+// and some grammar paths otherwise still execute DDL on the platform DB while
+// HasTable correctly inspects the tenant schema (goravel/framework Connection cache).
 func WithSchemaContext(ctx context.Context, fn func() error) error {
 	if fn == nil {
 		return nil
@@ -90,6 +95,23 @@ func WithSchemaContext(ctx context.Context, fn func() error) error {
 	prev := schema.GetConnection()
 	bindSchemaConnection(schema, conn)
 	defer schema.SetConnection(prev)
+
+	if !schemaOrmDatabaseMatches(conn, schema) {
+		want := Config().GetString("database.connections."+conn+".database", "")
+		return fmt.Errorf("tenant schema DatabaseName=%s want %s (orm connection cache)", schema.Orm().DatabaseName(), want)
+	}
+
+	rootOrm := Orm()
+	if rootOrm != nil {
+		prevQuery := rootOrm.Query()
+		rootOrm.SetQuery(schema.Orm().Query())
+		defer rootOrm.SetQuery(prevQuery)
+	}
+
+	prevDefault := Config().GetString("database.default")
+	Config().Add("database.default", conn)
+	defer Config().Add("database.default", prevDefault)
+
 	return fn()
 }
 
@@ -110,5 +132,9 @@ func schemaOrmDatabaseMatches(conn string, schema schema.Schema) bool {
 		return true
 	}
 	got := schema.Orm().DatabaseName()
-	return got == "" || got == want
+	// Empty DatabaseName is not a match — force evict/rebind.
+	if got == "" {
+		return false
+	}
+	return got == want
 }

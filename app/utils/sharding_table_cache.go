@@ -53,10 +53,14 @@ func ShardingTableExistsCtx(ctx context.Context, tableName string) bool {
 		}
 	}
 	exists := appfacades.SchemaHasTable(ctx, tableName)
-	shardingTableCache.Store(key, shardingTableCacheEntry{
-		exists:    exists,
-		checkedAt: time.Now(),
-	})
+	// Only cache positive hits. Caching "missing" races with concurrent CREATE
+	// and can make EnsureShardingTable treat Error 1050 as a hard failure.
+	if exists {
+		shardingTableCache.Store(key, shardingTableCacheEntry{
+			exists:    true,
+			checkedAt: time.Now(),
+		})
+	}
 	return exists
 }
 
