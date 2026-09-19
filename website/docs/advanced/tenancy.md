@@ -330,6 +330,16 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 - `tenants.password`：仅 `enc:v1:` + `APP_KEY` 密文；无明文兼容
 - HTTP `POST /api/platform/tenants`：**禁止** `migrate=true`（返回 `tenant_migrate_via_cli`）
 
+## 三类日志（勿混用）
+
+| 类型 | 存哪 | 回答什么 | 哪里看 |
+|------|------|----------|--------|
+| 操作日志 | 租户库 / 平台 `platform_operation_logs` | 谁改了什么（审计） | 租户后台 / 平台操作日志 |
+| 租户运维日志 | 平台 `tenant_op_logs` | migrate/seed/backup 成没成 | 平台运维执行记录 |
+| 系统日志 | 各连接库 `system_logs` | panic、库失败、基础设施报错 | 租户后台；平台系统日志（只读，可选 `tenant_code`） |
+
+无租户上下文的平台进程错误经 `SystemLogOrmQuery` 写入 landlord `system_logs`；租户内错误仍落在租户库，**不**双写到平台库。
+
 ## 平台 API
 
 | Method | Path | 说明 |
@@ -361,6 +371,10 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | GET | `/api/platform/login-logs/{id}` | Platform login log detail |
 | GET | `/api/platform/operation-logs` | Platform operation logs (landlord) |
 | GET | `/api/platform/operation-logs/{id}` | Platform operation log detail |
+| GET | `/api/platform/system-logs` | 只读系统日志（默认平台库；`tenant_code` 切到该租户库） |
+| GET | `/api/platform/system-logs/module-options` | 当前范围内的 module 筛选项 |
+| GET | `/api/platform/system-logs/{id}` | 系统日志详情（范围同列表） |
+| GET | `/api/platform/tenants/{id}/system-log-summary` | 近 24h error/warning 计数 + 最近 error |
 | GET | `/api/platform/tenants/{id}/op-logs` | 运维时间线 |
 | GET | `/api/platform/tenants/{id}/login-links` | 租户后台登录方式 |
 | GET | `/api/platform/tenants/settings` | 控制台可见配置（`backup_keep`、队列） |

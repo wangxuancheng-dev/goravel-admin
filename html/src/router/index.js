@@ -115,6 +115,12 @@ const staticRoutes = [
         meta: { titleKey: 'menu.tenant_op_log', platform: true, requiresAuth: true }
       },
       {
+        path: 'system-logs',
+        name: 'PlatformSystemLogs',
+        component: () => lazyLoad(() => import('../views/platform/SystemLogList.vue')),
+        meta: { titleKey: 'menu.system_log', platform: true, requiresAuth: true }
+      },
+      {
         path: 'login-logs',
         name: 'PlatformLoginLogs',
         component: () => lazyLoad(() => import('../views/platform/LoginLogList.vue')),

@@ -1212,7 +1212,13 @@
     "storage_endpoint": "Endpoint",
     "storage_url": "访问 URL",
     "storage_use_path_style": "S3 path-style",
-    "storage_ssl": "MinIO SSL"
+    "storage_ssl": "MinIO SSL",
+    "op_system_logs": "系统日志",
+    "system_log_summary": "近 24 小时系统报错",
+    "system_log_errors_24h": "错误 {n}",
+    "system_log_warnings_24h": "警告 {n}",
+    "system_log_recent_empty": "近 24 小时无 error 级日志",
+    "system_log_view_all": "查看全部系统日志"
   },
   "platform": {
     "title": "租户运维",
@@ -1244,7 +1250,11 @@
     "app_version": "应用版本",
     "overview_actions": "快捷操作",
     "alerts_title": "告警配置",
-    "filter_maintenance": "维护中租户"
+    "filter_maintenance": "维护中租户",
+    "system_log_scope_platform": "当前查看：平台进程系统日志（无租户上下文的报错）",
+    "system_log_scope_tenant": "当前查看：租户 {code} 的系统日志",
+    "system_log_platform_opt": "平台自身",
+    "system_log_hint": "只读。选择租户可查看该租户库中的系统报错；留空查看平台库。"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",

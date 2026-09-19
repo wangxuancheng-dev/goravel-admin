@@ -161,6 +161,22 @@ export function getPlatformOperationLogDetail(id: string | number) {
   return platformRequest.get(`/operation-logs/${id}`)
 }
 
+export async function getPlatformSystemLogList(params?: Record<string, unknown>) {
+  return normalizeListResponse(await platformRequest.get('/system-logs', { params }))
+}
+
+export function getPlatformSystemLogDetail(id: string | number, params?: Record<string, unknown>) {
+  return platformRequest.get(`/system-logs/${id}`, { params })
+}
+
+export function getPlatformSystemLogModuleOptions(params?: Record<string, unknown>) {
+  return platformRequest.get('/system-logs/module-options', { params })
+}
+
+export function getPlatformTenantSystemLogSummary(id: string | number) {
+  return platformRequest.get(`/tenants/${id}/system-log-summary`)
+}
+
 export async function getPlatformAdminList(params?: Record<string, unknown>) {
   return normalizeListResponse(await platformRequest.get('/admins', { params }))
 }

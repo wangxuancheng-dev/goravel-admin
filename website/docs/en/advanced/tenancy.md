@@ -333,6 +333,16 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 - `tenants.password`：仅 `enc:v1:` + `APP_KEY` 密文；无明文兼容
 - HTTP `POST /api/platform/tenants`：**禁止** `migrate=true`（返回 `tenant_migrate_via_cli`）
 
+## Log types (do not mix)
+
+| Type | Storage | Answers | Where to view |
+|------|---------|---------|---------------|
+| Operation log | Tenant DB / platform `platform_operation_logs` | Who changed what (audit) | Tenant admin / Platform operation logs |
+| Tenant ops log | Platform `tenant_op_logs` | Did migrate/seed/backup succeed | Platform tenant ops logs |
+| System log | Each connection's `system_logs` | Panics, DB failures, infra errors | Tenant admin; Platform system logs (read-only, optional `tenant_code`) |
+
+Platform process errors (no tenant context) write to the landlord `system_logs` via `SystemLogOrmQuery`. Tenant-bound errors stay in the tenant DB -- no dual-write to the platform DB.
+
 ## 平台 API
 
 | Method | Path | 说明 |
@@ -364,6 +374,10 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | GET | `/api/platform/login-logs/{id}` | Platform login log detail |
 | GET | `/api/platform/operation-logs` | Platform operation logs (landlord) |
 | GET | `/api/platform/operation-logs/{id}` | Platform operation log detail |
+| GET | `/api/platform/system-logs` | Read-only system logs (platform DB; `tenant_code` switches to that tenant DB) |
+| GET | `/api/platform/system-logs/module-options` | Module filter options for current scope |
+| GET | `/api/platform/system-logs/{id}` | System log detail (same scope as list) |
+| GET | `/api/platform/tenants/{id}/system-log-summary` | Last 24h error/warning counts + recent errors |
 | GET | `/api/platform/tenants/{id}/op-logs` | Ops timeline |
 | GET | `/api/platform/tenants/{id}/login-links` | How to open tenant admin |
 | GET | `/api/platform/tenants/settings` | Console settings (`backup_keep`, queue) |

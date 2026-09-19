@@ -168,7 +168,7 @@ func recordToDatabaseHTTPWithLevel(ctx http.Context, level, module, message stri
 		UserAgent: ctx.Request().Header("User-Agent", ""),
 	}
 
-	_ = appfacades.OrmQuery(ctx).Create(&log)
+	_ = appfacades.SystemLogOrmQuery(ctx).Create(&log)
 }
 
 // recordToDatabaseWithLevel 将日志记录到数据库（标准 context，支持所有级别）
@@ -199,5 +199,5 @@ func recordToDatabaseWithLevel(ctx context.Context, level, module, message strin
 		Context: contextJSON,
 	}
 
-	_ = appfacades.OrmQuery(ctx).Create(&log)
+	_ = appfacades.SystemLogOrmQuery(ctx).Create(&log)
 }

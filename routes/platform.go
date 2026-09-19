@@ -9,8 +9,8 @@ import (
 	"goravel/app/http/middleware"
 )
 
-// Platform registers the landlord console API (platform DB only).
-// Path prefix: /api/platform — never switches to a tenant connection.
+// Platform registers the landlord console API (platform DB by default).
+// Path prefix: /api/platform — tenant binding is only for read-through views (e.g. system-logs?tenant_code=).
 func Platform() {
 	authController := platform.NewAuthController()
 	tenantController := platform.NewTenantController()
@@ -18,6 +18,7 @@ func Platform() {
 	passwordController := platform.NewPasswordController()
 	auditController := platform.NewAuditController()
 	adminController := platform.NewAdminController()
+	systemLogController := platform.NewSystemLogController()
 
 	facades.Route().Prefix("api/platform").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy()).Group(func(router route.Router) {
@@ -42,6 +43,9 @@ func Platform() {
 			router.Get("login-logs/{id}", auditController.LoginLogShow)
 			router.Get("operation-logs", auditController.OperationLogs)
 			router.Get("operation-logs/{id}", auditController.OperationLogShow)
+			router.Get("system-logs", systemLogController.Index)
+			router.Get("system-logs/module-options", systemLogController.ModuleOptions)
+			router.Get("system-logs/{id}", systemLogController.Show)
 
 			router.Get("tenants", tenantController.Index)
 			router.Get("tenants/ops-summary", tenantController.OpsSummary)
@@ -53,6 +57,7 @@ func Platform() {
 			router.Post("tenants/{id}/ping", tenantController.Ping)
 			router.Get("tenants/{id}/overview", tenantController.Overview)
 			router.Get("tenants/{id}/op-logs", tenantController.OpLogs)
+			router.Get("tenants/{id}/system-log-summary", tenantController.SystemLogSummary)
 			router.Get("tenants/{id}/login-links", tenantController.LoginLinks)
 			router.Get("tenants/{id}/domains", tenantController.Domains)
 			router.Get("tenants/{id}/backups", tenantController.ListBackups)

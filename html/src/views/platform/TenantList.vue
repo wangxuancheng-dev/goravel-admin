@@ -539,7 +539,23 @@
         <el-button type="primary" @click="openBackups(detailRow)">{{ $t('tenant.op_backups') }}</el-button>
         <el-button @click="openOverview(detailRow)">{{ $t('tenant.op_overview') }}</el-button>
         <el-button @click="openTimeline(detailRow)">{{ $t('tenant.op_timeline') }}</el-button>
+        <el-button @click="goTenantSystemLogs(detailRow)">{{ $t('tenant.op_system_logs') }}</el-button>
         <el-button @click="copyLoginLink(detailRow)">{{ $t('tenant.op_login_link') }}</el-button>
+      </div>
+      <div v-loading="systemLogSummaryLoading" class="system-log-summary">
+        <div class="system-log-summary__title">{{ $t('tenant.system_log_summary') }}</div>
+        <div v-if="systemLogSummary" class="system-log-summary__meta">
+          <el-tag type="danger" size="small">{{ $t('tenant.system_log_errors_24h', { n: systemLogSummary.error_count_24h || 0 }) }}</el-tag>
+          <el-tag type="warning" size="small">{{ $t('tenant.system_log_warnings_24h', { n: systemLogSummary.warning_count_24h || 0 }) }}</el-tag>
+        </div>
+        <ul v-if="systemLogSummary?.recent?.length" class="system-log-summary__list">
+          <li v-for="item in systemLogSummary.recent" :key="item.id">
+            <span class="system-log-summary__time">{{ item.created_at }}</span>
+            <span>{{ item.module }} · {{ item.message }}</span>
+          </li>
+        </ul>
+        <div v-else-if="!systemLogSummaryLoading" class="system-log-summary__empty">{{ $t('tenant.system_log_recent_empty') }}</div>
+        <el-button link type="primary" @click="goTenantSystemLogs(detailRow)">{{ $t('tenant.system_log_view_all') }}</el-button>
       </div>
     </template>
   </el-dialog>
@@ -696,6 +712,7 @@ import {
   disablePlatformTenantDomain,
   deletePlatformTenantDomain,
   getPlatformTenantOpLogs,
+  getPlatformTenantSystemLogSummary,
   getPlatformTenantOpsSummary,
   getPlatformTenantOverview,
   getPlatformTenantSettings,
@@ -742,6 +759,8 @@ const batchLoading = ref(false)
 const selectedRows = ref([])
 const detailVisible = ref(false)
 const detailRow = ref(null)
+const systemLogSummary = ref(null)
+const systemLogSummaryLoading = ref(false)
 const detailDomains = ref([])
 const domainHost = ref('')
 const domainSslMode = ref('edge')
@@ -1983,7 +2002,29 @@ const openDetail = (row) => {
   detailVisible.value = true
   domainHost.value = ''
   domainSslMode.value = 'edge'
+  systemLogSummary.value = null
   void loadDetailDomains(row)
+  void loadSystemLogSummary(row)
+}
+
+const loadSystemLogSummary = async (row) => {
+  if (!row?.id) return
+  systemLogSummaryLoading.value = true
+  try {
+    const res = await getPlatformTenantSystemLogSummary(row.id)
+    systemLogSummary.value = res?.data || null
+  } catch (e) {
+    console.error(e)
+    systemLogSummary.value = null
+  } finally {
+    systemLogSummaryLoading.value = false
+  }
+}
+
+const goTenantSystemLogs = (row) => {
+  const code = row?.code
+  detailVisible.value = false
+  router.push(code ? { path: '/platform/system-logs', query: { code } } : '/platform/system-logs')
 }
 
 const openBackups = async (row) => {
@@ -2078,6 +2119,35 @@ const downloadBackup = async (file) => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.system-log-summary {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+.system-log-summary__title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.system-log-summary__meta {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.system-log-summary__list {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #334155;
+}
+.system-log-summary__time {
+  color: #94a3b8;
+  margin-right: 8px;
+}
+.system-log-summary__empty {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 8px;
 }
 .dialog-scroll-body {
   max-height: 60vh;

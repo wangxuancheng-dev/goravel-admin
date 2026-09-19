@@ -134,6 +134,23 @@ export function getPlatformOperationLogDetail(id) {
   return platformRequest.get(`/operation-logs/${id}`)
 }
 
+export async function getPlatformSystemLogList(params) {
+  const res = await platformRequest.get('/system-logs', { params })
+  return normalizeListResponse(res)
+}
+
+export function getPlatformSystemLogDetail(id, params) {
+  return platformRequest.get(`/system-logs/${id}`, { params })
+}
+
+export function getPlatformSystemLogModuleOptions(params) {
+  return platformRequest.get('/system-logs/module-options', { params })
+}
+
+export function getPlatformTenantSystemLogSummary(id) {
+  return platformRequest.get(`/tenants/${id}/system-log-summary`)
+}
+
 export async function getPlatformAdminList(params) {
   const res = await platformRequest.get('/admins', { params })
   return normalizeListResponse(res)

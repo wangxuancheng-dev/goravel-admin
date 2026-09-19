@@ -28,6 +28,7 @@ import PlatformAdminListPage from '../pages/platform/AdminList'
 import PlatformTenantOpLogListPage from '../pages/platform/TenantOpLogList'
 import PlatformLoginLogListPage from '../pages/platform/LoginLogList'
 import PlatformOperationLogListPage from '../pages/platform/OperationLogList'
+import PlatformSystemLogListPage from '../pages/platform/SystemLogList'
 import PlatformOverviewPage from '../pages/platform/Overview'
 import { getPlatformToken } from '@/utils/platformRequest'
 import { buildAdminLoginPath } from '@/utils/tenant'
@@ -186,6 +187,11 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
               path: 'tenant-op-logs',
               element: <PlatformTenantOpLogListPage />,
               handle: { titleKey: 'menu.tenant_op_log', platform: true },
+            },
+            {
+              path: 'system-logs',
+              element: <PlatformSystemLogListPage />,
+              handle: { titleKey: 'menu.system_log', platform: true },
             },
             {
               path: 'login-logs',

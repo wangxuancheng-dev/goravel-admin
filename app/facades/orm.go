@@ -101,3 +101,17 @@ func PlatformOrmQuery(ctx context.Context) orm.Query {
 	}
 	return po.WithContext(ctx).Query()
 }
+
+// SystemLogOrmQuery picks the DB for system_logs writes/reads.
+// Tenant-bound ctx -> tenant connection; otherwise landlord PlatformOrmQuery
+// (avoids writing into a flipped database.default during WithTenantConnection).
+func SystemLogOrmQuery(ctx context.Context) orm.Query {
+	if tenancy.Enabled() && !tenancy.Bound(ctx) {
+		return PlatformOrmQuery(ctx)
+	}
+	q := OrmQuery(ctx)
+	if q == nil {
+		return PlatformOrmQuery(ctx)
+	}
+	return q
+}

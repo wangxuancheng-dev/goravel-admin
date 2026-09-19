@@ -40,6 +40,7 @@ import {
   disablePlatformTenantDomain,
   deletePlatformTenantDomain,
   getPlatformTenantOpLogs,
+  getPlatformTenantSystemLogSummary,
   getPlatformTenantOpsSummary,
   getPlatformTenantOverview,
   getPlatformTenantSettings,
@@ -296,6 +297,12 @@ export default function PlatformTenantList() {
   const [detailOverview, setDetailOverview] = useState<TenantOverviewData | null>(null)
   const [detailQuota, setDetailQuota] = useState<TenantQuotaData | null>(null)
   const [detailOpLogs, setDetailOpLogs] = useState<TenantOpLogRow[]>([])
+  const [systemLogSummary, setSystemLogSummary] = useState<{
+    error_count_24h?: number
+    warning_count_24h?: number
+    recent?: Array<{ id: number | string; module?: string; message?: string; created_at?: string }>
+    error?: string
+  } | null>(null)
   const [timelineRow, setTimelineRow] = useState<TenantRow | null>(null)
   const [timelineLoading, setTimelineLoading] = useState(false)
   const [detailLoginLinks, setDetailLoginLinks] = useState<TenantLoginLinksData | null>(null)
@@ -584,12 +591,14 @@ export default function PlatformTenantList() {
     setDetailQuota(null)
     setDetailLoginLinks(null)
     setDetailDomains([])
+    setSystemLogSummary(null)
     setDomainHost('')
     try {
-      const [overviewRes, linksRes, domainsRes] = await Promise.all([
+      const [overviewRes, linksRes, domainsRes, sysRes] = await Promise.all([
         getPlatformTenantOverview(row.id),
         getPlatformTenantLoginLinks(row.id),
         getPlatformTenantDomains(row.id),
+        getPlatformTenantSystemLogSummary(row.id),
       ])
       setDetailOverview(
         (overviewRes as { data?: { overview?: TenantOverviewData } })?.data?.overview || null,
@@ -603,6 +612,7 @@ export default function PlatformTenantList() {
       setDetailDomains(
         (domainsRes as { data?: { list?: TenantDomainRow[] } })?.data?.list || [],
       )
+      setSystemLogSummary((sysRes as { data?: typeof systemLogSummary })?.data || null)
     } catch (error) {
       showError(error, t('common.operation_failed'))
     } finally {
@@ -621,7 +631,14 @@ export default function PlatformTenantList() {
     setDetailQuota(null)
     setDetailLoginLinks(null)
     setDetailDomains([])
+    setSystemLogSummary(null)
     setDomainHost('')
+  }
+
+  const goTenantSystemLogs = (row?: TenantRow | null) => {
+    const code = row?.code
+    closeDetail()
+    navigate(code ? `/platform/system-logs?code=${encodeURIComponent(code)}` : '/platform/system-logs')
   }
 
   const openTimeline = async (row: TenantRow) => {
@@ -2040,6 +2057,7 @@ export default function PlatformTenantList() {
                 {t('tenant.op_backups')}
               </Button>
               <Button onClick={() => void openTimeline(detailRow)}>{t('tenant.op_timeline')}</Button>
+              <Button onClick={() => goTenantSystemLogs(detailRow)}>{t('tenant.op_system_logs')}</Button>
               {isOwner ? (
                 <Button
                   danger
@@ -2054,6 +2072,36 @@ export default function PlatformTenantList() {
                 </Button>
               ) : null}
             </Space>
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e2e8f0' }}>
+              <Typography.Text strong>{t('tenant.system_log_summary')}</Typography.Text>
+              <Space style={{ display: 'flex', marginTop: 8 }} wrap>
+                <Tag color="error">
+                  {t('tenant.system_log_errors_24h', { n: systemLogSummary?.error_count_24h || 0 })}
+                </Tag>
+                <Tag color="warning">
+                  {t('tenant.system_log_warnings_24h', { n: systemLogSummary?.warning_count_24h || 0 })}
+                </Tag>
+              </Space>
+              {systemLogSummary?.recent?.length ? (
+                <ul style={{ margin: '8px 0', paddingLeft: 18, fontSize: 13 }}>
+                  {systemLogSummary.recent.map((item) => (
+                    <li key={item.id}>
+                      <Typography.Text type="secondary" style={{ marginRight: 8 }}>
+                        {item.created_at}
+                      </Typography.Text>
+                      {item.module} · {item.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 8 }}>
+                  {t('tenant.system_log_recent_empty')}
+                </Typography.Paragraph>
+              )}
+              <Button type="link" style={{ padding: 0 }} onClick={() => goTenantSystemLogs(detailRow)}>
+                {t('tenant.system_log_view_all')}
+              </Button>
+            </div>
           </>
         ) : null}
       </Modal>

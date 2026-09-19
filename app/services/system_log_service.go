@@ -14,6 +14,7 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
+	"goravel/app/tenancy"
 	"goravel/app/utils/traceid"
 )
 
@@ -69,6 +70,9 @@ func (s *SystemLogServiceImpl) hasTraceIDColumn() bool {
 
 func (s *SystemLogServiceImpl) hasTraceIDColumnCtx(ctx context.Context) bool {
 	key := appfacades.SchemaConnectionKeyFrom(ctx)
+	if tenancy.Enabled() && !tenancy.Bound(ctx) {
+		key = "platform:" + appfacades.PlatformConnectionName()
+	}
 	if v, ok := systemLogsTraceIDCache.Load(key); ok {
 		return v.(bool)
 	}
@@ -84,7 +88,7 @@ func NewSystemLogService(ctx context.Context) SystemLogService {
 // GetByID 根据ID获取系统日志
 func (s *SystemLogServiceImpl) GetByID(id uint) (*models.SystemLog, error) {
 	var log models.SystemLog
-	if err := appfacades.OrmQuery(s.ctx).Where("id", id).FirstOrFail(&log); err != nil {
+	if err := appfacades.SystemLogOrmQuery(s.ctx).Where("id", id).FirstOrFail(&log); err != nil {
 		return nil, apperrors.ErrLogNotFound.WithError(err)
 	}
 	return &log, nil
@@ -92,7 +96,7 @@ func (s *SystemLogServiceImpl) GetByID(id uint) (*models.SystemLog, error) {
 
 // GetList 获取系统日志列表
 func (s *SystemLogServiceImpl) GetList(filters SystemLogFilters, page, pageSize int) ([]models.SystemLog, int64, error) {
-	query := appfacades.OrmQuery(s.ctx).Model(&models.SystemLog{})
+	query := appfacades.SystemLogOrmQuery(s.ctx).Model(&models.SystemLog{})
 
 	// 应用筛选条件
 	if filters.Level != "" {
@@ -138,7 +142,7 @@ func (s *SystemLogServiceImpl) Delete(id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := appfacades.OrmQuery(s.ctx).Delete(log); err != nil {
+	if _, err := appfacades.SystemLogOrmQuery(s.ctx).Delete(log); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
 	return nil
@@ -149,7 +153,7 @@ func (s *SystemLogServiceImpl) BatchDelete(ids []uint) error {
 		return apperrors.ErrIDsRequired
 	}
 	idsAny := helpers.ConvertUintSliceToAny(ids)
-	if _, err := appfacades.OrmQuery(s.ctx).WhereIn("id", idsAny).Delete(&models.SystemLog{}); err != nil {
+	if _, err := appfacades.SystemLogOrmQuery(s.ctx).WhereIn("id", idsAny).Delete(&models.SystemLog{}); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
 	return nil
@@ -160,7 +164,7 @@ func (s *SystemLogServiceImpl) Clean(days int) error {
 		days = constants.DefaultCleanLogDays
 	}
 	cutoffTime := time.Now().AddDate(0, 0, -days)
-	if _, err := appfacades.OrmQuery(s.ctx).Model(&models.SystemLog{}).Where("created_at < ?", cutoffTime).Delete(&models.SystemLog{}); err != nil {
+	if _, err := appfacades.SystemLogOrmQuery(s.ctx).Model(&models.SystemLog{}).Where("created_at < ?", cutoffTime).Delete(&models.SystemLog{}); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
 	return nil
@@ -168,7 +172,7 @@ func (s *SystemLogServiceImpl) Clean(days int) error {
 
 func (s *SystemLogServiceImpl) GetModuleOptions() []string {
 	var modules []string
-	_ = appfacades.OrmQuery(s.ctx).Model(&models.SystemLog{}).
+	_ = appfacades.SystemLogOrmQuery(s.ctx).Model(&models.SystemLog{}).
 		Select("DISTINCT module").
 		Where("module IS NOT NULL AND module != ''").
 		Order("module ASC").
@@ -232,17 +236,11 @@ func (s *SystemLogServiceImpl) RecordHTTP(ctx http.Context, level, module, messa
 		"updated_at": time.Now(),
 	}
 
-	q := appfacades.OrmQuery(ctx)
-	schemaCtx := s.ctx
-	if q == nil {
-		// Tenant connection may be broken; fall back to platform and skip tenant Schema.
-		q = appfacades.PlatformOrmQuery(nil)
-		schemaCtx = nil
-	}
+	q := appfacades.SystemLogOrmQuery(ctx)
 	if q == nil {
 		return nil
 	}
-	if s.hasTraceIDColumnCtx(schemaCtx) {
+	if s.hasTraceIDColumnCtx(ctx) {
 		payload["trace_id"] = traceID
 	}
 	return q.Table("system_logs").Create(payload)
@@ -283,16 +281,11 @@ func (s *SystemLogServiceImpl) Record(ctx context.Context, level, module, messag
 		"updated_at": time.Now(),
 	}
 
-	q := appfacades.OrmQuery(ctx)
-	schemaCtx := ctx
-	if q == nil {
-		q = appfacades.PlatformOrmQuery(nil)
-		schemaCtx = nil
-	}
+	q := appfacades.SystemLogOrmQuery(ctx)
 	if q == nil {
 		return nil
 	}
-	if s.hasTraceIDColumnCtx(schemaCtx) {
+	if s.hasTraceIDColumnCtx(ctx) {
 		payload["trace_id"] = traceID
 	}
 	return q.Table("system_logs").Create(payload)
