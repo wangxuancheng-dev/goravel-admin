@@ -187,7 +187,9 @@ export default function PlatformSystemLogList() {
         dataSource={tableData}
         pagination={pagination}
         scroll={{ x: 1100 }}
-        onChange={handlePaginatedTableChange(handleSortChange, loadData)}
+        onChange={(pager, _filters, sorter) =>
+          handlePaginatedTableChange({ pager, sorter, pagination, loadData, handleSortChange })
+        }
       />
       <Modal
         title={t('log.detail')}
