@@ -315,10 +315,10 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 
 func tenantPoolConfig() map[string]any {
 	return map[string]any{
-		"max_idle_conns":     facades.Config().GetInt("tenancy.pool_max_idle_conns", 2),
-		"max_open_conns":     facades.Config().GetInt("tenancy.pool_max_open_conns", 20),
-		"conn_max_idletime":  facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300),
-		"conn_max_lifetime":  facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800),
+		"max_idle_conns":    facades.Config().GetInt("tenancy.pool_max_idle_conns", 2),
+		"max_open_conns":    facades.Config().GetInt("tenancy.pool_max_open_conns", 20),
+		"conn_max_idletime": facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300),
+		"conn_max_lifetime": facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800),
 	}
 }
 
@@ -758,20 +758,29 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 
 	schema := facades.Schema()
 	prevConn := schema.GetConnection()
+	// Always evict: Orm.Connection cache can report tenant DatabaseName while
+	// Query still uses the platform default DB (unqualified CREATE hits platform).
+	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
 	schema.SetConnection(tenant.ConnectionName)
 	if tenant.Isolation != models.TenantIsolationSchema {
 		want := tenant.Database
 		if want == "" {
 			want = facades.Config().GetString("database.connections."+tenant.ConnectionName+".database", "")
 		}
-		got := schema.Orm().DatabaseName()
-		if want != "" && got != "" && got != want {
+		got := schemaSessionDatabaseName(schema)
+		if got == "" {
+			got = schema.Orm().DatabaseName()
+		}
+		if want != "" && got != want {
 			appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
 			schema.SetConnection(tenant.ConnectionName)
-			got = schema.Orm().DatabaseName()
-			if got != "" && got != want {
+			got = schemaSessionDatabaseName(schema)
+			if got == "" {
+				got = schema.Orm().DatabaseName()
+			}
+			if want != "" && got != want {
 				schema.SetConnection(prevConn)
-				return fmt.Errorf("tenant schema DatabaseName=%s want %s (orm connection cache)", got, want)
+				return fmt.Errorf("tenant schema DATABASE()=%s want %s (orm connection cache)", got, want)
 			}
 		}
 	}
@@ -930,4 +939,17 @@ func tenantPostgresSSLMode() string {
 		return "disable"
 	}
 	return mode
+}
+
+// schemaSessionDatabaseName returns the live session database (MySQL SELECT DATABASE()).
+// Prefer this over Orm.DatabaseName(), which can lie after a Connection cache hit.
+func schemaSessionDatabaseName(schema interface{ Orm() orm.Orm }) string {
+	if schema == nil || schema.Orm() == nil || schema.Orm().Query() == nil {
+		return ""
+	}
+	var name string
+	if err := schema.Orm().Query().Raw("SELECT DATABASE()").Scan(&name); err != nil {
+		return ""
+	}
+	return name
 }

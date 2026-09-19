@@ -290,7 +290,14 @@ func buildShardingTableQuery(pattern string) (string, []any) {
 	`, []any{pattern}
 	}
 
-	dbName := facades.Config().GetString("database.connections.mysql.database")
+	// Prefer the live Schema/Orm database (tenant bind), not the platform mysql config.
+	dbName := ""
+	if s := facades.Schema(); s != nil && s.Orm() != nil {
+		dbName = s.Orm().DatabaseName()
+	}
+	if dbName == "" {
+		dbName = facades.Config().GetString("database.connections.mysql.database")
+	}
 	if dbName == "" {
 		dbName = facades.Config().GetString("database.connections.postgresql.database")
 	}

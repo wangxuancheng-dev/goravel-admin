@@ -68,8 +68,8 @@ func SchemaConnectionKeyFrom(ctx context.Context) string {
 // (e.g. inside WithTenantConnection), fn runs without re-locking to avoid deadlock.
 //
 // Also rebinds root Orm.Query and database.default for the duration: Schema.Create
-// and some grammar paths otherwise still execute DDL on the platform DB while
-// HasTable correctly inspects the tenant schema (goravel/framework Connection cache).
+// otherwise may run unqualified CREATE on the platform default DB while HasTable
+// inspects information_schema for the tenant name (framework Orm.Connection cache).
 func WithSchemaContext(ctx context.Context, fn func() error) error {
 	if fn == nil {
 		return nil
@@ -98,7 +98,8 @@ func WithSchemaContext(ctx context.Context, fn func() error) error {
 
 	if !schemaOrmDatabaseMatches(conn, schema) {
 		want := Config().GetString("database.connections."+conn+".database", "")
-		return fmt.Errorf("tenant schema DatabaseName=%s want %s (orm connection cache)", schema.Orm().DatabaseName(), want)
+		return fmt.Errorf("tenant schema session DATABASE()=%s DatabaseName=%s want %s",
+			schemaSessionDatabase(schema), schema.Orm().DatabaseName(), want)
 	}
 
 	rootOrm := Orm()
@@ -115,15 +116,29 @@ func WithSchemaContext(ctx context.Context, fn func() error) error {
 	return fn()
 }
 
-// bindSchemaConnection switches Schema to conn, rebuilding the Orm cache entry when
-// DatabaseName still points at the platform DB (framework Connection cache bug).
+// bindSchemaConnection switches Schema to conn. Always evicts the Orm connection
+// cache first: a cache hit can report the tenant DatabaseName while Query still
+// executes against the platform default database.
 func bindSchemaConnection(schema schema.Schema, conn string) {
+	EvictOrmConnectionCache(conn)
 	schema.SetConnection(conn)
 	if schemaOrmDatabaseMatches(conn, schema) {
 		return
 	}
+	// Second pass after another writer may have repopulated a stale cache entry.
 	EvictOrmConnectionCache(conn)
 	schema.SetConnection(conn)
+}
+
+func schemaSessionDatabase(schema schema.Schema) string {
+	if schema == nil || schema.Orm() == nil || schema.Orm().Query() == nil {
+		return ""
+	}
+	var name string
+	if err := schema.Orm().Query().Raw("SELECT DATABASE()").Scan(&name); err != nil {
+		return ""
+	}
+	return name
 }
 
 func schemaOrmDatabaseMatches(conn string, schema schema.Schema) bool {
@@ -131,8 +146,11 @@ func schemaOrmDatabaseMatches(conn string, schema schema.Schema) bool {
 	if want == "" {
 		return true
 	}
+	// Live session DB is authoritative; DatabaseName() can lie on cache hits.
+	if got := schemaSessionDatabase(schema); got != "" {
+		return got == want
+	}
 	got := schema.Orm().DatabaseName()
-	// Empty DatabaseName is not a match — force evict/rebind.
 	if got == "" {
 		return false
 	}
