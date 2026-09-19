@@ -80,6 +80,43 @@ export async function resolveImageDisplayUrl(raw: unknown): Promise<{ url: strin
   }
 }
 
+/** Rewrite attachment <img> nodes to blob URLs (sends tenant header + auth). */
+export async function hydrateContentImages(root: ParentNode | null): Promise<() => void> {
+  if (!root || typeof (root as Element).querySelectorAll !== 'function') {
+    return () => {}
+  }
+  const revokers: Array<() => void> = []
+  const imgs = Array.from((root as Element).querySelectorAll('img'))
+  await Promise.all(
+    imgs.map(async (img) => {
+      const raw = String(img.getAttribute('src') || '').trim()
+      if (!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return
+      const resolvedPublic = resolvePublicAssetUrl(raw) || ''
+      const needs =
+        isPublicAttachmentPath(raw) ||
+        isPublicAttachmentPath(resolvedPublic) ||
+        isPrivateAttachmentPreviewPath(raw) ||
+        isPrivateAttachmentPreviewPath(resolvedPublic) ||
+        ATTACHMENT_PUBLIC_ALIAS_PATH_RE.test(raw) ||
+        ATTACHMENT_PUBLIC_ALIAS_PATH_RE.test(resolvedPublic)
+      if (!needs) return
+      const { url, revoke } = await resolveImageDisplayUrl(raw)
+      if (!url) return
+      img.setAttribute('src', url)
+      if (typeof revoke === 'function') revokers.push(revoke)
+    }),
+  )
+  return () => {
+    revokers.forEach((fn) => {
+      try {
+        fn()
+      } catch {
+        /* ignore */
+      }
+    })
+  }
+}
+
 export const WEBSITE_CONFIG_UPDATED_EVENT = 'website-config-updated'
 
 export function notifyWebsiteConfigUpdated() {

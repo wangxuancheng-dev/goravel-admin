@@ -16,6 +16,14 @@ func TestSanitizeRichTextContent_HTML(t *testing.T) {
 	}
 }
 
+func TestSanitizeRichTextContent_KeepsPublicImageTenantQuery(t *testing.T) {
+	raw := `<div><img src="/api/admin/public/images/3?tenant_code=acme" alt="logo"></div>`
+	got := SanitizeRichTextContent(raw)
+	if !strings.Contains(got, `/api/admin/public/images/3?tenant_code=acme`) {
+		t.Fatalf("expected tenant_code query kept for public img, got %q", got)
+	}
+}
+
 func TestSanitizeRichTextContent_MarkdownLink(t *testing.T) {
 	raw := `[click me](javascript:alert(1))`
 	got := SanitizeRichTextContent(raw)

@@ -38,6 +38,28 @@ func TestOriginHost(t *testing.T) {
 	}
 }
 
+func TestIsLockedPublicApexHost(t *testing.T) {
+	prev := facades.Config().GetString("tenancy.base_domain")
+	t.Cleanup(func() { facades.Config().Add("tenancy.base_domain", prev) })
+	facades.Config().Add("tenancy.base_domain", "example.com")
+
+	if IsLockedPublicApexHost("example.com") != true {
+		t.Fatal("apex should be locked")
+	}
+	if IsLockedPublicApexHost("www.example.com") != true {
+		t.Fatal("www apex should be locked")
+	}
+	if IsLockedPublicApexHost("127.0.0.1") {
+		t.Fatal("loopback must not be locked")
+	}
+	if IsLockedPublicApexHost("api.example.com") {
+		t.Fatal("api host must not be locked (public img + tenant_code)")
+	}
+	if IsLockedPublicApexHost("acme.example.com") {
+		t.Fatal("tenant subdomain must not be locked")
+	}
+}
+
 func TestPickTenantHostCodePrefersRequestThenOrigin(t *testing.T) {
 	resolve := func(host string) string {
 		switch host {

@@ -125,9 +125,9 @@
             {{ currentNotification.sender?.nickname || currentNotification.sender?.username || $t('notification.system') }}
           </span>
         </div>
-        <div
-          class="rich-text-content-view markdown-content"
-          v-html="renderMarkdown(currentNotification.content)"
+        <RichContentHtml
+          content-class="rich-text-content-view markdown-content"
+          :content="currentNotification.content"
         />
       </div>
       <template #footer>
@@ -146,11 +146,12 @@ import { Plus } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/ListPage.vue'
 import NotificationForm from './NotificationForm.vue'
+import RichContentHtml from '@/components/RichContentHtml.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import { useNotificationStore } from '@/store/notification'
 import { useUserStore } from '@/store/user'
 import { getNotificationList } from '@/api/notification'
-import { renderContent, extractTextFromMarkdown } from '@/utils/markdown'
+import { extractTextFromMarkdown } from '@/utils/markdown'
 import {
   notificationInitialSearchForm,
   transformNotificationRow,
@@ -204,11 +205,6 @@ const handleView = (row) => {
   if (!row.is_read) {
     handleMarkRead(row)
   }
-}
-
-const renderMarkdown = (content) => {
-  if (!content) return ''
-  return renderContent(content, 'auto')
 }
 
 const handleMarkRead = async (row) => {

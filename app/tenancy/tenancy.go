@@ -100,19 +100,31 @@ func HTTPHint(ctx http.Context) string {
 // ResolveHint picks the effective tenant code/id for binding.
 // Priority for subdomain resolver: Host subdomain > (optional) client/body hint.
 // When subdomain is present and clientHint conflicts, returns ErrTenantHintConflict.
+//
+// When Host does not identify a tenant, Header/Query client hints are accepted
+// unless the Host is a locked public apex (see IsLockedPublicApexHost). This lets
+// public <img src="...?tenant_code="> work when the proxy rewrites Host to an IP
+// or API hostname (browsers cannot send X-Tenant-ID on image requests).
 func ResolveHint(ctx http.Context, clientHint string) (string, error) {
 	clientHint = strings.TrimSpace(clientHint)
 	if clientHint == "" && ctx != nil {
 		clientHint = ClientHint(ctx)
 	}
 
+	host := ""
 	sub := ""
-	if Resolver() == "subdomain" && ctx != nil {
+	if ctx != nil {
+		host = RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
+	}
+	if Resolver() == "subdomain" && host != "" {
 		// Prefer X-Forwarded-Host so reverse proxies that rewrite Host still bind by public hostname.
-		host := RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
 		sub = SubdomainHint(host)
 	}
-	return MergeTenantHints(Resolver(), sub, clientHint, AllowHeaderFallback())
+	allow := AllowHeaderFallback()
+	if !allow && clientHint != "" && !IsLockedPublicApexHost(host) {
+		allow = true
+	}
+	return MergeTenantHints(Resolver(), sub, clientHint, allow)
 }
 
 // MergeTenantHints is the pure resolver used by ResolveHint (unit-testable).

@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { getApiBaseURL, resolvePublicAssetUrl } from '@/utils/env'
+import { buildImageFetchUrl } from '@/utils/publicImage'
 
 marked.setOptions({
   breaks: true,
@@ -109,10 +110,10 @@ function processImageUrls(html: string) {
       publicUrl.startsWith('/') &&
       (publicUrl.includes('/api/admin/public/images/') || publicUrl.includes('/api/public/files/'))
     ) {
-      return publicUrl
+      return buildImageFetchUrl(publicUrl)
     }
     if (path.startsWith('/') && path.includes('/api/public/files/')) {
-      return path
+      return buildImageFetchUrl(path)
     }
     const apiPath = publicUrl.startsWith('/') ? publicUrl : path
     return cleanBaseURL ? `${cleanBaseURL}${apiPath}` : apiPath

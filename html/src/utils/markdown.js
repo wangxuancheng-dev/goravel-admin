@@ -25,6 +25,7 @@
 import createDOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { getApiBaseURL, resolvePublicAssetUrl } from './env'
+import { buildImageFetchUrl } from './publicImage'
 
 // 配置 marked 选项
 marked.setOptions({
@@ -215,10 +216,11 @@ export function processImageUrls(html) {
       publicUrl.startsWith('/') &&
       (publicUrl.includes('/api/admin/public/images/') || publicUrl.includes('/api/public/files/'))
     ) {
-      return publicUrl
+      // Absolute API URL when VITE_API_BASE_URL is set; always append tenant_code for <img>.
+      return buildImageFetchUrl(publicUrl)
     }
     if (path.startsWith('/') && path.includes('/api/public/files/')) {
-      return path
+      return buildImageFetchUrl(path)
     }
     const apiPath = publicUrl.startsWith('/') ? publicUrl : path
     return cleanBaseURL ? `${cleanBaseURL}${apiPath}` : apiPath

@@ -33,6 +33,8 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_API_BASE_URL || 'http://127.0.0.1:3000',
           changeOrigin: true,
           secure: false,
+          // Keep original Host for tenancy (BindHTTP reads X-Forwarded-Host).
+          xfwd: true,
         },
         '/ws': {
           target: env.VITE_API_BASE_URL || 'http://127.0.0.1:3000',

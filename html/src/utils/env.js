@@ -87,7 +87,8 @@ export function resolvePublicAssetUrl(raw) {
   let path = value
   if (/^https?:\/\//i.test(value)) {
     try {
-      path = new URL(value).pathname
+      const parsed = new URL(value)
+      path = `${parsed.pathname}${parsed.search}${parsed.hash}`
     } catch {
       path = value.replace(/^https?:\/\/[^/]+/i, '')
     }

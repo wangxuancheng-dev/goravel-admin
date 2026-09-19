@@ -87,6 +87,46 @@ export async function resolveImageDisplayUrl(raw) {
   }
 }
 
+/**
+ * Rewrite attachment <img> nodes to blob URLs (sends tenant header + auth).
+ * @returns {Promise<() => void>} revoke all blob URLs
+ */
+export async function hydrateContentImages(root) {
+  if (!root || typeof root.querySelectorAll !== 'function') {
+    return () => {}
+  }
+  const revokers = []
+  const imgs = Array.from(root.querySelectorAll('img'))
+  await Promise.all(
+    imgs.map(async (img) => {
+      const raw = String(img.getAttribute('src') || '').trim()
+      if (!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return
+      const resolvedPublic = resolvePublicAssetUrl(raw) || ''
+      const needs =
+        isPublicAttachmentPath(raw) ||
+        isPublicAttachmentPath(resolvedPublic) ||
+        isPrivateAttachmentPreviewPath(raw) ||
+        isPrivateAttachmentPreviewPath(resolvedPublic) ||
+        ATTACHMENT_PUBLIC_ALIAS_PATH_RE.test(raw) ||
+        ATTACHMENT_PUBLIC_ALIAS_PATH_RE.test(resolvedPublic)
+      if (!needs) return
+      const { url, revoke } = await resolveImageDisplayUrl(raw)
+      if (!url) return
+      img.setAttribute('src', url)
+      if (typeof revoke === 'function') revokers.push(revoke)
+    })
+  )
+  return () => {
+    revokers.forEach((fn) => {
+      try {
+        fn()
+      } catch {
+        /* ignore */
+      }
+    })
+  }
+}
+
 export const WEBSITE_CONFIG_UPDATED_EVENT = 'website-config-updated'
 
 export function notifyWebsiteConfigUpdated() {
