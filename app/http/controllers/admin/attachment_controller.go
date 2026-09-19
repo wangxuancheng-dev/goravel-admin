@@ -636,12 +636,8 @@ func (r *AttachmentController) serveAttachmentContent(ctx http.Context, attachme
 		return errResp
 	}
 
-	if attachment.Disk != "local" && attachment.Disk != "public" {
-		if url, err := storage.TemporaryUrl(attachment.Path, time.Now().Add(24*time.Hour)); err == nil {
-			return ctx.Response().Redirect(http.StatusFound, url)
-		}
-	}
-
+	// Always proxy through the API for preview. Redirecting to cloud TemporaryUrl breaks
+	// browser blob fetches (CORS / opaque redirects) used by the admin attachment UI.
 	content, err := storage.Get(attachment.Path)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "attachment", http.StatusInternalServerError, err, map[string]any{
