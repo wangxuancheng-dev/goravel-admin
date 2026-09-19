@@ -9,6 +9,8 @@ import (
 	"goravel/app/search"
 	esdriver "goravel/app/search/drivers/elasticsearch"
 	meili "goravel/app/search/drivers/meilisearch"
+	searchorders "goravel/app/search/orders"
+	"goravel/app/services"
 )
 
 // SearchServiceProvider registers the switchable search.Engine (SEARCH_DRIVER).
@@ -25,7 +27,9 @@ func (r *SearchServiceProvider) Register(app foundation.Application) {
 	})
 }
 
-func (r *SearchServiceProvider) Boot(app foundation.Application) {}
+func (r *SearchServiceProvider) Boot(app foundation.Application) {
+	searchorders.SetOrderLoaders(services.FindOrderByID, services.FindOrderWithDetails)
+}
 
 func buildEngine(app foundation.Application) (search.Engine, error) {
 	cfg := app.MakeConfig()

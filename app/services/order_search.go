@@ -8,7 +8,6 @@ import (
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
-	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
 	"goravel/app/utils"
@@ -74,7 +73,7 @@ func (s *OrderServiceImpl) getOrdersWithDetailsFromSearch(filters OrderFilters, 
 	result := make([]OrderWithDetails, 0, len(items))
 	missed := 0
 	for _, item := range items {
-		order, details, err := orderrepo.FindOrderWithDetails(s.ctx, item.ID, item.OrderNo)
+		order, details, err := FindOrderWithDetails(s.ctx, item.ID, item.OrderNo)
 		if err != nil || order == nil {
 			missed++
 			continue

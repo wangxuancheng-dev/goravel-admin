@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
 )
 
@@ -62,7 +61,10 @@ func Push(ctx context.Context, orderID uint, orderNoHint string, op string) erro
 	if op == "delete" {
 		orderNo := orderNoHint
 		if orderNo == "" {
-			order, err := orderrepo.FindOrderByID(ctx, orderID)
+			if findOrderByID == nil {
+				return fmt.Errorf("order loaders not registered")
+			}
+			order, err := findOrderByID(ctx, orderID)
 			if err != nil {
 				return err
 			}
@@ -77,7 +79,10 @@ func Push(ctx context.Context, orderID uint, orderNoHint string, op string) erro
 	if err := engine.EnsureIndex(ctx, index); err != nil {
 		return err
 	}
-	order, details, err := orderrepo.FindOrderWithDetails(ctx, orderID, orderNoHint)
+	if findOrderWithDetails == nil {
+		return fmt.Errorf("order loaders not registered")
+	}
+	order, details, err := findOrderWithDetails(ctx, orderID, orderNoHint)
 	if err != nil {
 		return err
 	}

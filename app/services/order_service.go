@@ -15,7 +15,6 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
-	orderrepo "goravel/app/repositories"
 	"goravel/app/search"
 	searchorders "goravel/app/search/orders"
 	"goravel/app/support"
@@ -228,22 +227,22 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 	return order, details, nil
 }
 
-// findOrderByID 委托 orderrepo，与 ES 同步等只读场景共用同一套分表查找逻辑。
+// findOrderByID delegates to FindOrderByID (shared sharded read path).
 func (s *OrderServiceImpl) findOrderByID(orderID uint, orderNo ...string) (*models.Order, error) {
 	if len(orderNo) > 0 && orderNo[0] != "" {
-		return orderrepo.FindOrderByID(s.ctx, orderID, orderNo[0])
+		return FindOrderByID(s.ctx, orderID, orderNo[0])
 	}
-	return orderrepo.FindOrderByID(s.ctx, orderID)
+	return FindOrderByID(s.ctx, orderID)
 }
 
 // GetOrderByID 根据ID查询订单
 func (s *OrderServiceImpl) GetOrderByID(orderID uint, orderTime time.Time) (*models.Order, []models.OrderDetail, error) {
-	return orderrepo.FindOrderWithDetails(s.ctx, orderID, "")
+	return FindOrderWithDetails(s.ctx, orderID, "")
 }
 
 // GetOrderByOrderNo 根据订单号查询订单（直接定位分表，更高效）
 func (s *OrderServiceImpl) GetOrderByOrderNo(orderNo string) (*models.Order, []models.OrderDetail, error) {
-	return orderrepo.FindOrderWithDetails(s.ctx, 0, orderNo)
+	return FindOrderWithDetails(s.ctx, 0, orderNo)
 }
 
 // GetOrders 查询订单列表（限制时间跨度；深分页受 max_union_limit_per_table 约束）
@@ -830,9 +829,9 @@ func (s *OrderServiceImpl) generateOrderNo() string {
 	return utils.GenerateShardingNo(utils.OrderNoConfig)
 }
 
-// findOrderByOrderNo 委托 orderrepo。
+// findOrderByOrderNo delegates to FindOrderByOrderNo.
 func (s *OrderServiceImpl) findOrderByOrderNo(orderNo string) (*models.Order, error) {
-	return orderrepo.FindOrderByOrderNo(s.ctx, orderNo)
+	return FindOrderByOrderNo(s.ctx, orderNo)
 }
 
 // GetOrdersCountInYear 获取最近一年的订单总数（用于仪表盘统计）
