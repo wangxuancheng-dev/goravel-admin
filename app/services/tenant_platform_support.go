@@ -36,6 +36,13 @@ type TenantAuditSummary struct {
 	Error             string                   `json:"error,omitempty"`
 }
 
+func bindTenantSupportCtx(tenant *models.Tenant) (context.Context, error) {
+	if err := NewTenantConnectionService().EnsureRegistered(tenant); err != nil {
+		return nil, err
+	}
+	return tenancyctx.WithTenant(context.Background(), tenant.ID, tenant.ConnectionName, tenant.Code), nil
+}
+
 // ListTenantAdmins returns tenant-db admin accounts (support use).
 func ListTenantAdmins(tenant *models.Tenant, limit int) ([]TenantAdminSupportItem, error) {
 	if tenant == nil {
@@ -44,39 +51,40 @@ func ListTenantAdmins(tenant *models.Tenant, limit int) ([]TenantAdminSupportIte
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
+	ctx, err := bindTenantSupportCtx(tenant)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]TenantAdminSupportItem, 0)
-	err := NewTenantConnectionService().WithTenantConnection(tenant, func() error {
-		if !facades.Schema().HasTable("admins") {
-			return nil
-		}
-		type row struct {
-			ID                 uint
-			Username           string
-			Nickname           string
-			Status             uint8
-			GoogleSecret       string
-			MustChangePassword uint8
-		}
-		var rows []row
-		q := facades.Orm().Query().Table("admins").
-			Select("id", "username", "nickname", "status", "google_secret", "must_change_password").
-			Order("id asc").Limit(limit)
-		if err := q.Find(&rows); err != nil {
-			return err
-		}
-		for _, r := range rows {
-			out = append(out, TenantAdminSupportItem{
-				ID:           r.ID,
-				Username:     r.Username,
-				Nickname:     r.Nickname,
-				Status:       r.Status,
-				Is2FABound:   strings.TrimSpace(r.GoogleSecret) != "",
-				MustChangePw: r.MustChangePassword,
-			})
-		}
-		return nil
-	})
-	return out, err
+	if !appfacades.SchemaHasTable(ctx, "admins") {
+		return out, nil
+	}
+	type row struct {
+		ID                 uint
+		Username           string
+		Nickname           string
+		Status             uint8
+		GoogleSecret       string
+		MustChangePassword uint8
+	}
+	var rows []row
+	q := appfacades.OrmQuery(ctx).Table("admins").
+		Select("id", "username", "nickname", "status", "google_secret", "must_change_password").
+		Order("id asc").Limit(limit)
+	if err := q.Find(&rows); err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		out = append(out, TenantAdminSupportItem{
+			ID:           r.ID,
+			Username:     r.Username,
+			Nickname:     r.Nickname,
+			Status:       r.Status,
+			Is2FABound:   strings.TrimSpace(r.GoogleSecret) != "",
+			MustChangePw: r.MustChangePassword,
+		})
+	}
+	return out, nil
 }
 
 // ResetTenantAdminPassword sets a new password and forces change-on-login.
@@ -91,15 +99,17 @@ func ResetTenantAdminPassword(tenant *models.Tenant, adminID uint, newPassword s
 	if err != nil {
 		return apperrors.ErrPasswordEncryptFailed.WithError(err)
 	}
-	return NewTenantConnectionService().WithTenantConnection(tenant, func() error {
-		var admin models.Admin
-		if err := facades.Orm().Query().Where("id", adminID).FirstOrFail(&admin); err != nil {
-			return apperrors.ErrAdminNotFound.WithError(err)
-		}
-		admin.Password = hashed
-		admin.MustChangePassword = 1
-		return facades.Orm().Query().Save(&admin)
-	})
+	ctx, err := bindTenantSupportCtx(tenant)
+	if err != nil {
+		return err
+	}
+	var admin models.Admin
+	if err := appfacades.OrmQuery(ctx).Where("id", adminID).FirstOrFail(&admin); err != nil {
+		return apperrors.ErrAdminNotFound.WithError(err)
+	}
+	admin.Password = hashed
+	admin.MustChangePassword = 1
+	return appfacades.OrmQuery(ctx).Save(&admin)
 }
 
 // UnlockTenantAdminLogin clears login lockout for a tenant admin username.
@@ -111,7 +121,10 @@ func UnlockTenantAdminLogin(tenant *models.Tenant, username string) error {
 	if username == "" {
 		return apperrors.ErrInvalidArgument
 	}
-	ctx := tenancyctx.WithTenant(context.Background(), tenant.ID, tenant.ConnectionName, tenant.Code)
+	ctx, err := bindTenantSupportCtx(tenant)
+	if err != nil {
+		return err
+	}
 	NewLoginLockoutService(ctx).UnlockUsername(username)
 	return nil
 }
@@ -121,17 +134,19 @@ func ResetTenantAdmin2FA(tenant *models.Tenant, adminID uint) error {
 	if tenant == nil || adminID == 0 {
 		return apperrors.ErrInvalidArgument
 	}
-	return NewTenantConnectionService().WithTenantConnection(tenant, func() error {
-		var admin models.Admin
-		if err := facades.Orm().Query().Where("id", adminID).FirstOrFail(&admin); err != nil {
-			return apperrors.ErrAdminNotFound.WithError(err)
-		}
-		if strings.TrimSpace(admin.GoogleSecret) == "" {
-			return apperrors.ErrGoogleAuthenticatorNotBound
-		}
-		_, err := facades.Orm().Query().Model(&models.Admin{}).Where("id", adminID).Update("google_secret", nil)
+	ctx, err := bindTenantSupportCtx(tenant)
+	if err != nil {
 		return err
-	})
+	}
+	var admin models.Admin
+	if err := appfacades.OrmQuery(ctx).Where("id", adminID).FirstOrFail(&admin); err != nil {
+		return apperrors.ErrAdminNotFound.WithError(err)
+	}
+	if strings.TrimSpace(admin.GoogleSecret) == "" {
+		return apperrors.ErrGoogleAuthenticatorNotBound
+	}
+	_, err = appfacades.OrmQuery(ctx).Model(&models.Admin{}).Where("id", adminID).Update("google_secret", nil)
+	return err
 }
 
 // BuildTenantAuditSummary reads recent login/operation logs from the tenant DB.
@@ -147,64 +162,64 @@ func BuildTenantAuditSummary(tenant *models.Tenant, recentLimit int) *TenantAudi
 	if recentLimit <= 0 || recentLimit > 50 {
 		recentLimit = 10
 	}
-	since := time.Now().Add(-24 * time.Hour)
-	err := NewTenantConnectionService().WithTenantConnection(tenant, func() error {
-		if facades.Schema().HasTable("login_logs") {
-			ok, _ := facades.Orm().Query().Table("login_logs").
-				Where("status", 1).Where("created_at", ">=", since).Count()
-			out.LoginSuccess24h = ok
-			fail, _ := facades.Orm().Query().Table("login_logs").
-				Where("status", 0).Where("created_at", ">=", since).Count()
-			out.LoginFailed24h = fail
-
-			var logins []models.LoginLog
-			_ = facades.Orm().Query().Table("login_logs").
-				Order("id desc").Limit(recentLimit).Find(&logins)
-			for _, row := range logins {
-				out.RecentLogins = append(out.RecentLogins, map[string]any{
-					"id":         row.ID,
-					"username":   row.Username,
-					"ip":         row.IP,
-					"status":     row.Status,
-					"message":    row.Message,
-					"created_at": row.CreatedAt,
-				})
-			}
-		}
-		if facades.Schema().HasTable("operation_logs") {
-			n, _ := facades.Orm().Query().Table("operation_logs").
-				Where("created_at", ">=", since).Count()
-			out.OperationCount24h = n
-
-			var ops []models.OperationLog
-			_ = facades.Orm().Query().Model(&models.OperationLog{}).
-				Order("id desc").Limit(recentLimit).Find(&ops)
-			adminNames := map[uint]string{}
-			for _, row := range ops {
-				username := adminNames[row.AdminID]
-				if username == "" && row.AdminID > 0 {
-					var a models.Admin
-					if err := facades.Orm().Query().Select("id", "username").Where("id", row.AdminID).First(&a); err == nil {
-						username = a.Username
-						adminNames[row.AdminID] = username
-					}
-				}
-				out.RecentOperations = append(out.RecentOperations, map[string]any{
-					"id":         row.ID,
-					"username":   username,
-					"title":      row.Title,
-					"method":     row.Method,
-					"path":       row.Path,
-					"ip":         row.IP,
-					"status":     row.Status,
-					"created_at": row.CreatedAt,
-				})
-			}
-		}
-		return nil
-	})
+	ctx, err := bindTenantSupportCtx(tenant)
 	if err != nil {
 		out.Error = err.Error()
+		return out
+	}
+	since := time.Now().Add(-24 * time.Hour)
+	q := appfacades.OrmQuery(ctx)
+	if appfacades.SchemaHasTable(ctx, "login_logs") {
+		ok, _ := q.Table("login_logs").
+			Where("status", 1).Where("created_at", ">=", since).Count()
+		out.LoginSuccess24h = ok
+		fail, _ := q.Table("login_logs").
+			Where("status", 0).Where("created_at", ">=", since).Count()
+		out.LoginFailed24h = fail
+
+		var logins []models.LoginLog
+		_ = q.Table("login_logs").
+			Order("id desc").Limit(recentLimit).Find(&logins)
+		for _, row := range logins {
+			out.RecentLogins = append(out.RecentLogins, map[string]any{
+				"id":         row.ID,
+				"username":   row.Username,
+				"ip":         row.IP,
+				"status":     row.Status,
+				"message":    row.Message,
+				"created_at": row.CreatedAt,
+			})
+		}
+	}
+	if appfacades.SchemaHasTable(ctx, "operation_logs") {
+		n, _ := q.Table("operation_logs").
+			Where("created_at", ">=", since).Count()
+		out.OperationCount24h = n
+
+		var ops []models.OperationLog
+		_ = q.Model(&models.OperationLog{}).
+			Order("id desc").Limit(recentLimit).Find(&ops)
+		adminNames := map[uint]string{}
+		for _, row := range ops {
+			username := adminNames[row.AdminID]
+			if username == "" && row.AdminID > 0 {
+				var a models.Admin
+				if err := q.Select("id", "username").Where("id", row.AdminID).First(&a); err == nil {
+					username = a.Username
+					adminNames[row.AdminID] = username
+				}
+			}
+			out.RecentOperations = append(out.RecentOperations, map[string]any{
+				"id":         row.ID,
+				"username":   username,
+				"title":      row.Title,
+				"method":     row.Method,
+				"path":       row.Path,
+				"ip":         row.IP,
+				"status":     row.Status,
+				"created_at": row.CreatedAt,
+			})
+		}
 	}
 	return out
 }
