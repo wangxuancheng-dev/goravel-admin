@@ -163,13 +163,13 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "定时任务列表", Slug: "schedule.index", Method: "GET", Path: "/api/admin/schedules", Description: "查看定时任务列表", Status: 1, Sort: 1, MenuID: scheduleMenu.ID},
 		{Name: "手动执行定时任务", Slug: "schedule.run", Method: "POST", Path: "/api/admin/schedules/run", Description: "手动执行已注册的定时任务", Status: 1, Sort: 2, MenuID: scheduleMenu.ID},
 		// Demo activities (schedule demo module)
-		{Name: "Demo activity list", Slug: "demo_activity.index", Method: "GET", Path: "/api/admin/demo-activities", Description: "List demo activities", Status: 1, Sort: 1, MenuID: demoActivityMenu.ID},
-		{Name: "Demo activity detail", Slug: "demo_activity.show", Method: "GET", Path: "/api/admin/demo-activities/*", Description: "Show demo activity", Status: 1, Sort: 2, MenuID: demoActivityMenu.ID},
-		{Name: "Demo activity create", Slug: "demo_activity.store", Method: "POST", Path: "/api/admin/demo-activities", Description: "Create demo activity", Status: 1, Sort: 3, MenuID: demoActivityMenu.ID},
-		{Name: "Demo activity update", Slug: "demo_activity.update", Method: "PUT", Path: "/api/admin/demo-activities/*", Description: "Update demo activity", Status: 1, Sort: 4, MenuID: demoActivityMenu.ID},
-		{Name: "Demo activity delete", Slug: "demo_activity.destroy", Method: "DELETE", Path: "/api/admin/demo-activities/*", Description: "Delete demo activity", Status: 1, Sort: 5, MenuID: demoActivityMenu.ID},
-		{Name: "Demo activity active-check", Slug: "demo_activity.active_check", Method: "GET", Path: "/api/admin/demo-activities/*/active-check", Description: "Compare stored status vs live IsActive", Status: 1, Sort: 6, MenuID: demoActivityMenu.ID},
-		{Name: "Demo activity sync", Slug: "demo_activity.sync", Method: "POST", Path: "/api/admin/demo-activities/sync", Description: "Sync demo activity statuses now", Status: 1, Sort: 7, MenuID: demoActivityMenu.ID},
+		{Name: "活动列表", Slug: "demo_activity.index", Method: "GET", Path: "/api/admin/demo-activities", Description: "查看活动调度演示列表", Status: 1, Sort: 1, MenuID: demoActivityMenu.ID},
+		{Name: "活动详情", Slug: "demo_activity.show", Method: "GET", Path: "/api/admin/demo-activities/*", Description: "查看活动调度演示详情", Status: 1, Sort: 2, MenuID: demoActivityMenu.ID},
+		{Name: "创建活动", Slug: "demo_activity.store", Method: "POST", Path: "/api/admin/demo-activities", Description: "创建活动调度演示", Status: 1, Sort: 3, MenuID: demoActivityMenu.ID},
+		{Name: "更新活动", Slug: "demo_activity.update", Method: "PUT", Path: "/api/admin/demo-activities/*", Description: "更新活动调度演示", Status: 1, Sort: 4, MenuID: demoActivityMenu.ID},
+		{Name: "删除活动", Slug: "demo_activity.destroy", Method: "DELETE", Path: "/api/admin/demo-activities/*", Description: "删除活动调度演示", Status: 1, Sort: 5, MenuID: demoActivityMenu.ID},
+		{Name: "校验活动生效", Slug: "demo_activity.active_check", Method: "GET", Path: "/api/admin/demo-activities/*/active-check", Description: "比对活动存储状态与实时生效状态", Status: 1, Sort: 6, MenuID: demoActivityMenu.ID},
+		{Name: "同步活动状态", Slug: "demo_activity.sync", Method: "POST", Path: "/api/admin/demo-activities/sync", Description: "立即同步活动调度演示状态", Status: 1, Sort: 7, MenuID: demoActivityMenu.ID},
 		// 个人中心
 		{Name: "修改资料", Slug: "profile.update", Method: "PUT", Path: "/api/admin/profile", Description: "修改当前登录管理员资料", Status: 1, Sort: 1, MenuID: profileMenu.ID},
 		{Name: "修改密码", Slug: "password.update", Method: "PUT", Path: "/api/admin/password", Description: "修改当前登录管理员密码", Status: 1, Sort: 2, MenuID: profileMenu.ID},
@@ -253,7 +253,19 @@ func (s *PermissionSeeder) Run() error {
 			continue
 		}
 
-		// 使用 FirstOrCreate：如果 slug 或 name 存在则使用已存在的记录，否则创建
+		var existing models.Permission
+		if err := facades.Orm().Query().Where("slug", perm.Slug).First(&existing); err == nil && existing.ID > 0 {
+			_, _ = facades.Orm().Query().Model(&existing).Update(map[string]any{
+				"name":        perm.Name,
+				"description": perm.Description,
+				"method":      perm.Method,
+				"path":        perm.Path,
+				"menu_id":     perm.MenuID,
+				"status":      perm.Status,
+				"sort":        perm.Sort,
+			})
+			continue
+		}
 		facades.Orm().Query().Where("slug", perm.Slug).OrWhere("name", perm.Name).FirstOrCreate(&perm, perm)
 	}
 
