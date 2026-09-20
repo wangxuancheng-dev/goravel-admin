@@ -74,12 +74,6 @@ func Admin() {
 			passwordController := admin.NewPasswordController()
 			router.Put("password", passwordController.UpdatePassword)
 
-			// 谷歌验证码相关
-			router.Get("google-authenticator/status", adminAuthController.GetGoogleAuthenticatorStatus)
-			router.Get("google-authenticator/qrcode", adminAuthController.GetGoogleAuthenticatorQRCode)
-			router.Post("google-authenticator/bind", adminAuthController.BindGoogleAuthenticator)
-			router.Post("google-authenticator/unbind", adminAuthController.UnbindGoogleAuthenticator)
-
 			// 通知中心
 			router.Get("notifications", notificationController.Index)
 			router.Get("notifications/unread-count", notificationController.UnreadCount)
@@ -119,6 +113,12 @@ func Admin() {
 		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange(), httpmiddleware.Throttle("adminApi"), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
 
 			router.Put("profile", adminAuthController.UpdateProfile)
+
+			// Own Google Authenticator (requires google_authenticator.manage)
+			router.Get("google-authenticator/status", adminAuthController.GetGoogleAuthenticatorStatus)
+			router.Get("google-authenticator/qrcode", adminAuthController.GetGoogleAuthenticatorQRCode)
+			router.Post("google-authenticator/bind", adminAuthController.BindGoogleAuthenticator)
+			router.Post("google-authenticator/unbind", adminAuthController.UnbindGoogleAuthenticator)
 
 			// 密码管理（重置他人密码仍需权限）
 			passwordController := admin.NewPasswordController()

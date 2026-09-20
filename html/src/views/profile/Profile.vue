@@ -126,7 +126,12 @@
               </el-form>
             </el-tab-pane>
 
-            <el-tab-pane :label="$t('profile.google_authenticator')" name="2fa">
+            <el-tab-pane
+              v-if="getButtonState('google_authenticator.manage').show"
+              :label="$t('profile.google_authenticator')"
+              name="2fa"
+              :disabled="getButtonState('google_authenticator.manage').disabled"
+            >
               <div class="google-authenticator-section">
                 <el-alert
                   v-if="!googleAuthStatus.is_bound"
@@ -172,7 +177,11 @@
                         </div>
                       </div>
                     </div>
-                    <el-button type="primary" @click="bindStep = 1" :disabled="!qrCodeData.secret">
+                    <el-button
+                      type="primary"
+                      @click="bindStep = 1"
+                      :disabled="!qrCodeData.secret || getButtonState('google_authenticator.manage').disabled"
+                    >
                       {{ $t('profile.next_step') }}
                     </el-button>
                   </div>
@@ -195,7 +204,12 @@
                       </el-form-item>
                       <el-form-item>
                         <el-button @click="bindStep = 0">{{ $t('common.back') }}</el-button>
-                        <el-button type="primary" @click="handleBindGoogleAuth" :loading="bindSubmitting">
+                        <el-button
+                          type="primary"
+                          @click="handleBindGoogleAuth"
+                          :loading="bindSubmitting"
+                          :disabled="getButtonState('google_authenticator.manage').disabled"
+                        >
                           {{ $t('profile.bind') }}
                         </el-button>
                       </el-form-item>
@@ -220,7 +234,12 @@
                       />
                     </el-form-item>
                     <el-form-item>
-                      <el-button type="danger" @click="handleUnbindGoogleAuth" :loading="unbindSubmitting">
+                      <el-button
+                        type="danger"
+                        @click="handleUnbindGoogleAuth"
+                        :loading="unbindSubmitting"
+                        :disabled="getButtonState('google_authenticator.manage').disabled"
+                      >
                         {{ $t('profile.unbind') }}
                       </el-button>
                     </el-form-item>
@@ -787,7 +806,7 @@ const handleUnbindGoogleAuth = async () => {
 
 // 监听标签页切换
 watch(activeTab, (newTab) => {
-  if (newTab === '2fa') {
+  if (newTab === '2fa' && !getButtonState('google_authenticator.manage').disabled) {
     loadGoogleAuthStatus()
     if (!googleAuthStatus.value.is_bound && !qrCodeData.value.secret) {
       loadQRCode()
@@ -797,7 +816,9 @@ watch(activeTab, (newTab) => {
 
 onMounted(() => {
   loadProfile()
-  loadGoogleAuthStatus()
+  if (!getButtonState('google_authenticator.manage').disabled) {
+    loadGoogleAuthStatus()
+  }
 })
 </script>
 

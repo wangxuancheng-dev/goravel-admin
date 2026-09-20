@@ -20,6 +20,7 @@ import { useCrudActions } from '@/hooks/useCrudActions'
 import { usePermission } from '@/hooks/usePermission'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { useColumnSetting } from '@/hooks/useColumnSetting'
+import { promptSensitiveConfirm } from '@/utils/sensitiveConfirm'
 import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
 import PermissionButton from '@/components/PermissionButton'
@@ -30,6 +31,7 @@ import {
   adminProtectedIds,
   getAdminDeptName,
   getAdminPositionName,
+  getAdminRoleNames,
   transformAdminRow,
   type AdminRow,
 } from './admin.config'
@@ -104,13 +106,19 @@ export default function AdminList() {
       ),
       onOk: async () => {
         const values = await pwdForm.validateFields()
-        try {
-          await resetPassword(row.id, { password: values.password })
-          message.success(t('admin.reset_password_success', { defaultValue: '密码已重置' }))
-        } catch (error) {
-          showError(error, t('common.operation_failed'))
-          throw error
-        }
+        void (async () => {
+          try {
+            const confirmCode = await promptSensitiveConfirm(modal, t)
+            await resetPassword(row.id, {
+              password: values.password,
+              confirm_code: confirmCode,
+            })
+            message.success(t('admin.reset_password_success', { defaultValue: '密码已重置' }))
+          } catch (error) {
+            if ((error as Error)?.message === 'cancel') return
+            showError(error, t('common.operation_failed'))
+          }
+        })()
       },
     })
   }
@@ -205,16 +213,20 @@ export default function AdminList() {
     {
       title: t('table.roles'),
       dataIndex: 'roles',
-      render: (roles: AdminRow['roles']) =>
-        roles?.length ? (
+      render: (_: AdminRow['roles'], row) => {
+        const names = getAdminRoleNames(row)
+        if (names === '-') return '-'
+        return (
           <Space size={[4, 4]} wrap>
-            {roles.map((role) => (
-              <Tag key={String(role.id)}>{role.name}</Tag>
-            ))}
+            {row.roles
+              ?.map((role) => role.name)
+              .filter(Boolean)
+              .map((name) => (
+                <Tag key={name}>{name}</Tag>
+              ))}
           </Space>
-        ) : (
-          '-'
-        ),
+        )
+      },
     },
     {
       title: t('admin.google_auth_status', { defaultValue: '谷歌验证' }),

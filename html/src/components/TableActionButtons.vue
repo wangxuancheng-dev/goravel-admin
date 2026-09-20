@@ -135,8 +135,13 @@ const emit = defineEmits(['action'])
 // 判断是否显示操作
 const shouldShowAction = (action, row) => {
   if (action.show === false) return false
-  if (typeof action.show === 'function') {
-    return action.show(row)
+  if (typeof action.show === 'function' && !action.show(row)) {
+    return false
+  }
+  if (action.permission && props.getButtonState) {
+    if (!props.getButtonState(action.permission).show) {
+      return false
+    }
   }
   return true
 }

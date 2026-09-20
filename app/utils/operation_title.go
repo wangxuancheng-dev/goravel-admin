@@ -109,6 +109,11 @@ func generateDefaultTitle(method, path string) string {
 		return "order.export"
 	}
 
+	// Own Google Authenticator bind/unbind
+	if pathStr.Contains("/google-authenticator/") {
+		return "google_authenticator.manage"
+	}
+
 	// 管理员解绑谷歌验证码
 	if pathStr.Contains("/admins/") && pathStr.EndsWith("/unbind-google-auth") && method == "POST" {
 		return "admin.unbind_google_auth"

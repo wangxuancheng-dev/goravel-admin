@@ -12,6 +12,7 @@ import {
 } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
+import { usePermission } from '@/hooks/usePermission'
 import PageContainer from '@/components/PageContainer'
 import './Profile.scss'
 
@@ -53,6 +54,8 @@ export default function ProfilePage() {
   const { t } = useTranslation()
   const { message } = App.useApp()
   const showError = useUnhandledError()
+  const { getButtonState } = usePermission()
+  const googleAuthPerm = getButtonState('google_authenticator.manage')
   const adminInfo = useUserStore((s) => s.adminInfo)
   const fetchUserInfo = useUserStore((s) => s.fetchUserInfo)
   const [searchParams] = useSearchParams()
@@ -82,6 +85,7 @@ export default function ProfilePage() {
   }, [adminInfo, profileForm])
 
   const load2fa = async () => {
+    if (googleAuthPerm.disabled) return
     setLoading2fa(true)
     try {
       const statusRes = await getGoogleAuthenticatorStatus()
@@ -221,9 +225,9 @@ export default function ProfilePage() {
           activeKey={activeTab}
           onChange={(key) => {
             setActiveTab(key)
-            if (key === '2fa') void load2fa()
+            if (key === '2fa' && !googleAuthPerm.disabled) void load2fa()
           }}
-          items={[
+          items={([
             {
               key: 'basic',
               label: t('common.basic_info'),
@@ -305,7 +309,8 @@ export default function ProfilePage() {
             },
             {
               key: '2fa',
-              label: t('profile.google_authenticator', { defaultValue: '谷歌验证器' }),
+              label: t('profile.google_authenticator', { defaultValue: 'Google Authenticator' }),
+              disabled: googleAuthPerm.disabled,
               children: (
                 <div className="profile-google-auth">
                   {bound ? (
@@ -331,7 +336,7 @@ export default function ProfilePage() {
                         >
                           <Input maxLength={6} placeholder={t('profile.enter_6_digit_code')} />
                         </Form.Item>
-                        <Button danger htmlType="submit" loading={unbinding}>
+                        <Button danger htmlType="submit" loading={unbinding} disabled={googleAuthPerm.disabled}>
                           {t('profile.unbind')}
                         </Button>
                       </Form>
@@ -387,10 +392,10 @@ export default function ProfilePage() {
                             )}
                           </div>
                           <Space>
-                            <Button type="primary" disabled={!qr.secret} onClick={() => setBindStep(1)}>
+                            <Button type="primary" disabled={!qr.secret || googleAuthPerm.disabled} onClick={() => setBindStep(1)}>
                               {t('profile.next_step')}
                             </Button>
-                            <Button onClick={() => void load2fa()} loading={loading2fa}>
+                            <Button onClick={() => void load2fa()} loading={loading2fa} disabled={googleAuthPerm.disabled}>
                               {t('common.refresh')}
                             </Button>
                           </Space>
@@ -414,7 +419,7 @@ export default function ProfilePage() {
                           </Form.Item>
                           <Space>
                             <Button onClick={() => setBindStep(0)}>{t('common.back')}</Button>
-                            <Button type="primary" htmlType="submit" loading={binding}>
+                            <Button type="primary" htmlType="submit" loading={binding} disabled={googleAuthPerm.disabled}>
                               {t('profile.bind')}
                             </Button>
                           </Space>
@@ -425,7 +430,7 @@ export default function ProfilePage() {
                 </div>
               ),
             },
-          ]}
+          ].filter((item) => item.key !== '2fa' || googleAuthPerm.show))}
         />
       </Card>
 

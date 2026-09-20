@@ -25,6 +25,12 @@ export interface AdminRow {
 export const adminProtectedIds = new Set([1, 2])
 
 export function transformAdminRow(row: Record<string, unknown>): AdminRow {
+  const rawRoles = (entityField(row, 'roles', []) as Array<Record<string, unknown>>) || []
+  const roles = rawRoles.map((role) => ({
+    id: entityField(role, 'id', '') as number | string,
+    name: String(entityField(role, 'name', '') ?? ''),
+  }))
+
   return {
     id: entityField(row, 'id', '')!,
     username: String(entityField(row, 'username', '') ?? ''),
@@ -36,7 +42,7 @@ export function transformAdminRow(row: Record<string, unknown>): AdminRow {
     is_2fa_bound: !!(entityField(row, 'is_2fa_bound', false) || entityField(row, 'Is2faBound', false)),
     department: (entityField(row, 'department', null) as AdminRow['department']) || undefined,
     position: (entityField(row, 'position', null) as AdminRow['position']) || undefined,
-    roles: (entityField(row, 'roles', []) as AdminRow['roles']) || [],
+    roles,
   }
 }
 

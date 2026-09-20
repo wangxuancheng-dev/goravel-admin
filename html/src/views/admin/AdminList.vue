@@ -119,6 +119,7 @@ import {
 } from '@/api/admin'
 import logger from '@/utils/logger'
 import ErrorHandler from '@/utils/errorHandler'
+import { promptSensitiveConfirm } from '@/utils/sensitiveConfirm'
 import { compact, map as lodashMap } from 'lodash-es'
 import {
   adminInitialSearchForm,
@@ -250,7 +251,8 @@ const handleResetPassword = async (row) => {
         inputType: 'password'
       }
     )
-    await resetPassword(row.id, { password })
+    const confirmCode = await promptSensitiveConfirm(t)
+    await resetPassword(row.id, { password, confirm_code: confirmCode })
     ElMessage.success(t('admin.reset_password_success'))
   } catch (error) {
     if (error !== 'cancel') {

@@ -230,7 +230,10 @@ func (s *AdminServiceImpl) GetList(filters AdminFilters, page, pageSize int) ([]
 	// 分页查询
 	var admins []models.Admin
 	var total int64
-	if err := query.With("Department").With("Position").With("Roles").Paginate(page, pageSize, &admins, &total); err != nil {
+	if err := query.Paginate(page, pageSize, &admins, &total); err != nil {
+		return nil, 0, apperrors.ErrQueryFailed.WithError(err)
+	}
+	if err := s.LoadRelationsForList(admins); err != nil {
 		return nil, 0, apperrors.ErrQueryFailed.WithError(err)
 	}
 
@@ -250,7 +253,10 @@ func (s *AdminServiceImpl) GetAllAdminsForExport(filters AdminFilters) ([]models
 
 	// 不分页，获取所有数据
 	var admins []models.Admin
-	if err := query.With("Department").With("Position").With("Roles").Find(&admins); err != nil {
+	if err := query.Find(&admins); err != nil {
+		return nil, apperrors.ErrQueryFailed.WithError(err)
+	}
+	if err := s.LoadRelationsForList(admins); err != nil {
 		return nil, apperrors.ErrQueryFailed.WithError(err)
 	}
 

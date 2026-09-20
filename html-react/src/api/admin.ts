@@ -11,7 +11,10 @@ const adminApi = extendApi(baseAdminApi, {
       method: 'post',
       data: params,
     }),
-  resetPassword: (id: string | number, data: { password: string }) =>
+  resetPassword: (
+    id: string | number,
+    data: { password: string; confirm_code?: string },
+  ) =>
     request({
       url: `/admins/${id}/password`,
       method: 'put',

@@ -12,8 +12,14 @@ func TestMatchPath(t *testing.T) {
 		{"/api/admin/roles", "/api/admin/admins", false},
 		{"/api/admin/roles/*", "/api/admin/roles/1", true},
 		{"/api/admin/roles/*", "/api/admin/roles", false},
+		{"/api/admin/admins/*", "/api/admin/admins/1", true},
+		{"/api/admin/admins/*", "/api/admin/admins/1/password", false},
+		{"/api/admin/admins/*", "/api/admin/admins/1/tokens", false},
+		{"/api/admin/admins/*/password", "/api/admin/admins/1/password", true},
+		{"/api/admin/admins/*/tokens", "/api/admin/admins/1/tokens", true},
 		{"/api/admin/attachments/*/display-name", "/api/admin/attachments/9/display-name", true},
 		{"/api/admin/attachments/*/display-name", "/api/admin/attachments/9/preview", false},
+		{"/api/admin/attachments/*/display-name", "/api/admin/attachments/9/x/display-name", false},
 	}
 	for _, tc := range cases {
 		if got := matchPath(tc.pattern, tc.path); got != tc.want {

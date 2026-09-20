@@ -123,8 +123,8 @@ func Permission() http.Middleware {
 // matchPath 路径匹配，支持通配符
 // 支持的模式：
 // 1. 精确匹配：/api/admin/roles 匹配 /api/admin/roles
-// 2. 末尾通配符：/api/admin/roles/* 匹配 /api/admin/roles/1
-// 3. 中间通配符：/api/admin/attachments/*/display-name 匹配 /api/admin/attachments/1/display-name
+// 2. 末尾通配符（单段）：/api/admin/roles/* 匹配 /api/admin/roles/1，不匹配 /api/admin/roles/1/password
+// 3. 中间通配符（单段）：/api/admin/attachments/*/display-name 匹配 /api/admin/attachments/1/display-name
 func matchPath(pattern, path string) bool {
 	if pattern == path {
 		return true
@@ -151,21 +151,18 @@ func matchPath(pattern, path string) bool {
 		return true
 	}
 
-	// 如果模式以 * 结尾
+	// Trailing *: matches exactly one path segment (admins/* -> admins/1, not admins/1/password)
 	if pattern[len(pattern)-1] == '*' {
 		prefix := pattern[:len(pattern)-1]
-		if len(path) >= len(prefix) {
-			pathPrefix := path[:len(prefix)]
-			if pathPrefix == prefix {
-				// 如果前缀以 / 结尾，路径必须比前缀长（即后面还有内容）
-				if len(prefix) > 0 && prefix[len(prefix)-1] == '/' {
-					return len(path) > len(prefix)
-				}
-				// 如果前缀不以 / 结尾，路径可以等于或长于前缀
-				return true
-			}
+		if len(path) < len(prefix) || path[:len(prefix)] != prefix {
+			return false
 		}
-		return false
+		remaining := path[len(prefix):]
+		if remaining == "" {
+			return false
+		}
+		// One segment only — no further "/"
+		return !strings.Contains(remaining, "/")
 	}
 
 	// 处理中间有通配符的情况，如 /api/admin/attachments/*/display-name
@@ -199,11 +196,9 @@ func matchPath(pattern, path string) bool {
 		return false
 	}
 
-	// 检查中间部分是否存在（通配符匹配任意内容）
-	// 路径应该是：firstPart + 任意内容 + lastPart
+	// Middle *: one path segment (usually a resource id)
 	remainingPath := path[len(firstPart) : len(path)-len(lastPart)]
-	// 确保中间部分不为空（至少有一个字符，通常是数字ID）
-	return len(remainingPath) > 0
+	return len(remainingPath) > 0 && !strings.Contains(remainingPath, "/")
 }
 
 // contains 检查字符串是否包含指定字符
