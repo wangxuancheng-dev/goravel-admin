@@ -150,15 +150,24 @@ platformRequest.interceptors.response.use(
     const status = error.response?.status
     const data = error.response?.data
     const message = data?.message || error.message || t('error.default')
+    const errorCode = data?.error_code || ''
     const url = error.config?.url || ''
-    if (status === 401 && !isAuthEndpointUrl(url)) {
+    const isAuthEndpoint = isAuthEndpointUrl(url)
+
+    error.errorCode = errorCode
+    error.translatedMessage = message
+    if (status) error.code = status
+
+    if (status === 401 && !isAuthEndpoint) {
       handle401(message)
       error.__handled = true
+    } else if (isAuthEndpoint && status && status >= 400) {
+      // Login page handles captcha / 2FA adaptive UI; do not toast here.
+      error.__handled = false
     } else if (status && status !== 401) {
       ElMessage.error(message)
       error.__handled = true
     }
-    error.translatedMessage = message
     return Promise.reject(error)
   }
 )

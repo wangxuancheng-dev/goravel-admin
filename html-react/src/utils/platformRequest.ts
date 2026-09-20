@@ -137,18 +137,33 @@ platformRequest.interceptors.response.use(
     }
     return res
   },
-  (error: AxiosError<{ message?: string }>) => {
+  (error: AxiosError<{ message?: string; error_code?: string; code?: number }> & {
+    errorCode?: string
+    translatedMessage?: string
+    __handled?: boolean
+    code?: number
+  }) => {
     const status = error.response?.status
-    const message = error.response?.data?.message || error.message || i18n.t('error.default')
+    const data = error.response?.data
+    const message = data?.message || error.message || i18n.t('error.default')
+    const errorCode = data?.error_code || ''
     const url = error.config?.url || ''
-    if (status === 401 && !isAuthEndpointUrl(url)) {
+    const isAuth = isAuthEndpointUrl(url)
+
+    error.errorCode = errorCode
+    error.translatedMessage = message
+    if (status) error.code = status
+
+    if (status === 401 && !isAuth) {
       handle401(message)
-      ;(error as AxiosError & { __handled?: boolean; translatedMessage?: string }).__handled = true
+      error.__handled = true
+    } else if (isAuth && status && status >= 400) {
+      // Login page handles captcha / 2FA adaptive UI; do not toast here.
+      error.__handled = false
     } else if (status) {
       antdMessage.error(message)
-      ;(error as AxiosError & { __handled?: boolean }).__handled = true
+      error.__handled = true
     }
-    ;(error as AxiosError & { translatedMessage?: string }).translatedMessage = message
     return Promise.reject(error)
   },
 )
