@@ -19,12 +19,19 @@ const (
 // PlatformAdmin is a landlord console account (platform DB only).
 type PlatformAdmin struct {
 	orm.Model
-	Username string `gorm:"uniqueIndex;size:50;not null;comment:username" json:"username"`
-	Password string `gorm:"size:255;not null;comment:password hash" json:"-"`
-	Name     string `gorm:"size:100;comment:display name" json:"name"`
-	Role     string `gorm:"size:32;default:owner;index;comment:owner|viewer" json:"role"`
-	Status   uint8  `gorm:"default:1;index;comment:1 active 0 disabled" json:"status"`
+	Username     string `gorm:"uniqueIndex;size:50;not null;comment:username" json:"username"`
+	Password     string `gorm:"size:255;not null;comment:password hash" json:"-"`
+	Name         string `gorm:"size:100;comment:display name" json:"name"`
+	Role         string `gorm:"size:32;default:owner;index;comment:owner|viewer" json:"role"`
+	Status       uint8  `gorm:"default:1;index;comment:1 active 0 disabled" json:"status"`
+	GoogleSecret string `gorm:"size:255;comment:TOTP secret" json:"-"`
+	AllowedIPs   string `gorm:"size:500;comment:comma-separated IPs/CIDRs; empty=any" json:"allowed_ips"`
 	orm.SoftDeletes
+}
+
+// Is2FABound reports whether TOTP is configured.
+func (a *PlatformAdmin) Is2FABound() bool {
+	return a != nil && strings.TrimSpace(a.GoogleSecret) != ""
 }
 
 // NormalizePlatformAdminRole returns owner|viewer (empty => owner).

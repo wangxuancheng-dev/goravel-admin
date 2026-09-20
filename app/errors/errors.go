@@ -19,6 +19,7 @@ var (
 	ErrUsernameOrPasswordErr = NewBusinessError("username_or_password_error", "用户名或密码错误")
 	ErrLoginFailed           = NewBusinessError("login_failed", "登录失败")
 	ErrLoginLocked           = NewBusinessError("login_locked", "登录失败次数过多，账号已被临时锁定 {minutes} 分钟，请稍后再试")
+	ErrLoginIPNotAllowed     = NewBusinessError("login_ip_not_allowed", "当前 IP 不在允许登录列表中")
 
 	// 验证相关错误
 	ErrValidationFailed = NewBusinessError("validation_failed", "验证失败")

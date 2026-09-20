@@ -246,6 +246,54 @@ export function exportPlatformTenants(params = {}) {
   })
 }
 
+export function getPlatformTenantAdmins(id) {
+  return platformRequest.get(`/tenants/${id}/admins`)
+}
+
+export function resetPlatformTenantAdminPassword(id, adminId, data) {
+  return platformRequest.post(`/tenants/${id}/admins/${adminId}/reset-password`, data)
+}
+
+export function unlockPlatformTenantAdmin(id, data) {
+  return platformRequest.post(`/tenants/${id}/admins/unlock`, data)
+}
+
+export function resetPlatformTenantAdmin2FA(id, adminId) {
+  return platformRequest.post(`/tenants/${id}/admins/${adminId}/reset-2fa`)
+}
+
+export function getPlatformTenantAuditSummary(id) {
+  return platformRequest.get(`/tenants/${id}/audit-summary`)
+}
+
+export async function getPlatformAlertDeliveryList(params) {
+  return normalizeListResponse(await platformRequest.get('/alert-deliveries', { params }))
+}
+
+export function retryPlatformAlertDelivery(id) {
+  return platformRequest.post(`/alert-deliveries/${id}/retry`)
+}
+
+export function getPlatformSecurityStatus() {
+  return platformRequest.get('/security/2fa/status')
+}
+
+export function getPlatformSecurityQRCode() {
+  return platformRequest.get('/security/2fa/qrcode')
+}
+
+export function bindPlatformSecurity2FA(data) {
+  return platformRequest.post('/security/2fa/bind', data)
+}
+
+export function unbindPlatformSecurity2FA(data) {
+  return platformRequest.post('/security/2fa/unbind', data)
+}
+
+export function updatePlatformAllowedIPs(data) {
+  return platformRequest.put('/security/allowed-ips', data)
+}
+
 export async function completePlatformLogin(res) {
   const token = res?.data?.token
   const admin = res?.data?.admin

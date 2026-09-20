@@ -44,6 +44,11 @@ import {
   getPlatformTenantOpsSummary,
   getPlatformTenantOverview,
   getPlatformTenantSettings,
+  getPlatformTenantAdmins,
+  getPlatformTenantAuditSummary,
+  resetPlatformTenantAdminPassword,
+  unlockPlatformTenantAdmin,
+  resetPlatformTenantAdmin2FA,
   listPlatformTenantBackups,
   migratePlatformTenant,
   migratePlatformTenantBatch,
@@ -303,6 +308,26 @@ export default function PlatformTenantList() {
     recent?: Array<{ id: number | string; module?: string; message?: string; created_at?: string }>
     error?: string
   } | null>(null)
+  const [supportRow, setSupportRow] = useState<TenantRow | null>(null)
+  const [supportLoading, setSupportLoading] = useState(false)
+  const [supportAdmins, setSupportAdmins] = useState<
+    Array<{
+      id: number | string
+      username?: string
+      nickname?: string
+      status?: number
+      is_2fa_bound?: boolean
+      must_change_password?: number
+    }>
+  >([])
+  const [supportAudit, setSupportAudit] = useState<{
+    login_success_24h?: number
+    login_failed_24h?: number
+    operation_count_24h?: number
+    recent_logins?: Array<Record<string, unknown>>
+    recent_operations?: Array<Record<string, unknown>>
+    error?: string
+  } | null>(null)
   const [timelineRow, setTimelineRow] = useState<TenantRow | null>(null)
   const [timelineLoading, setTimelineLoading] = useState(false)
   const [detailLoginLinks, setDetailLoginLinks] = useState<TenantLoginLinksData | null>(null)
@@ -326,11 +351,21 @@ export default function PlatformTenantList() {
   const [pruneKeep, setPruneKeep] = useState(10)
   const [pruneLoading, setPruneLoading] = useState(false)
   const [restoringName, setRestoringName] = useState('')
+  const [backupScheduleEnabled, setBackupScheduleEnabled] = useState(false)
+  const [backupScheduleAt, setBackupScheduleAt] = useState('20:00')
 
   const formatQueueHint = (q: PlatformQueueStatus | null, keep: number) => {
     if (!q) return ''
     const pending = Number(q.pending ?? 0)
     const parts = [t('platform.health_backup_keep', { n: keep })]
+    parts.push(
+      backupScheduleEnabled
+        ? t('tenant.backup_schedule_enabled')
+        : t('tenant.backup_schedule_disabled'),
+    )
+    if (backupScheduleAt) {
+      parts.push(`${t('tenant.backup_schedule_at')}: ${backupScheduleAt}`)
+    }
     if (q.available) {
       parts.push(t('tenant.queue_pending', { n: pending, queue: q.queue || 'long-running' }))
     }
@@ -393,10 +428,16 @@ export default function PlatformTenantList() {
     void refreshHealthBanner()
     void getPlatformTenantSettings()
       .then((res) => {
-        const data = (res as { data?: { backup_keep?: number; queue?: PlatformQueueStatus } })?.data
+        const data = (res as { data?: { backup_keep?: number; backup_schedule_enabled?: boolean; backup_schedule_at?: string; queue?: PlatformQueueStatus } })?.data
         if (data?.backup_keep != null) {
           setBackupKeep(Number(data.backup_keep))
           setPruneKeep(Number(data.backup_keep))
+        }
+        if (data?.backup_schedule_enabled != null) {
+          setBackupScheduleEnabled(!!data.backup_schedule_enabled)
+        }
+        if (data?.backup_schedule_at) {
+          setBackupScheduleAt(String(data.backup_schedule_at))
         }
       })
       .catch(() => {
@@ -541,6 +582,29 @@ export default function PlatformTenantList() {
       message.success(t('tenant.backup_copied'))
     } catch {
       message.error(t('common.operation_failed'))
+    }
+  }
+
+  const openSupport = async (row: TenantRow) => {
+    setSupportRow(row)
+    setSupportLoading(true)
+    setSupportAdmins([])
+    setSupportAudit(null)
+    try {
+      const [adminsRes, auditRes] = await Promise.all([
+        getPlatformTenantAdmins(row.id),
+        getPlatformTenantAuditSummary(row.id),
+      ])
+      setSupportAdmins(
+        ((adminsRes as { data?: { list?: typeof supportAdmins } })?.data?.list || []) as typeof supportAdmins,
+      )
+      setSupportAudit(
+        (auditRes as { data?: { audit?: typeof supportAudit } })?.data?.audit || null,
+      )
+    } catch (e) {
+      showError(e, t('common.operation_failed'))
+    } finally {
+      setSupportLoading(false)
     }
   }
 
@@ -1349,6 +1413,9 @@ export default function PlatformTenantList() {
               ) : null}
               <Button type="link" size="small" onClick={() => void onPingRow(row)}>
                 {t('tenant.op_ping')}
+              </Button>
+              <Button type="link" size="small" onClick={() => void openSupport(row)}>
+                {t('tenant.support')}
               </Button>
               {isOwner ? (
                 <>
@@ -2179,6 +2246,140 @@ export default function PlatformTenantList() {
             <Typography.Text type="secondary">{t('tenant.timeline_empty')}</Typography.Text>
           )}
         </div>
+      </Modal>
+
+      <Modal
+        title={`${t('tenant.support')}: ${supportRow?.code || ''}`}
+        open={!!supportRow}
+        onCancel={() => setSupportRow(null)}
+        footer={null}
+        width={860}
+        destroyOnHidden
+      >
+        {supportLoading ? (
+          <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+        ) : (
+          <>
+            <Divider>{t('tenant.audit_summary')}</Divider>
+            {supportAudit ? (
+              <Descriptions size="small" bordered column={3} style={{ marginBottom: 16 }}>
+                <Descriptions.Item label={t('tenant.login_success_24h')}>
+                  {supportAudit.login_success_24h ?? 0}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.login_failed_24h')}>
+                  {supportAudit.login_failed_24h ?? 0}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('tenant.operation_count_24h')}>
+                  {supportAudit.operation_count_24h ?? 0}
+                </Descriptions.Item>
+              </Descriptions>
+            ) : (
+              <Typography.Text type="secondary">—</Typography.Text>
+            )}
+            <Divider>{t('tenant.tenant_admins')}</Divider>
+            <Table
+              rowKey="id"
+              size="small"
+              pagination={false}
+              dataSource={supportAdmins}
+              columns={[
+                { title: t('table.id'), dataIndex: 'id', width: 70 },
+                { title: t('admin.username'), dataIndex: 'username', width: 120 },
+                { title: t('admin.nickname'), dataIndex: 'nickname', width: 120 },
+                {
+                  title: t('table.status'),
+                  dataIndex: 'status',
+                  width: 80,
+                  render: (v: number) => (v === 1 ? t('common.enabled') : t('common.disabled')),
+                },
+                {
+                  title: t('admin.is_2fa_bound'),
+                  dataIndex: 'is_2fa_bound',
+                  width: 90,
+                  render: (v: boolean) => (v ? t('common.yes') : t('common.no')),
+                },
+                {
+                  title: t('common.operation'),
+                  key: 'actions',
+                  width: 280,
+                  render: (_: unknown, adminRow) =>
+                    isOwner ? (
+                      <Space size={0} wrap>
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={() => {
+                            let pwd = ''
+                            modal.confirm({
+                              title: t('tenant.reset_admin_password'),
+                              content: (
+                                <Input.Password
+                                  placeholder={t('platform.new_password')}
+                                  onChange={(e) => {
+                                    pwd = e.target.value
+                                  }}
+                                />
+                              ),
+                              onOk: async () => {
+                                if (!supportRow || !pwd) throw new Error('password required')
+                                await resetPlatformTenantAdminPassword(supportRow.id, adminRow.id, {
+                                  password: pwd,
+                                  confirm_password: pwd,
+                                })
+                                message.success(t('admin.reset_password_success'))
+                              },
+                            })
+                          }}
+                        >
+                          {t('admin.reset_password')}
+                        </Button>
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={() => {
+                            modal.confirm({
+                              title: t('tenant.unlock_admin'),
+                              onOk: async () => {
+                                if (!supportRow) return
+                                await unlockPlatformTenantAdmin(supportRow.id, {
+                                  username: String(adminRow.username || ''),
+                                })
+                                message.success(t('tenant.unlock_success'))
+                              },
+                            })
+                          }}
+                        >
+                          {t('tenant.unlock_admin')}
+                        </Button>
+                        {adminRow.is_2fa_bound ? (
+                          <Button
+                            type="link"
+                            size="small"
+                            danger
+                            onClick={() => {
+                              modal.confirm({
+                                title: t('tenant.reset_admin_2fa'),
+                                onOk: async () => {
+                                  if (!supportRow) return
+                                  await resetPlatformTenantAdmin2FA(supportRow.id, adminRow.id)
+                                  message.success(t('admin.unbind_success'))
+                                  void openSupport(supportRow)
+                                },
+                              })
+                            }}
+                          >
+                            {t('admin.reset_2fa')}
+                          </Button>
+                        ) : null}
+                      </Space>
+                    ) : (
+                      '—'
+                    ),
+                },
+              ]}
+            />
+          </>
+        )}
       </Modal>
 
       <Modal

@@ -17,6 +17,9 @@
             @keyup.enter="submit"
           />
         </el-form-item>
+        <el-form-item prop="google_code">
+          <el-input v-model="form.google_code" :placeholder="$t('platform.google_code_placeholder')" size="large" />
+        </el-form-item>
         <el-form-item prop="captcha_answer">
           <div class="captcha-row">
             <img
@@ -62,7 +65,7 @@ const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
 const tenantLoginUrl = getTenantAdminLoginUrl()
-const form = reactive({ username: '', password: '', captcha_answer: '' })
+const form = reactive({ username: '', password: '', captcha_answer: '', google_code: '' })
 const captcha = reactive({ id: '', image: '' })
 const rules = computed(() => ({
   username: [{ required: true, message: t('login.username'), trigger: 'blur' }],
@@ -101,7 +104,8 @@ const submit = async () => {
         username: form.username.trim(),
         password: form.password,
         captcha_id: captcha.id,
-        captcha_answer: form.captcha_answer
+        captcha_answer: form.captcha_answer,
+        google_code: form.google_code
       })
       await completePlatformLogin(res)
       ElMessage.success(t('login.login_success') || t('common.success'))

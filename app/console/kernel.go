@@ -3,6 +3,7 @@ package console
 import (
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/schedule"
+	"github.com/goravel/framework/facades"
 
 	"goravel/app/console/commands"
 )
@@ -28,6 +29,8 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		ScheduleTracked("queue:alert-backlog").Hourly().OnOneServer(),
 		// Beijing 04:00 = UTC 20:00: hard-delete expired soft-deleted tenants
 		ScheduleTracked("tenant:cleanup-deleted").DailyAt("20:00").OnOneServer(),
+		// Optional full tenant backup (TENANT_BACKUP_SCHEDULE_ENABLED=true); default UTC 20:00
+		ScheduleTracked("tenant:backup-scheduled").DailyAt(facades.Config().GetString("tenancy.backup_schedule_at", "20:00")).OnOneServer(),
 		// Tenant health: ping / schema / quota / migrate fail → webhook/email
 		ScheduleTracked("tenant:health-inspect").Hourly().OnOneServer(),
 		// Open-source demos: activity windows + unpaid order expire safety net
@@ -69,6 +72,7 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.TenantEnable{},
 		&commands.TenantBackup{},
 		&commands.TenantBackupAll{},
+		&commands.TenantBackupScheduled{},
 		&commands.TenantRestore{},
 		&commands.TenantCleanupDeleted{},
 		&commands.TenantHealthInspect{},

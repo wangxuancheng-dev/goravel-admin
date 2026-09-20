@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/goravel/framework/contracts/mail"
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/models"
@@ -100,32 +102,78 @@ func AlertTenantOpFailedIfNeeded(tenant *models.Tenant, op, message string) {
 		"app":                    facades.Config().GetString("app.name", ""),
 		"env":                    facades.Config().GetString("app.env", ""),
 	}
-	go func() {
-		if err := postTenantOpsWebhook(url, payload); err != nil {
-			facades.Log().Warningf("tenant ops alert webhook post failed: %v", err)
-		}
-	}()
+	tid := tenant.ID
+	go deliverPlatformWebhookAlert(models.PlatformAlertChannelWebhook, "tenant_op_failed", &tid, tenant.Code, op, url, payload)
+}
+
+func deliverPlatformWebhookAlert(channel, event string, tenantID *uint, tenantCode, op, url string, payload map[string]any) {
+	body, _ := json.Marshal(payload)
+	row := &models.PlatformAlertDelivery{
+		Channel:      channel,
+		Event:        event,
+		TenantID:     tenantID,
+		TenantCode:   tenantCode,
+		Op:           op,
+		Status:       models.PlatformAlertStatusPending,
+		TargetMasked: maskOpsWebhookURL(url),
+		Payload:      string(body),
+		Attempt:      1,
+	}
+	RecordPlatformAlertDelivery(row)
+	httpStatus, err := postTenantOpsWebhookWithStatus(url, payload)
+	if err != nil {
+		facades.Log().Warningf("tenant ops alert webhook post failed: %v", err)
+		FinishPlatformAlertDelivery(row.ID, models.PlatformAlertStatusFailed, httpStatus, err.Error())
+		return
+	}
+	FinishPlatformAlertDelivery(row.ID, models.PlatformAlertStatusSuccess, httpStatus, "")
 }
 
 func postTenantOpsWebhook(url string, payload map[string]any) error {
+	_, err := postTenantOpsWebhookWithStatus(url, payload)
+	return err
+}
+
+func postTenantOpsWebhookWithStatus(url string, payload map[string]any) (int, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	reqCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	_ = resp.Body.Close()
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("webhook status %d", resp.StatusCode)
+		return resp.StatusCode, fmt.Errorf("webhook status %d", resp.StatusCode)
 	}
-	return nil
+	return resp.StatusCode, nil
+}
+
+// deliverPlatformMailAlert records and sends health alert mail.
+func deliverPlatformMailAlert(event, to, subject, body string) {
+	row := &models.PlatformAlertDelivery{
+		Channel:      models.PlatformAlertChannelMail,
+		Event:        event,
+		Status:       models.PlatformAlertStatusPending,
+		TargetMasked: maskEmail(to),
+		Payload:      body,
+		Attempt:      1,
+	}
+	RecordPlatformAlertDelivery(row)
+	err := facades.Mail().To([]string{to}).Subject(subject).Content(mail.Content{Html: "<pre>" + body + "</pre>"}).Send()
+	if err != nil {
+		facades.Log().Warningf("tenant health alert mail failed: %v", err)
+		FinishPlatformAlertDelivery(row.ID, models.PlatformAlertStatusFailed, 0, err.Error())
+		return
+	}
+	FinishPlatformAlertDelivery(row.ID, models.PlatformAlertStatusSuccess, 0, "")
 }

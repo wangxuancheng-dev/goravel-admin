@@ -10,6 +10,7 @@ export function platformLogin(data: {
   password: string
   captcha_id?: string
   captcha_answer?: string
+  google_code?: string
 }) {
   return platformRequest.post('/login', data)
 }
@@ -296,6 +297,58 @@ export function exportPlatformTenants(params?: Record<string, unknown>) {
     params,
     responseType: 'blob',
   })
+}
+
+export function getPlatformTenantAdmins(id: string | number) {
+  return platformRequest.get(`/tenants/${id}/admins`)
+}
+
+export function resetPlatformTenantAdminPassword(
+  id: string | number,
+  adminId: string | number,
+  data: { password: string; confirm_password?: string },
+) {
+  return platformRequest.post(`/tenants/${id}/admins/${adminId}/reset-password`, data)
+}
+
+export function unlockPlatformTenantAdmin(id: string | number, data: { username: string }) {
+  return platformRequest.post(`/tenants/${id}/admins/unlock`, data)
+}
+
+export function resetPlatformTenantAdmin2FA(id: string | number, adminId: string | number) {
+  return platformRequest.post(`/tenants/${id}/admins/${adminId}/reset-2fa`)
+}
+
+export function getPlatformTenantAuditSummary(id: string | number) {
+  return platformRequest.get(`/tenants/${id}/audit-summary`)
+}
+
+export async function getPlatformAlertDeliveryList(params?: Record<string, unknown>) {
+  return normalizeListResponse(await platformRequest.get('/alert-deliveries', { params }))
+}
+
+export function retryPlatformAlertDelivery(id: string | number) {
+  return platformRequest.post(`/alert-deliveries/${id}/retry`)
+}
+
+export function getPlatformSecurityStatus() {
+  return platformRequest.get('/security/2fa/status')
+}
+
+export function getPlatformSecurityQRCode() {
+  return platformRequest.get('/security/2fa/qrcode')
+}
+
+export function bindPlatformSecurity2FA(data: { secret: string; code: string }) {
+  return platformRequest.post('/security/2fa/bind', data)
+}
+
+export function unbindPlatformSecurity2FA(data: { code: string }) {
+  return platformRequest.post('/security/2fa/unbind', data)
+}
+
+export function updatePlatformAllowedIPs(data: { allowed_ips: string }) {
+  return platformRequest.put('/security/allowed-ips', data)
 }
 
 export function completePlatformLogin(res: { data?: { token?: string; admin?: unknown } }) {

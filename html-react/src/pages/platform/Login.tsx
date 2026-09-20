@@ -41,6 +41,7 @@ export default function PlatformLogin() {
     username: string
     password: string
     captcha_answer?: string
+    google_code?: string
   }) => {
     setLoading(true)
     try {
@@ -49,6 +50,7 @@ export default function PlatformLogin() {
         password: values.password,
         captcha_id: captcha.id,
         captcha_answer: values.captcha_answer,
+        google_code: values.google_code,
       })
       completePlatformLogin(res as { data?: { token?: string; admin?: unknown } })
       message.success(t('login.login_success'))
@@ -98,6 +100,9 @@ export default function PlatformLogin() {
             rules={[{ required: true, message: t('login.password_required') }]}
           >
             <Input.Password size="large" placeholder={t('login.password')} />
+          </Form.Item>
+          <Form.Item name="google_code" label={t('platform.google_code')}>
+            <Input size="large" placeholder={t('platform.google_code_placeholder')} />
           </Form.Item>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             {captcha.image ? (

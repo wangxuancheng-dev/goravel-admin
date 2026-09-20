@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/facades"
@@ -22,6 +23,8 @@ type LoginLockoutService interface {
 	RecordFailure(ip, username string) (int, bool)
 	// ClearFailures 登录成功后清除计数。
 	ClearFailures(ip, username string)
+	// UnlockUsername clears lock for a username across IPs (platform support).
+	UnlockUsername(username string)
 }
 
 type LoginLockoutServiceImpl struct {
@@ -48,8 +51,16 @@ func (s *LoginLockoutServiceImpl) attemptsKey(ip, username string) string {
 	return tenancy.CacheKey(s.ctx, fmt.Sprintf("login_attempts:%s:%s", ip, username))
 }
 
+func (s *LoginLockoutServiceImpl) unlockKey(username string) string {
+	return tenancy.CacheKey(s.ctx, fmt.Sprintf("login_unlock:%s", username))
+}
+
 // IsLocked 检查是否锁定。
 func (s *LoginLockoutServiceImpl) IsLocked(ip, username string) (bool, int) {
+	if facades.Cache().GetString(s.unlockKey(username), "") != "" {
+		s.ClearFailures(ip, username)
+		return false, 0
+	}
 	key := s.lockKey(ip, username)
 	val := facades.Cache().GetString(key, "")
 	if val == "" {
@@ -91,4 +102,17 @@ func (s *LoginLockoutServiceImpl) ClearFailures(ip, username string) {
 	lKey := s.lockKey(ip, username)
 	_ = facades.Cache().Forget(lKey)
 	_ = facades.Cache().Forget(lKey + "_ttl")
+}
+
+// UnlockUsername stamps an unlock window so subsequent IsLocked checks clear IP locks.
+func (s *LoginLockoutServiceImpl) UnlockUsername(username string) {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return
+	}
+	_, lockDuration, _ := s.config()
+	_ = facades.Cache().Put(s.unlockKey(username), "1", lockDuration)
+	s.ClearFailures("", username)
+	s.ClearFailures("0.0.0.0", username)
+	s.ClearFailures("127.0.0.1", username)
 }

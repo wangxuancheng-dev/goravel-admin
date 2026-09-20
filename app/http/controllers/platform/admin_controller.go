@@ -27,9 +27,10 @@ type createPlatformAdminBody struct {
 }
 
 type updatePlatformAdminBody struct {
-	Name   *string `json:"name" form:"name"`
-	Role   *string `json:"role" form:"role"`
-	Status *uint8  `json:"status" form:"status"`
+	Name       *string `json:"name" form:"name"`
+	Role       *string `json:"role" form:"role"`
+	Status     *uint8  `json:"status" form:"status"`
+	AllowedIPs *string `json:"allowed_ips" form:"allowed_ips"`
 }
 
 type resetPlatformAdminPasswordBody struct {
@@ -103,9 +104,10 @@ func (c *AdminController) Update(ctx http.Context) http.Response {
 	var body updatePlatformAdminBody
 	_ = ctx.Request().Bind(&body)
 	row, err := services.UpdatePlatformAdmin(currentPlatformAdminID(ctx), id, services.UpdatePlatformAdminInput{
-		Name:   body.Name,
-		Role:   body.Role,
-		Status: body.Status,
+		Name:       body.Name,
+		Role:       body.Role,
+		Status:     body.Status,
+		AllowedIPs: body.AllowedIPs,
 	})
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "platform_admin", http.StatusInternalServerError, err, map[string]any{"id": id})

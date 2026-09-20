@@ -234,9 +234,10 @@ func CreatePlatformAdmin(in CreatePlatformAdminInput) (*models.PlatformAdmin, er
 
 // UpdatePlatformAdminInput for console update.
 type UpdatePlatformAdminInput struct {
-	Name   *string
-	Role   *string
-	Status *uint8
+	Name       *string
+	Role       *string
+	Status     *uint8
+	AllowedIPs *string
 }
 
 // UpdatePlatformAdmin updates name/role/status with last-owner and self-protection.
@@ -280,6 +281,12 @@ func UpdatePlatformAdmin(actorID, targetID uint, in UpdatePlatformAdminInput) (*
 			statusChanging = true
 			updates["status"] = newStatus
 		}
+	}
+
+	if in.AllowedIPs != nil {
+		ips := strings.TrimSpace(*in.AllowedIPs)
+		updates["allowed_ips"] = ips
+		admin.AllowedIPs = ips
 	}
 
 	if actorID > 0 && actorID == targetID && (roleChanging || statusChanging) {
@@ -384,12 +391,14 @@ func PlatformAdminToJSON(a *models.PlatformAdmin) map[string]any {
 	}
 	role := models.NormalizePlatformAdminRole(a.Role)
 	return map[string]any{
-		"id":         a.ID,
-		"username":   a.Username,
-		"name":       a.Name,
-		"role":       role,
-		"status":     a.Status,
-		"created_at": a.CreatedAt,
-		"updated_at": a.UpdatedAt,
+		"id":           a.ID,
+		"username":     a.Username,
+		"name":         a.Name,
+		"role":         role,
+		"status":       a.Status,
+		"is_2fa_bound": a.Is2FABound(),
+		"allowed_ips":  a.AllowedIPs,
+		"created_at":   a.CreatedAt,
+		"updated_at":   a.UpdatedAt,
 	}
 }

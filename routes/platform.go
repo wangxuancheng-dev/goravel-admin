@@ -19,6 +19,7 @@ func Platform() {
 	auditController := platform.NewAuditController()
 	adminController := platform.NewAdminController()
 	systemLogController := platform.NewSystemLogController()
+	alertDeliveryController := platform.NewAlertDeliveryController()
 
 	facades.Route().Prefix("api/platform").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy()).Group(func(router route.Router) {
@@ -35,6 +36,11 @@ func Platform() {
 			router.Get("health", healthController.Index)
 			router.Get("ops/overview", tenantController.OpsOverview)
 			router.Put("password", passwordController.Update)
+			router.Get("security/2fa/status", authController.GoogleAuthenticatorStatus)
+			router.Get("security/2fa/qrcode", authController.GoogleAuthenticatorQRCode)
+			router.Post("security/2fa/bind", authController.BindGoogleAuthenticator)
+			router.Post("security/2fa/unbind", authController.UnbindGoogleAuthenticator)
+			router.Put("security/allowed-ips", authController.UpdateAllowedIPs)
 
 			router.Get("admins", adminController.Index)
 			router.Get("admins/{id}", adminController.Show)
@@ -46,6 +52,7 @@ func Platform() {
 			router.Get("system-logs", systemLogController.Index)
 			router.Get("system-logs/module-options", systemLogController.ModuleOptions)
 			router.Get("system-logs/{id}", systemLogController.Show)
+			router.Get("alert-deliveries", alertDeliveryController.Index)
 
 			router.Get("tenants", tenantController.Index)
 			router.Get("tenants/ops-summary", tenantController.OpsSummary)
@@ -58,6 +65,8 @@ func Platform() {
 			router.Get("tenants/{id}/overview", tenantController.Overview)
 			router.Get("tenants/{id}/op-logs", tenantController.OpLogs)
 			router.Get("tenants/{id}/system-log-summary", tenantController.SystemLogSummary)
+			router.Get("tenants/{id}/audit-summary", tenantController.AuditSummary)
+			router.Get("tenants/{id}/admins", tenantController.TenantAdmins)
 			router.Get("tenants/{id}/login-links", tenantController.LoginLinks)
 			router.Get("tenants/{id}/domains", tenantController.Domains)
 			router.Get("tenants/{id}/backups", tenantController.ListBackups)
@@ -69,6 +78,8 @@ func Platform() {
 				router.Put("admins/{id}", adminController.Update)
 				router.Delete("admins/{id}", adminController.Destroy)
 				router.Post("admins/{id}/reset-password", adminController.ResetPassword)
+
+				router.Post("alert-deliveries/{id}/retry", alertDeliveryController.Retry)
 
 				router.Post("tenants/migrate-batch", tenantController.MigrateBatch)
 				router.Post("tenants/ops-batch", tenantController.OpsBatch)
@@ -87,6 +98,9 @@ func Platform() {
 				router.Post("tenants/{id}/backup", tenantController.Backup)
 				router.Post("tenants/{id}/restore", tenantController.Restore)
 				router.Post("tenants/{id}/backups/prune", tenantController.PruneBackups)
+				router.Post("tenants/{id}/admins/{adminId}/reset-password", tenantController.ResetTenantAdminPassword)
+				router.Post("tenants/{id}/admins/unlock", tenantController.UnlockTenantAdmin)
+				router.Post("tenants/{id}/admins/{adminId}/reset-2fa", tenantController.ResetTenantAdmin2FA)
 				router.Post("tenants/{id}/domains", tenantController.StoreDomain)
 				router.Post("tenants/{id}/domains/{domainId}/verify", tenantController.VerifyDomain)
 				router.Put("tenants/{id}/domains/{domainId}/primary", tenantController.SetPrimaryDomain)

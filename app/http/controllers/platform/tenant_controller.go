@@ -873,6 +873,8 @@ func (c *TenantController) Settings(ctx http.Context) http.Response {
 		"deleted_retention_days":  facades.Config().GetInt("tenancy.deleted_retention_days", 30),
 		"resolver":                facades.Config().GetString("tenancy.resolver", "header"),
 		"header":                  facades.Config().GetString("tenancy.header", "X-Tenant-ID"),
+		"backup_schedule_enabled": facades.Config().GetBool("tenancy.backup_schedule_enabled", false),
+		"backup_schedule_at":      facades.Config().GetString("tenancy.backup_schedule_at", "20:00"),
 		"queue":                   queue,
 	})
 }

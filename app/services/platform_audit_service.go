@@ -287,6 +287,14 @@ func PlatformOperationTitle(method, path string) string {
 		return "platform.password.update"
 	case method == "POST" && path == "/api/platform/admins":
 		return "platform.admin.create"
+	case strings.HasSuffix(path, "/reset-password") && strings.Contains(path, "/tenants/") && strings.Contains(path, "/admins/") && method == "POST":
+		return "platform.tenant.admin.reset_password"
+	case strings.HasSuffix(path, "/admins/unlock") && strings.Contains(path, "/tenants/") && method == "POST":
+		return "platform.tenant.admin.unlock"
+	case strings.HasSuffix(path, "/reset-2fa") && strings.Contains(path, "/tenants/") && method == "POST":
+		return "platform.tenant.admin.reset_2fa"
+	case strings.HasSuffix(path, "/retry") && strings.Contains(path, "/alert-deliveries/") && method == "POST":
+		return "platform.alert.retry"
 	case strings.HasSuffix(path, "/reset-password") && strings.Contains(path, "/admins/") && method == "POST":
 		return "platform.admin.reset_password"
 	case strings.HasPrefix(path, "/api/platform/admins/") && method == "PUT":

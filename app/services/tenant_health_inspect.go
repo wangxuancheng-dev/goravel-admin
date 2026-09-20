@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goravel/framework/contracts/mail"
 	"github.com/goravel/framework/facades"
 
 	appfacades "goravel/app/facades"
@@ -231,15 +230,12 @@ func AlertTenantHealthIfNeeded(failCodes, warnCodes []string, report *TenantHeal
 			"app":        facades.Config().GetString("app.name", ""),
 			"env":        facades.Config().GetString("app.env", ""),
 		}
-		go func() {
-			if err := postTenantOpsWebhook(url, payload); err != nil {
-				facades.Log().Warningf("tenant health alert webhook post failed: %v", err)
-			}
-		}()
+		go deliverPlatformWebhookAlert(models.PlatformAlertChannelWebhook, "tenant_health_inspect", nil, "", "", url, payload)
 	}
 
 	if mailTo != "" {
-		go sendTenantHealthMail(mailTo, msg)
+		subject := "[tenant-health] " + facades.Config().GetString("app.name", "goravel-admin")
+		go deliverPlatformMailAlert("tenant_health_inspect", mailTo, subject, msg)
 	}
 }
 
@@ -248,14 +244,6 @@ func joinHealthCodes(codes []string, max int) string {
 		codes = codes[:max]
 	}
 	return strings.Join(codes, ",")
-}
-
-func sendTenantHealthMail(to, body string) {
-	subject := "[tenant-health] " + facades.Config().GetString("app.name", "goravel-admin")
-	err := facades.Mail().To([]string{to}).Subject(subject).Content(mail.Content{Html: "<pre>" + body + "</pre>"}).Send()
-	if err != nil {
-		facades.Log().Warningf("tenant health alert mail failed: %v", err)
-	}
 }
 
 // TenantHealthAlertConfigStatus reports health alert channels without secrets.

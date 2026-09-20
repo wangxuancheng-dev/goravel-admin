@@ -220,6 +220,7 @@
         <el-button link type="primary" @click="openDetail(row)">{{ $t('tenant.op_detail') }}</el-button>
         <el-button v-if="isOwner" link type="primary" :disabled="isBusy(row)" @click="openEdit(row)">{{ $t('common.edit') }}</el-button>
         <el-button link type="primary" @click="onPing(row)">{{ $t('tenant.op_ping') }}</el-button>
+        <el-button link type="primary" @click="openSupport(row)">{{ $t('tenant.support') }}</el-button>
         <el-button v-if="isOwner" link type="primary" :disabled="isBusy(row)" @click="openMigrate(row)">{{ $t('tenant.op_migrate') }}</el-button>
         <el-dropdown trigger="click" @command="(cmd) => onMoreCommand(cmd, row)">
           <el-button link type="primary">{{ $t('tenant.op_more') }}</el-button>
@@ -560,6 +561,34 @@
     </template>
   </el-dialog>
 
+  <el-dialog v-model="supportVisible" :title="$t('tenant.support')" width="820px" destroy-on-close>
+    <template v-if="supportRow">
+      <el-descriptions :column="3" border size="small" class="mb-12">
+        <el-descriptions-item :label="$t('tenant.login_success_24h')">{{ supportAudit?.login_success_24h ?? 0 }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.login_failed_24h')">{{ supportAudit?.login_failed_24h ?? 0 }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('tenant.operation_count_24h')">{{ supportAudit?.operation_count_24h ?? 0 }}</el-descriptions-item>
+      </el-descriptions>
+      <el-table v-loading="supportLoading" :data="supportAdmins" border size="small">
+        <el-table-column prop="id" :label="$t('table.id')" width="70" />
+        <el-table-column prop="username" :label="$t('admin.username')" width="120" />
+        <el-table-column prop="nickname" :label="$t('admin.nickname')" width="120" />
+        <el-table-column prop="is_2fa_bound" :label="$t('admin.is_2fa_bound')" width="90">
+          <template #default="{ row }">{{ row.is_2fa_bound ? $t('common.yes') : $t('common.no') }}</template>
+        </el-table-column>
+        <el-table-column :label="$t('common.operation')" width="280">
+          <template #default="{ row }">
+            <template v-if="isOwner">
+              <el-button link type="primary" @click="onResetTenantAdminPwd(row)">{{ $t('admin.reset_password') }}</el-button>
+              <el-button link type="primary" @click="onUnlockTenantAdmin(row)">{{ $t('tenant.unlock_admin') }}</el-button>
+              <el-button v-if="row.is_2fa_bound" link type="danger" @click="onResetTenantAdmin2FA(row)">{{ $t('admin.reset_2fa') }}</el-button>
+            </template>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </template>
+  </el-dialog>
+
   <el-dialog v-model="backupsVisible" :title="$t('tenant.backup_list_title')" width="780px" destroy-on-close>
     <el-alert type="info" :closable="false" show-icon class="migrate-tip" :title="$t('tenant.backup_hint')" />
     <div v-if="backupsMeta.dir" class="backup-dir-row">
@@ -716,6 +745,11 @@ import {
   getPlatformTenantOpsSummary,
   getPlatformTenantOverview,
   getPlatformTenantSettings,
+  getPlatformTenantAdmins,
+  getPlatformTenantAuditSummary,
+  resetPlatformTenantAdminPassword,
+  unlockPlatformTenantAdmin,
+  resetPlatformTenantAdmin2FA,
   listPlatformTenantBackups,
   migratePlatformTenant,
   migratePlatformTenantBatch,
@@ -2005,6 +2039,70 @@ const openDetail = (row) => {
   systemLogSummary.value = null
   void loadDetailDomains(row)
   void loadSystemLogSummary(row)
+}
+
+const supportVisible = ref(false)
+const supportLoading = ref(false)
+const supportRow = ref(null)
+const supportAdmins = ref([])
+const supportAudit = ref(null)
+
+const openSupport = async (row) => {
+  supportRow.value = row
+  supportVisible.value = true
+  supportLoading.value = true
+  supportAdmins.value = []
+  supportAudit.value = null
+  try {
+    const [adminsRes, auditRes] = await Promise.all([
+      getPlatformTenantAdmins(row.id),
+      getPlatformTenantAuditSummary(row.id)
+    ])
+    supportAdmins.value = adminsRes?.data?.list || []
+    supportAudit.value = auditRes?.data?.audit || null
+  } catch (e) {
+    console.error(e)
+    ElMessage.error(t('common.operation_failed'))
+  } finally {
+    supportLoading.value = false
+  }
+}
+
+const onResetTenantAdminPwd = async (adminRow) => {
+  try {
+    const { value } = await ElMessageBox.prompt(t('platform.new_password'), t('tenant.reset_admin_password'), {
+      inputType: 'password'
+    })
+    await resetPlatformTenantAdminPassword(supportRow.value.id, adminRow.id, {
+      password: value,
+      confirm_password: value
+    })
+    ElMessage.success(t('admin.reset_password_success'))
+  } catch (e) {
+    if (e === 'cancel') return
+    ElMessage.error(e?.message || t('common.operation_failed'))
+  }
+}
+
+const onUnlockTenantAdmin = async (adminRow) => {
+  try {
+    await unlockPlatformTenantAdmin(supportRow.value.id, { username: adminRow.username })
+    ElMessage.success(t('tenant.unlock_success'))
+  } catch (e) {
+    ElMessage.error(e?.message || t('common.operation_failed'))
+  }
+}
+
+const onResetTenantAdmin2FA = async (adminRow) => {
+  try {
+    await ElMessageBox.confirm(t('tenant.reset_admin_2fa'), t('common.warning'), { type: 'warning' })
+    await resetPlatformTenantAdmin2FA(supportRow.value.id, adminRow.id)
+    ElMessage.success(t('admin.unbind_success'))
+    void openSupport(supportRow.value)
+  } catch (e) {
+    if (e === 'cancel') return
+    ElMessage.error(e?.message || t('common.operation_failed'))
+  }
 }
 
 const loadSystemLogSummary = async (row) => {

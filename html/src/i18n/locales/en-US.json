@@ -219,7 +219,8 @@
     "platform_overview": "Ops overview",
     "platform_admin": "Platform admins",
     "demo_activity": "Demo Activities",
-    "article": "Article"
+    "article": "Article",
+    "platform_alert": "Alert deliveries"
   },
   "monitor_runtime": {
     "title": "Runtime Observability",
@@ -375,7 +376,10 @@
     "reset_google_auth": "Reset Google Authenticator",
     "reset_google_auth_confirm": "Are you sure you want to reset Google Authenticator for admin {username}? After reset, they can bind again without entering a code.",
     "reset_google_auth_success": "Reset successful",
-    "reset_google_auth_failed": "Reset failed"
+    "reset_google_auth_failed": "Reset failed",
+    "reset_2fa": "Reset 2FA",
+    "unbind_success": "2FA unbound",
+    "is_2fa_bound": "2FA bound"
   },
   "user": {
     "add_user": "Add User",
@@ -1331,7 +1335,21 @@
     "system_log_errors_24h": "Errors {n}",
     "system_log_warnings_24h": "Warnings {n}",
     "system_log_recent_empty": "No error-level logs in the last 24h",
-    "system_log_view_all": "View all system logs"
+    "system_log_view_all": "View all system logs",
+    "support": "Support",
+    "audit_summary": "Audit summary (24h)",
+    "login_success_24h": "Login OK",
+    "login_failed_24h": "Login fail",
+    "operation_count_24h": "Operations",
+    "tenant_admins": "Tenant admins",
+    "reset_admin_password": "Reset tenant admin password",
+    "unlock_admin": "Unlock login",
+    "unlock_success": "Unlocked",
+    "reset_admin_2fa": "Reset 2FA",
+    "backup_schedule": "Scheduled backup",
+    "backup_schedule_enabled": "Scheduled backup on",
+    "backup_schedule_disabled": "Scheduled backup off",
+    "backup_schedule_at": "Schedule time (UTC)"
   },
   "platform": {
     "title": "Tenant Ops",
@@ -1366,7 +1384,19 @@
     "system_log_scope_platform": "Scope: platform process system logs (errors without tenant context)",
     "system_log_scope_tenant": "Scope: system logs for tenant {code}",
     "system_log_platform_opt": "Platform (self)",
-    "system_log_hint": "Read-only. Pick a tenant to inspect its DB system errors; leave empty for the platform DB."
+    "system_log_hint": "Read-only. Pick a tenant to inspect its DB system errors; leave empty for the platform DB.",
+    "google_code": "Authenticator code",
+    "google_code_placeholder": "Required when 2FA is bound",
+    "security": "Security",
+    "2fa_status": "2FA status",
+    "generate_2fa_qr": "Generate QR",
+    "bind_2fa": "Bind 2FA",
+    "unbind_2fa": "Unbind 2FA",
+    "bind_2fa_success": "2FA bound",
+    "unbind_2fa_success": "2FA unbound",
+    "allowed_ips": "Login IP allowlist",
+    "allowed_ips_hint": "Comma-separated IPs/CIDRs; empty means any",
+    "allowed_ips_updated": "Allowlist updated"
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",
@@ -1785,7 +1815,8 @@
     "request_params": "Request Params",
     "trace_id": "Trace ID",
     "sort": "Sort",
-    "description": "Description"
+    "description": "Description",
+    "actions": "Actions"
   },
   "form": {
     "please_select": "Please select",
@@ -2389,5 +2420,16 @@
     "month_day_end": "To day",
     "year_start": "Year start (MM-DD)",
     "year_end": "Year end (MM-DD)"
+  },
+  "platform_alert": {
+    "channel": "Channel",
+    "event": "Event",
+    "status": "Status",
+    "http_status": "HTTP",
+    "attempt": "Attempts",
+    "target": "Target",
+    "error": "Error",
+    "retry": "Retry",
+    "retry_success": "Re-delivered"
   }
 }

@@ -231,7 +231,8 @@
     "tenant_op_log": "运维执行记录",
     "platform_overview": "运维总览",
     "platform_admin": "平台管理员",
-    "demo_activity": "活动调度演示"
+    "demo_activity": "活动调度演示",
+    "platform_alert": "告警投递"
   },
   "table": {
     "id": "ID",
@@ -252,7 +253,8 @@
     "title": "标题",
     "module": "模块",
     "balance": "余额",
-    "operation": "操作"
+    "operation": "操作",
+    "actions": "操作"
   },
   "role": {
     "name": "角色名称",
@@ -291,7 +293,10 @@
     "unbind_google_auth_confirm": "确定解绑该管理员的谷歌验证码吗？",
     "reset_google_auth": "重置谷歌验证",
     "reset_google_auth_confirm": "确定重置该管理员的谷歌验证码吗？",
-    "protected_cannot_disable": "受保护账号不能禁用"
+    "protected_cannot_disable": "受保护账号不能禁用",
+    "reset_2fa": "重置2FA",
+    "unbind_success": "已解绑2FA",
+    "is_2fa_bound": "已绑2FA"
   },
   "profile": {
     "google_authenticator": "谷歌验证器",
@@ -1240,7 +1245,21 @@
     "system_log_errors_24h": "错误 {n}",
     "system_log_warnings_24h": "警告 {n}",
     "system_log_recent_empty": "近 24 小时无 error 级日志",
-    "system_log_view_all": "查看全部系统日志"
+    "system_log_view_all": "查看全部系统日志",
+    "support": "客服支持",
+    "audit_summary": "审计摘要(24h)",
+    "login_success_24h": "登录成功",
+    "login_failed_24h": "登录失败",
+    "operation_count_24h": "操作次数",
+    "tenant_admins": "租户管理员",
+    "reset_admin_password": "重置租户管理员密码",
+    "unlock_admin": "解锁登录",
+    "unlock_success": "已解锁",
+    "reset_admin_2fa": "重置 2FA",
+    "backup_schedule": "定时备份",
+    "backup_schedule_enabled": "已开启定时备份",
+    "backup_schedule_disabled": "未开启定时备份",
+    "backup_schedule_at": "计划时间(UTC)"
   },
   "platform": {
     "title": "租户运维",
@@ -1276,7 +1295,19 @@
     "system_log_scope_platform": "当前查看：平台进程系统日志（无租户上下文的报错）",
     "system_log_scope_tenant": "当前查看：租户 {code} 的系统日志",
     "system_log_platform_opt": "平台自身",
-    "system_log_hint": "只读。选择租户可查看该租户库中的系统报错；留空查看平台库。"
+    "system_log_hint": "只读。选择租户可查看该租户库中的系统报错；留空查看平台库。",
+    "google_code": "谷歌验证码",
+    "google_code_placeholder": "已绑定 2FA 时填写",
+    "security": "安全设置",
+    "2fa_status": "2FA 状态",
+    "generate_2fa_qr": "生成绑定二维码",
+    "bind_2fa": "绑定 2FA",
+    "unbind_2fa": "解绑 2FA",
+    "bind_2fa_success": "2FA 已绑定",
+    "unbind_2fa_success": "2FA 已解绑",
+    "allowed_ips": "登录 IP 白名单",
+    "allowed_ips_hint": "逗号分隔 IP 或 CIDR，留空表示不限制",
+    "allowed_ips_updated": "IP 白名单已更新"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",
@@ -2052,5 +2083,16 @@
   },
   "form": {
     "required": "必填"
+  },
+  "platform_alert": {
+    "channel": "通道",
+    "event": "事件",
+    "status": "状态",
+    "http_status": "HTTP",
+    "attempt": "次数",
+    "target": "目标",
+    "error": "错误",
+    "retry": "重试",
+    "retry_success": "已重新投递"
   }
 }

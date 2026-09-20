@@ -26,6 +26,7 @@ import PlatformLayout from '../pages/platform/Layout'
 import PlatformTenantListPage from '../pages/platform/TenantList'
 import PlatformAdminListPage from '../pages/platform/AdminList'
 import PlatformTenantOpLogListPage from '../pages/platform/TenantOpLogList'
+import PlatformAlertDeliveryListPage from '../pages/platform/AlertDeliveryList'
 import PlatformLoginLogListPage from '../pages/platform/LoginLogList'
 import PlatformOperationLogListPage from '../pages/platform/OperationLogList'
 import PlatformSystemLogListPage from '../pages/platform/SystemLogList'
@@ -187,6 +188,11 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
               path: 'tenant-op-logs',
               element: <PlatformTenantOpLogListPage />,
               handle: { titleKey: 'menu.tenant_op_log', platform: true },
+            },
+            {
+              path: 'alert-deliveries',
+              element: <PlatformAlertDeliveryListPage />,
+              handle: { titleKey: 'menu.platform_alert', platform: true },
             },
             {
               path: 'system-logs',
