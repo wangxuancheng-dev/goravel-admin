@@ -195,7 +195,7 @@ export default function DemoActivityList() {
       setOpen(false)
       refresh()
     } catch (err) {
-      showError(err)
+      showError(err, t('common.operation_failed'))
     } finally {
       setSubmitting(false)
     }
@@ -210,7 +210,7 @@ export default function DemoActivityList() {
           message.success(t('common.delete_success'))
           refresh()
         } catch (err) {
-          showError(err)
+          showError(err, t('common.operation_failed'))
         }
       },
     })
@@ -240,7 +240,7 @@ export default function DemoActivityList() {
         ),
       })
     } catch (err) {
-      showError(err)
+      showError(err, t('common.operation_failed'))
     }
   }
 
@@ -251,7 +251,7 @@ export default function DemoActivityList() {
       message.success(t('demo_activity.sync_success', { count: res.data?.updated ?? 0 }))
       refresh()
     } catch (err) {
-      showError(err)
+      showError(err, t('common.operation_failed'))
     } finally {
       setSyncing(false)
     }
@@ -381,7 +381,9 @@ export default function DemoActivityList() {
         dataSource={tableData}
         columns={columns}
         pagination={pagination}
-        onChange={(pag, _f, sorter) => handlePaginatedTableChange(pag, sorter, handleSortChange, loadData)}
+        onChange={(pager, _filters, sorter) =>
+          handlePaginatedTableChange({ pager, sorter, pagination, loadData, handleSortChange })
+        }
       />
 
       <Modal

@@ -101,13 +101,21 @@ Do not hand-roll a near-duplicate of `SimpleCrudPage` for simple modules. Do not
 - Menu titles: slug kebab-case from backend → snake_case keys under `menu.*` via `utils/menuTitle.ts`
 - Prefer existing keys (`common.*`, `table.*`, module namespaces)
 
+## Pre-commit / pre-push gate (required)
+Before any commit or push that touches `html-react/`:
+1. Run `cd html-react && npm run build` (`tsc -b && vite build`) and wait for exit 0.
+2. Do **not** commit/push if `tsc` fails. Cloudflare Pages builds the same command.
+3. Copy call signatures from existing list pages (`OrderList.tsx`, `ExportList.tsx`):
+   - `showError(error, t('common.operation_failed'))` — always 2 args
+   - `handlePaginatedTableChange({ pager, sorter, pagination, loadData, handleSortChange })` — one options object
+
 ## Output expectations
 When implementing React frontend changes, include:
 - Changed files (path + purpose)
 - API endpoints touched and response keys used
 - Which list paradigm was chosen (SimpleCrudPage vs List+FormModal+config)
 - Error UX (global vs page-local)
-- Test plan (`npm run type-check` + manual steps)
+- Test plan (`npm run build` must pass + manual steps)
 
 ## Additional resources
 - Patterns: [examples.md](examples.md)
