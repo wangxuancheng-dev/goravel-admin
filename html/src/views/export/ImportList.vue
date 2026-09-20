@@ -115,7 +115,10 @@ const searchFields = computed(() => [
     prop: 'type',
     label: t('export.type'),
     type: 'select',
-    options: [{ label: t('menu.order'), value: 'orders' }]
+    options: [
+      { label: t('export.types.orders'), value: 'orders' },
+      { label: t('export.types.articles'), value: 'articles' }
+    ]
   },
   {
     prop: 'status',
@@ -137,7 +140,13 @@ const tableColumns = computed(() => [
     prop: 'type',
     label: t('export.type'),
     width: 120,
-    formatter: ({ cellValue }) => (cellValue === 'orders' ? t('menu.order') : cellValue || '-')
+    formatter: ({ cellValue }) => {
+      const type = cellValue || ''
+      if (!type) return '-'
+      const key = `export.types.${type}`
+      const translated = t(key)
+      return translated !== key ? translated : type
+    }
   },
   { prop: 'status', label: t('log.status'), width: 140, slot: 'status' },
   { prop: 'total_rows', label: t('import.total_rows'), width: 100 },

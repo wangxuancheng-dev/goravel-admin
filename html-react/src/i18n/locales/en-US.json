@@ -1359,7 +1359,15 @@
     "success": "Export succeeded",
     "failed": "Export failed",
     "tab_exports": "Exports",
-    "tab_imports": "Imports"
+    "tab_imports": "Imports",
+    "types": {
+      "orders": "Orders",
+      "payments": "Payments",
+      "admins": "Admins",
+      "users": "Users",
+      "articles": "Articles",
+      "operation_logs_archive": "Operation log archive"
+    }
   },
   "import": {
     "total_rows": "Total Rows",

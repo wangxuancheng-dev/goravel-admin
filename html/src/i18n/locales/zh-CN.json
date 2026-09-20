@@ -225,7 +225,8 @@
     "tenant_op_log": "运维执行记录",
     "platform_overview": "运维总览",
     "platform_admin": "平台管理员",
-    "demo_activity": "活动调度演示"
+    "demo_activity": "活动调度演示",
+    "article": "文章"
   },
   "monitor_runtime": {
     "title": "运行观测",
@@ -1550,7 +1551,15 @@
     "success": "导出成功",
     "failed": "导出失败",
     "tab_exports": "导出任务",
-    "tab_imports": "导入任务"
+    "tab_imports": "导入任务",
+    "types": {
+      "orders": "订单",
+      "payments": "支付记录",
+      "admins": "管理员",
+      "users": "用户",
+      "articles": "文章",
+      "operation_logs_archive": "操作日志归档"
+    }
   },
   "import": {
     "total_rows": "总行数",

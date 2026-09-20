@@ -1363,7 +1363,15 @@
     "success": "导出成功",
     "failed": "导出失败",
     "tab_exports": "导出任务",
-    "tab_imports": "导入任务"
+    "tab_imports": "导入任务",
+    "types": {
+      "orders": "订单",
+      "payments": "支付记录",
+      "admins": "管理员",
+      "users": "用户",
+      "articles": "文章",
+      "operation_logs_archive": "操作日志归档"
+    }
   },
   "import": {
     "total_rows": "总行数",

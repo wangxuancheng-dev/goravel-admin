@@ -218,7 +218,8 @@
     "tenant_op_log": "Tenant ops logs",
     "platform_overview": "Ops overview",
     "platform_admin": "Platform admins",
-    "demo_activity": "Demo Activities"
+    "demo_activity": "Demo Activities",
+    "article": "Article"
   },
   "monitor_runtime": {
     "title": "Runtime Observability",
@@ -1541,7 +1542,15 @@
     "success": "Export successful",
     "failed": "Export failed",
     "tab_exports": "Exports",
-    "tab_imports": "Imports"
+    "tab_imports": "Imports",
+    "types": {
+      "orders": "Orders",
+      "payments": "Payments",
+      "admins": "Admins",
+      "users": "Users",
+      "articles": "Articles",
+      "operation_logs_archive": "Operation log archive"
+    }
   },
   "import": {
     "total_rows": "Total Rows",

@@ -98,13 +98,10 @@ export default function ExportList({ embedded = false }: { embedded?: boolean } 
   })
 
   const formatExportType = (type?: string) => {
-    const map: Record<string, string> = {
-      orders: t('menu.order'),
-      payments: t('menu.payment'),
-      admins: t('menu.admin'),
-      users: t('menu.user'),
-    }
-    return map[type || ''] || type || '-'
+    if (!type) return '-'
+    const key = `export.types.${type}`
+    const translated = t(key, { defaultValue: '__missing__' })
+    return translated !== '__missing__' && translated !== key ? translated : type
   }
 
   const formatExportStatus = (status?: number) => {
@@ -287,10 +284,12 @@ export default function ExportList({ embedded = false }: { embedded?: boolean } 
             label: t('export.type'),
             type: 'select',
             options: [
-              { label: t('menu.order'), value: 'orders' },
-              { label: t('menu.payment'), value: 'payments' },
-              { label: t('menu.admin'), value: 'admins' },
-              { label: t('menu.user'), value: 'users' },
+              { label: t('export.types.orders'), value: 'orders' },
+              { label: t('export.types.payments'), value: 'payments' },
+              { label: t('export.types.admins'), value: 'admins' },
+              { label: t('export.types.users'), value: 'users' },
+              { label: t('export.types.articles'), value: 'articles' },
+              { label: t('export.types.operation_logs_archive'), value: 'operation_logs_archive' },
             ],
           },
           { name: 'filename', label: t('export.filename') },

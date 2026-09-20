@@ -79,10 +79,10 @@ export default function ImportList() {
   })
 
   const formatImportType = (type?: string) => {
-    const map: Record<string, string> = {
-      orders: t('menu.order'),
-    }
-    return map[type || ''] || type || '-'
+    if (!type) return '-'
+    const key = `export.types.${type}`
+    const translated = t(key, { defaultValue: '__missing__' })
+    return translated !== '__missing__' && translated !== key ? translated : type
   }
 
   const formatStatus = (status?: number) => {
@@ -209,7 +209,10 @@ export default function ImportList() {
             name: 'type',
             label: t('export.type'),
             type: 'select',
-            options: [{ label: t('menu.order'), value: 'orders' }],
+            options: [
+              { label: t('export.types.orders'), value: 'orders' },
+              { label: t('export.types.articles'), value: 'articles' },
+            ],
           },
           {
             name: 'status',
