@@ -52,6 +52,16 @@ func TestValidatePasswordAgainstPolicy(t *testing.T) {
 			t.Fatalf("unexpected: %v", err)
 		}
 	})
+
+	t.Run("low strength policy allows simple password", func(t *testing.T) {
+		low := PasswordPolicy{MinLength: 4, RequireLetter: false, RequireNumber: false, RequireSpecial: false}
+		if err := ValidatePasswordAgainstPolicy("1234", low); err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if err := ValidatePasswordAgainstPolicy("abcd", low); err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+	})
 }
 
 func TestMatchSensitiveConfirm(t *testing.T) {

@@ -17,9 +17,10 @@ func (r *UpdatePassword) Authorize(ctx http.Context) error {
 }
 
 func (r *UpdatePassword) Rules(ctx http.Context) map[string]any {
+	// Strength (min length / letter / number / special) is enforced by login_security policy in service layer.
 	return map[string]any{
 		"old_password":     "required",
-		"new_password":     "required|min:6",
+		"new_password":     "required",
 		"confirm_password": "required|same:new_password",
 	}
 }

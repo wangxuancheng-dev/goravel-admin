@@ -17,8 +17,9 @@ func (r *ResetPassword) Authorize(ctx http.Context) error {
 }
 
 func (r *ResetPassword) Rules(ctx http.Context) map[string]any {
+	// Strength is enforced by login_security policy in AdminService.ResetPassword.
 	return map[string]any{
-		"password": "required|min:6",
+		"password": "required",
 	}
 }
 

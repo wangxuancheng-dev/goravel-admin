@@ -302,6 +302,9 @@ func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *a
 		adminModel.Status = *req.Status
 	}
 	if req.Password != nil && *req.Password != "" {
+		if err := ValidatePasswordPolicyCtx(s.ctx, *req.Password); err != nil {
+			return nil, err
+		}
 		hashedPassword, err := facades.Hash().Make(*req.Password)
 		if err != nil {
 			return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
@@ -493,6 +496,9 @@ func (s *AdminServiceImpl) isUsernameTakenByProtectedAdmin(username string, excl
 // CreateAdmin 创建管理员并同步角色
 func (s *AdminServiceImpl) CreateAdmin(input CreateAdminInput) (*models.Admin, error) {
 	if err := s.ValidateUsernameUnique(input.Username, 0); err != nil {
+		return nil, err
+	}
+	if err := ValidatePasswordPolicyCtx(s.ctx, input.Password); err != nil {
 		return nil, err
 	}
 	hashedPassword, err := facades.Hash().Make(input.Password)

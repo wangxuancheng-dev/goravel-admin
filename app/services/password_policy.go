@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"unicode"
 
 	"github.com/goravel/framework/facades"
@@ -19,18 +21,39 @@ type PasswordPolicy struct {
 }
 
 // ResolvePasswordPolicy 优先读 configs 表 group=login_security，再回退到 facades.Config / .env。
+// DB 中已存在的 key（含值为 "0"）一律以库为准，不再回退到环境默认的严格策略。
 func ResolvePasswordPolicy(ctx context.Context) PasswordPolicy {
 	cfg := facades.Config()
-	envMin := cfg.GetInt("login_security.password_min_length", 8)
-	minLen := utils.GetConfigValueInt(ctx, "login_security", "password_min_length", envMin)
+	db := utils.GetConfigGroupMap(ctx, "login_security")
+
+	minLen := cfg.GetInt("login_security.password_min_length", 8)
+	if raw, ok := db["password_min_length"]; ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && n > 0 {
+			minLen = n
+		}
+	}
 	if minLen < 1 {
 		minLen = 8
 	}
+
+	requireLetter := cfg.GetBool("login_security.password_require_letter", true)
+	if raw, ok := db["password_require_letter"]; ok {
+		requireLetter = utils.ParseConfigBool(raw)
+	}
+	requireNumber := cfg.GetBool("login_security.password_require_number", true)
+	if raw, ok := db["password_require_number"]; ok {
+		requireNumber = utils.ParseConfigBool(raw)
+	}
+	requireSpecial := cfg.GetBool("login_security.password_require_special", false)
+	if raw, ok := db["password_require_special"]; ok {
+		requireSpecial = utils.ParseConfigBool(raw)
+	}
+
 	return PasswordPolicy{
 		MinLength:      minLen,
-		RequireLetter:  utils.GetConfigValueBool(ctx, "login_security", "password_require_letter", cfg.GetBool("login_security.password_require_letter", true)),
-		RequireNumber:  utils.GetConfigValueBool(ctx, "login_security", "password_require_number", cfg.GetBool("login_security.password_require_number", true)),
-		RequireSpecial: utils.GetConfigValueBool(ctx, "login_security", "password_require_special", cfg.GetBool("login_security.password_require_special", false)),
+		RequireLetter:  requireLetter,
+		RequireNumber:  requireNumber,
+		RequireSpecial: requireSpecial,
 	}
 }
 

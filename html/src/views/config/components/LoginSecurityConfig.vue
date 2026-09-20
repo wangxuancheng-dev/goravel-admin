@@ -69,7 +69,7 @@ const loadData = async () => {
     if (res.data && res.data.configs) {
       res.data.configs.forEach((config) => {
         const key = config.Key || config.key
-        let value = config.Value || config.value || ''
+        let value = config.Value ?? config.value ?? ''
         if (key === 'password_min_length') {
           value = value ? parseInt(value, 10) : 8
         } else if (

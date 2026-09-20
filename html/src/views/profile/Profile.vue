@@ -437,8 +437,7 @@ const passwordRules = {
     { required: true, message: t('profile.old_password_required'), trigger: 'blur' }
   ],
   new_password: [
-    { required: true, message: t('profile.new_password_required'), trigger: 'blur' },
-    { min: 6, message: t('profile.password_length_error'), trigger: 'blur' }
+    { required: true, message: t('profile.new_password_required'), trigger: 'blur' }
   ],
   confirm_password: [
     { required: true, message: t('profile.confirm_password_required'), trigger: 'blur' },

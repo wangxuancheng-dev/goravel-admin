@@ -286,7 +286,7 @@ export default function ProfilePage() {
                   <Form.Item name="old_password" label={t('common.old_password')} rules={[{ required: true }]}>
                     <Input.Password />
                   </Form.Item>
-                  <Form.Item name="new_password" label={t('common.new_password')} rules={[{ required: true, min: 6 }]}>
+                  <Form.Item name="new_password" label={t('common.new_password')} rules={[{ required: true }]}>
                     <Input.Password />
                   </Form.Item>
                   <Form.Item

@@ -40,6 +40,12 @@ func (r *ConfigController) GetByGroup(ctx http.Context) http.Response {
 func (r *ConfigController) Save(ctx http.Context) http.Response {
 	group := ctx.Request().Input("group")
 	configsMap := ctx.Request().InputMap("configs")
+	// Fallback: some clients / body parsers leave InputMap empty while All() still has configs.
+	if len(configsMap) == 0 {
+		if raw, ok := ctx.Request().All()["configs"].(map[string]any); ok {
+			configsMap = raw
+		}
+	}
 
 	if err := r.ConfigService(ctx).Save(group, configsMap); err != nil {
 		return HandleGeneratedServiceError(ctx, "config", http.StatusInternalServerError, err, map[string]any{

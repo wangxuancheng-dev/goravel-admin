@@ -3,9 +3,9 @@ package utils
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appfacades "goravel/app/facades"
-
 	"goravel/app/models"
 )
 
@@ -16,10 +16,47 @@ func configCtx(ctx context.Context) context.Context {
 	return ctx
 }
 
-// GetConfigValue 从数据库获取配置值
-func GetConfigValue(ctx context.Context, group, key string, defaultValue string) string {
+// GetConfigGroupMap loads all key/value pairs for a configs group.
+// Missing group or ORM errors yield an empty map (caller applies defaults).
+func GetConfigGroupMap(ctx context.Context, group string) map[string]string {
+	out := map[string]string{}
 	defer func() {
-		if r := recover(); r != nil {
+		if recover() != nil {
+		}
+	}()
+	if group == "" || appfacades.Orm() == nil {
+		return out
+	}
+	var configs []models.Config
+	if err := appfacades.OrmQuery(configCtx(ctx)).Where("group", group).Get(&configs); err != nil {
+		return out
+	}
+	for _, c := range configs {
+		if c.Key == "" {
+			continue
+		}
+		out[c.Key] = c.Value
+	}
+	return out
+}
+
+// ParseConfigBool parses stored config switch values ("0"/"1"/"true"/...).
+func ParseConfigBool(value string) bool {
+	v := strings.TrimSpace(strings.ToLower(value))
+	switch v {
+	case "1", "true", "on", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+// GetConfigValue 从数据库获取配置值
+func GetConfigValue(ctx context.Context, group, key string, defaultValue string) (result string) {
+	result = defaultValue
+	defer func() {
+		if recover() != nil {
+			result = defaultValue
 		}
 	}()
 
@@ -30,6 +67,10 @@ func GetConfigValue(ctx context.Context, group, key string, defaultValue string)
 	var config models.Config
 	err := appfacades.OrmQuery(configCtx(ctx)).Where("group", group).Where("key", key).First(&config)
 	if err != nil {
+		return defaultValue
+	}
+	// Goravel First returns nil error when record is missing; detect via ID.
+	if config.ID == 0 {
 		return defaultValue
 	}
 	if config.Value == "" {
@@ -39,9 +80,11 @@ func GetConfigValue(ctx context.Context, group, key string, defaultValue string)
 }
 
 // GetConfigValueInt 从数据库获取配置值（整数类型）
-func GetConfigValueInt(ctx context.Context, group, key string, defaultValue int) int {
+func GetConfigValueInt(ctx context.Context, group, key string, defaultValue int) (result int) {
+	result = defaultValue
 	defer func() {
-		if r := recover(); r != nil {
+		if recover() != nil {
+			result = defaultValue
 		}
 	}()
 
@@ -54,11 +97,14 @@ func GetConfigValueInt(ctx context.Context, group, key string, defaultValue int)
 	if err != nil {
 		return defaultValue
 	}
+	if config.ID == 0 {
+		return defaultValue
+	}
 	if config.Value == "" {
 		return defaultValue
 	}
 	value := 0
-	_, err = fmt.Sscanf(config.Value, "%d", &value)
+	_, err = fmt.Sscanf(strings.TrimSpace(config.Value), "%d", &value)
 	if err != nil {
 		return defaultValue
 	}
@@ -66,9 +112,12 @@ func GetConfigValueInt(ctx context.Context, group, key string, defaultValue int)
 }
 
 // GetConfigValueBool 从数据库获取配置值（布尔类型）
-func GetConfigValueBool(ctx context.Context, group, key string, defaultValue bool) bool {
+// 记录存在时以库内值为准（含 "0"）；仅在记录不存在时回退 defaultValue。
+func GetConfigValueBool(ctx context.Context, group, key string, defaultValue bool) (result bool) {
+	result = defaultValue
 	defer func() {
-		if r := recover(); r != nil {
+		if recover() != nil {
+			result = defaultValue
 		}
 	}()
 
@@ -81,9 +130,10 @@ func GetConfigValueBool(ctx context.Context, group, key string, defaultValue boo
 	if err != nil {
 		return defaultValue
 	}
-	if config.Value == "" {
+	// Goravel First returns nil error when record is missing; detect via ID.
+	if config.ID == 0 {
 		return defaultValue
 	}
-	value := config.Value
-	return value == "1" || value == "true" || value == "True" || value == "TRUE"
+	// Key exists in DB: honor stored value (do not fall back to env default on "").
+	return ParseConfigBool(config.Value)
 }
