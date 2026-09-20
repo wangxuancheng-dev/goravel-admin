@@ -141,7 +141,7 @@ platformRequest.interceptors.response.use(
     errorCode?: string
     translatedMessage?: string
     __handled?: boolean
-    code?: number
+    businessCode?: number
   }) => {
     const status = error.response?.status
     const data = error.response?.data
@@ -152,7 +152,7 @@ platformRequest.interceptors.response.use(
 
     error.errorCode = errorCode
     error.translatedMessage = message
-    if (status) error.code = status
+    if (typeof status === 'number') error.businessCode = status
 
     if (status === 401 && !isAuth) {
       handle401(message)
