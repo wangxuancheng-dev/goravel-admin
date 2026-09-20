@@ -8,8 +8,11 @@ import (
 	contractsqueue "github.com/goravel/framework/contracts/queue"
 	"github.com/goravel/framework/facades"
 
+	appfacades "goravel/app/facades"
 	"goravel/app/http/response"
 	"goravel/app/jobs"
+	"goravel/app/models"
+	"goravel/app/services"
 )
 
 type QueueTestController struct{}
@@ -331,3 +334,61 @@ func (c *QueueTestController) Reset(ctx http.Context) http.Response {
 		"reset": true,
 	})
 }
+
+// OrderExpireDemo creates a pending order with expire_at and a Delay cancel job (open-source sample).
+// Query: user_id (optional), seconds (default 60), amount (default 0.01).
+func (c *QueueTestController) OrderExpireDemo(ctx http.Context) http.Response {
+	seconds, _ := strconv.Atoi(ctx.Request().Query("seconds", "60"))
+	if seconds <= 0 {
+		seconds = 60
+	}
+	if seconds > 3600 {
+		seconds = 3600
+	}
+	userID := uint(0)
+	if v := ctx.Request().Query("user_id", ""); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 64); err == nil {
+			userID = uint(n)
+		}
+	}
+	if userID == 0 {
+		var user models.User
+		if err := appfacades.OrmQuery(ctx).Model(&models.User{}).Order("id asc").First(&user); err != nil || user.ID == 0 {
+			return response.Error(ctx, http.StatusBadRequest, "order_expire_demo_user_required")
+		}
+		userID = user.ID
+	}
+	amount := 0.01
+	if v := ctx.Request().Query("amount", ""); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+			amount = f
+		}
+	}
+
+	order, _, err := services.NewOrderService(ctx).CreateOrder(
+		userID,
+		amount,
+		nil,
+		"",
+		"schedule-demo expire",
+		time.Duration(seconds)*time.Second,
+	)
+	if err != nil {
+		return response.Error(ctx, http.StatusInternalServerError, err)
+	}
+
+	expireAt := ""
+	if order.ExpireAt != nil {
+		expireAt = order.ExpireAt.UTC().Format(time.RFC3339)
+	}
+	return response.Success(ctx, "success", http.Json{
+		"queued":         true,
+		"type":           "order-expire-demo",
+		"order":          services.OrderToJSONMap(*order),
+		"expire_at":      expireAt,
+		"delay_seconds":  seconds,
+		"connection":     facades.Config().GetString("queue.default", "sync"),
+		"hint":           "wait for Delay job or run: go run . artisan order:cancel-expired",
+	})
+}
+

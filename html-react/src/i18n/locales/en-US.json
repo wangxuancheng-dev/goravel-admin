@@ -103,7 +103,8 @@
     "ai_lab_file_too_large": "Upload file is too large, please use a smaller file",
     "platform_last_owner": "Cannot remove the last active owner",
     "platform_cannot_modify_self": "Cannot change your own role or status",
-    "admin_cannot_delete_self": "Cannot delete yourself"
+    "admin_cannot_delete_self": "Cannot delete yourself",
+    "confirm_delete": "Confirm delete?"
   },
   "admin_id": "Admin ID",
   "title": "Title",
@@ -229,7 +230,8 @@
     "form_demo": "Form Demo",
     "tenant_op_log": "Tenant ops logs",
     "platform_overview": "Ops overview",
-    "platform_admin": "Platform admins"
+    "platform_admin": "Platform admins",
+    "demo_activity": "Demo Activities"
   },
   "table": {
     "id": "ID",
@@ -1972,5 +1974,51 @@
     "reset_password": "Reset password",
     "delete_confirm": "Delete this platform admin?",
     "self_edit_hint": "You cannot change your own role or status"
+  },
+  "demo_activity": {
+    "add": "Add activity",
+    "edit": "Edit activity",
+    "title": "Title",
+    "schedule_type": "Type",
+    "type_once": "Once",
+    "type_daily": "Daily",
+    "start_at": "Start at",
+    "end_at": "End at",
+    "daily_start": "Daily start",
+    "daily_end": "Daily end",
+    "timezone": "Timezone",
+    "status": "Status",
+    "status_pending": "Pending",
+    "status_running": "Running",
+    "status_ended": "Ended",
+    "window": "Window",
+    "active_check": "Live check",
+    "stored_status": "Stored status",
+    "desired_status": "Desired status",
+    "is_active_live": "Live active",
+    "sync_now": "Sync status now",
+    "sync_success": "Synced, updated {count}",
+    "type_weekly": "Weekly",
+    "type_monthly": "Monthly",
+    "type_yearly": "Yearly",
+    "weekdays": "Weekdays",
+    "weekday_1": "Mon",
+    "weekday_2": "Tue",
+    "weekday_3": "Wed",
+    "weekday_4": "Thu",
+    "weekday_5": "Fri",
+    "weekday_6": "Sat",
+    "weekday_7": "Sun",
+    "month_mode": "Month mode",
+    "month_mode_days": "Specific days",
+    "month_mode_range": "Day range",
+    "month_days": "Days of month",
+    "month_day_start": "From day",
+    "month_day_end": "To day",
+    "year_start": "Year start (MM-DD)",
+    "year_end": "Year end (MM-DD)"
+  },
+  "form": {
+    "required": "Required"
   }
 }

@@ -31,6 +31,7 @@ export interface FeatureConfig {
   aiEnabled: boolean
   ordersEnabled: boolean
   paymentsEnabled: boolean
+  scheduleDemoEnabled: boolean
   paymentGateways: string[] | null
   devToolsEnabled: boolean
   codeGeneratorEnabled: boolean

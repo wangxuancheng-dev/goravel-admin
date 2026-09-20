@@ -30,6 +30,9 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		ScheduleTracked("tenant:cleanup-deleted").DailyAt("20:00").OnOneServer(),
 		// Tenant health: ping / schema / quota / migrate fail → webhook/email
 		ScheduleTracked("tenant:health-inspect").Hourly().OnOneServer(),
+		// Open-source demos: activity windows + unpaid order expire safety net
+		ScheduleTracked("activity:sync-status").EveryTenSeconds().OnOneServer(),
+		ScheduleTracked("order:cancel-expired").EveryMinute().OnOneServer(),
 	}
 }
 
@@ -44,6 +47,8 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.QueuePeek{},
 		&commands.QueueAlertBacklog{},
 		&commands.ScheduleTestLog{},
+		&commands.SyncDemoActivities{},
+		&commands.CancelExpiredOrders{},
 		commands.NewCreateOrderShardingTables(),
 		commands.NewCreatePaymentShardingTables(),
 		&commands.GenerateTestOrders{},

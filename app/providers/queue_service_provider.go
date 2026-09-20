@@ -1,6 +1,9 @@
 package providers
 
 import (
+	"context"
+	"time"
+
 	"github.com/goravel/framework/contracts/foundation"
 	"github.com/goravel/framework/contracts/queue"
 
@@ -25,6 +28,12 @@ func (receiver *QueueServiceProvider) Boot(app foundation.Application) {
 			{Type: "string", Value: content},
 		}).Dispatch()
 	}
+	services.EnqueueCancelExpiredOrderFn = func(ctx context.Context, orderNo string, expireAt time.Time, tenantID uint) error {
+		return facades.Queue().Job(&jobs.CancelExpiredOrder{}, []queue.Arg{
+			{Type: "string", Value: orderNo},
+			{Type: "int", Value: int(tenantID)},
+		}).Delay(expireAt).Dispatch()
+	}
 }
 
 func (receiver *QueueServiceProvider) Jobs() []queue.Job {
@@ -47,5 +56,6 @@ func (receiver *QueueServiceProvider) Jobs() []queue.Job {
 		&jobs.ImportArticles{},
 		// 搜索引擎同步任务（订单；文章等后续同目录加 sync_*_search.go）
 		&jobs.SyncOrderSearch{},
+		&jobs.CancelExpiredOrder{},
 	}
 }

@@ -22,6 +22,7 @@ func Admin() {
 	blacklistController := admin.NewBlacklistController()
 	onlineAdminController := admin.NewOnlineAdminController()
 	scheduleController := admin.NewScheduleController()
+	demoActivityController := admin.NewDemoActivityController()
 	operationLogController := admin.NewOperationLogController()
 	loginLogController := admin.NewLoginLogController()
 	systemLogController := admin.NewSystemLogController()
@@ -166,6 +167,17 @@ func Admin() {
 			// 定时任务管理（列表 + 手动触发；仅允许执行已注册的 schedule 命令）
 			router.Get("schedules", scheduleController.Index)
 			router.Post("schedules/run", scheduleController.Run)
+
+			// Schedule demo activities (module switch MODULE_SCHEDULE_DEMO_ENABLED)
+			router.Middleware(middleware.ScheduleDemoModule()).Group(func(router route.Router) {
+				router.Get("demo-activities", demoActivityController.Index)
+				router.Post("demo-activities", demoActivityController.Store)
+				router.Get("demo-activities/{id}", demoActivityController.Show)
+				router.Put("demo-activities/{id}", demoActivityController.Update)
+				router.Delete("demo-activities/{id}", demoActivityController.Destroy)
+				router.Get("demo-activities/{id}/active-check", demoActivityController.CheckActive)
+				router.Post("demo-activities/sync", demoActivityController.SyncNow)
+			})
 
 			// 操作日志
 			router.Get("operation-logs", operationLogController.Index)

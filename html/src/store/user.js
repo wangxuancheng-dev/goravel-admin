@@ -26,6 +26,7 @@ export const useUserStore = defineStore('user', {
         aiEnabled: false,
         ordersEnabled: true,
         paymentsEnabled: true,
+        scheduleDemoEnabled: true,
         paymentGateways: null,
         devToolsEnabled: false,
         codeGeneratorEnabled: false,
@@ -161,7 +162,8 @@ export const useUserStore = defineStore('user', {
         pprofTokenRequired: config?.pprof_token_required || config?.pprofTokenRequired || false,
         aiEnabled: config?.ai_enabled || config?.aiEnabled || false,
         ordersEnabled: config?.orders_enabled ?? config?.ordersEnabled ?? true,
-        paymentsEnabled: config?.payments_enabled ?? config?.paymentsEnabled ?? false,
+        paymentsEnabled: config?.payments_enabled ?? config?.paymentsEnabled ?? true,
+        scheduleDemoEnabled: config?.schedule_demo_enabled ?? config?.scheduleDemoEnabled ?? true,
         paymentGateways: Array.isArray(config?.payment_gateways)
           ? config.payment_gateways
           : (Array.isArray(config?.paymentGateways) ? config.paymentGateways : null),
@@ -319,6 +321,7 @@ export const useUserStore = defineStore('user', {
           aiEnabled: false,
           ordersEnabled: true,
           paymentsEnabled: true,
+          scheduleDemoEnabled: true,
           paymentGateways: null,
           devToolsEnabled: false,
           codeGeneratorEnabled: false,

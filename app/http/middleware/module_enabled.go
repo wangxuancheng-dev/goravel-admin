@@ -26,3 +26,8 @@ func OrdersModule() http.Middleware {
 func PaymentsModule() http.Middleware {
 	return moduleEnabled(utils.PaymentsEnabled, "module_payments_disabled")
 }
+
+// ScheduleDemoModule blocks requests when MODULE_SCHEDULE_DEMO_ENABLED=false.
+func ScheduleDemoModule() http.Middleware {
+	return moduleEnabled(utils.ScheduleDemoEnabled, "module_schedule_demo_disabled")
+}

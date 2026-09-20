@@ -2,6 +2,7 @@ package admin
 
 import (
 	"strings"
+	"time"
 
 	"github.com/goravel/framework/contracts/http"
 
@@ -163,7 +164,11 @@ func (r *OrderController) Store(ctx http.Context) http.Response {
 		}
 	}
 
-	order, details, err := r.orderService(ctx).CreateOrder(req.UserID, req.Amount, products, req.RequestID, req.Remark)
+	var expireArgs []time.Duration
+	if req.ExpireInSeconds > 0 {
+		expireArgs = append(expireArgs, time.Duration(req.ExpireInSeconds)*time.Second)
+	}
+	order, details, err := r.orderService(ctx).CreateOrder(req.UserID, req.Amount, products, req.RequestID, req.Remark, expireArgs...)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "order", http.StatusBadRequest, err, map[string]any{
 			"user_id": req.UserID,

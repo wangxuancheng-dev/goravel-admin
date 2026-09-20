@@ -104,7 +104,8 @@
     "ai_lab_file_too_large": "上传文件过大，请缩小后重试",
     "platform_last_owner": "不能移除最后一个启用的管理员(owner)",
     "platform_cannot_modify_self": "不能修改自己的角色或状态",
-    "admin_cannot_delete_self": "不能删除自己"
+    "admin_cannot_delete_self": "不能删除自己",
+    "confirm_delete": "确认删除？"
   },
   "login": {
     "title": "后台管理系统",
@@ -223,7 +224,8 @@
     "observability-lite": "运行观测",
     "tenant_op_log": "运维执行记录",
     "platform_overview": "运维总览",
-    "platform_admin": "平台管理员"
+    "platform_admin": "平台管理员",
+    "demo_activity": "活动调度演示"
   },
   "monitor_runtime": {
     "title": "运行观测",
@@ -1783,7 +1785,8 @@
     "email_invalid": "请输入正确的邮箱地址",
     "top_level": "顶级",
     "tip": "提示",
-    "warning": "警告"
+    "warning": "警告",
+    "required": "必填"
   },
   "form_demo": {
     "title": "Form 组件演示",
@@ -2323,5 +2326,48 @@
     "reset_password": "重置密码",
     "delete_confirm": "确定删除该平台管理员吗？",
     "self_edit_hint": "不能修改自己的角色或状态"
+  },
+  "demo_activity": {
+    "add": "新增活动",
+    "edit": "编辑活动",
+    "title": "标题",
+    "schedule_type": "类型",
+    "type_once": "一次性",
+    "type_daily": "每天",
+    "start_at": "开始时间",
+    "end_at": "结束时间",
+    "daily_start": "每日开始",
+    "daily_end": "每日结束",
+    "timezone": "时区",
+    "status": "状态",
+    "status_pending": "未开始",
+    "status_running": "进行中",
+    "status_ended": "已结束",
+    "window": "时间窗口",
+    "active_check": "现算校验",
+    "stored_status": "库状态",
+    "desired_status": "应有状态",
+    "is_active_live": "现算是否进行中",
+    "sync_now": "立即同步状态",
+    "sync_success": "已同步，更新 {count} 条",
+    "type_weekly": "每周",
+    "type_monthly": "每月",
+    "type_yearly": "每年",
+    "weekdays": "星期",
+    "weekday_1": "一",
+    "weekday_2": "二",
+    "weekday_3": "三",
+    "weekday_4": "四",
+    "weekday_5": "五",
+    "weekday_6": "六",
+    "weekday_7": "日",
+    "month_mode": "月份模式",
+    "month_mode_days": "指定日期",
+    "month_mode_range": "日期区间",
+    "month_days": "每月几号",
+    "month_day_start": "起始日",
+    "month_day_end": "结束日",
+    "year_start": "每年开始(MM-DD)",
+    "year_end": "每年结束(MM-DD)"
   }
 }

@@ -82,6 +82,9 @@ func All() []schema.Migration {
 		&M20260917220000CreatePlatformLoginLogsTable{},
 		&M20260917220001CreatePlatformOperationLogsTable{},
 		&M20260918180000AddTenantByobStorage{},
+		&M20260920150000CreateDemoActivitiesTable{},
+		&M20260920150001AddExpireAtToOrdersShardingTables{},
+		&M20260920160000AddFlexibleScheduleToDemoActivities{},
 	}
 }
 

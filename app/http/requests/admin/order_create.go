@@ -15,11 +15,12 @@ type OrderCreateProduct struct {
 }
 
 type OrderCreate struct {
-	UserID    uint                 `form:"user_id" json:"user_id"`
-	Amount    float64              `form:"amount" json:"amount"`
-	Products  []OrderCreateProduct `form:"products" json:"products"`
-	RequestID string               `form:"request_id" json:"request_id"`
-	Remark    string               `form:"remark" json:"remark"`
+	UserID           uint                 `form:"user_id" json:"user_id"`
+	Amount           float64              `form:"amount" json:"amount"`
+	Products         []OrderCreateProduct `form:"products" json:"products"`
+	RequestID        string               `form:"request_id" json:"request_id"`
+	Remark           string               `form:"remark" json:"remark"`
+	ExpireInSeconds  int                  `form:"expire_in_seconds" json:"expire_in_seconds"`
 }
 
 func (r *OrderCreate) Authorize(ctx http.Context) error {

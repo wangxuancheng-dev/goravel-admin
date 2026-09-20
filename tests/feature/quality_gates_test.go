@@ -19,7 +19,7 @@ func TestOrdersModuleDisabledBlocksAPI(t *testing.T) {
 	token := loginAdminWithPermission(t, "order_module_actor", "OrderModuleActor123!", "order.index", "GET", "/api/admin/orders")
 
 	prevOrders := facades.Config().GetBool("module.orders_enabled", true)
-	prevPayments := facades.Config().GetBool("module.payments_enabled", false)
+	prevPayments := facades.Config().GetBool("module.payments_enabled", true)
 	prevGateways := facades.Config().GetString("module.payment_gateways_enabled", "")
 	prevFrontend := facades.Config().GetString("module.code_generator_frontend", "vue,react")
 	facades.Config().Add("module", map[string]any{
@@ -70,7 +70,7 @@ func TestRoleIndexAllowedWithPermission(t *testing.T) {
 
 func TestOrderIndexAllowedWithPermission(t *testing.T) {
 	prevOrders := facades.Config().GetBool("module.orders_enabled", true)
-	prevPayments := facades.Config().GetBool("module.payments_enabled", false)
+	prevPayments := facades.Config().GetBool("module.payments_enabled", true)
 	prevGateways := facades.Config().GetString("module.payment_gateways_enabled", "")
 	prevFrontend := facades.Config().GetString("module.code_generator_frontend", "vue,react")
 	facades.Config().Add("module", map[string]any{
@@ -129,7 +129,7 @@ func TestPaymentNotifyStubReturnsNotImplemented(t *testing.T) {
 	withTenancyDriver(t, "off")
 
 	prevOrders := facades.Config().GetBool("module.orders_enabled", true)
-	prevPayments := facades.Config().GetBool("module.payments_enabled", false)
+	prevPayments := facades.Config().GetBool("module.payments_enabled", true)
 	prevGateways := facades.Config().GetString("module.payment_gateways_enabled", "")
 	prevFrontend := facades.Config().GetString("module.code_generator_frontend", "vue,react")
 	facades.Config().Add("module", map[string]any{

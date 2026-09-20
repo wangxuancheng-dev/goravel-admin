@@ -15,7 +15,7 @@ type OrderWithDetails struct {
 
 // OrderToJSONMap returns base order display fields.
 func OrderToJSONMap(order models.Order) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"id":         order.ID,
 		"order_no":   order.OrderNo,
 		"user_id":    order.UserID,
@@ -25,6 +25,12 @@ func OrderToJSONMap(order models.Order) map[string]any {
 		"created_at": order.CreatedAt,
 		"updated_at": order.UpdatedAt,
 	}
+	if order.ExpireAt != nil {
+		payload["expire_at"] = order.ExpireAt.UTC().Format("2006-01-02 15:04:05")
+	} else {
+		payload["expire_at"] = nil
+	}
+	return payload
 }
 
 // OrderDetailToJSONMap returns order detail display fields.

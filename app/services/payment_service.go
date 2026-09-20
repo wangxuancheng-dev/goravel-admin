@@ -349,6 +349,13 @@ func (s *PaymentServiceImpl) CreatePayment(orderNo string, paymentMethodID uint,
 	if order.Status != models.OrderStatusPending {
 		return nil, apperrors.ErrOrderNotPayable
 	}
+	if cancelled, _ := CancelOrderIfExpired(s.ctx, orderNo); cancelled {
+		return nil, apperrors.ErrOrderNotPayable
+	}
+	if OrderIsExpired(order, time.Now().UTC()) {
+		_, _ = CancelOrderIfExpired(s.ctx, orderNo)
+		return nil, apperrors.ErrOrderNotPayable
+	}
 
 	if amount <= 0 {
 		amount = order.Amount

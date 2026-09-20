@@ -37,6 +37,7 @@ func CreateOrdersShardingTable(tableName string) error {
 		table.Decimal("amount").Comment("订单金额(10,2)")
 		table.String("status", 20).Default("pending").Comment("订单状态 pending:待支付 paid:已支付 cancelled:已取消")
 		table.Text("remark").Nullable().Comment("备注")
+		table.Timestamp("expire_at").Nullable().Comment("pending order auto-cancel deadline (UTC)")
 		table.Timestamps()
 		table.SoftDeletes()
 		table.Unique("order_no") // 唯一索引，防止并发下订单号重复
@@ -53,6 +54,8 @@ func CreateOrdersShardingTable(tableName string) error {
 		table.Index("created_at")
 		// 5. 按金额排序优化（ORDER BY amount + WHERE created_at 范围）
 		table.Index("amount", "created_at")
+		// 6. unpaid auto-cancel sweep
+		table.Index("status", "expire_at")
 
 		table.Comment(fmt.Sprintf("订单主表 - %s", tableName))
 	})

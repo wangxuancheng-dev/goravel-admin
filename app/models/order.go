@@ -1,6 +1,8 @@
 package models
 
 import (
+	"time"
+
 	"github.com/goravel/framework/database/orm"
 )
 
@@ -13,6 +15,7 @@ type Order struct {
 	Amount          float64 `gorm:"type:decimal(10,2);not null;comment:订单金额"`
 	Status          string  `gorm:"size:20;default:'pending';comment:订单状态 pending:待支付 paid:已支付 cancelled:已取消"`
 	Remark          string  `gorm:"type:text;comment:备注"`
+	ExpireAt        *time.Time `gorm:"column:expire_at;comment:pending auto-cancel deadline UTC" json:"expire_at"`
 	// CreatedAt 字段由 orm.Model 提供，用于分表
 }
 

@@ -31,7 +31,7 @@
 | 新渠道扩展 | ✅ `app/payment/gateways` + `RegisterGateway` + 通用 `notify/{type}`，见 [支付参考](/advanced/payments) §6 |
 | 退款 API / 原路退 | ❌ 未提供（余额日志里的 refund 类型仅统计用） |
 
-演示可开 `MODULE_PAYMENTS_ENABLED=true`；公网未自研网关时保持关闭或仅用 mock。
+默认开启；公网未自研网关时请设 `MODULE_PAYMENTS_ENABLED=false` 或仅用 mock。
 
 ---
 
@@ -56,6 +56,7 @@
 |------|----------|-----------------|
 | Redis 缓存 / 队列 | 生产导出、异步任务、限流与锁 | `CACHE_STORE`、`QUEUE_CONNECTION` |
 | 订单 / 支付分表 | 数据量大、按月归档 | [分表迁移](/advanced/sharding-migration)、`SHARDING_*` |
+| 调度演示（活动窗口 / 订单超时） | 二次开发样板；非生产营销中台 | [调度演示](/advanced/scheduled-demos)、`/api/schedule-demo` |
 | Elasticsearch | 订单检索、全文检索 | `ELASTICSEARCH_*`、ES Worker |
 | 多队列驱动 | Kafka / RabbitMQ / NSQ / Redis Stream | `.env.example` 队列段 |
 | OpenTelemetry | Jaeger / Grafana 等统一观测 | `OTEL_*`、[Telemetry 文档](https://www.goravel.dev/zh_CN/digging-deeper/telemetry.html) |
@@ -69,7 +70,8 @@
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `MODULE_ORDERS_ENABLED` | `true` | 关闭后隐藏订单菜单并拒绝订单 API |
-| `MODULE_PAYMENTS_ENABLED` | `false` | 管理端支付菜单与 API；公网默认建议关闭 |
+| `MODULE_SCHEDULE_DEMO_ENABLED` | `true` | 关闭后隐藏活动调度演示菜单并拒绝相关 API |
+| `MODULE_PAYMENTS_ENABLED` | `true` | 管理端支付菜单与 API；公网请在 .env 设为 false 或仅用 mock |
 | `PAYMENT_GATEWAYS_ENABLED` | （空） | 启用渠道白名单，如 `wechat,alipay`；空 / `*` / `all` = 全部已注册。**生产建议显式白名单**；新渠道见 [支付参考](/advanced/payments) §6 |
 | `APP_ENABLE_DEV_TOOL` | `false` | 生产需显式 `true` 才开放开发工具。表单演示：`local/development/test` 默认可见；代码生成器：仅 `local/development` 默认可见（`test` 默认隐藏） |
 

@@ -16,7 +16,12 @@ func OrdersEnabled() bool {
 
 // PaymentsEnabled reports whether the payments example module is enabled.
 func PaymentsEnabled() bool {
-	return facades.Config().GetBool("module.payments_enabled", false)
+	return facades.Config().GetBool("module.payments_enabled", true)
+}
+
+// ScheduleDemoEnabled reports whether the schedule demo (demo activities) module is enabled.
+func ScheduleDemoEnabled() bool {
+	return facades.Config().GetBool("module.schedule_demo_enabled", true)
 }
 
 // DevToolsEnabled reports whether general dev tools (e.g. form demo) are available.
@@ -122,6 +127,9 @@ func DisabledModuleMenuSlugs() map[string]bool {
 		disabled["payment"] = true
 		disabled["payment-method"] = true
 		disabled["payment-record"] = true
+	}
+	if !ScheduleDemoEnabled() {
+		disabled["demo-activity"] = true
 	}
 	codeGenOn := CodeGeneratorEnabled()
 	formDemoOn := DevToolsEnabled()

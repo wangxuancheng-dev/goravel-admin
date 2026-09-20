@@ -74,4 +74,15 @@ func Api() {
 		// 清空测试结果缓存，便于下一轮测试对比。
 		router.Post("reset", queueTestController.Reset)
 	})
+
+	// Order expire Delay demo (dev tools). Activity CRUD lives under /api/admin/demo-activities.
+	facades.Route().Prefix("api/schedule-demo").Middleware(
+		middleware.DevelopmentOnly(),
+		middleware.Lang(),
+		middleware.Tenant(),
+		middleware.Blacklist(),
+		middleware.ScheduleDemoModule(),
+	).Group(func(router route.Router) {
+		router.Post("orders/expire", queueTestController.OrderExpireDemo)
+	})
 }

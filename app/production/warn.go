@@ -44,7 +44,7 @@ func WarnInsecureDefaults() {
 	if facades.Config().GetBool("app.enable_dev_tool", false) {
 		warn("APP_ENABLE_DEV_TOOL=true — code generator / form demo exposed")
 	}
-	if facades.Config().GetBool("module.payments_enabled", false) {
+	if facades.Config().GetBool("module.payments_enabled", true) {
 		warn("MODULE_PAYMENTS_ENABLED=true — mock gateway is runnable; wechat/alipay notify/query still stub until you wire gopay verify")
 	}
 	if strings.EqualFold(facades.Config().GetString("tenancy.driver", "off"), "database") {

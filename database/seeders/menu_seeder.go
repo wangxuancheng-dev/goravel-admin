@@ -308,6 +308,19 @@ func (s *MenuSeeder) Run() error {
 
 	createOrUpdateMenu(models.Menu{
 		ParentID:  systemMenu.ID,
+		Title:     "活动调度演示",
+		Slug:      "demo-activity",
+		Icon:      "Calendar",
+		Path:      "/demo-activities",
+		Component: "demoActivity/DemoActivityList",
+		Type:      2,
+		Status:    1,
+		Sort:      14,
+		IsHidden:  0,
+	})
+
+	createOrUpdateMenu(models.Menu{
+		ParentID:  systemMenu.ID,
 		Title:     "订单管理",
 		Slug:      "order",
 		Icon:      "ShoppingCart",

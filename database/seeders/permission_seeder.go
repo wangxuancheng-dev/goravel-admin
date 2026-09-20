@@ -17,7 +17,7 @@ func (s *PermissionSeeder) Run() error {
 	// 获取菜单（权限需要关联菜单）
 	var adminMenu, roleMenu, permissionMenu, menuMenu, departmentMenu, positionMenu, dictionaryMenu, configMenu, blacklistMenu, onlineAdminMenu, orderMenu, userMenu, userBalanceLogMenu models.Menu
 	var operationLogMenu, loginLogMenu, systemLogMenu, observabilityMenu, monitorMenu, scheduleMenu, profileMenu, exportMenu, attachmentMenu, dashboardMenu, notificationMenu models.Menu
-	var paymentMethodMenu, paymentRecordMenu models.Menu
+	var paymentMethodMenu, paymentRecordMenu, demoActivityMenu models.Menu
 
 	// 辅助函数：查找菜单
 	findMenu := func(slug string, menu *models.Menu) {
@@ -50,6 +50,7 @@ func (s *PermissionSeeder) Run() error {
 	findMenu("user-balance-log", &userBalanceLogMenu)
 	findMenu("payment-method", &paymentMethodMenu)
 	findMenu("payment-record", &paymentRecordMenu)
+	findMenu("demo-activity", &demoActivityMenu)
 
 	// Dashboard 可能没有单独的菜单，使用 profile 菜单作为关联
 	facades.Orm().Query().Where("slug", "dashboard").First(&dashboardMenu)
@@ -161,6 +162,14 @@ func (s *PermissionSeeder) Run() error {
 		// 定时任务
 		{Name: "定时任务列表", Slug: "schedule.index", Method: "GET", Path: "/api/admin/schedules", Description: "查看定时任务列表", Status: 1, Sort: 1, MenuID: scheduleMenu.ID},
 		{Name: "手动执行定时任务", Slug: "schedule.run", Method: "POST", Path: "/api/admin/schedules/run", Description: "手动执行已注册的定时任务", Status: 1, Sort: 2, MenuID: scheduleMenu.ID},
+		// Demo activities (schedule demo module)
+		{Name: "Demo activity list", Slug: "demo_activity.index", Method: "GET", Path: "/api/admin/demo-activities", Description: "List demo activities", Status: 1, Sort: 1, MenuID: demoActivityMenu.ID},
+		{Name: "Demo activity detail", Slug: "demo_activity.show", Method: "GET", Path: "/api/admin/demo-activities/*", Description: "Show demo activity", Status: 1, Sort: 2, MenuID: demoActivityMenu.ID},
+		{Name: "Demo activity create", Slug: "demo_activity.store", Method: "POST", Path: "/api/admin/demo-activities", Description: "Create demo activity", Status: 1, Sort: 3, MenuID: demoActivityMenu.ID},
+		{Name: "Demo activity update", Slug: "demo_activity.update", Method: "PUT", Path: "/api/admin/demo-activities/*", Description: "Update demo activity", Status: 1, Sort: 4, MenuID: demoActivityMenu.ID},
+		{Name: "Demo activity delete", Slug: "demo_activity.destroy", Method: "DELETE", Path: "/api/admin/demo-activities/*", Description: "Delete demo activity", Status: 1, Sort: 5, MenuID: demoActivityMenu.ID},
+		{Name: "Demo activity active-check", Slug: "demo_activity.active_check", Method: "GET", Path: "/api/admin/demo-activities/*/active-check", Description: "Compare stored status vs live IsActive", Status: 1, Sort: 6, MenuID: demoActivityMenu.ID},
+		{Name: "Demo activity sync", Slug: "demo_activity.sync", Method: "POST", Path: "/api/admin/demo-activities/sync", Description: "Sync demo activity statuses now", Status: 1, Sort: 7, MenuID: demoActivityMenu.ID},
 		// 个人中心
 		{Name: "修改资料", Slug: "profile.update", Method: "PUT", Path: "/api/admin/profile", Description: "修改当前登录管理员资料", Status: 1, Sort: 1, MenuID: profileMenu.ID},
 		{Name: "修改密码", Slug: "password.update", Method: "PUT", Path: "/api/admin/password", Description: "修改当前登录管理员密码", Status: 1, Sort: 2, MenuID: profileMenu.ID},

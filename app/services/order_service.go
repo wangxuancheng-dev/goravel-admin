@@ -32,8 +32,8 @@ func orderTenantID(ctx context.Context) uint {
 }
 
 type OrderService interface {
-	// CreateOrder 创建订单（带防重复提交）
-	CreateOrder(userID uint, amount float64, products []OrderProduct, requestID string, remark string) (*models.Order, []models.OrderDetail, error)
+	// CreateOrder creates an order. Optional expireIn (>0) sets expire_at and enqueues a Delay cancel job.
+	CreateOrder(userID uint, amount float64, products []OrderProduct, requestID string, remark string, expireIn ...time.Duration) (*models.Order, []models.OrderDetail, error)
 	// GetOrderByID 根据ID查询订单
 	GetOrderByID(orderID uint, orderTime time.Time) (*models.Order, []models.OrderDetail, error)
 	// GetOrderByOrderNo 根据订单号查询订单（直接定位分表，更高效）
@@ -117,7 +117,8 @@ func NewOrderService(ctx context.Context) *OrderServiceImpl {
 }
 
 // CreateOrder 创建订单（主单 + 明细同事务；DDL 保表在事务外）。
-func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []OrderProduct, requestID string, remark string) (*models.Order, []models.OrderDetail, error) {
+// Optional expireIn (>0) sets expire_at and enqueues Delay cancel after commit.
+func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []OrderProduct, requestID string, remark string, expireIn ...time.Duration) (*models.Order, []models.OrderDetail, error) {
 	if requestID == "" {
 		requestID = ulid.Make().String()
 	}
@@ -224,6 +225,22 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 	}
 
 	support.RequestOrderSearchSync(order.ID, order.OrderNo, "index", orderTenantID(s.ctx))
+
+	var expireDur time.Duration
+	if len(expireIn) > 0 {
+		expireDur = expireIn[0]
+	}
+	if expireDur > 0 {
+		if err := ScheduleOrderExpireCancel(s.ctx, order, expireDur); err != nil {
+			errorlog.Record(s.ctx, "order", "schedule expire cancel failed", map[string]any{
+				"order_no": order.OrderNo,
+				"error":    err.Error(),
+			}, "schedule expire cancel failed: %v", err)
+			// order already created; surface scheduling failure to caller
+			return order, details, err
+		}
+	}
+
 	return order, details, nil
 }
 

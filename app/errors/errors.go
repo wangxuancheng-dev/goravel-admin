@@ -141,6 +141,10 @@ var (
 	ErrQueryOrderDetailFailed  = NewBusinessError("query_order_detail_failed", "查询订单详情失败")
 	ErrDeleteOrderDetailFailed = NewBusinessError("delete_order_detail_failed", "删除订单详情失败")
 
+	// Schedule demo (open-source samples)
+	ErrDemoActivityNotFound = NewBusinessError("demo_activity_not_found", "demo activity not found")
+	ErrDemoActivityInvalid  = NewBusinessError("demo_activity_invalid", "demo activity invalid")
+
 	// 支付相关错误
 	ErrPaymentMethodNotFound        = NewBusinessError("payment_method_not_found", "支付方式不存在")
 	ErrPaymentNotFound              = NewBusinessError("payment_not_found", "支付记录不存在")

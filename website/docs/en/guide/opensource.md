@@ -31,7 +31,7 @@ Demo accounts are for exploration only. Change default admin password and secret
 | New channels | `app/payment/gateways` + `RegisterGateway` + `notify/{type}` |
 | Refund / original-path refund | Not provided |
 
-Demo UI: `MODULE_PAYMENTS_ENABLED=true`. Keep off or mock-only on public production until you own the gateway.
+Enabled by default; set `MODULE_PAYMENTS_ENABLED=false` on public production unless you own the gateway (or mock-only).
 
 ## Core vs advanced
 
@@ -44,7 +44,7 @@ Demo UI: `MODULE_PAYMENTS_ENABLED=true`. Keep off or mock-only on public product
 | Variable | Default | Effect |
 |----------|---------|--------|
 | `MODULE_ORDERS_ENABLED` | `true` | Hide order menus + reject order APIs when false |
-| `MODULE_PAYMENTS_ENABLED` | `false` | Payment admin UI/API; keep off on public deploy by default |
+| `MODULE_PAYMENTS_ENABLED` | `true` | Payment admin UI/API; set false on public deploy unless you own the gateway |
 | `PAYMENT_GATEWAYS_ENABLED` | empty | Gateway allowlist (e.g. `wechat,alipay`); empty / `*` / `all` = all registered. **Prefer explicit production allowlist**; new channels: [Payments](/en/advanced/payments) §6 |
 | `APP_ENABLE_DEV_TOOL` | `false` | Explicit `true` in production to open dev tools |
 

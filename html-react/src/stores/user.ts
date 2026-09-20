@@ -14,6 +14,7 @@ const defaultConfig: FeatureConfig = {
   aiEnabled: false,
   ordersEnabled: true,
   paymentsEnabled: true,
+  scheduleDemoEnabled: true,
   paymentGateways: null,
   devToolsEnabled: false,
   codeGeneratorEnabled: false,
@@ -182,7 +183,8 @@ export const useUserStore = create<UserState>((set, get) => {
           pprofTokenRequired: !!(config?.pprof_token_required || config?.pprofTokenRequired),
           aiEnabled: !!(config?.ai_enabled || config?.aiEnabled),
           ordersEnabled: (config?.orders_enabled ?? config?.ordersEnabled ?? true) as boolean,
-          paymentsEnabled: (config?.payments_enabled ?? config?.paymentsEnabled ?? false) as boolean,
+          paymentsEnabled: (config?.payments_enabled ?? config?.paymentsEnabled ?? true) as boolean,
+          scheduleDemoEnabled: (config?.schedule_demo_enabled ?? config?.scheduleDemoEnabled ?? true) as boolean,
           paymentGateways: (Array.isArray(config?.payment_gateways)
             ? config.payment_gateways
             : Array.isArray(config?.paymentGateways)
