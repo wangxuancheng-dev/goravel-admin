@@ -123,7 +123,6 @@
                 :max="3600"
                 :disabled="loading"
                 :controls="false"
-                placeholder="60"
                 style="width: 220px"
               />
               <div class="expire-tip">{{ $t('order.expire_in_seconds_tip') }}</div>
@@ -176,7 +175,7 @@ const dialogTitle = computed(() => t('order.add_order'))
 const formData = reactive({
   user_id: null,
   products: [],
-  expire_in_seconds: null,
+  expire_in_seconds: 60,
   remark: ''
 })
 
@@ -311,7 +310,7 @@ const resetForm = async () => {
   
   // 完全重置表单数据
   formData.user_id = null
-  formData.expire_in_seconds = null
+  formData.expire_in_seconds = 60
   formData.remark = ''
   
   // 完全清空商品数组（使用 splice 确保彻底清空所有引用）
@@ -344,6 +343,9 @@ const resetForm = async () => {
     formRef.value.resetFields()
     formRef.value.clearValidate()
   }
+
+  // resetFields restores first-registered defaults; force demo default again
+  formData.expire_in_seconds = 60
   
   // 重新计算金额
   calculateAmount()
@@ -390,11 +392,8 @@ const handleSubmit = async () => {
         price: product.price,
         quantity: product.quantity
       })),
-      remark: formData.remark || ''
-    }
-    const expireIn = Number(formData.expire_in_seconds || 0)
-    if (expireIn > 0) {
-      requestData.expire_in_seconds = expireIn
+      remark: formData.remark || '',
+      expire_in_seconds: Number(formData.expire_in_seconds) > 0 ? Number(formData.expire_in_seconds) : 0
     }
 
     await createOrder(requestData)

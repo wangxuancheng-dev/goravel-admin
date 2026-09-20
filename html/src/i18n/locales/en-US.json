@@ -748,7 +748,7 @@
     "remark_placeholder": "Please enter remark (optional)",
     "expire_at": "Expire At",
     "expire_in_seconds": "Auto-cancel (seconds)",
-    "expire_in_seconds_tip": "Optional. Pending orders cancel after this delay (e.g. 60 for demo)"
+    "expire_in_seconds_tip": "Defaults to 60s. Clear or set 0 to skip auto-cancel"
   },
   "payment_method": {
     "add_payment_method": "Add Payment Method",

@@ -41,7 +41,7 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
   useEffect(() => {
     if (open) {
       form.resetFields()
-      form.setFieldsValue({ user_id: undefined, remark: '', expire_in_seconds: undefined })
+      form.setFieldsValue({ user_id: undefined, remark: '', expire_in_seconds: 60 })
       setProducts([emptyProduct()])
     }
   }, [open, form])
@@ -97,10 +97,7 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
           quantity: p.quantity,
         })),
         remark: values.remark || '',
-      }
-      const expireIn = Number(values.expire_in_seconds || 0)
-      if (expireIn > 0) {
-        payload.expire_in_seconds = expireIn
+        expire_in_seconds: Number(values.expire_in_seconds) > 0 ? Number(values.expire_in_seconds) : 0,
       }
       await createOrder(payload)
       message.success(t('order.create_success'))
@@ -241,6 +238,7 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
           name="expire_in_seconds"
           label={t('order.expire_in_seconds')}
           extra={t('order.expire_in_seconds_tip')}
+          initialValue={60}
         >
           <InputNumber
             min={1}

@@ -712,7 +712,7 @@
     "import": "导入",
     "expire_at": "过期时间",
     "expire_in_seconds": "超时取消(秒)",
-    "expire_in_seconds_tip": "可选。填写后到期自动取消待支付订单，例如 60 便于演示"
+    "expire_in_seconds_tip": "默认为 60 秒。清空或改为 0 则不自动取消"
   },
   "payment": {
     "payment_no": "支付单号",

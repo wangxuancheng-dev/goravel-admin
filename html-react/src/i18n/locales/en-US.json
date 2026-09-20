@@ -712,7 +712,7 @@
     "import": "Import",
     "expire_at": "Expire At",
     "expire_in_seconds": "Auto-cancel (seconds)",
-    "expire_in_seconds_tip": "Optional. Pending orders cancel after this delay (e.g. 60 for demo)"
+    "expire_in_seconds_tip": "Defaults to 60s. Clear or set 0 to skip auto-cancel"
   },
   "payment": {
     "payment_no": "Payment No",
