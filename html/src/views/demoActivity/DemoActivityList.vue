@@ -45,7 +45,7 @@
         <template v-else>D{{ row.month_day_start }}~D{{ row.month_day_end }}</template>
       </span>
       <span v-else-if="row.schedule_type === 'yearly'">{{ row.year_start || '-' }} ~ {{ row.year_end || '-' }}</span>
-      <span v-else>{{ row.start_at || '-' }} ~ {{ row.end_at || '-' }}</span>
+      <span v-else>{{ formatDemoTime(row.start_at) }} ~ {{ formatDemoTime(row.end_at) }}</span>
     </template>
 
     <template #status="{ row }">
@@ -95,6 +95,16 @@ import {
 } from '@/api/demoActivity'
 
 const { t } = useI18n()
+
+const formatDemoTime = (value) => {
+  if (!value) return '-'
+  const s = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) return s
+  const d = new Date(s)
+  if (Number.isNaN(d.getTime())) return s
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
 const listPageRef = ref(null)
 const syncing = ref(false)
 const initialSearchForm = { title: '' }

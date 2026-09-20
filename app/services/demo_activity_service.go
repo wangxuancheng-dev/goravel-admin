@@ -459,12 +459,12 @@ func DemoActivityToJSON(a *models.DemoActivity) map[string]any {
 		"updated_at":      a.UpdatedAt,
 	}
 	if a.StartAt != nil {
-		out["start_at"] = a.StartAt.UTC().Format(time.RFC3339)
+		out["start_at"] = a.StartAt.UTC().Format("2006-01-02 15:04:05")
 	} else {
 		out["start_at"] = nil
 	}
 	if a.EndAt != nil {
-		out["end_at"] = a.EndAt.UTC().Format(time.RFC3339)
+		out["end_at"] = a.EndAt.UTC().Format("2006-01-02 15:04:05")
 	} else {
 		out["end_at"] = nil
 	}

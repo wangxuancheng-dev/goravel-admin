@@ -2004,7 +2004,7 @@
     "desired_status": "应有状态",
     "is_active_live": "现算是否进行中",
     "sync_now": "立即同步状态",
-    "sync_success": "已同步，更新 {count} 条",
+    "sync_success": "已同步，更新 {{count}} 条",
     "type_weekly": "每周",
     "type_monthly": "每月",
     "type_yearly": "每年",

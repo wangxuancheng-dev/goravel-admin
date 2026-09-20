@@ -38,6 +38,13 @@ interface DemoActivityRow {
   created_at?: string
 }
 
+function formatDemoTime(value?: string | null): string {
+  if (!value) return '-'
+  const parsed = dayjs(value)
+  if (!parsed.isValid()) return value
+  return parsed.format('YYYY-MM-DD HH:mm:ss')
+}
+
 export default function DemoActivityList() {
   const { t } = useTranslation()
   const { message, modal } = App.useApp()
@@ -147,8 +154,12 @@ export default function DemoActivityList() {
       enabled: !!values.enabled,
     }
     if (type === 'once') {
-      payload.start_at = values.start_at ? (values.start_at as dayjs.Dayjs).toISOString() : ''
-      payload.end_at = values.end_at ? (values.end_at as dayjs.Dayjs).toISOString() : ''
+      payload.start_at = values.start_at
+        ? (values.start_at as dayjs.Dayjs).format('YYYY-MM-DD HH:mm:ss')
+        : ''
+      payload.end_at = values.end_at
+        ? (values.end_at as dayjs.Dayjs).format('YYYY-MM-DD HH:mm:ss')
+        : ''
     } else if (type === 'daily') {
       payload.daily_start = values.daily_start
       payload.daily_end = values.daily_end
@@ -283,7 +294,7 @@ export default function DemoActivityList() {
             case 'yearly':
               return `${row.year_start || '-'} ~ ${row.year_end || '-'}`
             default:
-              return `${row.start_at || '-'} ~ ${row.end_at || '-'}`
+              return `${formatDemoTime(row.start_at)} ~ ${formatDemoTime(row.end_at)}`
           }
         },
       },
