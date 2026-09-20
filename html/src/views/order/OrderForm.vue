@@ -115,6 +115,20 @@
               style="width: 100%"
             />
           </template>
+          <template v-else-if="f.prop === 'expire_in_seconds'">
+            <div style="width: 100%">
+              <el-input-number
+                v-model="formData.expire_in_seconds"
+                :min="1"
+                :max="3600"
+                :disabled="loading"
+                :controls="false"
+                placeholder="60"
+                style="width: 220px"
+              />
+              <div class="expire-tip">{{ $t('order.expire_in_seconds_tip') }}</div>
+            </div>
+          </template>
         </FormField>
       </el-form>
     </div>
@@ -162,6 +176,7 @@ const dialogTitle = computed(() => t('order.add_order'))
 const formData = reactive({
   user_id: null,
   products: [],
+  expire_in_seconds: null,
   remark: ''
 })
 
@@ -264,6 +279,12 @@ const formFields = computed(() => [
     disabled: true
   },
   {
+    prop: 'expire_in_seconds',
+    label: t('order.expire_in_seconds'),
+    type: 'custom',
+    disabled: loading.value
+  },
+  {
     prop: 'remark',
     label: t('order.remark'),
     type: 'textarea',
@@ -290,6 +311,7 @@ const resetForm = async () => {
   
   // 完全重置表单数据
   formData.user_id = null
+  formData.expire_in_seconds = null
   formData.remark = ''
   
   // 完全清空商品数组（使用 splice 确保彻底清空所有引用）
@@ -370,6 +392,10 @@ const handleSubmit = async () => {
       })),
       remark: formData.remark || ''
     }
+    const expireIn = Number(formData.expire_in_seconds || 0)
+    if (expireIn > 0) {
+      requestData.expire_in_seconds = expireIn
+    }
 
     await createOrder(requestData)
     ElMessage.success(t('order.create_success'))
@@ -386,5 +412,11 @@ const handleSubmit = async () => {
 </script>
 
 <style scoped>
+.expire-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
 </style>
 

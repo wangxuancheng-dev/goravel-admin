@@ -41,7 +41,7 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
   useEffect(() => {
     if (open) {
       form.resetFields()
-      form.setFieldsValue({ user_id: undefined, remark: '' })
+      form.setFieldsValue({ user_id: undefined, remark: '', expire_in_seconds: undefined })
       setProducts([emptyProduct()])
     }
   }, [open, form])
@@ -87,7 +87,7 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
       }
 
       setSubmitting(true)
-      await createOrder({
+      const payload: Record<string, unknown> = {
         user_id: values.user_id,
         amount: totalAmount,
         products: products.map((p) => ({
@@ -97,7 +97,12 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
           quantity: p.quantity,
         })),
         remark: values.remark || '',
-      })
+      }
+      const expireIn = Number(values.expire_in_seconds || 0)
+      if (expireIn > 0) {
+        payload.expire_in_seconds = expireIn
+      }
+      await createOrder(payload)
       message.success(t('order.create_success'))
       onSuccess()
       onClose()
@@ -230,6 +235,19 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
 
         <Form.Item label={t('order.amount')}>
           <Input value={formatAmount(totalAmount)} disabled />
+        </Form.Item>
+
+        <Form.Item
+          name="expire_in_seconds"
+          label={t('order.expire_in_seconds')}
+          extra={t('order.expire_in_seconds_tip')}
+        >
+          <InputNumber
+            min={1}
+            max={3600}
+            style={{ width: 220 }}
+            placeholder="60"
+          />
         </Form.Item>
 
         <Form.Item name="remark" label={t('order.remark')}>

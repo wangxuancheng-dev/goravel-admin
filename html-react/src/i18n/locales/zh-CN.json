@@ -709,7 +709,10 @@
     "amount_required": "订单总金额必须大于0",
     "status_required": "请选择订单状态",
     "remark_placeholder": "请输入备注（可选）",
-    "import": "导入"
+    "import": "导入",
+    "expire_at": "过期时间",
+    "expire_in_seconds": "超时取消(秒)",
+    "expire_in_seconds_tip": "可选。填写后到期自动取消待支付订单，例如 60 便于演示"
   },
   "payment": {
     "payment_no": "支付单号",

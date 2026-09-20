@@ -754,7 +754,10 @@
     "quantity_required": "第{index}个商品的数量必须大于0",
     "amount_required": "订单总金额必须大于0",
     "status_required": "请选择订单状态",
-    "remark_placeholder": "请输入备注（可选）"
+    "remark_placeholder": "请输入备注（可选）",
+    "expire_at": "过期时间",
+    "expire_in_seconds": "超时取消(秒)",
+    "expire_in_seconds_tip": "可选。填写后到期自动取消待支付订单，例如 60 便于演示"
   },
   "payment_method": {
     "add_payment_method": "添加支付方式",

@@ -745,7 +745,10 @@
     "quantity_required": "Quantity of product {index} must be greater than 0",
     "amount_required": "Total amount must be greater than 0",
     "status_required": "Please select order status",
-    "remark_placeholder": "Please enter remark (optional)"
+    "remark_placeholder": "Please enter remark (optional)",
+    "expire_at": "Expire At",
+    "expire_in_seconds": "Auto-cancel (seconds)",
+    "expire_in_seconds_tip": "Optional. Pending orders cancel after this delay (e.g. 60 for demo)"
   },
   "payment_method": {
     "add_payment_method": "Add Payment Method",

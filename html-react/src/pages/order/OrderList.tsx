@@ -55,6 +55,7 @@ interface OrderRow {
   amount?: number | string
   status?: string
   remark?: string
+  expire_at?: string | null
   created_at?: string
   details?: Record<string, unknown>[]
   name?: string
@@ -107,6 +108,7 @@ export default function OrderList() {
         amount: entityField(record, 'amount', 0) as number | string,
         status: String(entityField(record, 'status', '') ?? ''),
         remark: String(entityField(record, 'remark', '') ?? ''),
+        expire_at: (entityField(record, 'expire_at', null) as string | null) || null,
         created_at: String(entityField(record, 'created_at', '') ?? ''),
         details: getOrderDetails(record),
         name: String(entityField(record, 'order_no', '') ?? ''),
@@ -306,9 +308,15 @@ export default function OrderList() {
       sorter: true,
     },
     {
+      title: t('order.expire_at'),
+      dataIndex: 'expire_at',
+      width: 180,
+      render: (v: string | null | undefined) => formatOrderTime(v) || '-',
+    },
+    {
       title: t('order.remark'),
       dataIndex: 'remark',
-      width: 200,
+      width: 160,
       ellipsis: true,
       render: (v) => v || '-',
     },
@@ -389,7 +397,7 @@ export default function OrderList() {
         loading={loading}
         columns={columns}
         dataSource={tableData}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1380 }}
         expandable={{
           expandedRowRender: (row) => (
             <div style={{ padding: '8px 12px' }}>
@@ -464,7 +472,10 @@ export default function OrderList() {
               <Descriptions.Item label={t('order.created_at')}>
                 {formatOrderTime(getOrderDetailField(orderInfo, 'created_at', ''))}
               </Descriptions.Item>
-              <Descriptions.Item label={t('order.remark')}>
+              <Descriptions.Item label={t('order.expire_at')}>
+                {formatOrderTime(getOrderDetailField(orderInfo, 'expire_at', ''))}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('order.remark')} span={2}>
                 {String(getOrderDetailField(orderInfo, 'remark') || '-')}
               </Descriptions.Item>
             </Descriptions>

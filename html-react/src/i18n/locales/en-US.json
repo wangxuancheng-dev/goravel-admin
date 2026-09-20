@@ -709,7 +709,10 @@
     "amount_required": "Total amount must be greater than 0",
     "status_required": "Please select order status",
     "remark_placeholder": "Please enter remark (optional)",
-    "import": "Import"
+    "import": "Import",
+    "expire_at": "Expire At",
+    "expire_in_seconds": "Auto-cancel (seconds)",
+    "expire_in_seconds_tip": "Optional. Pending orders cancel after this delay (e.g. 60 for demo)"
   },
   "payment": {
     "payment_no": "Payment No",

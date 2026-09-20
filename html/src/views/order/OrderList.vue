@@ -206,6 +206,9 @@
           <el-descriptions-item :label="$t('order.created_at')">
             {{ formatOrderTime(orderDetail.order?.created_at) }}
           </el-descriptions-item>
+          <el-descriptions-item :label="$t('order.expire_at')">
+            {{ formatOrderTime(orderDetail.order?.expire_at) }}
+          </el-descriptions-item>
           <el-descriptions-item :label="$t('order.remark')">
             {{ getOrderDetailField(orderDetail.order, 'remark') }}
           </el-descriptions-item>

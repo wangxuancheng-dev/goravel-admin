@@ -45,10 +45,17 @@ export function createOrderTableColumns(t) {
     { field: 'status', title: t('order.status'), width: 100, sortable: false, slot: 'status' },
     { field: 'created_at', title: t('order.created_at'), width: 180, sortable: true },
     {
+      field: 'expire_at',
+      title: t('order.expire_at'),
+      width: 180,
+      sortable: false,
+      formatter: ({ cellValue }) => (cellValue ? formatOrderTime(cellValue) : '-')
+    },
+    {
       field: 'remark',
       title: t('order.remark'),
       sortable: false,
-      width: 200,
+      width: 160,
       formatter: ({ cellValue }) => cellValue || '-'
     },
     { title: t('table.operation'), width: 220, fixed: 'right', slot: 'operation' }
