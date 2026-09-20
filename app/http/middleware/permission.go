@@ -101,7 +101,13 @@ func Permission() http.Middleware {
 		}
 
 		// 非超级管理员且无匹配权限时拦截；超级管理员即使无匹配权限也放行
+		// 强制改密账号可无 password.update 仍修改自己的密码
 		if !hasPermission && !isSuperAdmin {
+			if admin.MustChangePassword == 1 && isOwnPasswordUpdate(method, path) {
+				ctx.WithValue("permission_slug", "password.update")
+				ctx.Request().Next()
+				return
+			}
 			// 如果是因为菜单状态为关闭而禁止访问，返回更具体的错误信息
 			if menuDisabled {
 				response.Abort(ctx, http.StatusForbidden, "menu_disabled")
@@ -118,6 +124,15 @@ func Permission() http.Middleware {
 
 		ctx.Request().Next()
 	})
+}
+
+// isOwnPasswordUpdate is PUT /api/admin/password (not admins/{id}/password).
+func isOwnPasswordUpdate(method, path string) bool {
+	if !strings.EqualFold(method, http.MethodPut) {
+		return false
+	}
+	trimmed := strings.TrimSuffix(path, "/")
+	return strings.HasSuffix(trimmed, "/password") && !strings.Contains(path, "/admins/")
 }
 
 // matchPath 路径匹配，支持通配符

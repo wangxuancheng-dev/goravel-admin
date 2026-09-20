@@ -57,6 +57,10 @@ export default function ProfilePage() {
   const { getButtonState } = usePermission()
   const googleAuthPerm = getButtonState('google_authenticator.manage')
   const adminInfo = useUserStore((s) => s.adminInfo)
+  const passwordPerm = getButtonState('password.update')
+  const mustChangePassword = !!adminInfo?.must_change_password
+  const canManageOwnPassword = mustChangePassword || passwordPerm.show
+  const canSubmitOwnPassword = mustChangePassword || !passwordPerm.disabled
   const fetchUserInfo = useUserStore((s) => s.fetchUserInfo)
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'password' ? 'password' : 'basic')
@@ -130,6 +134,7 @@ export default function ProfilePage() {
   }
 
   const handlePasswordSave = async () => {
+    if (!canSubmitOwnPassword) return
     try {
       const values = await passwordForm.validateFields()
       setSavingPassword(true)
@@ -267,7 +272,8 @@ export default function ProfilePage() {
                 </div>
               ),
             },
-            {
+            ...(canManageOwnPassword
+              ? [{
               key: 'password',
               label: t('common.change_password'),
               children: (
@@ -300,13 +306,14 @@ export default function ProfilePage() {
                     <Input.Password />
                   </Form.Item>
                   <Form.Item>
-                    <Button type="primary" htmlType="submit" loading={savingPassword}>
+                    <Button type="primary" htmlType="submit" loading={savingPassword} disabled={!canSubmitOwnPassword}>
                       {t('common.save')}
                     </Button>
                   </Form.Item>
                 </Form>
               ),
-            },
+            }]
+              : []),
             {
               key: '2fa',
               label: t('profile.google_authenticator', { defaultValue: 'Google Authenticator' }),

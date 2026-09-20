@@ -88,7 +88,11 @@
               </el-form>
             </el-tab-pane>
 
-            <el-tab-pane :label="$t('profile.change_password')" name="password">
+            <el-tab-pane
+              v-if="canManageOwnPassword"
+              :label="$t('profile.change_password')"
+              name="password"
+            >
               <el-form
                 ref="passwordFormRef"
                 :model="passwordForm"
@@ -118,7 +122,7 @@
                   />
                 </el-form-item>
                 <el-form-item>
-                  <el-button type="primary" @click="handleUpdatePassword" :loading="passwordSubmitting" :disabled="getButtonState('password.update').disabled">
+                  <el-button type="primary" @click="handleUpdatePassword" :loading="passwordSubmitting" :disabled="!canSubmitOwnPassword">
                     {{ $t('common.save') }}
                   </el-button>
                   <el-button @click="handleResetPassword">{{ $t('common.reset') }}</el-button>
@@ -303,6 +307,16 @@ const { t } = useI18n()
 const route = useRoute()
 const userStore = useUserStore()
 const { getButtonState } = usePermission()
+
+const mustChangePassword = computed(() => !!userStore.adminInfo?.must_change_password)
+const passwordPerm = computed(() => getButtonState('password.update'))
+// Force-change must always reach password form; otherwise require password.update
+const canManageOwnPassword = computed(
+  () => mustChangePassword.value || passwordPerm.value.show
+)
+const canSubmitOwnPassword = computed(
+  () => mustChangePassword.value || !passwordPerm.value.disabled
+)
 
 const activeTab = ref(route.query.tab === 'password' ? 'password' : 'info')
 const infoFormRef = ref(null)

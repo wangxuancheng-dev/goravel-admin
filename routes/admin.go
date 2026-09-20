@@ -70,10 +70,6 @@ func Admin() {
 			router.Post("logout", adminAuthController.Logout)
 			router.Get("heartbeat", adminAuthController.Heartbeat)
 
-			// 强制改密场景下仍需可改自己的密码（不经过 Permission）
-			passwordController := admin.NewPasswordController()
-			router.Put("password", passwordController.UpdatePassword)
-
 			// 通知中心
 			router.Get("notifications", notificationController.Index)
 			router.Get("notifications/unread-count", notificationController.UnreadCount)
@@ -114,6 +110,10 @@ func Admin() {
 
 			router.Put("profile", adminAuthController.UpdateProfile)
 
+			// Own password (password.update; force-change bypass in Permission middleware)
+			passwordController := admin.NewPasswordController()
+			router.Put("password", passwordController.UpdatePassword)
+
 			// Own Google Authenticator (requires google_authenticator.manage)
 			router.Get("google-authenticator/status", adminAuthController.GetGoogleAuthenticatorStatus)
 			router.Get("google-authenticator/qrcode", adminAuthController.GetGoogleAuthenticatorQRCode)
@@ -121,7 +121,6 @@ func Admin() {
 			router.Post("google-authenticator/unbind", adminAuthController.UnbindGoogleAuthenticator)
 
 			// 密码管理（重置他人密码仍需权限）
-			passwordController := admin.NewPasswordController()
 			router.Put("admins/{id}/password", passwordController.ResetPassword)
 
 			// 管理员管理
