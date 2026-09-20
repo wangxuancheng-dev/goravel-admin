@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { App, Button, Form, Input, Typography } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -15,7 +15,7 @@ export default function PlatformLogin() {
   const showError = useUnhandledError()
   const [loading, setLoading] = useState(false)
   const [needGoogleCode, setNeedGoogleCode] = useState(false)
-  const [captcha, setCaptcha] = useState({ id: '', image: '', shouldShow: true })
+  const [captcha, setCaptcha] = useState({ id: '', image: '', shouldShow: false })
   const [form] = Form.useForm()
 
   const fetchCaptcha = async () => {
@@ -35,11 +35,6 @@ export default function PlatformLogin() {
     }
   }
 
-  useEffect(() => {
-    void fetchCaptcha()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
-  }, [])
-
   const onFinish = async (values: {
     username: string
     password: string
@@ -48,13 +43,23 @@ export default function PlatformLogin() {
   }) => {
     setLoading(true)
     try {
-      const res = await platformLogin({
+      const payload: {
+        username: string
+        password: string
+        google_code?: string
+        captcha_id?: string
+        captcha_answer?: string
+      } = {
         username: String(values.username || '').trim(),
         password: values.password,
-        ...(needGoogleCode
-          ? { google_code: values.google_code }
-          : { captcha_id: captcha.id, captcha_answer: values.captcha_answer }),
-      })
+      }
+      if (needGoogleCode) {
+        payload.google_code = values.google_code
+      } else if (captcha.shouldShow) {
+        payload.captcha_id = captcha.id
+        payload.captcha_answer = values.captcha_answer
+      }
+      const res = await platformLogin(payload)
       completePlatformLogin(res as { data?: { token?: string; admin?: unknown } })
       message.success(t('login.login_success'))
       navigate('/platform/overview', { replace: true })
@@ -64,7 +69,7 @@ export default function PlatformLogin() {
 
       if (code === ERROR_CODES.GOOGLE_CODE_REQUIRED) {
         setNeedGoogleCode(true)
-        setCaptcha((prev) => ({ ...prev, shouldShow: false, id: '', image: '' }))
+        setCaptcha({ id: '', image: '', shouldShow: false })
         form.setFieldValue('captcha_answer', undefined)
         form.setFieldValue('google_code', undefined)
         message.warning(err.message || t('login.google_code_required'))
@@ -79,7 +84,22 @@ export default function PlatformLogin() {
         return
       }
 
-      if (!needGoogleCode) {
+      const captchaError =
+        code === ERROR_CODES.CAPTCHA_REQUIRED ||
+        code === ERROR_CODES.CAPTCHA_INVALID ||
+        code === ERROR_CODES.CAPTCHA_EXPIRED
+
+      if (!needGoogleCode && captchaError) {
+        await fetchCaptcha()
+        if (!err.__handled && code !== ERROR_CODES.CAPTCHA_REQUIRED) {
+          message.error(err.translatedMessage || err.message || t('common.operation_failed'))
+        } else if (code === ERROR_CODES.CAPTCHA_REQUIRED) {
+          message.info(t('login.captcha_required'))
+        }
+        return
+      }
+
+      if (captcha.shouldShow && !needGoogleCode) {
         await fetchCaptcha()
       }
       showError(error, t('common.operation_failed'))

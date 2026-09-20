@@ -59,7 +59,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed, onMounted } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -71,7 +71,7 @@ const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
 const needGoogleCode = ref(false)
-const showCaptcha = ref(true)
+const showCaptcha = ref(false)
 const tenantLoginUrl = getTenantAdminLoginUrl()
 const form = reactive({ username: '', password: '', captcha_answer: '', google_code: '' })
 const captcha = reactive({ id: '', image: '' })
@@ -102,15 +102,12 @@ const fetchCaptcha = async () => {
   } catch (error) {
     captcha.id = ''
     captcha.image = ''
+    showCaptcha.value = true
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
     }
   }
 }
-
-onMounted(() => {
-  void fetchCaptcha()
-})
 
 const submit = async () => {
   if (!formRef.value) return
@@ -124,7 +121,7 @@ const submit = async () => {
       }
       if (needGoogleCode.value) {
         payload.google_code = form.google_code
-      } else {
+      } else if (showCaptcha.value) {
         payload.captcha_id = captcha.id
         payload.captcha_answer = form.captcha_answer
       }
@@ -151,7 +148,19 @@ const submit = async () => {
         }
         return
       }
-      if (!needGoogleCode.value) {
+      if (
+        !needGoogleCode.value &&
+        (code === 'captcha_required' || code === 'captcha_invalid' || code === 'captcha_expired')
+      ) {
+        await fetchCaptcha()
+        if (code === 'captcha_required') {
+          ElMessage.info(t('login.captcha_required'))
+        } else if (!error?.__handled) {
+          ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+        }
+        return
+      }
+      if (showCaptcha.value && !needGoogleCode.value) {
         await fetchCaptcha()
       }
       if (!error?.__handled) {
