@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { completePlatformLogin, getPlatformLoginCaptcha, platformLogin } from '@/api/platform'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { getTenantAdminLoginUrl } from '@/utils/tenant'
+import { ERROR_CODES, type ApiError } from '@/types'
 
 export default function PlatformLogin() {
   const { t } = useTranslation()
@@ -13,7 +14,8 @@ export default function PlatformLogin() {
   const navigate = useNavigate()
   const showError = useUnhandledError()
   const [loading, setLoading] = useState(false)
-  const [captcha, setCaptcha] = useState({ id: '', image: '' })
+  const [needGoogleCode, setNeedGoogleCode] = useState(false)
+  const [captcha, setCaptcha] = useState({ id: '', image: '', shouldShow: true })
   const [form] = Form.useForm()
 
   const fetchCaptcha = async () => {
@@ -24,10 +26,11 @@ export default function PlatformLogin() {
       setCaptcha({
         id: info?.captcha_id || '',
         image: info?.captcha_image || '',
+        shouldShow: true,
       })
       form.setFieldValue('captcha_answer', undefined)
     } catch (error) {
-      setCaptcha({ id: '', image: '' })
+      setCaptcha({ id: '', image: '', shouldShow: true })
       showError(error, t('common.operation_failed'))
     }
   }
@@ -48,15 +51,37 @@ export default function PlatformLogin() {
       const res = await platformLogin({
         username: String(values.username || '').trim(),
         password: values.password,
-        captcha_id: captcha.id,
-        captcha_answer: values.captcha_answer,
-        google_code: values.google_code,
+        ...(needGoogleCode
+          ? { google_code: values.google_code }
+          : { captcha_id: captcha.id, captcha_answer: values.captcha_answer }),
       })
       completePlatformLogin(res as { data?: { token?: string; admin?: unknown } })
       message.success(t('login.login_success'))
       navigate('/platform/overview', { replace: true })
     } catch (error) {
-      await fetchCaptcha()
+      const err = error as ApiError
+      const code = err.errorCode || ''
+
+      if (code === ERROR_CODES.GOOGLE_CODE_REQUIRED) {
+        setNeedGoogleCode(true)
+        setCaptcha((prev) => ({ ...prev, shouldShow: false, id: '', image: '' }))
+        form.setFieldValue('captcha_answer', undefined)
+        form.setFieldValue('google_code', undefined)
+        message.warning(err.message || t('login.google_code_required'))
+        return
+      }
+
+      if (code === ERROR_CODES.GOOGLE_CODE_INVALID) {
+        form.setFieldValue('google_code', undefined)
+        if (!err.__handled) {
+          message.error(err.translatedMessage || err.message || t('login.login_failed'))
+        }
+        return
+      }
+
+      if (!needGoogleCode) {
+        await fetchCaptcha()
+      }
       showError(error, t('common.operation_failed'))
     } finally {
       setLoading(false)
@@ -101,28 +126,46 @@ export default function PlatformLogin() {
           >
             <Input.Password size="large" placeholder={t('login.password')} />
           </Form.Item>
-          <Form.Item name="google_code" label={t('platform.google_code')}>
-            <Input size="large" placeholder={t('platform.google_code_placeholder')} />
-          </Form.Item>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            {captcha.image ? (
-              <img
-                src={captcha.image}
-                alt={t('login.captcha_alt')}
-                onClick={() => void fetchCaptcha()}
-                style={{ height: 40, borderRadius: 4, cursor: 'pointer', border: '1px solid #e2e8f0' }}
-              />
-            ) : null}
-            <Button type="link" icon={<ReloadOutlined />} onClick={() => void fetchCaptcha()}>
-              {t('login.refresh_captcha')}
-            </Button>
-          </div>
-          <Form.Item
-            name="captcha_answer"
-            rules={[{ required: true, message: t('login.captcha_required') }]}
-          >
-            <Input size="large" placeholder={t('login.captcha_placeholder')} />
-          </Form.Item>
+          {needGoogleCode ? (
+            <Form.Item
+              name="google_code"
+              label={t('platform.google_code')}
+              rules={[
+                { required: true, message: t('login.google_code_required') },
+                { pattern: /^\d{6}$/, message: t('login.google_code_format') },
+              ]}
+            >
+              <Input size="large" placeholder={t('platform.google_code_placeholder')} maxLength={6} />
+            </Form.Item>
+          ) : null}
+          {captcha.shouldShow && !needGoogleCode ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                {captcha.image ? (
+                  <img
+                    src={captcha.image}
+                    alt={t('login.captcha_alt')}
+                    onClick={() => void fetchCaptcha()}
+                    style={{
+                      height: 40,
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      border: '1px solid #e2e8f0',
+                    }}
+                  />
+                ) : null}
+                <Button type="link" icon={<ReloadOutlined />} onClick={() => void fetchCaptcha()}>
+                  {t('login.refresh_captcha')}
+                </Button>
+              </div>
+              <Form.Item
+                name="captcha_answer"
+                rules={[{ required: true, message: t('login.captcha_required') }]}
+              >
+                <Input size="large" placeholder={t('login.captcha_placeholder')} />
+              </Form.Item>
+            </>
+          ) : null}
           <Button type="primary" htmlType="submit" size="large" block loading={loading}>
             {t('login.login')}
           </Button>

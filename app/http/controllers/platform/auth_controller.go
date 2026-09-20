@@ -60,16 +60,16 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
 	}
 
-	if ok, messageKey := services.NewCaptchaServiceImpl(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
-		if messageKey == "" {
-			messageKey = "captcha_invalid"
-		}
-		services.RecordPlatformLoginLog(ctx, 0, username, 0, messageKey)
-		return response.Error(ctx, http.StatusBadRequest, messageKey)
-	}
-
 	var adminUser models.PlatformAdmin
 	if err := appfacades.PlatformOrmQuery(ctx).Where("username", username).First(&adminUser); err != nil {
+		// Unknown user: still require captcha to slow enumeration / brute force.
+		if ok, messageKey := services.NewCaptchaServiceImpl(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
+			if messageKey == "" {
+				messageKey = "captcha_invalid"
+			}
+			services.RecordPlatformLoginLog(ctx, 0, username, 0, messageKey)
+			return response.Error(ctx, http.StatusBadRequest, messageKey)
+		}
 		services.RecordPlatformLoginLog(ctx, 0, username, 0, "username_not_found")
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
 	}
@@ -88,6 +88,7 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrLoginIPNotAllowed.Code)
 	}
 
+	// Bound 2FA replaces image captcha (same as tenant admin login).
 	if adminUser.Is2FABound() {
 		code := strings.TrimSpace(body.GoogleCode)
 		if code == "" {
@@ -98,6 +99,14 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		if !ga.Verify(adminUser.GoogleSecret, code) {
 			services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "google_code_invalid")
 			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeInvalid.Code)
+		}
+	} else {
+		if ok, messageKey := services.NewCaptchaServiceImpl(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
+			if messageKey == "" {
+				messageKey = "captcha_invalid"
+			}
+			services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, messageKey)
+			return response.Error(ctx, http.StatusBadRequest, messageKey)
 		}
 	}
 

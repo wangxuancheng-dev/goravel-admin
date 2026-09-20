@@ -17,10 +17,16 @@
             @keyup.enter="submit"
           />
         </el-form-item>
-        <el-form-item prop="google_code">
-          <el-input v-model="form.google_code" :placeholder="$t('platform.google_code_placeholder')" size="large" />
+        <el-form-item v-if="needGoogleCode" prop="google_code">
+          <el-input
+            v-model="form.google_code"
+            :placeholder="$t('platform.google_code_placeholder')"
+            size="large"
+            maxlength="6"
+            @keyup.enter="submit"
+          />
         </el-form-item>
-        <el-form-item prop="captcha_answer">
+        <el-form-item v-if="showCaptcha && !needGoogleCode" prop="captcha_answer">
           <div class="captcha-row">
             <img
               v-if="captcha.image"
@@ -64,13 +70,24 @@ const { t } = useI18n()
 const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
+const needGoogleCode = ref(false)
+const showCaptcha = ref(true)
 const tenantLoginUrl = getTenantAdminLoginUrl()
 const form = reactive({ username: '', password: '', captcha_answer: '', google_code: '' })
 const captcha = reactive({ id: '', image: '' })
 const rules = computed(() => ({
   username: [{ required: true, message: t('login.username'), trigger: 'blur' }],
   password: [{ required: true, message: t('login.password'), trigger: 'blur' }],
-  captcha_answer: [{ required: true, message: t('login.captcha_required'), trigger: 'blur' }]
+  google_code: needGoogleCode.value
+    ? [
+        { required: true, message: t('login.google_code_required'), trigger: 'blur' },
+        { pattern: /^\d{6}$/, message: t('login.google_code_format'), trigger: 'blur' }
+      ]
+    : [],
+  captcha_answer:
+    showCaptcha.value && !needGoogleCode.value
+      ? [{ required: true, message: t('login.captcha_required'), trigger: 'blur' }]
+      : []
 }))
 
 const fetchCaptcha = async () => {
@@ -79,6 +96,7 @@ const fetchCaptcha = async () => {
     const info = res.data?.captcha || {}
     captcha.id = info.captcha_id || ''
     captcha.image = info.captcha_image || ''
+    showCaptcha.value = true
     form.captcha_answer = ''
     formRef.value?.clearValidate?.(['captcha_answer'])
   } catch (error) {
@@ -100,18 +118,42 @@ const submit = async () => {
     if (!valid) return
     loading.value = true
     try {
-      const res = await platformLogin({
+      const payload = {
         username: form.username.trim(),
-        password: form.password,
-        captcha_id: captcha.id,
-        captcha_answer: form.captcha_answer,
-        google_code: form.google_code
-      })
+        password: form.password
+      }
+      if (needGoogleCode.value) {
+        payload.google_code = form.google_code
+      } else {
+        payload.captcha_id = captcha.id
+        payload.captcha_answer = form.captcha_answer
+      }
+      const res = await platformLogin(payload)
       await completePlatformLogin(res)
       ElMessage.success(t('login.login_success') || t('common.success'))
       router.replace('/platform/overview')
     } catch (error) {
-      await fetchCaptcha()
+      const code = error?.error_code || error?.errorCode || ''
+      if (code === 'google_code_required') {
+        needGoogleCode.value = true
+        showCaptcha.value = false
+        captcha.id = ''
+        captcha.image = ''
+        form.captcha_answer = ''
+        form.google_code = ''
+        ElMessage.warning(error?.translatedMessage || error?.message || t('login.google_code_required'))
+        return
+      }
+      if (code === 'google_code_invalid') {
+        form.google_code = ''
+        if (!error?.__handled) {
+          ElMessage.error(error?.translatedMessage || error?.message || t('login.login_failed'))
+        }
+        return
+      }
+      if (!needGoogleCode.value) {
+        await fetchCaptcha()
+      }
       if (!error?.__handled) {
         ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
       }
@@ -141,26 +183,11 @@ const submit = async () => {
 }
 .platform-login__card h1 {
   margin: 0;
-  font-size: 22px;
-  color: #0f172a;
+  font-size: 24px;
 }
 .subtitle {
-  margin: 8px 0 24px;
   color: #64748b;
-  font-size: 13px;
-}
-.submit {
-  width: 100%;
-}
-.footer {
-  margin-top: 18px;
-  text-align: center;
-  font-size: 13px;
-}
-.footer.hint {
-  margin-top: 16px;
-  margin-bottom: 0;
-  color: #94a3b8;
+  margin: 8px 0 24px;
 }
 .captcha-row {
   display: flex;
@@ -174,7 +201,16 @@ const submit = async () => {
   cursor: pointer;
   border: 1px solid #e2e8f0;
 }
-.captcha-refresh {
-  padding: 0;
+.submit {
+  width: 100%;
+  margin-top: 8px;
+}
+.footer {
+  margin-top: 12px;
+  text-align: center;
+}
+.footer.hint {
+  color: #94a3b8;
+  font-size: 13px;
 }
 </style>
