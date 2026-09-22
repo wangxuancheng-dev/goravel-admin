@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -21,22 +20,12 @@ import (
 )
 
 const (
-	FlexibleHandlerTenantBackup    = "tenant_backup"
 	FlexibleHandlerScheduleTestLog = "schedule_test_log"
+	FlexibleScheduleTimezoneUTC    = "UTC"
 
 	flexibleScheduleOutputMax = 16 * 1024
 	flexibleScheduleLockTTL   = 30 * time.Minute
 )
-
-// flexibleSoftSkip marks an intentional no-op (not a failure).
-type flexibleSoftSkip struct{ msg string }
-
-func (e *flexibleSoftSkip) Error() string { return e.msg }
-
-func isSoftSkip(err error) bool {
-	_, ok := err.(*flexibleSoftSkip)
-	return ok
-}
 
 // FlexibleHandlerMeta describes a whitelist handler for the admin UI.
 type FlexibleHandlerMeta struct {
@@ -52,7 +41,6 @@ type FlexibleHandlerMeta struct {
 var flexibleCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
 // ListFlexibleHandlers returns the code whitelist (not user-extensible at runtime).
-// Tenant backup is NOT listed: it stays on kernel DailyAt + TENANT_BACKUP_* env.
 func ListFlexibleHandlers() []FlexibleHandlerMeta {
 	return []FlexibleHandlerMeta{
 		{
@@ -77,7 +65,7 @@ func flexibleHandlerRegistry() map[string]flexibleHandlerFn {
 	}
 }
 
-// FlexibleScheduleService manages landlord flexible_schedules rows.
+// FlexibleScheduleService manages landlord flexible_schedules rows (UTC cron, per-tenant).
 type FlexibleScheduleService struct {
 	ctx context.Context
 }
@@ -88,40 +76,14 @@ func NewFlexibleScheduleService(ctx context.Context) *FlexibleScheduleService {
 
 // EnsureDefaults seeds whitelist SeedDefault rows for the current tenant.
 func (s *FlexibleScheduleService) EnsureDefaults() {
-	q := appfacades.PlatformOrmQuery(s.ctx)
-	if q == nil {
+	if appfacades.PlatformOrmQuery(s.ctx) == nil {
 		return
 	}
-	s.purgeLegacyTenantBackupRows()
-	s.purgeSharedWhitelistRows()
 	tid, err := s.scopeTenantID()
 	if err != nil {
 		return
 	}
 	s.ensureWhitelistRowsForTenant(tid)
-}
-
-// purgeLegacyTenantBackupRows removes older UI seeds; backup cadence is kernel-owned.
-func (s *FlexibleScheduleService) purgeLegacyTenantBackupRows() {
-	q := appfacades.PlatformOrmQuery(s.ctx)
-	if q == nil {
-		return
-	}
-	_, _ = q.Where("handler", FlexibleHandlerTenantBackup).Delete(&models.FlexibleSchedule{})
-}
-
-// purgeSharedWhitelistRows drops landlord-wide tenant_id=0 rows when tenancy is on.
-func (s *FlexibleScheduleService) purgeSharedWhitelistRows() {
-	if !tenancy.Enabled() {
-		return
-	}
-	q := appfacades.PlatformOrmQuery(s.ctx)
-	if q == nil {
-		return
-	}
-	for _, h := range ListFlexibleHandlers() {
-		_, _ = q.Where("handler", h.Key).Where("tenant_id", 0).Delete(&models.FlexibleSchedule{})
-	}
 }
 
 func (s *FlexibleScheduleService) scopeTenantID() (uint, error) {
@@ -160,7 +122,7 @@ func (s *FlexibleScheduleService) ensureWhitelistRowsForTenant(tenantID uint) {
 			Name:     h.Name,
 			Handler:  h.Key,
 			CronExpr: cronExpr,
-			Timezone: "UTC",
+			Timezone: FlexibleScheduleTimezoneUTC,
 			TenantID: tenantID,
 			Payload:  payload,
 			Enabled:  true,
@@ -175,19 +137,6 @@ func (s *FlexibleScheduleService) ensureWhitelistRowsForTenant(tenantID uint) {
 	}
 }
 
-func dailyAtToCron(hhmm string) string {
-	parts := strings.Split(strings.TrimSpace(hhmm), ":")
-	if len(parts) != 2 {
-		return "0 20 * * *"
-	}
-	h, err1 := strconv.Atoi(parts[0])
-	m, err2 := strconv.Atoi(parts[1])
-	if err1 != nil || err2 != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return "0 20 * * *"
-	}
-	return fmt.Sprintf("%d %d * * *", m, h)
-}
-
 // ValidateCronExpr checks a 5-field cron (or robfig descriptor).
 func ValidateCronExpr(expr string) error {
 	expr = strings.TrimSpace(expr)
@@ -200,8 +149,8 @@ func ValidateCronExpr(expr string) error {
 	return nil
 }
 
-// PreviewNextRuns returns upcoming fire times in the given timezone (YYYY-MM-DD HH:mm:ss).
-func PreviewNextRuns(expr, timezone string, from time.Time, count int) ([]string, error) {
+// PreviewNextRuns returns upcoming fire times in UTC (YYYY-MM-DD HH:mm:ss).
+func PreviewNextRuns(expr string, from time.Time, count int) ([]string, error) {
 	if err := ValidateCronExpr(expr); err != nil {
 		return nil, err
 	}
@@ -211,42 +160,28 @@ func PreviewNextRuns(expr, timezone string, from time.Time, count int) ([]string
 	if count > 20 {
 		count = 20
 	}
-	loc := loadFlexibleTZ(timezone)
 	sched, err := flexibleCronParser.Parse(strings.TrimSpace(expr))
 	if err != nil {
 		return nil, apperrors.ErrFlexibleScheduleCronInvalid.WithError(err)
 	}
-	t := from.In(loc)
+	t := from.UTC()
 	out := make([]string, 0, count)
 	for i := 0; i < count; i++ {
 		t = sched.Next(t)
-		out = append(out, t.Format("2006-01-02 15:04:05"))
+		out = append(out, t.UTC().Format("2006-01-02 15:04:05"))
 	}
 	return out, nil
 }
 
-func loadFlexibleTZ(name string) *time.Location {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		name = "UTC"
-	}
-	loc, err := time.LoadLocation(name)
-	if err != nil {
-		return time.UTC
-	}
-	return loc
-}
-
-// CronMatchesMinute reports whether expr should fire in the minute of now (in timezone).
-func CronMatchesMinute(expr, timezone string, now time.Time) (slot string, ok bool) {
+// CronMatchesMinute reports whether expr should fire in the UTC minute of now.
+func CronMatchesMinute(expr string, now time.Time) (slot string, ok bool) {
 	expr = strings.TrimSpace(expr)
-	loc := loadFlexibleTZ(timezone)
-	nowLocal := now.In(loc)
+	nowUTC := now.UTC()
 	sched, err := flexibleCronParser.Parse(expr)
 	if err != nil {
 		return "", false
 	}
-	minuteStart := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), nowLocal.Hour(), nowLocal.Minute(), 0, 0, loc)
+	minuteStart := time.Date(nowUTC.Year(), nowUTC.Month(), nowUTC.Day(), nowUTC.Hour(), nowUTC.Minute(), 0, 0, time.UTC)
 	next := sched.Next(minuteStart.Add(-time.Second))
 	if next.Before(minuteStart) || !next.Before(minuteStart.Add(time.Minute)) {
 		return "", false
@@ -289,13 +224,9 @@ func (s *FlexibleScheduleService) GetByID(id uint) (*models.FlexibleSchedule, er
 	return &row, nil
 }
 
-// FlexibleScheduleInput is create/update payload.
+// FlexibleScheduleInput is update payload (create/delete disabled).
 type FlexibleScheduleInput struct {
-	Name     string
-	Handler  string
 	CronExpr string
-	Timezone string
-	TenantID uint
 	Payload  *string
 	Enabled  *bool
 }
@@ -305,8 +236,8 @@ func (s *FlexibleScheduleService) Create(_ FlexibleScheduleInput) (*models.Flexi
 	return nil, apperrors.ErrFlexibleScheduleMutationForbidden
 }
 
-// Update allows cron_expr / timezone / enabled / payload for the current tenant's row only.
-func (s *FlexibleScheduleService) Update(id uint, in FlexibleScheduleInput, _ bool) (*models.FlexibleSchedule, error) {
+// Update allows cron_expr / enabled / payload for the current tenant's row only.
+func (s *FlexibleScheduleService) Update(id uint, in FlexibleScheduleInput) (*models.FlexibleSchedule, error) {
 	row, err := s.GetByID(id)
 	if err != nil {
 		return nil, err
@@ -317,12 +248,6 @@ func (s *FlexibleScheduleService) Update(id uint, in FlexibleScheduleInput, _ bo
 			return nil, err
 		}
 		updates["cron_expr"] = expr
-	}
-	if tz := strings.TrimSpace(in.Timezone); tz != "" {
-		if _, err := time.LoadLocation(tz); err != nil {
-			return nil, apperrors.ErrFlexibleScheduleTimezoneInvalid
-		}
-		updates["timezone"] = tz
 	}
 	if in.Enabled != nil {
 		updates["enabled"] = *in.Enabled
@@ -368,26 +293,22 @@ func (s *FlexibleScheduleService) RunNow(id uint, force bool) (*models.FlexibleS
 	return updated, nil
 }
 
-// TickDue runs all enabled rows whose cron matches the current minute.
+// TickDue runs all enabled rows whose cron matches the current UTC minute.
 func (s *FlexibleScheduleService) TickDue(now time.Time) (ran int, err error) {
 	q := appfacades.PlatformOrmQuery(s.ctx)
 	if q == nil {
 		return 0, nil
 	}
-	s.purgeLegacyTenantBackupRows()
-	s.purgeSharedWhitelistRows()
 	var rows []models.FlexibleSchedule
 	if err := q.Model(&models.FlexibleSchedule{}).Where("enabled", true).Find(&rows); err != nil {
-		// Table may not be migrated yet on landlord DB.
 		return 0, nil
 	}
 	for i := range rows {
 		row := &rows[i]
-		slot, match := CronMatchesMinute(row.CronExpr, row.Timezone, now)
+		slot, match := CronMatchesMinute(row.CronExpr, now)
 		if !match {
 			continue
 		}
-		// Claim minute slot first so overlapping ticks cannot double-fire.
 		if !s.claimSlot(row.ID, slot) {
 			continue
 		}
@@ -397,7 +318,6 @@ func (s *FlexibleScheduleService) TickDue(now time.Time) (ran int, err error) {
 	return ran, nil
 }
 
-// claimSlot atomically sets last_slot when it differs; false means already claimed.
 func (s *FlexibleScheduleService) claimSlot(id uint, slot string) bool {
 	q := appfacades.PlatformOrmQuery(s.ctx)
 	if q == nil || slot == "" {
@@ -426,11 +346,7 @@ func (s *FlexibleScheduleService) executeRow(row *models.FlexibleSchedule, slot 
 	dur := time.Since(start).Milliseconds()
 	status := "success"
 	errMsg := ""
-	if isSoftSkip(runErr) {
-		status = "skipped"
-		errMsg = runErr.Error()
-		runErr = nil
-	} else if runErr != nil {
+	if runErr != nil {
 		status = "failed"
 		errMsg = runErr.Error()
 	}
@@ -483,7 +399,6 @@ func runFlexibleScheduleTestLog() (string, error) {
 	return "ok: app:schedule-test-log", nil
 }
 
-// normalizeFlexiblePayload accepts empty / object JSON and stores compact object text.
 func normalizeFlexiblePayload(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -522,14 +437,7 @@ func FlexiblePayloadMap(row *models.FlexibleSchedule) map[string]any {
 
 // FlexibleScheduleToJSON enriches a row for API responses.
 func FlexibleScheduleToJSON(row models.FlexibleSchedule) map[string]any {
-	tenantCode := ""
-	if row.TenantID > 0 {
-		var t models.Tenant
-		if err := appfacades.PlatformOrmQuery(nil).Where("id", row.TenantID).First(&t); err == nil && t.ID > 0 {
-			tenantCode = t.Code
-		}
-	}
-	next, _ := PreviewNextRuns(row.CronExpr, row.Timezone, time.Now().UTC(), 3)
+	next, _ := PreviewNextRuns(row.CronExpr, time.Now().UTC(), 3)
 	metaName := row.Handler
 	for _, h := range ListFlexibleHandlers() {
 		if h.Key == row.Handler {
@@ -543,12 +451,11 @@ func FlexibleScheduleToJSON(row models.FlexibleSchedule) map[string]any {
 		"handler":          row.Handler,
 		"handler_name":     metaName,
 		"cron_expr":        row.CronExpr,
-		"timezone":         row.Timezone,
+		"timezone":         FlexibleScheduleTimezoneUTC,
 		"tenant_id":        row.TenantID,
-		"tenant_code":      tenantCode,
 		"payload":          FlexiblePayloadMap(&row),
 		"enabled":          row.Enabled,
-		"last_run_at":      formatFlexibleTime(row.LastRunAt),
+		"last_run_at":      formatFlexibleTimeUTC(row.LastRunAt),
 		"last_status":      row.LastStatus,
 		"last_error":       row.LastError,
 		"last_output":      row.LastOutput,
@@ -558,7 +465,7 @@ func FlexibleScheduleToJSON(row models.FlexibleSchedule) map[string]any {
 	}
 }
 
-func formatFlexibleTime(t *time.Time) string {
+func formatFlexibleTimeUTC(t *time.Time) string {
 	if t == nil {
 		return ""
 	}

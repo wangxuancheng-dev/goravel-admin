@@ -21,7 +21,6 @@
           <div v-if="row.cron_expr" class="muted">{{ describeCron(row.cron_expr, t) }}</div>
         </template>
       </el-table-column>
-      <el-table-column prop="timezone" :label="t('schedule.flexible_timezone')" width="120" />
       <el-table-column :label="t('common.status')" width="90" align="center">
         <template #default="{ row }">
           <el-switch
@@ -88,21 +87,6 @@
           <el-input v-model="form.cron_expr" placeholder="*/5 * * * *" />
           <div class="muted">{{ t('schedule.flexible_cron_tip') }}</div>
         </el-form-item>
-        <el-form-item :label="t('schedule.flexible_timezone')" required>
-          <el-select
-            v-model="form.timezone"
-            filterable
-            style="width: 100%"
-            :placeholder="DEFAULT_TIMEZONE"
-          >
-            <el-option
-              v-for="opt in timezoneOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
-        </el-form-item>
         <el-form-item :label="t('common.status')">
           <el-switch v-model="form.enabled" />
         </el-form-item>
@@ -155,7 +139,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import {
@@ -168,7 +152,6 @@ import { usePermission } from '@/composables/usePermission'
 import { describeCron } from '@/utils/cronLabel'
 import { formatDateTimeDisplay } from '@/utils/dateUtils'
 import { logger } from '@/utils/logger'
-import { DEFAULT_TIMEZONE, timezoneSelectOptions } from '@/utils/timezoneOptions'
 
 const { t } = useI18n()
 const { getButtonState } = usePermission()
@@ -193,10 +176,8 @@ const resultData = reactive({
 })
 const form = reactive({
   cron_expr: '*/5 * * * *',
-  timezone: DEFAULT_TIMEZONE,
   enabled: true,
 })
-const timezoneOptions = computed(() => timezoneSelectOptions(form.timezone))
 
 function statusLabel(status) {
   if (status === 'success') return t('schedule.status_success')
@@ -246,7 +227,6 @@ function openEdit(row) {
   editing.value = row
   Object.assign(form, {
     cron_expr: row.cron_expr,
-    timezone: row.timezone || DEFAULT_TIMEZONE,
     enabled: !!row.enabled,
   })
   previewRuns.value = row.next_runs || []
@@ -257,7 +237,6 @@ async function onPreview() {
   try {
     const res = await previewFlexibleSchedule({
       cron_expr: form.cron_expr,
-      timezone: form.timezone || DEFAULT_TIMEZONE,
       count: 5,
     })
     previewRuns.value = res.data?.next_runs || []
@@ -272,7 +251,6 @@ async function onSave() {
   try {
     await updateFlexibleSchedule(editing.value.id, {
       cron_expr: form.cron_expr,
-      timezone: form.timezone || DEFAULT_TIMEZONE,
       enabled: !!form.enabled,
     })
     ElMessage.success(t('common.update_success'))

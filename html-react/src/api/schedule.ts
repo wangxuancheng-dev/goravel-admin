@@ -98,6 +98,6 @@ export function runFlexibleSchedule(id: number, force = false) {
   )
 }
 
-export function previewFlexibleSchedule(data: { cron_expr: string; timezone?: string; count?: number }) {
+export function previewFlexibleSchedule(data: { cron_expr: string; count?: number }) {
   return request.post<{ next_runs: string[] }>('/flexible-schedules/preview', data)
 }

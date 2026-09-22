@@ -7,7 +7,6 @@ import {
   Form,
   Input,
   Modal,
-  Select,
   Space,
   Switch,
   Table,
@@ -29,7 +28,6 @@ import { usePermission } from '@/hooks/usePermission'
 import { describeCron } from '@/utils/cronLabel'
 import { formatDateTimeDisplay } from '@/utils/dateUtils'
 import { logger } from '@/utils/logger'
-import { DEFAULT_TIMEZONE, timezoneSelectOptions } from '@/utils/timezoneOptions'
 
 function formatDuration(ms?: number) {
   if (ms === undefined || ms === null) return '-'
@@ -96,7 +94,6 @@ export default function FlexibleSchedulesPanel() {
     setEditing(row)
     form.setFieldsValue({
       cron_expr: row.cron_expr,
-      timezone: row.timezone || DEFAULT_TIMEZONE,
       enabled: row.enabled,
     })
     setPreviewRuns(row.next_runs || [])
@@ -105,10 +102,9 @@ export default function FlexibleSchedulesPanel() {
 
   const onPreview = async () => {
     try {
-      const values = await form.validateFields(['cron_expr', 'timezone'])
+      const values = await form.validateFields(['cron_expr'])
       const res = await previewFlexibleSchedule({
         cron_expr: values.cron_expr,
-        timezone: values.timezone || DEFAULT_TIMEZONE,
         count: 5,
       })
       setPreviewRuns(res.data?.next_runs || [])
@@ -125,7 +121,6 @@ export default function FlexibleSchedulesPanel() {
       setSaving(true)
       await updateFlexibleSchedule(editing.id, {
         cron_expr: values.cron_expr,
-        timezone: values.timezone || DEFAULT_TIMEZONE,
         enabled: !!values.enabled,
       })
       message.success(t('common.update_success'))
@@ -215,12 +210,6 @@ export default function FlexibleSchedulesPanel() {
           ) : null}
         </div>
       ),
-    },
-    {
-      title: t('schedule.flexible_timezone'),
-      dataIndex: 'timezone',
-      key: 'timezone',
-      width: 130,
     },
     {
       title: t('common.status'),
@@ -340,13 +329,6 @@ export default function FlexibleSchedulesPanel() {
             rules={[{ required: true }]}
           >
             <Input placeholder="*/5 * * * *" />
-          </Form.Item>
-          <Form.Item name="timezone" label={t('schedule.flexible_timezone')} rules={[{ required: true }]}>
-            <Select
-              showSearch
-              optionFilterProp="label"
-              options={timezoneSelectOptions(editing?.timezone)}
-            />
           </Form.Item>
           <Form.Item name="enabled" label={t('common.status')} valuePropName="checked">
             <Switch />

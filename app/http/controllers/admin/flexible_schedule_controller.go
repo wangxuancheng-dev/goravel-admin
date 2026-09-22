@@ -48,35 +48,13 @@ func (c *FlexibleScheduleController) Index(ctx http.Context) http.Response {
 }
 
 type flexibleScheduleBody struct {
-	Name     string          `json:"name" form:"name"`
-	Handler  string          `json:"handler" form:"handler"`
 	CronExpr string          `json:"cron_expr" form:"cron_expr"`
-	Timezone string          `json:"timezone" form:"timezone"`
-	TenantID *uint           `json:"tenant_id" form:"tenant_id"`
 	Payload  json.RawMessage `json:"payload"`
 	Enabled  *bool           `json:"enabled" form:"enabled"`
 }
 
 func (c *FlexibleScheduleController) Store(ctx http.Context) http.Response {
-	var body flexibleScheduleBody
-	if err := ctx.Request().Bind(&body); err != nil {
-		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrParamsError)
-	}
-	in := services.FlexibleScheduleInput{
-		Name:     body.Name,
-		Handler:  body.Handler,
-		CronExpr: body.CronExpr,
-		Timezone: body.Timezone,
-		Enabled:  body.Enabled,
-	}
-	if body.TenantID != nil {
-		in.TenantID = *body.TenantID
-	}
-	if len(body.Payload) > 0 {
-		s := string(body.Payload)
-		in.Payload = &s
-	}
-	row, err := c.svc(ctx).Create(in)
+	row, err := c.svc(ctx).Create(services.FlexibleScheduleInput{})
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "flexible_schedule", http.StatusBadRequest, err, nil)
 	}
@@ -95,21 +73,14 @@ func (c *FlexibleScheduleController) Update(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrParamsError)
 	}
 	in := services.FlexibleScheduleInput{
-		Name:     body.Name,
-		Handler:  body.Handler,
 		CronExpr: body.CronExpr,
-		Timezone: body.Timezone,
 		Enabled:  body.Enabled,
-	}
-	setTenant := body.TenantID != nil
-	if setTenant {
-		in.TenantID = *body.TenantID
 	}
 	if len(body.Payload) > 0 {
 		s := string(body.Payload)
 		in.Payload = &s
 	}
-	row, err := c.svc(ctx).Update(id, in, setTenant)
+	row, err := c.svc(ctx).Update(id, in)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "flexible_schedule", http.StatusBadRequest, err, nil)
 	}
@@ -152,26 +123,22 @@ func (c *FlexibleScheduleController) Run(ctx http.Context) http.Response {
 
 type flexiblePreviewBody struct {
 	CronExpr string `json:"cron_expr" form:"cron_expr"`
-	Timezone string `json:"timezone" form:"timezone"`
 	Count    int    `json:"count" form:"count"`
 }
 
-// Preview returns upcoming fire times for an expression.
+// Preview returns upcoming fire times for an expression (UTC).
 func (c *FlexibleScheduleController) Preview(ctx http.Context) http.Response {
 	var body flexiblePreviewBody
 	_ = ctx.Request().Bind(&body)
 	if strings.TrimSpace(body.CronExpr) == "" {
 		body.CronExpr = ctx.Request().Query("cron_expr", "")
 	}
-	if strings.TrimSpace(body.Timezone) == "" {
-		body.Timezone = ctx.Request().Query("timezone", "UTC")
-	}
 	if body.Count == 0 {
 		if n, err := strconv.Atoi(ctx.Request().Query("count", "5")); err == nil {
 			body.Count = n
 		}
 	}
-	runs, err := services.PreviewNextRuns(body.CronExpr, body.Timezone, time.Now().UTC(), body.Count)
+	runs, err := services.PreviewNextRuns(body.CronExpr, time.Now().UTC(), body.Count)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "flexible_schedule", http.StatusBadRequest, err, nil)
 	}

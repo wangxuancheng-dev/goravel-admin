@@ -1509,7 +1509,7 @@
     "flexible_tenant": "租户",
     "flexible_tenant_all": "全部租户",
     "flexible_tenant_tip": "填 tenants.id；0 表示全局（如 backup-all）。",
-    "flexible_cron_tip": "标准 5 段：分 时 日 月 周，例如 0 20 * * * 表示每天 20:00（按上方时区）。",
+    "flexible_cron_tip": "标准 5 段：分 时 日 月 周，例如 0 20 * * * 表示每天 20:00（UTC）。",
     "flexible_preview": "预览下次执行",
     "flexible_next_runs": "下次执行",
     "flexible_run_confirm": "确定立即执行「{{name}}」吗？",

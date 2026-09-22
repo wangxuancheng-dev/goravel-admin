@@ -1500,7 +1500,7 @@
     "flexible_tenant": "Tenant",
     "flexible_tenant_all": "All tenants",
     "flexible_tenant_tip": "tenants.id; 0 means global (e.g. backup-all).",
-    "flexible_cron_tip": "5-field cron: min hour dom month dow, e.g. 0 20 * * * daily at 20:00 in the timezone above.",
+    "flexible_cron_tip": "Standard 5-field cron. Example: 0 20 * * * runs daily at 20:00 UTC.",
     "flexible_preview": "Preview next runs",
     "flexible_next_runs": "Next runs",
     "flexible_run_confirm": "Run \"{{name}}\" now?",
