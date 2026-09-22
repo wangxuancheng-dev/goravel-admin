@@ -10,3 +10,8 @@
 Full request examples: see the [Chinese version](/advanced/scheduled-demos).
 
 Admin UI: System → Demo Activities. Toggle with `MODULE_SCHEDULE_DEMO_ENABLED` (default true). API: `/api/admin/demo-activities`.
+
+## Configurable cron (whitelist)
+
+Code-registered handlers + landlord table `flexible_schedules`, edited under Admin → Scheduled Tasks. Tick: `flexible-schedule:tick` every minute. See Chinese doc for seed/permission notes.
+

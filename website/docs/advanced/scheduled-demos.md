@@ -98,5 +98,15 @@ POST /api/schedule-demo/orders/expire?seconds=60
 
 ## 5. 边界说明
 
-- 不是动态 cron 管理台；固定两条 Schedule + DB 规则。
-- 演示站/二次开发样板；生产营销活动请按业务重做校验、库存与审计。
+- 系统 Schedule（kernel）仍为代码注册；**部分**任务可通过管理端「可配置定时任务」改 Cron（白名单 handler + `flexible_schedules` 表，每分钟 `flexible-schedule:tick`）。
+- 活动演示仍是固定扫库 + 现算；演示站/二次开发样板，生产营销请按业务重做校验与审计。
+
+## 6. 可配置 Cron（白名单）
+
+| 项 | 说明 |
+|------|------|
+| 表 | 房东库 `flexible_schedules`（landlord-only 迁移） |
+| API | `/api/admin/flexible-schedules` |
+| 处理器 | 代码白名单：`tenant_backup`、`schedule_test_log`（可在 `flexible_schedule_service.go` 扩展） |
+| 备份 | 默认种子一行；须 `TENANT_BACKUP_SCHEDULE_ENABLED=true`；`TENANT_BACKUP_SCHEDULE_AT` 仅用于首次种子默认表达式 |
+| 权限 | 重新执行 PermissionSeeder，并把新 slug 赋给角色 |

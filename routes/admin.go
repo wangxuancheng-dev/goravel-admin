@@ -22,6 +22,7 @@ func Admin() {
 	blacklistController := admin.NewBlacklistController()
 	onlineAdminController := admin.NewOnlineAdminController()
 	scheduleController := admin.NewScheduleController()
+	flexibleScheduleController := admin.NewFlexibleScheduleController()
 	demoActivityController := admin.NewDemoActivityController()
 	operationLogController := admin.NewOperationLogController()
 	loginLogController := admin.NewLoginLogController()
@@ -165,7 +166,18 @@ func Admin() {
 
 			// 定时任务管理（列表 + 手动触发；仅允许执行已注册的 schedule 命令）
 			router.Get("schedules", scheduleController.Index)
-			router.Post("schedules/run", scheduleController.Run)
+			router.Post("schedules/run", scheduleController.Run).
+				WithoutMiddleware(middleware.RequestTimeout())
+
+			// Flexible schedules: whitelist handlers + editable cron on landlord table
+			router.Get("flexible-schedules/handlers", flexibleScheduleController.Handlers)
+			router.Post("flexible-schedules/preview", flexibleScheduleController.Preview)
+			router.Get("flexible-schedules", flexibleScheduleController.Index)
+			router.Post("flexible-schedules", flexibleScheduleController.Store)
+			router.Put("flexible-schedules/{id}", flexibleScheduleController.Update)
+			router.Delete("flexible-schedules/{id}", flexibleScheduleController.Destroy)
+			router.Post("flexible-schedules/{id}/run", flexibleScheduleController.Run).
+				WithoutMiddleware(middleware.RequestTimeout())
 
 			// Schedule demo activities (module switch MODULE_SCHEDULE_DEMO_ENABLED)
 			router.Middleware(middleware.ScheduleDemoModule()).Group(func(router route.Router) {

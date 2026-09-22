@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { App, Button, Card, Descriptions, Modal, Space, Table, Tag } from 'antd'
+import { App, Button, Card, Descriptions, Modal, Space, Table, Tag, theme } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { ReloadOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -9,10 +9,12 @@ import {
   type ScheduleRunResult,
   type ScheduleTask,
 } from '@/api/schedule'
+import FlexibleSchedulesPanel from './FlexibleSchedulesPanel'
 import PageContainer from '@/components/PageContainer'
 import PermissionButton from '@/components/PermissionButton'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { describeCron } from '@/utils/cronLabel'
+import { formatDateTimeDisplay } from '@/utils/dateUtils'
 import { logger } from '@/utils/logger'
 
 function formatDuration(ms?: number) {
@@ -24,12 +26,25 @@ function formatDuration(ms?: number) {
 export default function ScheduleList() {
   const { t } = useTranslation()
   const { modal, message } = App.useApp()
+  const { token } = theme.useToken()
   const showError = useUnhandledError()
   const [loading, setLoading] = useState(false)
   const [tableData, setTableData] = useState<ScheduleTask[]>([])
   const [runningCommand, setRunningCommand] = useState('')
   const [resultOpen, setResultOpen] = useState(false)
   const [resultData, setResultData] = useState<ScheduleRunResult | null>(null)
+
+  const mutedTextStyle = {
+    color: token.colorTextSecondary,
+    fontSize: 12,
+    lineHeight: 1.4,
+  } as const
+  const hintTextStyle = {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: 400 as const,
+    color: token.colorTextSecondary,
+  }
 
   const statusLabel = (status?: string) => {
     if (status === 'success') return t('schedule.status_success')
@@ -136,7 +151,7 @@ export default function ScheduleList() {
             {value || '-'}
           </code>
           {value ? (
-            <div style={{ marginTop: 4, color: 'rgba(0,0,0,0.45)', fontSize: 12, lineHeight: 1.4 }}>
+            <div style={{ marginTop: 4, ...mutedTextStyle }}>
               {describeCron(value, t)}
             </div>
           ) : null}
@@ -166,7 +181,7 @@ export default function ScheduleList() {
       dataIndex: 'last_run_at',
       key: 'last_run_at',
       minWidth: 160,
-      render: (value?: string) => value || '-',
+      render: (value?: string) => formatDateTimeDisplay(value),
     },
     {
       title: t('schedule.last_duration'),
@@ -211,7 +226,7 @@ export default function ScheduleList() {
         title={
           <div>
             <div>{t('menu.schedule')}</div>
-            <div style={{ marginTop: 6, fontSize: 13, fontWeight: 400, color: 'rgba(0,0,0,0.45)' }}>
+            <div style={hintTextStyle}>
               {t('schedule.hint')}
             </div>
           </div>
@@ -251,7 +266,9 @@ export default function ScheduleList() {
           <Descriptions.Item label={t('schedule.last_status')}>
             <Tag color={statusColor(resultData?.status)}>{statusLabel(resultData?.status)}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label={t('schedule.last_run_at')}>{resultData?.run_at || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('schedule.last_run_at')}>
+            {formatDateTimeDisplay(resultData?.run_at)}
+          </Descriptions.Item>
           <Descriptions.Item label={t('schedule.last_duration')}>
             {formatDuration(resultData?.duration_ms)}
           </Descriptions.Item>
@@ -267,7 +284,7 @@ export default function ScheduleList() {
                   overflow: 'auto',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
-                  color: '#cf1322',
+                  color: token.colorError,
                   fontSize: 12,
                 }}
               >
@@ -293,6 +310,8 @@ export default function ScheduleList() {
           </Descriptions.Item>
         </Descriptions>
       </Modal>
+
+      <FlexibleSchedulesPanel />
     </PageContainer>
   )
 }

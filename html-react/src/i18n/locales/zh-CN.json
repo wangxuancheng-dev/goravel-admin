@@ -527,7 +527,14 @@
     "order.import_error_file": "下载订单导入错误文件",
     "payment.store": "创建支付记录",
     "payment.query": "查询支付结果",
-    "google_authenticator.manage": "谷歌验证码设置"
+    "google_authenticator.manage": "谷歌验证码设置",
+    "flexible_schedule.index": "查看可配置定时任务",
+    "flexible_schedule.handlers": "查看任务处理器",
+    "flexible_schedule.preview": "预览 Cron",
+    "flexible_schedule.create": "创建可配置定时任务",
+    "flexible_schedule.update": "更新可配置定时任务",
+    "flexible_schedule.delete": "删除可配置定时任务",
+    "flexible_schedule.run": "手动执行可配置定时任务"
   },
   "form_demo": {
     "title": "Form 组件演示",
@@ -1380,7 +1387,21 @@
     "output_empty": "（无控制台输出）",
     "status_success": "成功",
     "status_failed": "失败",
-    "status_never": "未执行"
+    "status_never": "未执行",
+    "flexible_title": "可配置定时任务",
+    "flexible_hint": "白名单处理器 + 可编辑 Cron（5 段）。每分钟由 flexible-schedule:tick 评估；租户备份请同时开启 TENANT_BACKUP_SCHEDULE_ENABLED。",
+    "flexible_name": "名称",
+    "flexible_handler": "处理器",
+    "flexible_timezone": "时区",
+    "flexible_tenant": "租户",
+    "flexible_tenant_all": "全部租户",
+    "flexible_tenant_tip": "填 tenants.id；0 表示全局（如 backup-all）。",
+    "flexible_cron_tip": "标准 5 段：分 时 日 月 周，例如 0 20 * * * 表示每天 20:00（按上方时区）。",
+    "flexible_preview": "预览下次执行",
+    "flexible_next_runs": "下次执行",
+    "flexible_run_confirm": "确定立即执行「{{name}}」吗？",
+    "flexible_delete_confirm": "确定删除「{{name}}」吗？",
+    "flexible_status_skipped": "跳过"
   },
   "export": {
     "type": "导出类型",

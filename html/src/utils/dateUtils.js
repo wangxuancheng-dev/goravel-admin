@@ -1,11 +1,11 @@
 /**
- * 日期时间工具函数
+ * Date/time helpers.
  */
 
 /**
- * 格式化日期时间为 YYYY-MM-DD HH:mm:ss
- * @param {Date} date - 日期对象
- * @returns {string} 格式化后的日期时间字符串
+ * Format a Date as YYYY-MM-DD HH:mm:ss (local).
+ * @param {Date} date
+ * @returns {string}
  */
 export function formatDateTime(date) {
   const year = date.getFullYear()
@@ -18,67 +18,87 @@ export function formatDateTime(date) {
 }
 
 /**
- * 获取 N 天前的日期时间（用于默认开始时间）
- * @param {number} days - 天数，默认 7 天
- * @param {boolean} setToStartOfDay - 是否设置为当天的 00:00:00，默认 true
- * @returns {string} 格式化后的日期时间字符串
+ * Display timestamps as YYYY-MM-DD HH:mm:ss (keeps wall-clock from ISO/RFC3339).
+ * @param {string|number|Date|null|undefined} value
+ * @returns {string}
+ */
+export function formatDateTimeDisplay(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '-' : formatDateTime(value)
+  }
+  if (typeof value === 'number') {
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? '-' : formatDateTime(d)
+  }
+  const s = String(value).trim()
+  if (!s) return '-'
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) return s
+  const matched = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/)
+  if (matched) return `${matched[1]} ${matched[2]}`
+  const d = new Date(s)
+  if (Number.isNaN(d.getTime())) return s
+  return formatDateTime(d)
+}
+
+/**
+ * N days ago as YYYY-MM-DD HH:mm:ss.
+ * @param {number} days
+ * @param {boolean} setToStartOfDay
+ * @returns {string}
  */
 export function getDaysAgo(days = 7, setToStartOfDay = true) {
   const date = new Date()
   date.setDate(date.getDate() - days)
   if (setToStartOfDay) {
-    date.setHours(0, 0, 0, 0) // 设置为当天的00:00:00
+    date.setHours(0, 0, 0, 0)
   }
   return formatDateTime(date)
 }
 
 /**
- * 获取 N 个月前的日期时间（用于默认开始时间）
- * @param {number} months - 月数，默认 1 个月
- * @param {boolean} setToStartOfDay - 是否设置为当天的 00:00:00，默认 true
- * @returns {string} 格式化后的日期时间字符串
+ * N months ago as YYYY-MM-DD HH:mm:ss.
+ * @param {number} months
+ * @param {boolean} setToStartOfDay
+ * @returns {string}
  */
 export function getMonthsAgo(months = 1, setToStartOfDay = true) {
   const date = new Date()
   date.setMonth(date.getMonth() - months)
   if (setToStartOfDay) {
-    date.setHours(0, 0, 0, 0) // 设置为当天的00:00:00
+    date.setHours(0, 0, 0, 0)
   }
   return formatDateTime(date)
 }
 
 /**
- * 获取 N 年前的日期时间（用于默认开始时间）
- * @param {number} years - 年数，默认 1 年
- * @param {boolean} setToStartOfDay - 是否设置为当天的 00:00:00，默认 true
- * @returns {string} 格式化后的日期时间字符串
+ * N years ago as YYYY-MM-DD HH:mm:ss.
+ * @param {number} years
+ * @param {boolean} setToStartOfDay
+ * @returns {string}
  */
 export function getYearsAgo(years = 1, setToStartOfDay = true) {
   const date = new Date()
   date.setFullYear(date.getFullYear() - years)
   if (setToStartOfDay) {
-    date.setHours(0, 0, 0, 0) // 设置为当天的00:00:00
+    date.setHours(0, 0, 0, 0)
   }
   return formatDateTime(date)
 }
 
 /**
- * 获取指定时间单位前的日期时间（通用方法）
- * @param {Object} options - 配置选项
- * @param {number} options.days - 天数
- * @param {number} options.months - 月数
- * @param {number} options.years - 年数
- * @param {boolean} options.setToStartOfDay - 是否设置为当天的 00:00:00，默认 true
- * @returns {string} 格式化后的日期时间字符串
+ * Relative past time by days/months/years.
+ * @param {{ days?: number, months?: number, years?: number, setToStartOfDay?: boolean }} options
+ * @returns {string}
  * @example
- * getTimeAgo({ days: 7 }) // 7天前
- * getTimeAgo({ months: 1 }) // 1个月前
- * getTimeAgo({ years: 1 }) // 1年前
- * getTimeAgo({ days: 7, months: 1 }) // 1个月零7天前
+ * getTimeAgo({ days: 7 })
+ * getTimeAgo({ months: 1 })
+ * getTimeAgo({ years: 1 })
+ * getTimeAgo({ days: 7, months: 1 })
  */
 export function getTimeAgo({ days = 0, months = 0, years = 0, setToStartOfDay = true } = {}) {
   const date = new Date()
-  
+
   if (years > 0) {
     date.setFullYear(date.getFullYear() - years)
   }
@@ -88,35 +108,25 @@ export function getTimeAgo({ days = 0, months = 0, years = 0, setToStartOfDay = 
   if (days > 0) {
     date.setDate(date.getDate() - days)
   }
-  
+
   if (setToStartOfDay) {
-    date.setHours(0, 0, 0, 0) // 设置为当天的00:00:00
+    date.setHours(0, 0, 0, 0)
   }
-  
+
   return formatDateTime(date)
 }
 
-/**
- * 获取7天前的日期时间（便捷方法）
- * @returns {string} 格式化后的日期时间字符串
- */
+/** @returns {string} */
 export function getSevenDaysAgo() {
   return getDaysAgo(7, true)
 }
 
-/**
- * 获取1个月前的日期时间（便捷方法）
- * @returns {string} 格式化后的日期时间字符串
- */
+/** @returns {string} */
 export function getOneMonthAgo() {
   return getMonthsAgo(1, true)
 }
 
-/**
- * 获取3个月前的日期时间（便捷方法）
- * @returns {string} 格式化后的日期时间字符串
- */
+/** @returns {string} */
 export function getThreeMonthsAgo() {
   return getMonthsAgo(3, true)
 }
-

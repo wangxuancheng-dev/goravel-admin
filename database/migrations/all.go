@@ -86,6 +86,7 @@ func All() []schema.Migration {
 		&M20260920150001AddExpireAtToOrdersShardingTables{},
 		&M20260920160000AddFlexibleScheduleToDemoActivities{},
 		&M20260920220000PlatformOpsExtensions{},
+		&M20260921120000CreateFlexibleSchedulesTable{},
 	}
 }
 

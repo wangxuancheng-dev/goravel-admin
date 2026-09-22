@@ -5,6 +5,7 @@
       <div class="actions">
         <span class="admin-name">{{ adminName }}</span>
         <el-tag v-if="isViewer" size="small" type="info" effect="plain" class="role-tag">{{ $t('platform.role_viewer') }}</el-tag>
+        <DarkModeSwitch class="platform-header-dark" />
         <el-button link type="primary" @click="pwdVisible = true">{{ $t('platform.change_password') }}</el-button>
         <el-button link type="primary" @click="onLogout">{{ $t('header.logout') }}</el-button>
       </div>
@@ -54,6 +55,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { logoutPlatform, updatePlatformPassword } from '@/api/platform'
 import { getPlatformAdmin } from '@/utils/platformRequest'
+import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -120,7 +122,7 @@ const onLogout = async () => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f5f7fb;
+  background: var(--el-bg-color-page, #f5f7fb);
 }
 .platform-header {
   height: 56px;
@@ -149,6 +151,16 @@ const onLogout = async () => {
   color: #e2e8f0;
   background: transparent;
 }
+.platform-header-dark :deep(.dark-mode-switch) {
+  color: rgba(255, 255, 255, 0.85);
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px;
+}
+.platform-header-dark :deep(.dark-mode-switch:hover) {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
 .platform-body {
   flex: 1;
   display: flex;
@@ -156,8 +168,8 @@ const onLogout = async () => {
 }
 .platform-aside {
   width: 200px;
-  background: #fff;
-  border-right: 1px solid #e5e7eb;
+  background: var(--el-bg-color, #fff);
+  border-right: 1px solid var(--el-border-color-light, #e5e7eb);
 }
 .platform-main {
   flex: 1;

@@ -27,11 +27,11 @@ func init() {
 		"allow_platform_db_credentials": config.Env("TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS", false),
 		// PostgreSQL 租户连接 sslmode（也可由 database.connections.postgres.sslmode / DB_SSLMODE 提供）
 		"postgres_sslmode": config.Env("TENANCY_POSTGRES_SSLMODE", ""),
-		// tenant:backup 每个租户保留的最近份数（0=不清理）
-		"backup_keep": config.Env("TENANCY_BACKUP_KEEP", 10),
-		// 定时全量备份：TENANT_BACKUP_SCHEDULE_ENABLED=true 时由 schedule 触发 tenant:backup-scheduled
+		// tenant:backup keep count (0 = never prune)
+		"backup_keep": config.Env("TENANT_BACKUP_KEEP", 10),
+		// When true, flexible_schedules handler tenant_backup actually runs backups
 		"backup_schedule_enabled": config.Env("TENANT_BACKUP_SCHEDULE_ENABLED", false),
-		// UTC DailyAt，默认 20:00（北京时间次日 04:00）
+		// Used only to seed default flexible_schedules cron (HH:MM UTC) when table is empty
 		"backup_schedule_at": config.Env("TENANT_BACKUP_SCHEDULE_AT", "20:00"),
 		// Soft-deleted tenant retention days before tenant:cleanup-deleted hard-deletes (0=never auto)
 		"deleted_retention_days": config.Env("TENANCY_DELETED_RETENTION_DAYS", 30),

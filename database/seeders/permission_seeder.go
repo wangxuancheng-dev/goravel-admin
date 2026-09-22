@@ -162,6 +162,13 @@ func (s *PermissionSeeder) Run() error {
 		// 定时任务
 		{Name: "定时任务列表", Slug: "schedule.index", Method: "GET", Path: "/api/admin/schedules", Description: "查看定时任务列表", Status: 1, Sort: 1, MenuID: scheduleMenu.ID},
 		{Name: "手动执行定时任务", Slug: "schedule.run", Method: "POST", Path: "/api/admin/schedules/run", Description: "手动执行已注册的定时任务", Status: 1, Sort: 2, MenuID: scheduleMenu.ID},
+		{Name: "可配置定时任务列表", Slug: "flexible_schedule.index", Method: "GET", Path: "/api/admin/flexible-schedules", Description: "查看可配置 cron 任务", Status: 1, Sort: 3, MenuID: scheduleMenu.ID},
+		{Name: "可配置定时任务处理器", Slug: "flexible_schedule.handlers", Method: "GET", Path: "/api/admin/flexible-schedules/handlers", Description: "查看白名单处理器", Status: 1, Sort: 4, MenuID: scheduleMenu.ID},
+		{Name: "预览可配置定时任务", Slug: "flexible_schedule.preview", Method: "POST", Path: "/api/admin/flexible-schedules/preview", Description: "预览 cron 下次执行时间", Status: 1, Sort: 5, MenuID: scheduleMenu.ID},
+		{Name: "创建可配置定时任务", Slug: "flexible_schedule.create", Method: "POST", Path: "/api/admin/flexible-schedules", Description: "创建可配置 cron 任务", Status: 1, Sort: 6, MenuID: scheduleMenu.ID},
+		{Name: "更新可配置定时任务", Slug: "flexible_schedule.update", Method: "PUT", Path: "/api/admin/flexible-schedules/*", Description: "更新可配置 cron 任务", Status: 1, Sort: 7, MenuID: scheduleMenu.ID},
+		{Name: "删除可配置定时任务", Slug: "flexible_schedule.delete", Method: "DELETE", Path: "/api/admin/flexible-schedules/*", Description: "删除可配置 cron 任务", Status: 1, Sort: 8, MenuID: scheduleMenu.ID},
+		{Name: "手动执行可配置定时任务", Slug: "flexible_schedule.run", Method: "POST", Path: "/api/admin/flexible-schedules/*/run", Description: "手动执行可配置 cron 任务", Status: 1, Sort: 9, MenuID: scheduleMenu.ID},
 		// Demo activities (schedule demo module)
 		{Name: "活动列表", Slug: "demo_activity.index", Method: "GET", Path: "/api/admin/demo-activities", Description: "查看活动调度演示列表", Status: 1, Sort: 1, MenuID: demoActivityMenu.ID},
 		{Name: "活动详情", Slug: "demo_activity.show", Method: "GET", Path: "/api/admin/demo-activities/*", Description: "查看活动调度演示详情", Status: 1, Sort: 2, MenuID: demoActivityMenu.ID},

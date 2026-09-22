@@ -1,4 +1,4 @@
-import { Button, Form, Input, Layout, Menu, Modal, Typography, message } from 'antd'
+import { Button, Form, Input, Layout, Menu, Modal, Typography, message, theme } from 'antd'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
@@ -13,6 +13,8 @@ import {
   updatePlatformPassword,
 } from '@/api/platform'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
+import DarkModeSwitch from '@/components/DarkModeSwitch'
+import { useAppStore } from '@/stores/app'
 
 const { Header, Sider, Content } = Layout
 
@@ -20,6 +22,8 @@ export default function PlatformLayout() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
+  const { token } = theme.useToken()
+  const darkMode = useAppStore((s) => s.darkMode)
   const admin = getPlatformAdmin()
   const isViewer = admin?.role === 'viewer'
   const showError = useUnhandledError()
@@ -124,7 +128,7 @@ export default function PlatformLayout() {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', background: token.colorBgLayout }}>
       <Header
         style={{
           display: 'flex',
@@ -146,6 +150,7 @@ export default function PlatformLayout() {
               {t('platform.role_viewer')}
             </Typography.Text>
           ) : null}
+          <DarkModeSwitch className="layout-header__icon-btn platform-header__icon-btn" />
           <Button type="link" onClick={() => setPwdOpen(true)} style={{ color: '#93c5fd' }}>
             {t('platform.change_password')}
           </Button>
@@ -158,9 +163,18 @@ export default function PlatformLayout() {
         </div>
       </Header>
       <Layout>
-        <Sider width={200} theme="light">
+        <Sider
+          width={200}
+          theme={darkMode ? 'dark' : 'light'}
+          style={{
+            background: darkMode ? token.colorBgContainer : '#fff',
+            borderRight: `1px solid ${token.colorBorderSecondary}`,
+          }}
+        >
           <Menu
             mode="inline"
+            theme={darkMode ? 'dark' : 'light'}
+            style={{ background: 'transparent', borderInlineEnd: 'none' }}
             selectedKeys={[location.pathname]}
             items={[
               {
@@ -206,7 +220,7 @@ export default function PlatformLayout() {
             ]}
           />
         </Sider>
-        <Content style={{ padding: 16, background: '#f5f7fb' }}>
+        <Content style={{ padding: 16, background: token.colorBgLayout }}>
           <Outlet />
         </Content>
       </Layout>

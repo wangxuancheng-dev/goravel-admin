@@ -2139,7 +2139,7 @@ export default function PlatformTenantList() {
                 </Button>
               ) : null}
             </Space>
-            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--ant-color-border-secondary, #e2e8f0)' }}>
               <Typography.Text strong>{t('tenant.system_log_summary')}</Typography.Text>
               <Space style={{ display: 'flex', marginTop: 8 }} wrap>
                 <Tag color="error">
@@ -2926,6 +2926,21 @@ export default function PlatformTenantList() {
         }
         .domain-dns-label { flex: 0 0 auto; min-width: 36px; color: #64748b; }
         .domain-dns-line .ant-typography { margin-bottom: 0; word-break: break-all; }
+        html.dark .domain-dns-title { color: rgba(255,255,255,0.85); }
+        html.dark .domain-dns-tip {
+          background: rgba(37, 99, 235, 0.18); border-color: rgba(96, 165, 250, 0.35); color: #bfdbfe;
+        }
+        html.dark .domain-dns-tip--muted {
+          background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); color: rgba(255,255,255,0.55);
+        }
+        html.dark .domain-dns-row {
+          border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04);
+        }
+        html.dark .domain-dns-type { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.85); }
+        html.dark .domain-dns-row--txt .domain-dns-type { background: rgba(37, 99, 235, 0.28); color: #93c5fd; }
+        html.dark .domain-dns-row--cname .domain-dns-type { background: rgba(5, 150, 105, 0.28); color: #6ee7b7; }
+        html.dark .domain-dns-line { color: rgba(255,255,255,0.65); }
+        html.dark .domain-dns-label { color: rgba(255,255,255,0.45); }
       `}</style>
     </PageContainer>
   )

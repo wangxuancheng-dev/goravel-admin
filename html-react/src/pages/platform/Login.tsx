@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { App, Button, Form, Input, Typography } from 'antd'
+import { App, Button, Form, Input, Typography, theme } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -7,10 +7,12 @@ import { completePlatformLogin, getPlatformLoginCaptcha, platformLogin } from '@
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { getTenantAdminLoginUrl } from '@/utils/tenant'
 import { ERROR_CODES, type ApiError } from '@/types'
+import DarkModeSwitch from '@/components/DarkModeSwitch'
 
 export default function PlatformLogin() {
   const { t } = useTranslation()
   const { message } = App.useApp()
+  const { token } = theme.useToken()
   const navigate = useNavigate()
   const showError = useUnhandledError()
   const [loading, setLoading] = useState(false)
@@ -117,16 +119,21 @@ export default function PlatformLogin() {
         justifyContent: 'center',
         background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 55%, #334155 100%)',
         padding: 24,
+        position: 'relative',
       }}
     >
+      <div style={{ position: 'absolute', top: 20, right: 20 }}>
+        <DarkModeSwitch className="layout-header__icon-btn platform-header__icon-btn" />
+      </div>
       <div
         style={{
           width: '100%',
           maxWidth: 420,
-          background: '#fff',
+          background: token.colorBgContainer,
           borderRadius: 12,
           padding: '36px 32px 28px',
           boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+          border: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
         <Typography.Title level={3} style={{ marginTop: 0 }}>
@@ -170,7 +177,7 @@ export default function PlatformLogin() {
                       height: 40,
                       borderRadius: 4,
                       cursor: 'pointer',
-                      border: '1px solid #e2e8f0',
+                      border: `1px solid ${token.colorBorder}`,
                     }}
                   />
                 ) : null}

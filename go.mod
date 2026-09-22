@@ -3,7 +3,6 @@ module goravel
 go 1.25.11
 
 require (
-	github.com/Masterminds/squirrel v1.5.4
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
@@ -32,6 +31,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/pquerna/otp v1.5.0
 	github.com/redis/go-redis/v9 v9.21.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.53.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cast v1.10.0
@@ -58,6 +58,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.13 // indirect
@@ -184,7 +185,6 @@ require (
 	github.com/richardlehane/mscfb v1.0.6 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rotisserie/eris v0.5.4 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect

@@ -641,7 +641,14 @@
     "order.import_error_file": "Download order import error file",
     "payment.store": "Create payment record",
     "payment.query": "Query payment result",
-    "google_authenticator.manage": "Manage Google Authenticator"
+    "google_authenticator.manage": "Manage Google Authenticator",
+    "flexible_schedule.index": "View configurable schedules",
+    "flexible_schedule.handlers": "View schedule handlers",
+    "flexible_schedule.preview": "Preview cron",
+    "flexible_schedule.create": "Create configurable schedule",
+    "flexible_schedule.update": "Update configurable schedule",
+    "flexible_schedule.delete": "Delete configurable schedule",
+    "flexible_schedule.run": "Run configurable schedule"
   },
   "menu_management": {
     "add_menu": "Add Menu",
@@ -1485,7 +1492,21 @@
     "output_empty": "(No console output)",
     "status_success": "Success",
     "status_failed": "Failed",
-    "status_never": "Never"
+    "status_never": "Never",
+    "flexible_title": "Configurable schedules",
+    "flexible_hint": "Whitelist handlers + editable 5-field cron. Evaluated every minute by flexible-schedule:tick. Tenant backup also needs TENANT_BACKUP_SCHEDULE_ENABLED.",
+    "flexible_name": "Name",
+    "flexible_handler": "Handler",
+    "flexible_timezone": "Timezone",
+    "flexible_tenant": "Tenant",
+    "flexible_tenant_all": "All tenants",
+    "flexible_tenant_tip": "tenants.id; 0 means global (e.g. backup-all).",
+    "flexible_cron_tip": "5-field cron: min hour dom month dow, e.g. 0 20 * * * daily at 20:00 in the timezone above.",
+    "flexible_preview": "Preview next runs",
+    "flexible_next_runs": "Next runs",
+    "flexible_run_confirm": "Run \"{{name}}\" now?",
+    "flexible_delete_confirm": "Delete \"{{name}}\"?",
+    "flexible_status_skipped": "Skipped"
   },
   "log": {
     "time_range_exceeded": "Query time range cannot exceed {months} months",

@@ -320,7 +320,7 @@ export default function PlatformAdminList() {
               </Select>
             </Form.Item>
           ) : null}
-          {isSelfEdit ? <div style={{ color: '#64748b' }}>{t('platform_admin.self_edit_hint')}</div> : null}
+          {isSelfEdit ? <div style={{ color: 'var(--ant-color-text-secondary, #64748b)' }}>{t('platform_admin.self_edit_hint')}</div> : null}
         </Form>
       </Modal>
 

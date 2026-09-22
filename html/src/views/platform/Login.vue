@@ -1,5 +1,8 @@
 <template>
   <div class="platform-login">
+    <div class="platform-login__toolbar">
+      <DarkModeSwitch class="platform-login-dark" />
+    </div>
     <div class="platform-login__card">
       <h1>{{ $t('platform.title') }}</h1>
       <p class="subtitle">{{ $t('platform.login_hint') }}</p>
@@ -65,6 +68,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { completePlatformLogin, getPlatformLoginCaptcha, platformLogin } from '@/api/platform'
 import { getTenantAdminLoginUrl } from '@/utils/tenant'
+import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -181,21 +185,39 @@ const submit = async () => {
   justify-content: center;
   background: linear-gradient(145deg, #0f172a 0%, #1e293b 55%, #334155 100%);
   padding: 24px;
+  position: relative;
+}
+.platform-login__toolbar {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+.platform-login-dark :deep(.dark-mode-switch) {
+  color: rgba(255, 255, 255, 0.85);
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px;
+}
+.platform-login-dark :deep(.dark-mode-switch:hover) {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 .platform-login__card {
   width: 100%;
   max-width: 420px;
-  background: #fff;
+  background: var(--el-bg-color, #fff);
   border-radius: 12px;
   padding: 36px 32px 28px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--el-border-color-lighter, transparent);
 }
 .platform-login__card h1 {
   margin: 0;
   font-size: 24px;
+  color: var(--el-text-color-primary, inherit);
 }
 .subtitle {
-  color: #64748b;
+  color: var(--el-text-color-secondary, #64748b);
   margin: 8px 0 24px;
 }
 .captcha-row {
@@ -208,7 +230,7 @@ const submit = async () => {
   height: 40px;
   border-radius: 4px;
   cursor: pointer;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--el-border-color, #e2e8f0);
 }
 .submit {
   width: 100%;
@@ -219,7 +241,7 @@ const submit = async () => {
   text-align: center;
 }
 .footer.hint {
-  color: #94a3b8;
+  color: var(--el-text-color-placeholder, #94a3b8);
   font-size: 13px;
 }
 </style>

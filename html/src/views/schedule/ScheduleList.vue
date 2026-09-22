@@ -44,7 +44,7 @@
         </el-table-column>
         <el-table-column prop="last_run_at" :label="t('schedule.last_run_at')" min-width="160">
           <template #default="{ row }">
-            {{ row.last_run_at || '-' }}
+            {{ formatDateTimeDisplay(row.last_run_at) }}
           </template>
         </el-table-column>
         <el-table-column :label="t('schedule.last_duration')" width="110" align="right">
@@ -91,7 +91,7 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item :label="t('schedule.last_run_at')">
-          {{ resultData.run_at || '-' }}
+          {{ formatDateTimeDisplay(resultData.run_at) }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('schedule.last_duration')">
           {{ formatDuration(resultData.duration_ms) }}
@@ -107,6 +107,8 @@
         </el-descriptions-item>
       </el-descriptions>
     </el-dialog>
+
+    <FlexibleSchedulesPanel />
   </div>
 </template>
 
@@ -115,8 +117,10 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { getScheduleList, runSchedule } from '@/api/schedule'
+import FlexibleSchedulesPanel from './FlexibleSchedulesPanel.vue'
 import { usePermission } from '@/composables/usePermission'
 import { describeCron } from '@/utils/cronLabel'
+import { formatDateTimeDisplay } from '@/utils/dateUtils'
 import { logger } from '@/utils/logger'
 
 const { t } = useI18n()
@@ -246,7 +250,7 @@ onMounted(loadData)
 
 .schedule-page__hint {
   margin: 6px 0 0;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-secondary, var(--el-text-color-secondary));
   font-size: 13px;
   line-height: 1.5;
 }
@@ -258,7 +262,7 @@ onMounted(loadData)
 
 .schedule-cron__label {
   margin-top: 4px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-secondary, var(--el-text-color-secondary));
   font-size: 12px;
   line-height: 1.4;
 }

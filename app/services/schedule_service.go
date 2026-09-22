@@ -226,6 +226,10 @@ func scopeManualScheduleCommand(ctx context.Context, command string) (string, er
 	if !tenancy.Enabled() {
 		return command, nil
 	}
+	// Landlord-only schedule jobs have no --tenant flag; do not append one.
+	if isLandlordOnlyScheduleCommand(command) {
+		return command, nil
+	}
 	if hasTenantFlag(command) {
 		return "", apperrors.ErrScheduleCommandNotAllowed
 	}
@@ -236,6 +240,19 @@ func scopeManualScheduleCommand(ctx context.Context, command string) (string, er
 		return fmt.Sprintf("%s --tenant=%d", command, id), nil
 	}
 	return "", apperrors.ErrTenantRequired
+}
+
+func isLandlordOnlyScheduleCommand(command string) bool {
+	switch scheduleCommandBase(command) {
+	case "flexible-schedule:tick",
+		"tenant:cleanup-deleted",
+		"tenant:health-inspect",
+		"tenant:backup-scheduled",
+		"queue:alert-backlog":
+		return true
+	default:
+		return false
+	}
 }
 
 func hasTenantFlag(command string) bool {

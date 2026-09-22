@@ -186,6 +186,16 @@ html.dark .layout-header__icon-btn:hover {
   background-color: rgba(255, 255, 255, 0.08);
 }
 
+/* Platform header / login sit on a dark navy bar regardless of theme */
+.platform-header__icon-btn {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.platform-header__icon-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
 /* Available before MainLayout mounts (auth bootstrap / Suspense). */
 .page-fallback {
   display: flex;

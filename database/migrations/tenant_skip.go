@@ -29,7 +29,8 @@ func IsLandlordOnlyMigration(signature string) bool {
 		"20260916140000_add_tenant_health_meta",
 		"20260917220000_create_platform_login_logs_table",
 		"20260917220001_create_platform_operation_logs_table",
-		"20260920220000_platform_ops_extensions":
+		"20260920220000_platform_ops_extensions",
+		"20260921120000_create_flexible_schedules_table":
 		return true
 	default:
 		return false
