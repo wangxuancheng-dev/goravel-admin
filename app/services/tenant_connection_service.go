@@ -27,8 +27,7 @@ import (
 
 var (
 	tenantIdentPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
-	registeredConns    sync.Map // connection_name -> struct{}
-	registerMu         sync.Mutex
+	registerMu         sync.Mutex // serializes EnsureRegistered / Forget with registry
 	migrateMu          sync.Mutex
 )
 
@@ -103,7 +102,8 @@ func NewTenantConnectionService() *TenantConnectionService {
 	return &TenantConnectionService{}
 }
 
-// EnsureRegistered 将租户连接写入 config 并可供 Orm.Connection 使用
+// EnsureRegistered 将租户连接写入 config 并可供 Orm.Connection 使用。
+// Touches lastUsed on hit; may evict idle/oldest pools when TENANCY_REGISTERED_* is set.
 func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error {
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
@@ -115,9 +115,15 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 	registerMu.Lock()
 	defer registerMu.Unlock()
 
-	if _, loaded := registeredConns.Load(tenant.ConnectionName); loaded {
+	registeredMu.Lock()
+	if isRegisteredLocked(tenant.ConnectionName) {
+		touchRegisteredLocked(tenant.ConnectionName)
+		registeredMu.Unlock()
 		return nil
 	}
+	evicted := evictRegisteredLocked(tenant.ConnectionName)
+	registeredMu.Unlock()
+	freshORMIfNeeded(evicted)
 
 	cfg, err := s.buildConnectionConfig(tenant)
 	if err != nil {
@@ -132,7 +138,9 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 		appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
 		return apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
-	registeredConns.Store(tenant.ConnectionName, struct{}{})
+	registeredMu.Lock()
+	markRegisteredLocked(tenant.ConnectionName)
+	registeredMu.Unlock()
 	return nil
 }
 
@@ -183,9 +191,11 @@ func (s *TenantConnectionService) Forget(connectionName string) {
 	if connectionName == "" {
 		return
 	}
-	registeredConns.Delete(connectionName)
-	appfacades.EvictOrmConnectionCache(connectionName)
-	appfacades.Orm().Fresh()
+	registerMu.Lock()
+	defer registerMu.Unlock()
+	registeredMu.Lock()
+	forgetRegisteredLocked(connectionName, true)
+	registeredMu.Unlock()
 }
 
 // ValidateTenantCredentials enforces dedicated DB users for remote hosts.

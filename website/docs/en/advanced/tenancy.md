@@ -218,7 +218,17 @@ These are **starting points**, not hard quotas — tune from monitoring. With ma
 
 `registered tenant pools in process × TENANCY_POOL_MAX_OPEN_CONNS × API instances` ≪ DB `max_connections` (leave headroom for platform DB, backups, ops).
 
-"Registered pools" ≈ tenants with recent traffic that have not been Forgotten — **not** the row count of `tenants`. Multiple `tenant_*` databases on one MySQL/PG host still share that host's connection limit.
+"Registered pools" ≈ tenants with recent traffic that have not been Forgotten / idle-evicted — **not** the row count of `tenants`. Multiple `tenant_*` databases on one MySQL/PG host still share that host's connection limit.
+
+Runtime dual-mode (small fleets keep one-shot behavior; large fleets tighten automatically):
+
+| Mechanism | Config | Small fleet | Large fleet |
+|-----------|--------|-------------|-------------|
+| Idle registry eviction | `TENANCY_REGISTERED_IDLE_TTL` (default 900s) | Idle pools drop; reconnect on next request | Prevents registry growing to full fleet |
+| Registry hard cap | `TENANCY_REGISTERED_MAX` (0=unlimited) | Optional | Prefer 300–500 |
+| Fleet command paging | `TENANCY_SCOPE_AUTO_BATCH_AT` (200) / `TENANCY_SCOPE_AUTO_BATCH` (100) | ≤200 tenants: one pass | Above threshold: page; minute jobs rotate a cursor |
+| Forced page size | `TENANCY_SCOPE_BATCH` | 0=auto | Force N per page |
+| Flexible schedules | `next_run_at` + `TENANCY_FLEX_SCHEDULE_TICK_LIMIT` | Same minute match semantics | Load due rows only; cap executions per tick |
 
 | Active tenants (rule of thumb) | Tenant pool | Queue / processes | Redis |
 |--------------------------------|-------------|-------------------|-------|
@@ -233,6 +243,8 @@ TENANCY_POOL_MAX_IDLE_CONNS=1
 TENANCY_POOL_MAX_OPEN_CONNS=5
 TENANCY_POOL_CONN_MAX_IDLETIME=120
 TENANCY_POOL_CONN_MAX_LIFETIME=600
+TENANCY_REGISTERED_IDLE_TTL=900
+# TENANCY_REGISTERED_MAX=300   # enable around 1k+ active
 
 CACHE_STORE=redis
 QUEUE_CONNECTION=redis
@@ -240,6 +252,8 @@ QUEUE_CONCURRENT=2
 QUEUE_LONG_RUNNING_CONCURRENT=1
 # API nodes: APP_DISABLED_RUNNERS=queue-*
 ```
+
+For a few thousand active tenants also prefer `OPEN=2`, `REGISTERED_MAX=300`, raise `SCOPE_AUTO_BATCH` if needed, and shard tenant DBs via `tenants.host`.
 
 **Watch:** MySQL/PG `Threads_connected` (or equivalent), queue pending / `queue:alert-backlog`, Redis memory and connections. Near limits, lower `TENANCY_POOL_*` or scale the DB before blindly adding API replicas (replicas multiply connection usage).
 

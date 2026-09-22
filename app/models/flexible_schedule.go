@@ -23,6 +23,7 @@ type FlexibleSchedule struct {
 	LastOutput     string     `gorm:"column:last_output;type:text;comment:last output truncated" json:"last_output"`
 	LastDurationMs int64      `gorm:"column:last_duration_ms;default:0;comment:last duration ms" json:"last_duration_ms"`
 	LastSlot       string     `gorm:"column:last_slot;size:32;comment:dedupe slot YYYY-MM-DDTHH:MM in timezone" json:"last_slot"`
+	NextRunAt      *time.Time `gorm:"column:next_run_at;index;comment:next due UTC for tick query" json:"next_run_at"`
 }
 
 func (FlexibleSchedule) TableName() string {

@@ -22,14 +22,17 @@ func (r *CancelExpiredOrders) Description() string {
 }
 
 func (r *CancelExpiredOrders) Extend() command.Extend {
+	flags := []command.Flag{TenantScopeFlag()}
+	flags = append(flags, TenantScopePagingFlags()...)
 	return command.Extend{
 		Category: "order",
-		Flags:    []command.Flag{TenantScopeFlag()},
+		Flags:    flags,
 	}
 }
 
 func (r *CancelExpiredOrders) Handle(ctx console.Context) error {
-	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
+	// Minute schedule: rotate pages on large fleets so we never open every tenant DB each tick.
+	return RunTenantScopedRotating(ctx, "order:cancel-expired", func(_ *models.Tenant, bound context.Context) error {
 		n, err := services.CancelExpiredOrdersSweep(bound)
 		if err != nil {
 			return fmt.Errorf("order:cancel-expired failed: %w", err)

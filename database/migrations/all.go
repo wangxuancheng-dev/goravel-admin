@@ -88,6 +88,7 @@ func All() []schema.Migration {
 		&M20260920220000PlatformOpsExtensions{},
 		&M20260921120000CreateFlexibleSchedulesTable{},
 		&M20260922160000FlexibleSchedulesPayloadUnique{},
+		&M20260922230000AddFlexibleScheduleNextRunAt{},
 	}
 }
 

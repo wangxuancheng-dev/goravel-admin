@@ -214,7 +214,17 @@ shop.customer-b.com.     CNAME  tenants.example.com.
 
 `进程内已注册的租户池数 × TENANCY_POOL_MAX_OPEN_CONNS × API 实例数` ≪ 数据库 `max_connections`（预留平台库、备份、运维余量）。
 
-「已注册池数」≈ 近期有流量、尚未被 Forget 的租户，**不是** `tenants` 表总行数。同机多库时所有 `tenant_*` 仍计入同一 MySQL/PG 实例的连接上限。
+「已注册池数」≈ 近期有流量、尚未被 Forget / 空闲淘汰的租户，**不是** `tenants` 表总行数。同机多库时所有 `tenant_*` 仍计入同一 MySQL/PG 实例的连接上限。
+
+运行时已内置双模式能力（少量租户默认行为不变，户多时自动收紧）：
+
+| 机制 | 配置 | 少量租户 | 大量租户 |
+|------|------|----------|----------|
+| 连接注册表空闲淘汰 | `TENANCY_REGISTERED_IDLE_TTL`（默认 900s） | 长时间无访问会释放池，再访问时自动重连 | 避免注册池涨到总户数 |
+| 注册池硬上限 | `TENANCY_REGISTERED_MAX`（默认 0=不限） | 可不设 | 建议 300–500 |
+| 全舰队命令分页 | `TENANCY_SCOPE_AUTO_BATCH_AT`（默认 200） / `TENANCY_SCOPE_AUTO_BATCH`（100） | 户数 ≤200 时一次跑完 | 超过阈值自动分页；分钟级任务带 rotate 游标 |
+| 强制页大小 | `TENANCY_SCOPE_BATCH` | 0=跟自动策略 | 可强制每页 N 户 |
+| 灵活定时 | `next_run_at` + `TENANCY_FLEX_SCHEDULE_TICK_LIMIT` | 行为与按分钟匹配一致 | 只拉到期行，每分钟最多执行 N 条 |
 
 | 活跃商户量级（经验） | 租户池建议 | 队列 / 进程 | Redis |
 |----------------------|------------|-------------|-------|
@@ -229,6 +239,8 @@ TENANCY_POOL_MAX_IDLE_CONNS=1
 TENANCY_POOL_MAX_OPEN_CONNS=5
 TENANCY_POOL_CONN_MAX_IDLETIME=120
 TENANCY_POOL_CONN_MAX_LIFETIME=600
+TENANCY_REGISTERED_IDLE_TTL=900
+# TENANCY_REGISTERED_MAX=300   # 建议在 1k+ 活跃时打开
 
 CACHE_STORE=redis
 QUEUE_CONNECTION=redis
@@ -236,6 +248,8 @@ QUEUE_CONCURRENT=2
 QUEUE_LONG_RUNNING_CONCURRENT=1
 # API 机：APP_DISABLED_RUNNERS=queue-*
 ```
+
+几千活跃时额外建议：`TENANCY_POOL_MAX_OPEN_CONNS=2`、`TENANCY_REGISTERED_MAX=300`、`TENANCY_SCOPE_AUTO_BATCH=100`（或调高）、租户库按 `tenants.host` 分机。
 
 **建议监控：** MySQL/PG `Threads_connected`（或等价指标）、队列 pending / `queue:alert-backlog`、Redis 内存与连接数。接近上限时先下调 `TENANCY_POOL_*` 或扩容，而不是盲目加 API 副本（副本会放大连接占用）。
 

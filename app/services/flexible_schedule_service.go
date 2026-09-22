@@ -127,6 +127,9 @@ func (s *FlexibleScheduleService) ensureWhitelistRowsForTenant(tenantID uint) {
 			Payload:  payload,
 			Enabled:  true,
 		}
+		if next := ComputeNextRunAt(cronExpr, time.Now()); next != nil {
+			row.NextRunAt = next
+		}
 		if err := q.Create(&row); err != nil {
 			errorlog.Record(s.ctx, "flexible_schedule", "ensure whitelist row failed", map[string]any{
 				"error":     err.Error(),
@@ -189,6 +192,17 @@ func CronMatchesMinute(expr string, now time.Time) (slot string, ok bool) {
 	return minuteStart.Format("2006-01-02T15:04"), true
 }
 
+// ComputeNextRunAt returns the next fire time after `after` (UTC), or nil if expr is invalid.
+func ComputeNextRunAt(expr string, after time.Time) *time.Time {
+	expr = strings.TrimSpace(expr)
+	sched, err := flexibleCronParser.Parse(expr)
+	if err != nil {
+		return nil
+	}
+	n := sched.Next(after.UTC())
+	return &n
+}
+
 // List returns flexible schedules for the current tenant only.
 func (s *FlexibleScheduleService) List() ([]models.FlexibleSchedule, error) {
 	s.EnsureDefaults()
@@ -248,9 +262,21 @@ func (s *FlexibleScheduleService) Update(id uint, in FlexibleScheduleInput) (*mo
 			return nil, err
 		}
 		updates["cron_expr"] = expr
+		if next := ComputeNextRunAt(expr, time.Now()); next != nil {
+			updates["next_run_at"] = *next
+		}
 	}
 	if in.Enabled != nil {
 		updates["enabled"] = *in.Enabled
+		if *in.Enabled {
+			expr := row.CronExpr
+			if v, ok := updates["cron_expr"].(string); ok && strings.TrimSpace(v) != "" {
+				expr = v
+			}
+			if next := ComputeNextRunAt(expr, time.Now()); next != nil {
+				updates["next_run_at"] = *next
+			}
+		}
 	}
 	if in.Payload != nil {
 		normalized, err := normalizeFlexiblePayload(*in.Payload)
@@ -293,23 +319,42 @@ func (s *FlexibleScheduleService) RunNow(id uint, force bool) (*models.FlexibleS
 	return updated, nil
 }
 
-// TickDue runs all enabled rows whose cron matches the current UTC minute.
+// TickDue runs enabled rows that are due (next_run_at <= now, or legacy null next_run_at).
+// Caps executions per tick so large fleets do not stampede tenant connections.
 func (s *FlexibleScheduleService) TickDue(now time.Time) (ran int, err error) {
 	q := appfacades.PlatformOrmQuery(s.ctx)
 	if q == nil {
 		return 0, nil
 	}
+	nowUTC := now.UTC()
+	limit := facades.Config().GetInt("tenancy.flex_schedule_tick_limit", 200)
+	if limit < 1 {
+		limit = 200
+	}
+	if limit > 2000 {
+		limit = 2000
+	}
+
 	var rows []models.FlexibleSchedule
-	if err := q.Model(&models.FlexibleSchedule{}).Where("enabled", true).Find(&rows); err != nil {
+	if err := q.Model(&models.FlexibleSchedule{}).
+		Where("enabled", true).
+		Where("(next_run_at IS NULL OR next_run_at <= ?)", nowUTC).
+		Order("next_run_at asc").
+		Order("id asc").
+		Limit(limit).
+		Find(&rows); err != nil {
 		return 0, nil
 	}
 	for i := range rows {
 		row := &rows[i]
-		slot, match := CronMatchesMinute(row.CronExpr, now)
+		slot, match := CronMatchesMinute(row.CronExpr, nowUTC)
 		if !match {
+			// Stale next_run_at (or null): advance without executing.
+			_ = s.advanceNextRunAt(row, nowUTC)
 			continue
 		}
 		if !s.claimSlot(row.ID, slot) {
+			_ = s.advanceNextRunAt(row, nowUTC)
 			continue
 		}
 		_ = s.executeRow(row, slot)
@@ -380,7 +425,21 @@ func (s *FlexibleScheduleService) persistResult(row *models.FlexibleSchedule, st
 	if slot != "" {
 		updates["last_slot"] = slot
 	}
+	if next := ComputeNextRunAt(row.CronExpr, now); next != nil {
+		updates["next_run_at"] = *next
+	}
 	_, err := appfacades.PlatformOrmQuery(s.ctx).Model(&models.FlexibleSchedule{}).Where("id", row.ID).Update(updates)
+	return err
+}
+
+func (s *FlexibleScheduleService) advanceNextRunAt(row *models.FlexibleSchedule, after time.Time) error {
+	next := ComputeNextRunAt(row.CronExpr, after)
+	if next == nil {
+		return nil
+	}
+	_, err := appfacades.PlatformOrmQuery(s.ctx).Model(&models.FlexibleSchedule{}).Where("id", row.ID).Update(map[string]any{
+		"next_run_at": *next,
+	})
 	return err
 }
 

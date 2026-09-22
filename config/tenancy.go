@@ -36,10 +36,19 @@ func init() {
 		// Soft-deleted tenant retention days before tenant:cleanup-deleted hard-deletes (0=never auto)
 		"deleted_retention_days": config.Env("TENANCY_DELETED_RETENTION_DAYS", 30),
 		// 每租户连接池（公网收紧；覆盖 database.pool 对动态连接的默认）
-		"pool_max_idle_conns":   config.Env("TENANCY_POOL_MAX_IDLE_CONNS", 2),
-		"pool_max_open_conns":   config.Env("TENANCY_POOL_MAX_OPEN_CONNS", 20),
+		"pool_max_idle_conns":    config.Env("TENANCY_POOL_MAX_IDLE_CONNS", 2),
+		"pool_max_open_conns":    config.Env("TENANCY_POOL_MAX_OPEN_CONNS", 20),
 		"pool_conn_max_idletime": config.Env("TENANCY_POOL_CONN_MAX_IDLETIME", 300),
 		"pool_conn_max_lifetime": config.Env("TENANCY_POOL_CONN_MAX_LIFETIME", 1800),
+		// Process-local registered tenant pools: 0 max = unlimited; idle TTL seconds (0 = never idle-evict)
+		"registered_max":      config.Env("TENANCY_REGISTERED_MAX", 0),
+		"registered_idle_ttl": config.Env("TENANCY_REGISTERED_IDLE_TTL", 900),
+		// Fleet scope: 0 batch = unlimited unless fleet > auto_batch_at
+		"scope_batch":          config.Env("TENANCY_SCOPE_BATCH", 0),
+		"scope_auto_batch_at":  config.Env("TENANCY_SCOPE_AUTO_BATCH_AT", 200),
+		"scope_auto_batch":     config.Env("TENANCY_SCOPE_AUTO_BATCH", 100),
+		// flexible-schedule:tick max due rows per minute
+		"flex_schedule_tick_limit": config.Env("TENANCY_FLEX_SCHEDULE_TICK_LIMIT", 200),
 		// platform:install 默认管理员（也可传 CLI 参数）
 		"platform_admin_username": config.Env("PLATFORM_ADMIN_USERNAME", ""),
 		"platform_admin_password": config.Env("PLATFORM_ADMIN_PASSWORD", ""),

@@ -22,14 +22,16 @@ func (r *SyncDemoActivities) Description() string {
 }
 
 func (r *SyncDemoActivities) Extend() command.Extend {
+	flags := []command.Flag{TenantScopeFlag()}
+	flags = append(flags, TenantScopePagingFlags()...)
 	return command.Extend{
 		Category: "activity",
-		Flags:    []command.Flag{TenantScopeFlag()},
+		Flags:    flags,
 	}
 }
 
 func (r *SyncDemoActivities) Handle(ctx console.Context) error {
-	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
+	return RunTenantScopedRotating(ctx, "activity:sync-status", func(_ *models.Tenant, bound context.Context) error {
 		updated, err := services.NewDemoActivityService(bound).SyncStatuses()
 		if err != nil {
 			return fmt.Errorf("activity:sync-status failed: %w", err)
