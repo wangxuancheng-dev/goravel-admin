@@ -6,9 +6,8 @@ import (
 
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
-	"github.com/goravel/framework/facades"
+	"github.com/spf13/cast"
 
-	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/tenancy"
 )
@@ -17,46 +16,59 @@ type TenantBackupAll struct{}
 
 func (r *TenantBackupAll) Signature() string { return "tenant:backup-all" }
 func (r *TenantBackupAll) Description() string {
-	return "备份所有启用且已 ready 的租户（逐个调用 tenant:backup）"
+	return "Enqueue backups for ready tenants onto long-running queue (paged; use --rotate for one page)"
 }
 func (r *TenantBackupAll) Extend() command.Extend {
 	return command.Extend{
 		Category: "tenant",
 		Flags: []command.Flag{
-			&command.IntFlag{Name: "keep", Usage: "透传给 tenant:backup 的保留份数"},
+			&command.IntFlag{Name: "keep", Usage: "keep last N backups (passed to tenant_ops; default TENANT_BACKUP_KEEP)"},
+			&command.IntFlag{Name: "limit", Usage: "max tenants this run (0=auto/drain; -1=drain all pages into queue)"},
+			&command.StringFlag{Name: "after-id", Usage: "exclusive id cursor (id > after-id)"},
+			&command.BoolFlag{Name: "rotate", Usage: "one page only and persist cursor (for scheduled batches)"},
 		},
 	}
 }
 
 func (r *TenantBackupAll) Handle(ctx console.Context) error {
 	if !tenancy.Enabled() {
-		ctx.Error("需要 TENANCY_DRIVER=database")
+		ctx.Error("requires TENANCY_DRIVER=database")
 		return nil
 	}
-	list, err := services.NewTenantAdminService().ListAll()
+	keep := -1
+	if raw := strings.TrimSpace(ctx.Option("keep")); raw != "" {
+		keep = ctx.OptionInt("keep")
+	}
+	opts := services.TenantBackupFanOutOptions{
+		Keep:      keep,
+		Rotate:    ctx.OptionBool("rotate"),
+		RotateKey: "tenant:backup-all",
+		Actor:     services.TenantOpActor{Name: "cli:tenant:backup-all"},
+	}
+	if raw := strings.TrimSpace(ctx.Option("limit")); raw != "" {
+		opts.Limit = ctx.OptionInt("limit")
+		if raw == "-1" {
+			opts.Limit = -1
+		}
+	}
+	if raw := strings.TrimSpace(ctx.Option("after-id")); raw != "" {
+		opts.AfterID = cast.ToUint(raw)
+	}
+	if opts.Rotate {
+		ctx.Info("enqueue one backup page (rotate cursor)")
+	} else {
+		ctx.Info("enqueue ready-tenant backups to long-running (paged fan-out)")
+	}
+	report, err := services.FanOutTenantBackups(opts)
 	if err != nil {
 		ctx.Error(err.Error())
 		return err
 	}
-	failed := 0
-	for i := range list {
-		t := list[i]
-		if t.Status != models.TenantStatusActive || !t.IsProvisionReady() {
-			continue
-		}
-		cmd := "tenant:backup " + t.Code
-		if raw := strings.TrimSpace(ctx.Option("keep")); raw != "" {
-			cmd += " --keep=" + raw
-		}
-		ctx.Info(fmt.Sprintf("backup %s ...", t.Code))
-		if err := facades.Artisan().Call(cmd); err != nil {
-			ctx.Error(fmt.Sprintf("%s: %v", t.Code, err))
-			failed++
-		}
+	ctx.Info(fmt.Sprintf("batch_id=%s queued=%d skipped=%d failed=%d next_after_id=%d",
+		report.BatchID, report.Queued, report.Skipped, report.Failed, report.NextAfterID))
+	if report.Failed > 0 {
+		return fmt.Errorf("%d tenant backup enqueue(s) failed", report.Failed)
 	}
-	if failed > 0 {
-		return fmt.Errorf("%d tenant backup(s) failed", failed)
-	}
-	ctx.Success("tenant:backup-all 完成")
+	ctx.Success("tenant:backup-all enqueue done (workers run dumps on long-running)")
 	return nil
 }

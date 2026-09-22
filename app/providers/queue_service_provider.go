@@ -40,6 +40,15 @@ func (receiver *QueueServiceProvider) Boot(app foundation.Application) {
 			{Type: "string", Value: slot},
 		}).OnQueue(services.FlexibleScheduleQueueName()).Dispatch()
 	}
+	services.EnqueueTenantOpsFn = func(args services.TenantOpsArgs) error {
+		payload, err := services.MarshalTenantOpsArgsJSON(args)
+		if err != nil {
+			return err
+		}
+		return facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{
+			{Type: "string", Value: payload},
+		}).OnQueue("long-running").Dispatch()
+	}
 }
 
 func (receiver *QueueServiceProvider) Jobs() []queue.Job {
