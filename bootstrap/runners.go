@@ -161,12 +161,62 @@ func (r *SearchQueueRunner) Shutdown() error {
 	return nil
 }
 
-// QueueRunners 返回队列相关的 runners
+// ScheduleQueueRunner runs tenant flexible-schedule handler jobs.
+type ScheduleQueueRunner struct {
+	worker queue.Worker
+	mu     sync.Mutex
+}
+
+func (r *ScheduleQueueRunner) Signature() string {
+	return "queue-schedule"
+}
+
+func (r *ScheduleQueueRunner) ShouldRun() bool {
+	return shouldRunQueueRunner(r.Signature())
+}
+
+func (r *ScheduleQueueRunner) Run() error {
+	tries := facades.Config().GetInt("queue.tries", 5)
+	concurrent := facades.Config().GetInt("queue.schedule_concurrent", 10)
+	queueName := services.FlexibleScheduleQueueName()
+
+	r.mu.Lock()
+	r.worker = facades.Queue().Worker(queue.Args{
+		Connection: "",
+		Queue:      queueName,
+		Concurrent: concurrent,
+		Tries:      tries,
+	})
+	r.mu.Unlock()
+
+	facades.Log().Infof("Schedule queue worker started - queue=%s concurrent=%d tries=%d", queueName, concurrent, tries)
+	systemLogService := services.NewSystemLogService(context.Background())
+	_ = systemLogService.Record(context.Background(), "info", "queue", "schedule queue worker started", map[string]any{
+		"queue":      queueName,
+		"concurrent": concurrent,
+		"tries":      tries,
+	})
+
+	return r.worker.Run()
+}
+
+func (r *ScheduleQueueRunner) Shutdown() error {
+	r.mu.Lock()
+	worker := r.worker
+	r.mu.Unlock()
+	if worker != nil {
+		return worker.Shutdown()
+	}
+	return nil
+}
+
+// QueueRunners returns queue-related runners
 func QueueRunners() []foundation.Runner {
 	return []foundation.Runner{
 		&DefaultQueueRunner{},
 		&LongRunningQueueRunner{},
 		&SearchQueueRunner{},
+		&ScheduleQueueRunner{},
 		// &TestQueueRunner{}, // 需要时再取消下面整块注释并取消本行注释；config 见 queue.test_concurrent
 	}
 }

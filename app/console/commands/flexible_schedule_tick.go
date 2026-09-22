@@ -30,6 +30,6 @@ func (r *FlexibleScheduleTick) Handle(ctx console.Context) error {
 	if err != nil {
 		return fmt.Errorf("flexible-schedule:tick failed: %w", err)
 	}
-	ctx.Info(fmt.Sprintf("flexible schedules fired=%d", n))
+	ctx.Info(fmt.Sprintf("flexible schedules dispatched=%d", n))
 	return nil
 }

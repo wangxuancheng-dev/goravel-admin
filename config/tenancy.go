@@ -47,8 +47,10 @@ func init() {
 		"scope_batch":          config.Env("TENANCY_SCOPE_BATCH", 0),
 		"scope_auto_batch_at":  config.Env("TENANCY_SCOPE_AUTO_BATCH_AT", 200),
 		"scope_auto_batch":     config.Env("TENANCY_SCOPE_AUTO_BATCH", 100),
-		// flexible-schedule:tick max due rows per minute
-		"flex_schedule_tick_limit": config.Env("TENANCY_FLEX_SCHEDULE_TICK_LIMIT", 200),
+		// flexible-schedule:tick max due rows enqueued per minute (fan-out only)
+		"flex_schedule_tick_limit": config.Env("TENANCY_FLEX_SCHEDULE_TICK_LIMIT", 2000),
+		// logical queue name for FlexibleScheduleRun jobs
+		"flex_schedule_queue": config.Env("TENANCY_FLEX_SCHEDULE_QUEUE", "schedule"),
 		// platform:install 默认管理员（也可传 CLI 参数）
 		"platform_admin_username": config.Env("PLATFORM_ADMIN_USERNAME", ""),
 		"platform_admin_password": config.Env("PLATFORM_ADMIN_PASSWORD", ""),

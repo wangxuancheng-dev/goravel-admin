@@ -228,7 +228,7 @@ Runtime dual-mode (small fleets keep one-shot behavior; large fleets tighten aut
 | Registry hard cap | `TENANCY_REGISTERED_MAX` (0=unlimited) | Optional | Prefer 300–500 |
 | Fleet command paging | `TENANCY_SCOPE_AUTO_BATCH_AT` (200) / `TENANCY_SCOPE_AUTO_BATCH` (100) | ≤200 tenants: one pass | Above threshold: page; minute jobs rotate a cursor |
 | Forced page size | `TENANCY_SCOPE_BATCH` | 0=auto | Force N per page |
-| Flexible schedules | `next_run_at` + `TENANCY_FLEX_SCHEDULE_TICK_LIMIT` | Same minute match semantics | Load due rows only; cap executions per tick |
+| Flexible schedules | `next_run_at` + tick fan-out + `schedule` queue (`QUEUE_SCHEDULE_CONCURRENT`) | Same minute match semantics | Tick enqueues only; workers run handlers in parallel |
 
 | Active tenants (rule of thumb) | Tenant pool | Queue / processes | Redis |
 |--------------------------------|-------------|-------------------|-------|

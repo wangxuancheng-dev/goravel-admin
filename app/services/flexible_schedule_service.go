@@ -319,20 +319,20 @@ func (s *FlexibleScheduleService) RunNow(id uint, force bool) (*models.FlexibleS
 	return updated, nil
 }
 
-// TickDue runs enabled rows that are due (next_run_at <= now, or legacy null next_run_at).
-// Caps executions per tick so large fleets do not stampede tenant connections.
-func (s *FlexibleScheduleService) TickDue(now time.Time) (ran int, err error) {
+// TickDue enqueues due flexible_schedules rows (next_run_at <= now).
+// Handlers run on the schedule queue workers, not inside the tick process.
+func (s *FlexibleScheduleService) TickDue(now time.Time) (dispatched int, err error) {
 	q := appfacades.PlatformOrmQuery(s.ctx)
 	if q == nil {
 		return 0, nil
 	}
 	nowUTC := now.UTC()
-	limit := facades.Config().GetInt("tenancy.flex_schedule_tick_limit", 200)
+	limit := facades.Config().GetInt("tenancy.flex_schedule_tick_limit", 2000)
 	if limit < 1 {
-		limit = 200
-	}
-	if limit > 2000 {
 		limit = 2000
+	}
+	if limit > 10000 {
+		limit = 10000
 	}
 
 	var rows []models.FlexibleSchedule
@@ -349,7 +349,6 @@ func (s *FlexibleScheduleService) TickDue(now time.Time) (ran int, err error) {
 		row := &rows[i]
 		slot, match := CronMatchesMinute(row.CronExpr, nowUTC)
 		if !match {
-			// Stale next_run_at (or null): advance without executing.
 			_ = s.advanceNextRunAt(row, nowUTC)
 			continue
 		}
@@ -357,10 +356,15 @@ func (s *FlexibleScheduleService) TickDue(now time.Time) (ran int, err error) {
 			_ = s.advanceNextRunAt(row, nowUTC)
 			continue
 		}
-		_ = s.executeRow(row, slot)
-		ran++
+		if enqErr := EnqueueFlexibleScheduleRun(row.ID, slot); enqErr != nil {
+			_ = s.persistResult(row, "failed", enqErr.Error(), "", 0, slot)
+			_ = s.advanceNextRunAt(row, nowUTC)
+			continue
+		}
+		_ = s.advanceNextRunAt(row, nowUTC)
+		dispatched++
 	}
-	return ran, nil
+	return dispatched, nil
 }
 
 func (s *FlexibleScheduleService) claimSlot(id uint, slot string) bool {

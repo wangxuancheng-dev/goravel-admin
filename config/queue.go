@@ -129,6 +129,8 @@ func init() {
 		"long_running_concurrent": config.Env("QUEUE_LONG_RUNNING_CONCURRENT", 1), // 耗时队列；见上注释
 		// 搜索引擎同步队列（逻辑名见 config search.sync_queue）
 		"search_concurrent": config.Env("QUEUE_SEARCH_CONCURRENT", 2),
+		// Per-tenant flexible schedule handlers (minute-level collection)
+		"schedule_concurrent": config.Env("QUEUE_SCHEDULE_CONCURRENT", 10),
 		// "test_concurrent":         config.Env("QUEUE_TEST_CONCURRENT", 1),         // 逻辑队列 test，见 bootstrap.TestQueueRunner
 	})
 }

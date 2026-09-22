@@ -34,6 +34,12 @@ func (receiver *QueueServiceProvider) Boot(app foundation.Application) {
 			{Type: "int", Value: int(tenantID)},
 		}).Delay(expireAt).Dispatch()
 	}
+	services.EnqueueFlexibleScheduleRunFn = func(scheduleID uint, slot string) error {
+		return facades.Queue().Job(&jobs.FlexibleScheduleRun{}, []queue.Arg{
+			{Type: "int", Value: int(scheduleID)},
+			{Type: "string", Value: slot},
+		}).OnQueue(services.FlexibleScheduleQueueName()).Dispatch()
+	}
 }
 
 func (receiver *QueueServiceProvider) Jobs() []queue.Job {
@@ -57,5 +63,6 @@ func (receiver *QueueServiceProvider) Jobs() []queue.Job {
 		// 搜索引擎同步任务（订单；文章等后续同目录加 sync_*_search.go）
 		&jobs.SyncOrderSearch{},
 		&jobs.CancelExpiredOrder{},
+		&jobs.FlexibleScheduleRun{},
 	}
 }
