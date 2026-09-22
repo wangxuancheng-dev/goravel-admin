@@ -36,6 +36,7 @@ export interface FlexibleScheduleRow {
   timezone: string
   tenant_id: number
   tenant_code?: string
+  payload?: Record<string, unknown>
   enabled: boolean
   last_run_at?: string
   last_status?: string
@@ -51,6 +52,8 @@ export interface FlexibleHandlerMeta {
   name: string
   description: string
   tenant_aware: boolean
+  default_cron?: string
+  default_payload?: string
 }
 
 export function getScheduleList() {

@@ -13,5 +13,5 @@ Admin UI: System → Demo Activities. Toggle with `MODULE_SCHEDULE_DEMO_ENABLED`
 
 ## Configurable cron (whitelist)
 
-Code-registered handlers + landlord table `flexible_schedules`, edited under Admin → Scheduled Tasks. Tick: `flexible-schedule:tick` every minute. See Chinese doc for seed/permission notes.
+Per-tenant whitelist handlers on landlord `flexible_schedules` (unique handler+tenant_id, optional payload JSON). Tenant backup stays on kernel `tenant:backup-scheduled`. Tick: `flexible-schedule:tick` every minute. See Chinese doc for seed/permission notes.
 

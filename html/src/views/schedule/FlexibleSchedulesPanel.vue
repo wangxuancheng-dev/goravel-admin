@@ -2,20 +2,8 @@
   <el-card shadow="never" class="flexible-card">
     <template #header>
       <div class="flexible-card__header">
-        <div>
-          <h3 class="flexible-card__title">{{ t('schedule.flexible_title') }}</h3>
-          <p class="flexible-card__hint">{{ t('schedule.flexible_hint') }}</p>
-        </div>
-        <div class="flexible-card__actions">
-          <el-button :loading="loading" @click="loadData">{{ t('common.refresh') }}</el-button>
-          <el-button
-            type="primary"
-            :disabled="getButtonState('flexible_schedule.create').disabled"
-            @click="openCreate"
-          >
-            {{ t('common.add') }}
-          </el-button>
-        </div>
+        <h3 class="flexible-card__title">{{ t('schedule.flexible_title') }}</h3>
+        <el-button :loading="loading" @click="loadData">{{ t('common.refresh') }}</el-button>
       </div>
     </template>
 
@@ -34,11 +22,6 @@
         </template>
       </el-table-column>
       <el-table-column prop="timezone" :label="t('schedule.flexible_timezone')" width="120" />
-      <el-table-column :label="t('schedule.flexible_tenant')" width="120">
-        <template #default="{ row }">
-          {{ row.tenant_id > 0 ? (row.tenant_code || row.tenant_id) : t('schedule.flexible_tenant_all') }}
-        </template>
-      </el-table-column>
       <el-table-column :label="t('common.status')" width="90" align="center">
         <template #default="{ row }">
           <el-switch
@@ -58,6 +41,9 @@
       <el-table-column prop="last_run_at" :label="t('schedule.last_run_at')" min-width="150">
         <template #default="{ row }">{{ formatDateTimeDisplay(row.last_run_at) }}</template>
       </el-table-column>
+      <el-table-column :label="t('schedule.last_duration')" width="100" align="right">
+        <template #default="{ row }">{{ formatDuration(row.last_duration_ms) }}</template>
+      </el-table-column>
       <el-table-column :label="t('schedule.flexible_next_runs')" min-width="170">
         <template #default="{ row }">
           <div v-if="row.next_runs?.length" class="muted">
@@ -66,7 +52,7 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column :label="t('common.operation')" width="220" fixed="right" align="center">
+      <el-table-column :label="t('common.operation')" width="240" fixed="right" align="center">
         <template #default="{ row }">
           <el-button
             type="primary"
@@ -86,42 +72,36 @@
             {{ t('schedule.run_now') }}
           </el-button>
           <el-button
-            type="danger"
             link
-            :disabled="getButtonState('flexible_schedule.delete').disabled"
-            @click="onDelete(row)"
+            :disabled="!row.last_status || row.last_status === 'never'"
+            @click="openResult(row)"
           >
-            {{ t('common.delete') }}
+            {{ t('schedule.view_result') }}
           </el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="formVisible" :title="editing ? t('common.edit') : t('common.add')" width="560px">
-      <el-form :model="form" label-width="110px">
-        <el-form-item :label="t('schedule.flexible_name')" required>
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item :label="t('schedule.flexible_handler')" required>
-          <el-select v-model="form.handler" style="width: 100%">
-            <el-option
-              v-for="h in handlers"
-              :key="h.key"
-              :label="`${h.name} (${h.key})`"
-              :value="h.key"
-            />
-          </el-select>
-        </el-form-item>
+    <el-dialog v-model="formVisible" :title="t('common.edit')" width="520px">
+      <el-form :model="form" label-width="100px">
         <el-form-item :label="t('schedule.cron')" required>
-          <el-input v-model="form.cron_expr" placeholder="0 20 * * *" />
+          <el-input v-model="form.cron_expr" placeholder="*/5 * * * *" />
           <div class="muted">{{ t('schedule.flexible_cron_tip') }}</div>
         </el-form-item>
         <el-form-item :label="t('schedule.flexible_timezone')" required>
-          <el-input v-model="form.timezone" placeholder="UTC" />
-        </el-form-item>
-        <el-form-item :label="t('schedule.flexible_tenant')">
-          <el-input-number v-model="form.tenant_id" :min="0" style="width: 100%" />
-          <div class="muted">{{ t('schedule.flexible_tenant_tip') }}</div>
+          <el-select
+            v-model="form.timezone"
+            filterable
+            style="width: 100%"
+            :placeholder="DEFAULT_TIMEZONE"
+          >
+            <el-option
+              v-for="opt in timezoneOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="t('common.status')">
           <el-switch v-model="form.enabled" />
@@ -140,17 +120,45 @@
         <el-button type="primary" :loading="saving" @click="onSave">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="resultVisible" :title="t('schedule.result_title')" width="720px">
+      <el-descriptions :column="1" border>
+        <el-descriptions-item :label="t('schedule.flexible_name')">
+          {{ resultData.name || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('schedule.flexible_handler')">
+          {{ resultData.handler_name || resultData.handler || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('schedule.last_status')">
+          <el-tag :type="statusTagType(resultData.last_status)" size="small">
+            {{ statusLabel(resultData.last_status) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('schedule.last_run_at')">
+          {{ resultData.last_run_at || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('schedule.last_duration')">
+          {{ formatDuration(resultData.last_duration_ms) }}
+        </el-descriptions-item>
+        <el-descriptions-item v-if="resultData.last_error" :label="t('schedule.error')">
+          <pre class="schedule-result-pre schedule-result-pre--error">{{ resultData.last_error }}</pre>
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('schedule.output')">
+          <pre class="schedule-result-pre">{{ resultData.last_output || t('schedule.output_empty') }}</pre>
+        </el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button type="primary" @click="resultVisible = false">{{ t('common.close') }}</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import {
-  createFlexibleSchedule,
-  deleteFlexibleSchedule,
-  getFlexibleScheduleHandlers,
   getFlexibleScheduleList,
   previewFlexibleSchedule,
   runFlexibleSchedule,
@@ -160,6 +168,7 @@ import { usePermission } from '@/composables/usePermission'
 import { describeCron } from '@/utils/cronLabel'
 import { formatDateTimeDisplay } from '@/utils/dateUtils'
 import { logger } from '@/utils/logger'
+import { DEFAULT_TIMEZONE, timezoneSelectOptions } from '@/utils/timezoneOptions'
 
 const { t } = useI18n()
 const { getButtonState } = usePermission()
@@ -167,19 +176,27 @@ const { getButtonState } = usePermission()
 const loading = ref(false)
 const saving = ref(false)
 const rows = ref([])
-const handlers = ref([])
 const runningId = ref(null)
 const formVisible = ref(false)
 const editing = ref(null)
 const previewRuns = ref([])
-const form = reactive({
+const resultVisible = ref(false)
+const resultData = reactive({
   name: '',
-  handler: 'schedule_test_log',
+  handler: '',
+  handler_name: '',
+  last_status: '',
+  last_run_at: '',
+  last_duration_ms: undefined,
+  last_error: '',
+  last_output: '',
+})
+const form = reactive({
   cron_expr: '*/5 * * * *',
-  timezone: 'UTC',
-  tenant_id: 0,
+  timezone: DEFAULT_TIMEZONE,
   enabled: true,
 })
+const timezoneOptions = computed(() => timezoneSelectOptions(form.timezone))
 
 function statusLabel(status) {
   if (status === 'success') return t('schedule.status_success')
@@ -195,15 +212,29 @@ function statusTagType(status) {
   return 'info'
 }
 
+function formatDuration(ms) {
+  if (ms === undefined || ms === null || ms === '') return '-'
+  if (ms < 1000) return `${ms} ms`
+  return `${(ms / 1000).toFixed(2)} s`
+}
+
+function openResult(row = {}) {
+  resultData.name = row.name || ''
+  resultData.handler = row.handler || ''
+  resultData.handler_name = row.handler_name || ''
+  resultData.last_status = row.last_status || ''
+  resultData.last_run_at = row.last_run_at || ''
+  resultData.last_duration_ms = row.last_duration_ms
+  resultData.last_error = row.last_error || ''
+  resultData.last_output = row.last_output || ''
+  resultVisible.value = true
+}
+
 async function loadData() {
   loading.value = true
   try {
-    const [listRes, handlerRes] = await Promise.all([
-      getFlexibleScheduleList(),
-      getFlexibleScheduleHandlers(),
-    ])
+    const listRes = await getFlexibleScheduleList()
     rows.value = listRes.data?.list || []
-    handlers.value = handlerRes.data?.list || []
   } catch (error) {
     logger.error('Failed to load flexible schedules:', error)
   } finally {
@@ -211,28 +242,11 @@ async function loadData() {
   }
 }
 
-function openCreate() {
-  editing.value = null
-  Object.assign(form, {
-    name: '',
-    handler: handlers.value[0]?.key || 'schedule_test_log',
-    cron_expr: '*/5 * * * *',
-    timezone: 'UTC',
-    tenant_id: 0,
-    enabled: true,
-  })
-  previewRuns.value = []
-  formVisible.value = true
-}
-
 function openEdit(row) {
   editing.value = row
   Object.assign(form, {
-    name: row.name,
-    handler: row.handler,
     cron_expr: row.cron_expr,
-    timezone: row.timezone || 'UTC',
-    tenant_id: row.tenant_id || 0,
+    timezone: row.timezone || DEFAULT_TIMEZONE,
     enabled: !!row.enabled,
   })
   previewRuns.value = row.next_runs || []
@@ -243,7 +257,7 @@ async function onPreview() {
   try {
     const res = await previewFlexibleSchedule({
       cron_expr: form.cron_expr,
-      timezone: form.timezone || 'UTC',
+      timezone: form.timezone || DEFAULT_TIMEZONE,
       count: 5,
     })
     previewRuns.value = res.data?.next_runs || []
@@ -253,23 +267,15 @@ async function onPreview() {
 }
 
 async function onSave() {
+  if (!editing.value) return
   saving.value = true
   try {
-    const payload = {
-      name: form.name,
-      handler: form.handler,
+    await updateFlexibleSchedule(editing.value.id, {
       cron_expr: form.cron_expr,
-      timezone: form.timezone || 'UTC',
-      tenant_id: Number(form.tenant_id) || 0,
+      timezone: form.timezone || DEFAULT_TIMEZONE,
       enabled: !!form.enabled,
-    }
-    if (editing.value) {
-      await updateFlexibleSchedule(editing.value.id, payload)
-      ElMessage.success(t('common.update_success'))
-    } else {
-      await createFlexibleSchedule(payload)
-      ElMessage.success(t('common.create_success'))
-    }
+    })
+    ElMessage.success(t('common.update_success'))
     formVisible.value = false
     await loadData()
   } catch (error) {
@@ -311,29 +317,11 @@ async function onRun(row) {
       ElMessage.success(t('schedule.run_success'))
     }
     await loadData()
+    if (updated) openResult(updated)
   } catch (error) {
     logger.error('run failed', error)
   } finally {
     runningId.value = null
-  }
-}
-
-async function onDelete(row) {
-  try {
-    await ElMessageBox.confirm(
-      t('schedule.flexible_delete_confirm', { name: row.name || row.handler }),
-      t('common.delete'),
-      { type: 'warning' },
-    )
-  } catch {
-    return
-  }
-  try {
-    await deleteFlexibleSchedule(row.id)
-    ElMessage.success(t('common.delete_success'))
-    await loadData()
-  } catch (error) {
-    logger.error('delete failed', error)
   }
 }
 
@@ -348,21 +336,30 @@ onMounted(loadData)
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
 }
 .flexible-card__title {
   margin: 0;
   font-size: 16px;
+  font-weight: 600;
 }
-.flexible-card__hint,
 .muted {
-  margin: 4px 0 0;
-  color: var(--text-color-secondary, var(--el-text-color-secondary));
+  color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.4;
 }
-.flexible-card__actions {
-  display: flex;
-  gap: 8px;
+.schedule-result-pre {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.6;
+  font-family: Consolas, 'Courier New', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+}
+.schedule-result-pre--error {
+  max-height: 160px;
+  color: var(--el-color-danger);
 }
 </style>

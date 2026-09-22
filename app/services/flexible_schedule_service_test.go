@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"goravel/app/models"
 )
 
 func TestDailyAtToCron(t *testing.T) {
@@ -57,3 +59,24 @@ func TestTruncateFlexibleOutput(t *testing.T) {
 	assert.True(t, utf8.ValidString(out))
 	assert.LessOrEqual(t, len(out), 7)
 }
+
+func TestNormalizeFlexiblePayload(t *testing.T) {
+	got, err := normalizeFlexiblePayload("")
+	require.NoError(t, err)
+	assert.Equal(t, "{}", got)
+
+	got, err = normalizeFlexiblePayload(`{"keep":2}`)
+	require.NoError(t, err)
+	assert.Equal(t, `{"keep":2}`, got)
+
+	_, err = normalizeFlexiblePayload(`[]`)
+	require.Error(t, err)
+}
+
+func TestFlexiblePayloadMap(t *testing.T) {
+	row := &models.FlexibleSchedule{Payload: `{"a":1}`}
+	m := FlexiblePayloadMap(row)
+	assert.EqualValues(t, 1, m["a"])
+	assert.Empty(t, FlexiblePayloadMap(nil))
+}
+

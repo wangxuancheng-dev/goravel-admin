@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -47,12 +48,13 @@ func (c *FlexibleScheduleController) Index(ctx http.Context) http.Response {
 }
 
 type flexibleScheduleBody struct {
-	Name     string `json:"name" form:"name"`
-	Handler  string `json:"handler" form:"handler"`
-	CronExpr string `json:"cron_expr" form:"cron_expr"`
-	Timezone string `json:"timezone" form:"timezone"`
-	TenantID *uint  `json:"tenant_id" form:"tenant_id"`
-	Enabled  *bool  `json:"enabled" form:"enabled"`
+	Name     string          `json:"name" form:"name"`
+	Handler  string          `json:"handler" form:"handler"`
+	CronExpr string          `json:"cron_expr" form:"cron_expr"`
+	Timezone string          `json:"timezone" form:"timezone"`
+	TenantID *uint           `json:"tenant_id" form:"tenant_id"`
+	Payload  json.RawMessage `json:"payload"`
+	Enabled  *bool           `json:"enabled" form:"enabled"`
 }
 
 func (c *FlexibleScheduleController) Store(ctx http.Context) http.Response {
@@ -69,6 +71,10 @@ func (c *FlexibleScheduleController) Store(ctx http.Context) http.Response {
 	}
 	if body.TenantID != nil {
 		in.TenantID = *body.TenantID
+	}
+	if len(body.Payload) > 0 {
+		s := string(body.Payload)
+		in.Payload = &s
 	}
 	row, err := c.svc(ctx).Create(in)
 	if err != nil {
@@ -98,6 +104,10 @@ func (c *FlexibleScheduleController) Update(ctx http.Context) http.Response {
 	setTenant := body.TenantID != nil
 	if setTenant {
 		in.TenantID = *body.TenantID
+	}
+	if len(body.Payload) > 0 {
+		s := string(body.Payload)
+		in.Payload = &s
 	}
 	row, err := c.svc(ctx).Update(id, in, setTenant)
 	if err != nil {

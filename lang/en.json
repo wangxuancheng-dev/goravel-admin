@@ -386,6 +386,7 @@
     "flexible_schedule_handler_invalid": "Unsupported schedule handler",
     "flexible_schedule_timezone_invalid": "Invalid timezone",
     "flexible_schedule_tenant_invalid": "Invalid tenant",
-    "flexible_schedule_disabled": "This configurable schedule is disabled"
+    "flexible_schedule_disabled": "This configurable schedule is disabled",
+    "flexible_schedule_mutation_forbidden": "Cannot add or delete configurable schedules"
   }
 }

@@ -1503,7 +1503,6 @@
     "status_failed": "失败",
     "status_never": "未执行",
     "flexible_title": "可配置定时任务",
-    "flexible_hint": "白名单处理器 + 可编辑 Cron（5 段）。每分钟由 flexible-schedule:tick 评估；租户备份请同时开启 TENANT_BACKUP_SCHEDULE_ENABLED。",
     "flexible_name": "名称",
     "flexible_handler": "处理器",
     "flexible_timezone": "时区",
@@ -1515,7 +1514,8 @@
     "flexible_next_runs": "下次执行",
     "flexible_run_confirm": "确定立即执行「{{name}}」吗？",
     "flexible_delete_confirm": "确定删除「{{name}}」吗？",
-    "flexible_status_skipped": "跳过"
+    "flexible_status_skipped": "跳过",
+    "flexible_skip_hint": "跳过通常表示未开启 TENANT_BACKUP_SCHEDULE_ENABLED，或未启用多租户；点「查看结果」可见原因。"
   },
   "log": {
     "time_range_exceeded": "查询时间范围不能超过{months}个月",

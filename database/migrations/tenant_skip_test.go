@@ -18,6 +18,9 @@ func TestIsLandlordOnlyMigration(t *testing.T) {
 	if !IsLandlordOnlyMigration("20260921120000_create_flexible_schedules_table") {
 		t.Fatal("flexible_schedules should be landlord-only")
 	}
+	if !IsLandlordOnlyMigration("20260922160000_flexible_schedules_payload_unique") {
+		t.Fatal("flexible_schedules payload unique should be landlord-only")
+	}
 	if IsLandlordOnlyMigration("20250101000002_create_admins_table") {
 		t.Fatal("admins should run on tenant DBs")
 	}

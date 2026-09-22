@@ -25,6 +25,7 @@ func (m *M20260921120000CreateFlexibleSchedulesTable) Up() error {
 		table.String("cron_expr", 64)
 		table.String("timezone", 64).Default("UTC")
 		table.UnsignedBigInteger("tenant_id").Default(0)
+		table.Text("payload").Nullable().Comment("handler options JSON object")
 		table.Boolean("enabled").Default(true)
 		table.Timestamp("last_run_at").Nullable()
 		table.String("last_status", 16).Default("never")

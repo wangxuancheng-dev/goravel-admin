@@ -383,7 +383,8 @@
     "flexible_schedule_handler_invalid": "不支持的任务处理器",
     "flexible_schedule_timezone_invalid": "时区无效",
     "flexible_schedule_tenant_invalid": "租户无效",
-    "flexible_schedule_disabled": "该可配置定时任务已禁用"
+    "flexible_schedule_disabled": "该可配置定时任务已禁用",
+    "flexible_schedule_mutation_forbidden": "不可添加或删除可配置定时任务"
   },
   "tenant_storage_not_configured": "租户自定义对象存储未配置完整",
   "tenant_storage_secret_corrupt": "租户对象存储密钥密文无效，请重新设置",

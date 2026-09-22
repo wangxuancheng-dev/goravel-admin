@@ -29,9 +29,9 @@ func init() {
 		"postgres_sslmode": config.Env("TENANCY_POSTGRES_SSLMODE", ""),
 		// tenant:backup keep count (0 = never prune)
 		"backup_keep": config.Env("TENANT_BACKUP_KEEP", 10),
-		// When true, flexible_schedules handler tenant_backup actually runs backups
+		// When true, tenant:backup-scheduled (kernel DailyAt) actually runs backups
 		"backup_schedule_enabled": config.Env("TENANT_BACKUP_SCHEDULE_ENABLED", false),
-		// Used only to seed default flexible_schedules cron (HH:MM UTC) when table is empty
+		// UTC HH:MM for tenant:backup-scheduled DailyAt
 		"backup_schedule_at": config.Env("TENANT_BACKUP_SCHEDULE_AT", "20:00"),
 		// Soft-deleted tenant retention days before tenant:cleanup-deleted hard-deletes (0=never auto)
 		"deleted_retention_days": config.Env("TENANCY_DELETED_RETENTION_DAYS", 30),

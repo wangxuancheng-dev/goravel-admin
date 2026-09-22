@@ -2,37 +2,7 @@ import { Select } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/stores/app'
-
-// Preset timezones covering every whole-hour offset (UTC-12 ~ UTC+14)
-const PRESET_TIMEZONES: Array<{ value: string; label: string }> = [
-  { value: 'Etc/GMT+12', label: 'UTC-12:00 (Etc/GMT+12)' },
-  { value: 'Pacific/Pago_Pago', label: 'UTC-11:00 (Pacific/Pago_Pago)' },
-  { value: 'Pacific/Honolulu', label: 'UTC-10:00 (Pacific/Honolulu)' },
-  { value: 'America/Anchorage', label: 'UTC-09:00 (America/Anchorage)' },
-  { value: 'America/Los_Angeles', label: 'UTC-08:00 (America/Los_Angeles)' },
-  { value: 'America/Denver', label: 'UTC-07:00 (America/Denver)' },
-  { value: 'America/Chicago', label: 'UTC-06:00 (America/Chicago)' },
-  { value: 'America/New_York', label: 'UTC-05:00 (America/New_York)' },
-  { value: 'America/Halifax', label: 'UTC-04:00 (America/Halifax)' },
-  { value: 'America/Argentina/Buenos_Aires', label: 'UTC-03:00 (America/Argentina/Buenos_Aires)' },
-  { value: 'Etc/GMT+2', label: 'UTC-02:00 (Etc/GMT+2)' },
-  { value: 'Atlantic/Azores', label: 'UTC-01:00 (Atlantic/Azores)' },
-  { value: 'UTC', label: 'UTC+00:00 (UTC)' },
-  { value: 'Europe/Berlin', label: 'UTC+01:00 (Europe/Berlin)' },
-  { value: 'Europe/Athens', label: 'UTC+02:00 (Europe/Athens)' },
-  { value: 'Europe/Moscow', label: 'UTC+03:00 (Europe/Moscow)' },
-  { value: 'Asia/Dubai', label: 'UTC+04:00 (Asia/Dubai)' },
-  { value: 'Asia/Karachi', label: 'UTC+05:00 (Asia/Karachi)' },
-  { value: 'Asia/Dhaka', label: 'UTC+06:00 (Asia/Dhaka)' },
-  { value: 'Asia/Bangkok', label: 'UTC+07:00 (Asia/Bangkok)' },
-  { value: 'Asia/Shanghai', label: 'UTC+08:00 (Asia/Shanghai)' },
-  { value: 'Asia/Tokyo', label: 'UTC+09:00 (Asia/Tokyo)' },
-  { value: 'Australia/Sydney', label: 'UTC+10:00 (Australia/Sydney)' },
-  { value: 'Pacific/Noumea', label: 'UTC+11:00 (Pacific/Noumea)' },
-  { value: 'Pacific/Auckland', label: 'UTC+12:00 (Pacific/Auckland)' },
-  { value: 'Pacific/Enderbury', label: 'UTC+13:00 (Pacific/Enderbury)' },
-  { value: 'Pacific/Kiritimati', label: 'UTC+14:00 (Pacific/Kiritimati)' },
-]
+import { PRESET_TIMEZONES } from '@/utils/timezoneOptions'
 
 function parseOffsetMinutes(label: string): number {
   const match = label.match(/^UTC([+-])(\d{2}):(\d{2})/)

@@ -107,6 +107,8 @@ POST /api/schedule-demo/orders/expire?seconds=60
 |------|------|
 | 表 | 房东库 `flexible_schedules`（landlord-only 迁移） |
 | API | `/api/admin/flexible-schedules` |
-| 处理器 | 代码白名单：`tenant_backup`、`schedule_test_log`（可在 `flexible_schedule_service.go` 扩展） |
-| 备份 | 默认种子一行；须 `TENANT_BACKUP_SCHEDULE_ENABLED=true`；`TENANT_BACKUP_SCHEDULE_AT` 仅用于首次种子默认表达式 |
+| 处理器 | 代码白名单：`schedule_test_log`（`ListFlexibleHandlers` + `flexibleHandlerRegistry`） |
+| 作用域 | 按当前租户 `tenant_id` 隔离；唯一索引 `(handler, tenant_id)` |
+| 参数 | 可选 `payload` JSON；种子可用 `DefaultPayload` |
+| 租户备份 | 不在此列表；kernel `tenant:backup-scheduled` + `TENANT_BACKUP_SCHEDULE_ENABLED` / `TENANT_BACKUP_SCHEDULE_AT`（UTC） |
 | 权限 | 重新执行 PermissionSeeder，并把新 slug 赋给角色 |

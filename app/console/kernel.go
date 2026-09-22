@@ -1,8 +1,11 @@
 package console
 
 import (
+	"strings"
+
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/schedule"
+	"github.com/goravel/framework/facades"
 
 	"goravel/app/console/commands"
 )
@@ -28,8 +31,8 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		ScheduleTracked("queue:alert-backlog").Hourly().OnOneServer(),
 		// Beijing 04:00 = UTC 20:00: hard-delete expired soft-deleted tenants
 		ScheduleTracked("tenant:cleanup-deleted").DailyAt("20:00").OnOneServer(),
-		// Tenant backup cadence moved to landlord flexible_schedules (admin UI cron);
-		// tenant:backup-scheduled remains for manual artisan use.
+		// Landlord backup: env gate inside command; time from TENANT_BACKUP_SCHEDULE_AT (UTC)
+		ScheduleTracked("tenant:backup-scheduled").DailyAt(tenantBackupScheduleAtUTC()).OnOneServer(),
 		// Tenant health: ping / schema / quota / migrate fail → webhook/email
 		ScheduleTracked("tenant:health-inspect").Hourly().OnOneServer(),
 		// Open-source demos: activity windows + unpaid order expire safety net
@@ -38,6 +41,18 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		// Whitelist handler + DB cron rows (see flexible_schedules)
 		ScheduleTracked("flexible-schedule:tick").EveryMinute().OnOneServer().SkipIfStillRunning(),
 	}
+}
+
+func tenantBackupScheduleAtUTC() string {
+	at := strings.TrimSpace(facades.Config().GetString("tenancy.backup_schedule_at", "20:00"))
+	if at == "" {
+		return "20:00"
+	}
+	parts := strings.Split(at, ":")
+	if len(parts) != 2 {
+		return "20:00"
+	}
+	return at
 }
 
 func (kernel *Kernel) Commands() []console.Command {

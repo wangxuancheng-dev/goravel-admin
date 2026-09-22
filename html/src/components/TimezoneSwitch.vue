@@ -25,121 +25,24 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import { useAppStore } from '../store/app'
+import { timezoneSelectOptions } from '@/utils/timezoneOptions'
 
 const appStore = useAppStore()
 const timezoneSelectRef = ref(null)
 
-// 预设覆盖每个整点时区（UTC-12 ~ UTC+14）
-const presetTimezones = [
-  { value: 'Etc/GMT+12', offset: '-12:00', label: 'UTC-12:00 (Etc/GMT+12)' },
-  { value: 'Pacific/Pago_Pago', offset: '-11:00', label: 'UTC-11:00 (Pacific/Pago_Pago)' },
-  { value: 'Pacific/Honolulu', offset: '-10:00', label: 'UTC-10:00 (Pacific/Honolulu)' },
-  { value: 'America/Anchorage', offset: '-09:00', label: 'UTC-09:00 (America/Anchorage)' },
-  { value: 'America/Los_Angeles', offset: '-08:00', label: 'UTC-08:00 (America/Los_Angeles)' },
-  { value: 'America/Denver', offset: '-07:00', label: 'UTC-07:00 (America/Denver)' },
-  { value: 'America/Chicago', offset: '-06:00', label: 'UTC-06:00 (America/Chicago)' },
-  { value: 'America/New_York', offset: '-05:00', label: 'UTC-05:00 (America/New_York)' },
-  { value: 'America/Halifax', offset: '-04:00', label: 'UTC-04:00 (America/Halifax)' },
-  { value: 'America/Argentina/Buenos_Aires', offset: '-03:00', label: 'UTC-03:00 (America/Argentina/Buenos_Aires)' },
-  { value: 'Etc/GMT+2', offset: '-02:00', label: 'UTC-02:00 (Etc/GMT+2)' },
-  { value: 'Atlantic/Azores', offset: '-01:00', label: 'UTC-01:00 (Atlantic/Azores)' },
-  { value: 'UTC', offset: '+00:00', label: 'UTC+00:00 (UTC)' },
-  { value: 'Europe/Berlin', offset: '+01:00', label: 'UTC+01:00 (Europe/Berlin)' },
-  { value: 'Europe/Athens', offset: '+02:00', label: 'UTC+02:00 (Europe/Athens)' },
-  { value: 'Europe/Moscow', offset: '+03:00', label: 'UTC+03:00 (Europe/Moscow)' },
-  { value: 'Asia/Dubai', offset: '+04:00', label: 'UTC+04:00 (Asia/Dubai)' },
-  { value: 'Asia/Karachi', offset: '+05:00', label: 'UTC+05:00 (Asia/Karachi)' },
-  { value: 'Asia/Dhaka', offset: '+06:00', label: 'UTC+06:00 (Asia/Dhaka)' },
-  { value: 'Asia/Bangkok', offset: '+07:00', label: 'UTC+07:00 (Asia/Bangkok)' },
-  { value: 'Asia/Shanghai', offset: '+08:00', label: 'UTC+08:00 (Asia/Shanghai)' },
-  { value: 'Asia/Tokyo', offset: '+09:00', label: 'UTC+09:00 (Asia/Tokyo)' },
-  { value: 'Australia/Sydney', offset: '+10:00', label: 'UTC+10:00 (Australia/Sydney)' },
-  { value: 'Pacific/Noumea', offset: '+11:00', label: 'UTC+11:00 (Pacific/Noumea)' },
-  { value: 'Pacific/Auckland', offset: '+12:00', label: 'UTC+12:00 (Pacific/Auckland)' },
-  { value: 'Pacific/Enderbury', offset: '+13:00', label: 'UTC+13:00 (Pacific/Enderbury)' },
-  { value: 'Pacific/Kiritimati', offset: '+14:00', label: 'UTC+14:00 (Pacific/Kiritimati)' }
-]
-
-const timezoneMap = reactive(new Map(presetTimezones.map(item => [item.value, item.label])))
-
-const parseOffsetMinutes = (label) => {
-  if (!label) return Number.POSITIVE_INFINITY
-  const match = label.match(/^UTC([+-])(\d{2}):(\d{2})/)
-  if (!match) return Number.POSITIVE_INFINITY
-  const sign = match[1] === '-' ? -1 : 1
-  const hours = Number.parseInt(match[2], 10)
-  const minutes = Number.parseInt(match[3], 10)
-  return sign * (hours * 60 + minutes)
-}
-
-const formatOffsetLabel = (tz) => {
-  if (!tz) {
-    return ''
-  }
-
-  if (timezoneMap.has(tz)) {
-    return timezoneMap.get(tz)
-  }
-
-  try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      timeZoneName: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-    const parts = formatter.formatToParts(new Date())
-    const tzName = parts.find(part => part.type === 'timeZoneName')?.value || ''
-    const match = tzName.match(/([+-]\d{1,2})(?::(\d{2}))?/)
-    if (match) {
-      const sign = match[1].startsWith('-') ? '-' : '+'
-      const hours = Math.abs(parseInt(match[1], 10)).toString().padStart(2, '0')
-      const minutes = (match[2] || '00').padStart(2, '0')
-      return `UTC${sign}${hours}:${minutes} (${tz})`
-    }
-  } catch {
-    // ignore errors and fall back to raw name
-  }
-
-  return tz
-}
-
-const ensureTimezoneIncluded = (tz) => {
-  if (!tz) {
-    return
-  }
-  if (!timezoneMap.has(tz)) {
-    timezoneMap.set(tz, formatOffsetLabel(tz))
-  }
-}
-
-ensureTimezoneIncluded(appStore.timezone)
-
-const timezoneOptions = computed(() => {
-  return Array.from(timezoneMap.entries())
-    .map(([value, label]) => ({ value, label }))
-    .sort((a, b) => {
-      const offsetDiff = parseOffsetMinutes(a.label) - parseOffsetMinutes(b.label)
-      if (offsetDiff !== 0) return offsetDiff
-      return a.label.localeCompare(b.label)
-    })
-})
+const timezoneOptions = computed(() => timezoneSelectOptions(appStore.timezone))
 
 const selectedTimezone = computed({
   get: () => appStore.timezone,
-  set: (val) => {
-    ensureTimezoneIncluded(val)
-    appStore.setTimezone(val)
-  }
+  set: (val) => appStore.setTimezone(val),
 })
 
 const applyInputAntiAutofill = () => {
   const inputEl = timezoneSelectRef.value?.$el?.querySelector?.('input.el-select__input')
   if (!inputEl) return
 
-  // 防止浏览器/密码管理器将时区输入误识别为账号密码框
   inputEl.setAttribute('autocomplete', 'off')
   inputEl.setAttribute('autocorrect', 'off')
   inputEl.setAttribute('autocapitalize', 'off')
@@ -149,7 +52,6 @@ const applyInputAntiAutofill = () => {
   inputEl.setAttribute('data-1p-ignore', 'true')
   inputEl.setAttribute('name', 'timezone-filter-input')
 
-  // 某些浏览器首次聚焦仍会触发自动填充，临时 readonly 可进一步规避
   inputEl.setAttribute('readonly', 'readonly')
   const unlockReadonly = () => {
     inputEl.removeAttribute('readonly')
@@ -202,7 +104,6 @@ onMounted(() => {
 </style>
 
 <style>
-/* 时区下拉：与布局/账号等弹层统一质感 */
 .el-popper.timezone-select-popper {
   border-radius: 12px !important;
   border: 1px solid color-mix(in srgb, var(--border-color-light) 70%, transparent) !important;
@@ -268,5 +169,3 @@ html.dark .el-popper.timezone-select-popper .el-select-dropdown__item.is-selecte
   background: color-mix(in srgb, var(--el-color-primary) 22%, rgba(255, 255, 255, 0.06)) !important;
 }
 </style>
-
-

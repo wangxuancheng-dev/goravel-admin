@@ -1494,7 +1494,6 @@
     "status_failed": "Failed",
     "status_never": "Never",
     "flexible_title": "Configurable schedules",
-    "flexible_hint": "Whitelist handlers + editable 5-field cron. Evaluated every minute by flexible-schedule:tick. Tenant backup also needs TENANT_BACKUP_SCHEDULE_ENABLED.",
     "flexible_name": "Name",
     "flexible_handler": "Handler",
     "flexible_timezone": "Timezone",
@@ -1506,7 +1505,8 @@
     "flexible_next_runs": "Next runs",
     "flexible_run_confirm": "Run \"{{name}}\" now?",
     "flexible_delete_confirm": "Delete \"{{name}}\"?",
-    "flexible_status_skipped": "Skipped"
+    "flexible_status_skipped": "Skipped",
+    "flexible_skip_hint": "Skipped usually means TENANT_BACKUP_SCHEDULE_ENABLED is off or tenancy is disabled; open View result for details."
   },
   "log": {
     "time_range_exceeded": "Query time range cannot exceed {months} months",

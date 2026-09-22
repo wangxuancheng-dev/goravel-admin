@@ -117,6 +117,7 @@ var (
 	ErrFlexibleScheduleTimezoneInvalid = NewBusinessError("flexible_schedule_timezone_invalid", "时区无效")
 	ErrFlexibleScheduleTenantInvalid   = NewBusinessError("flexible_schedule_tenant_invalid", "租户无效")
 	ErrFlexibleScheduleDisabled        = NewBusinessError("flexible_schedule_disabled", "该可配置定时任务已禁用")
+	ErrFlexibleScheduleMutationForbidden = NewBusinessError("flexible_schedule_mutation_forbidden", "Cannot add or delete configurable schedules")
 	ErrOldPasswordError                = NewBusinessError("old_password_error", "旧密码错误")
 	ErrPasswordTooWeak                 = NewBusinessError("password_too_weak", "密码强度不足")
 	ErrMustChangePassword              = NewBusinessError("must_change_password", "请先修改密码后再继续操作")
