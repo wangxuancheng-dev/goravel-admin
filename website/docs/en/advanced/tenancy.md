@@ -212,15 +212,27 @@ Legacy Nginx Host rewrite to `{code}.apex` still works; prefer `tenant_domains` 
 
 ## Scale and recommended settings
 
-These are **starting points**, not hard quotas — tune from monitoring. With many tenants the first bottleneck is usually the **per-tenant DB pool**, not Redis. Redis is shared cluster-wide (cache keys use `tenancy.CacheKey` → `t{id}:` prefix); size the instance up first. Split cache vs queue (or Redis DB indexes) only if noisy-neighbor becomes real.
+These are **starting points**, not hard quotas — tune from monitoring. With many tenants the first bottleneck is usually the **per-tenant DB pool**, not Redis. Redis is shared cluster-wide (cache keys use `tenancy.CacheKey` → `t{id}:` prefix); size the instance up first. Split cache vs queue only if noisy-neighbor becomes real.
+
+### What defaults can hold
+
+"Active" means **recently trafficked tenants with a registered pool in-process**, not `COUNT(tenants)`.
+
+| Scenario | Guidance |
+|----------|----------|
+| **Stock pool + single host** | Comfortable for about **&lt; 50 active**; stretch **50–200** (tighten `OPEN` first) |
+| **Tuned pools + Redis queue + split API/Worker** | **Hundreds to ~1k active** |
+| **Plus `tenants.host` DB sharding + `queue-schedule` workers** | **A few thousand active** (this product's target band) |
+
+Defaults: `TENANCY_POOL_MAX_OPEN_CONNS=20`, `TENANCY_REGISTERED_MAX=0` (unlimited). **Do not ship stock defaults unchanged for thousands of merchants.**
 
 **Capacity formula (tenant DBs):**
 
-`registered tenant pools in process × TENANCY_POOL_MAX_OPEN_CONNS × API instances` ≪ DB `max_connections` (leave headroom for platform DB, backups, ops).
+`registered pools in process × TENANCY_POOL_MAX_OPEN_CONNS × API instances` ≪ DB `max_connections` (leave headroom for platform DB, backups, ops).
 
-"Registered pools" ≈ tenants with recent traffic that have not been Forgotten / idle-evicted — **not** the row count of `tenants`. Multiple `tenant_*` databases on one MySQL/PG host still share that host's connection limit.
+Multiple `tenant_*` databases on one MySQL/PG host still share that host's connection limit.
 
-Runtime dual-mode (small fleets keep one-shot behavior; large fleets tighten automatically):
+### Runtime dual-mode (small / large fleets)
 
 | Mechanism | Config | Small fleet | Large fleet |
 |-----------|--------|-------------|-------------|
@@ -228,15 +240,42 @@ Runtime dual-mode (small fleets keep one-shot behavior; large fleets tighten aut
 | Registry hard cap | `TENANCY_REGISTERED_MAX` (0=unlimited) | Optional | Prefer 300–500 |
 | Fleet command paging | `TENANCY_SCOPE_AUTO_BATCH_AT` (200) / `TENANCY_SCOPE_AUTO_BATCH` (100) | ≤200 tenants: one pass | Above threshold: page; minute jobs rotate a cursor |
 | Forced page size | `TENANCY_SCOPE_BATCH` | 0=auto | Force N per page |
-| Flexible schedules | `next_run_at` + tick fan-out + `schedule` queue (`QUEUE_SCHEDULE_CONCURRENT`) | Same minute match semantics | Tick enqueues only; workers run handlers in parallel |
+| Flexible schedules | `next_run_at` + tick fan-out + `schedule` queue (`QUEUE_SCHEDULE_CONCURRENT`) | Same minute match semantics | Tick **enqueues only**; workers run handlers in parallel |
+| Fleet backups | `tenant:backup-all` / `backup-scheduled` | Small fleets may enqueue all at once | Enqueue `long-running`; daily rotate `TENANT_BACKUP_SCHEDULE_BATCH` |
 
-| Active tenants (rule of thumb) | Tenant pool | Queue / processes | Redis |
-|--------------------------------|-------------|-------------------|-------|
-| &lt; 50 | Defaults `IDLE=2` / `OPEN=20` OK; low traffic can use `OPEN=10` | Worker may share the API host; `QUEUE_CONNECTION=redis` | Single or small managed Redis |
-| 50–200 | `IDLE=1–2`, `OPEN=3–5`; shorter idle/lifetime (e.g. 120 / 600) | Split **API vs Worker** roles (see [Production](/en/deploy/production) §4.1); keep `QUEUE_LONG_RUNNING_CONCURRENT` low and scale Worker nodes | Managed Redis; watch `used_memory` and queue backlog |
-| 200+ | Tighten `OPEN` further or raise `max_connections`; do not ship default 20 unchanged | Dedicated Workers for `default` + `long-running`; set `QUEUE_ALERT_BACKLOG_THRESHOLD` | Larger tier / Cluster; watch export/import noisy neighbors |
+### Active-tenant bands
 
-Example starting point (~100 active tenants, 2 API instances):
+| Active tenants | Tenant pool | Queue / processes | Redis |
+|----------------|-------------|-------------------|-------|
+| &lt; 50 | Defaults `IDLE=2` / `OPEN=20` OK; can use `OPEN=10` | Worker may share API host; `QUEUE_CONNECTION=redis` | Single or small managed Redis |
+| 50–200 | `IDLE=1–2`, `OPEN=3–5`; shorter idle/lifetime (e.g. 120 / 600) | Split **API vs Worker** (see [Production](/en/deploy/production)); keep `QUEUE_LONG_RUNNING_CONCURRENT` low | Managed Redis; watch `used_memory` and backlog |
+| 200–1000 | `OPEN=2–3`; optional `REGISTERED_MAX=300` | Dedicated Workers: `default` + `long-running` + **`schedule`** | Larger tier; watch export/import neighbors |
+| Few thousand | `OPEN=2`; `REGISTERED_MAX=300–500`; shard via `tenants.host` | Scale Workers horizontally; tune `QUEUE_SCHEDULE_CONCURRENT` | HA Redis; split cache/queue if needed |
+
+### Machine sizing and role layout (rule of thumb)
+
+Same binary; split roles with `APP_DISABLED_RUNNERS` (see [Production](/en/deploy/production)). vCPU/RAM are cloud-host ballparks — adjust for QPS, collection duration, and export load.
+
+| Active band | API | Queue Worker | Scheduler | Platform DB | Tenant DBs | Redis |
+|-------------|-----|--------------|-----------|-------------|------------|-------|
+| &lt; 50 | 1× 2vCPU 4GB (Worker may colocated) | Optional merge | Merged or 1 host | 1× small/mid | Same host multi-DB OK | 1× small |
+| 50–200 | 2× 2vCPU 4GB (HTTP only) | 1× 2vCPU 4GB | **Exactly 1** schedule host | 1× (raise `max_connections`) | Same host or start 1 tenant DB host | 1× managed |
+| 200–1000 | 2–4× API | 2+× Workers (include `schedule`) | 1 host | Dedicated platform DB | **Multiple** hosts via `tenants.host` | Mid/large HA |
+| Few thousand | 4+× API behind LB | 3+× Workers; tune `QUEUE_SCHEDULE_CONCURRENT` | 1 host | Dedicated + backups | Many tenant DB hosts | HA; split if noisy |
+
+**Roles:**
+
+| Role | `APP_DISABLED_RUNNERS` | Queue runners needed |
+|------|-------------------------|----------------------|
+| API | `queue-*` | None (Dispatch only) |
+| Worker | empty | `queue-default`, `queue-long-running`, **`queue-schedule`**, optional `queue-search` |
+| Scheduler | may disable `queue-*` | Only `goravel:schedule`; **one host cluster-wide** |
+
+Minute-collection throughput ≈ `QUEUE_SCHEDULE_CONCURRENT × Worker hosts`. Example: 3000 tenants/min at 5s each needs ~**250** concurrent slots (or lower frequency).
+
+### Example configs
+
+~100 active tenants, 2 API instances:
 
 ```ini
 TENANCY_POOL_MAX_IDLE_CONNS=1
@@ -244,19 +283,34 @@ TENANCY_POOL_MAX_OPEN_CONNS=5
 TENANCY_POOL_CONN_MAX_IDLETIME=120
 TENANCY_POOL_CONN_MAX_LIFETIME=600
 TENANCY_REGISTERED_IDLE_TTL=900
-# TENANCY_REGISTERED_MAX=300   # enable around 1k+ active
 
 CACHE_STORE=redis
 QUEUE_CONNECTION=redis
 QUEUE_CONCURRENT=2
 QUEUE_LONG_RUNNING_CONCURRENT=1
-# API nodes: APP_DISABLED_RUNNERS=queue-*
+QUEUE_SCHEDULE_CONCURRENT=5
+# API hosts: APP_DISABLED_RUNNERS=queue-*
 ```
 
-For a few thousand active tenants also prefer `OPEN=2`, `REGISTERED_MAX=300`, raise `SCOPE_AUTO_BATCH` if needed, and shard tenant DBs via `tenants.host`.
+Few-thousand active starting point:
 
-**Watch:** MySQL/PG `Threads_connected` (or equivalent), queue pending / `queue:alert-backlog`, Redis memory and connections. Near limits, lower `TENANCY_POOL_*` or scale the DB before blindly adding API replicas (replicas multiply connection usage).
+```ini
+TENANCY_POOL_MAX_IDLE_CONNS=1
+TENANCY_POOL_MAX_OPEN_CONNS=2
+TENANCY_REGISTERED_IDLE_TTL=900
+TENANCY_REGISTERED_MAX=400
+TENANCY_SCOPE_AUTO_BATCH_AT=200
+TENANCY_SCOPE_AUTO_BATCH=100
+TENANCY_FLEX_SCHEDULE_TICK_LIMIT=2000
+TENANCY_FLEX_SCHEDULE_QUEUE=schedule
+QUEUE_SCHEDULE_CONCURRENT=10
+TENANT_BACKUP_SCHEDULE_ENABLED=true
+TENANT_BACKUP_SCHEDULE_BATCH=100
+QUEUE_LONG_RUNNING_CONCURRENT=1
+# Set tenants.host when provisioning; API disables queue-*; Workers run queue-schedule
+```
 
+**Watch:** MySQL/PG `Threads_connected`, queue pending / `queue:alert-backlog`, `schedule` / `long-running` depth, Redis memory and connections. Near limits, lower `TENANCY_POOL_*` or scale DB/Workers **before** blindly adding API replicas (replicas multiply connection usage).
 
 ## Object storage and quotas
 

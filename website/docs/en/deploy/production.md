@@ -63,10 +63,12 @@ Ready failure webhook: `READY_ALERT_WEBHOOK_URL` (5 min debounce on `/ready` non
 
 Same binary and shared Redis/DB. Split roles via `.env` — do not run full HTTP + all queue runners on every node.
 
+Sizing by active-tenant band (API / Worker / DB hosts): [Tenancy · Scale](/en/advanced/tenancy#scale-and-recommended-settings).
+
 | Role | Purpose | `APP_DISABLED_RUNNERS` |
 |------|---------|--------------------------|
-| **API** | HTTP only; dispatch jobs | `queue-*` (disables `queue-default`, `queue-long-running`, `queue-search`) |
-| **Worker** | Consume queues | leave empty (do **not** disable `queue-*`) |
+| **API** | HTTP only; dispatch jobs | `queue-*` (disables all `queue-*` runners) |
+| **Worker** | Consume queues | leave empty (do **not** disable `queue-*`); needs **`queue-schedule`** for flexible cron |
 | **Schedule** | Optional | on API replicas add `goravel:schedule`; run schedule on **one** node only |
 
 **API node:**
@@ -85,6 +87,7 @@ CACHE_STORE=redis
 QUEUE_CONNECTION=redis
 QUEUE_CONCURRENT=2
 QUEUE_LONG_RUNNING_CONCURRENT=1
+QUEUE_SCHEDULE_CONCURRENT=10
 ```
 
 Use `queue-*` (hyphen), not `queue:*`. The latter is for production Artisan command filters, not queue runners. See Chinese [生产清单](/deploy/production) §4.1.
