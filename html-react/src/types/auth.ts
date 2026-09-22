@@ -89,6 +89,8 @@ export interface MenuNode {
   Type?: number
   status?: number
   Status?: number
+  open_type?: number
+  OpenType?: number
   link_type?: number
   LinkType?: number
   sort?: number

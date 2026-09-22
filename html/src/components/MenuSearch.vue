@@ -8,61 +8,63 @@
     :teleported="true"
   >
     <template #reference>
-      <el-button 
-        type="text" 
-        class="header-btn topbar-icon-btn" 
-        :title="$t('header.menu_search') || '搜索菜单'"
+      <el-button
+        type="text"
+        class="header-btn topbar-icon-btn menu-search-trigger"
+        :title="triggerTitle"
       >
         <el-icon class="header-icon-fixed topbar-icon"><Search /></el-icon>
+        <kbd class="menu-search-kbd">{{ shortcutLabel }}</kbd>
       </el-button>
     </template>
-      
+
       <div class="menu-search-content">
         <el-input
           v-model="searchKeyword"
-          :placeholder="$t('header.menu_search_placeholder') || '搜索菜单...'"
+          :placeholder="$t('header.menu_search_placeholder')"
           clearable
           @input="handleSearch"
           @keydown.enter="handleEnter"
           @keydown.down.prevent="handleArrowDown"
           @keydown.up.prevent="handleArrowUp"
+          @keydown.esc.stop="visible = false"
           ref="inputRef"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        
+
         <div class="menu-search-results" v-if="filteredMenus.length > 0">
           <div
             v-for="(menu, index) in filteredMenus"
-            :key="menu.id || index"
+            :key="menu.id || menu.ID || index"
             class="menu-search-item"
             :class="{ 'is-active': index === selectedIndex }"
             @click="handleMenuClick(menu)"
             @mouseenter="selectedIndex = index"
           >
-            <el-icon v-if="getIcon(menu.icon)" class="menu-item-icon">
-              <component :is="getIcon(menu.icon)" />
+            <el-icon v-if="getIcon(menu.icon || menu.Icon)" class="menu-item-icon">
+              <component :is="getIcon(menu.icon || menu.Icon)" />
             </el-icon>
             <span class="menu-item-title">{{ getMenuTitle(menu) }}</span>
-            <span v-if="menu.path" class="menu-item-path">{{ menu.path }}</span>
+            <span v-if="menu.path || menu.Path" class="menu-item-path">{{ menu.path || menu.Path }}</span>
           </div>
         </div>
-        
-        <div v-else-if="searchKeyword" class="menu-search-empty">
-          {{ $t('header.menu_search_no_results') || '未找到匹配的菜单' }}
-        </div>
-        
+
         <div v-else class="menu-search-empty">
-          {{ $t('header.menu_search_hint') || '输入关键词搜索菜单' }}
+          {{ searchKeyword ? $t('header.menu_search_no_results') : $t('header.menu_search_hint') }}
+        </div>
+
+        <div class="menu-search-footer">
+          {{ $t('header.menu_search_shortcut_hint', { shortcut: shortcutLabel }) }}
         </div>
       </div>
     </el-popover>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Search } from '@element-plus/icons-vue'
@@ -84,21 +86,47 @@ const searchKeyword = ref('')
 const selectedIndex = ref(-1)
 const inputRef = ref(null)
 
-// 扁平化菜单树，用于搜索
+const isApplePlatform = () => {
+  if (typeof navigator === 'undefined') return false
+  const platform = navigator.platform || ''
+  const ua = navigator.userAgent || ''
+  return /Mac|iPhone|iPad|iPod/i.test(platform) || /Mac OS X/i.test(ua)
+}
+
+const shortcutLabel = computed(() => (isApplePlatform() ? '\u2318K' : 'Ctrl+K'))
+const triggerTitle = computed(() => `${t('header.menu_search')} (${shortcutLabel.value})`)
+
+const onGlobalKeydown = (event) => {
+  const key = String(event.key || '').toLowerCase()
+  if (key === 'k' && (event.metaKey || event.ctrlKey) && !event.altKey) {
+    event.preventDefault()
+    visible.value = !visible.value
+    return
+  }
+  if (key === 'escape' && visible.value) {
+    visible.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onGlobalKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
+})
+
+// Flatten menu tree for search (type=2 leaf menus with path only).
 const flattenMenus = (menus, result = []) => {
-  menus.forEach(menu => {
-    // 获取菜单类型（1:目录 2:菜单 3:按钮）
+  menus.forEach((menu) => {
     const menuType = menu.type !== undefined ? menu.type : (menu.Type !== undefined ? menu.Type : 1)
-    
-    // 排除目录类型（type === 1）和按钮类型（type === 3）
-    // 只添加菜单类型（type === 2）且有路径的菜单项
-    if (menuType === 2 && menu.path && menu.path.trim() !== '') {
+    const path = (menu.path || menu.Path || '').trim()
+    if (menuType === 2 && path !== '') {
       result.push(menu)
     }
-    
-    // 递归处理子菜单
-    if (menu.children && menu.children.length > 0) {
-      flattenMenus(menu.children, result)
+    const children = menu.children || menu.Children
+    if (children && children.length > 0) {
+      flattenMenus(children, result)
     }
   })
   return result
@@ -112,19 +140,19 @@ const allMenus = computed(() => {
 // 过滤后的菜单
 const filteredMenus = computed(() => {
   if (!searchKeyword.value || searchKeyword.value.trim() === '') {
-    return []
+    return allMenus.value.slice(0, 10)
   }
-  
+
   const keyword = searchKeyword.value.toLowerCase().trim()
   return allMenus.value.filter(menu => {
     const title = getMenuTitle(menu).toLowerCase()
-    const path = (menu.path || '').toLowerCase()
+    const path = (menu.path || menu.Path || '').toLowerCase()
     const slug = ((menu.slug || menu.Slug) || '').toLowerCase()
-    
-    return title.includes(keyword) || 
-           path.includes(keyword) || 
+
+    return title.includes(keyword) ||
+           path.includes(keyword) ||
            slug.includes(keyword)
-  }).slice(0, 10) // 最多显示10个结果
+  }).slice(0, 10)
 })
 
 // 获取菜单标题
@@ -163,33 +191,29 @@ const handleMenuClick = (menu) => {
     return
   }
   
-  // 如果没有路径，不处理
-  if (!menu.path || menu.path.trim() === '') {
+  if (!menu.path && !menu.Path) {
     return
   }
-  
+  const path = (menu.path || menu.Path || '').trim()
+  if (!path) {
+    return
+  }
+
   const linkType = menu.link_type !== undefined ? menu.link_type : (menu.LinkType !== undefined ? menu.LinkType : 1)
   const openType = menu.open_type !== undefined ? menu.open_type : (menu.OpenType !== undefined ? menu.OpenType : 1)
-  
-  // 外部链接处理
+
   if (linkType === 2) {
-    // iframe 嵌套显示
     if (openType === 1) {
       const title = getMenuTitle(menu)
-      const iframePath = `/iframe?url=${encodeURIComponent(menu.path)}&title=${encodeURIComponent(title)}`
+      const iframePath = `/iframe?url=${encodeURIComponent(path)}&title=${encodeURIComponent(title)}`
       router.push(iframePath)
-    } 
-    // 新窗口打开
-    else if (openType === 2) {
-      window.open(menu.path, '_blank')
+    } else if (openType === 2) {
+      window.open(path, '_blank')
     }
-  } 
-  // 内部页面路由
-  else {
-    router.push(menu.path)
+  } else {
+    router.push(path)
   }
-  
-  // 关闭搜索框
+
   visible.value = false
   searchKeyword.value = ''
 }
@@ -264,6 +288,44 @@ watch(visible, (newVal) => {
   transform: scale(0.96);
 }
 
+.menu-search-trigger {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px !important;
+  margin-inline-end: 4px;
+  flex-shrink: 0;
+}
+
+.menu-search-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--el-border-color, #dcdfe6);
+  border-radius: 6px;
+  background: var(--el-fill-color-light, #f5f7fa);
+  color: var(--el-text-color-secondary, #909399);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .menu-search-kbd {
+    display: none;
+  }
+
+  .menu-search-trigger {
+    padding: 8px !important;
+    margin-inline-end: 0;
+  }
+}
+
 .menu-search-content {
   padding: 8px;
 }
@@ -324,6 +386,14 @@ watch(visible, (newVal) => {
   text-align: center;
   color: #909399;
   font-size: 14px;
+}
+
+.menu-search-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
 }
 </style>
 

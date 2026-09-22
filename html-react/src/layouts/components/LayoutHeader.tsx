@@ -24,6 +24,7 @@ import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import NotificationBell from '@/components/NotificationBell'
 import TimezoneSwitch from '@/components/TimezoneSwitch'
+import MenuSearch from '@/components/MenuSearch'
 import { getTenantCode, resolveEffectiveTenantCode, resolveTenantCodeFromLocation, buildAdminLoginPath } from '@/utils/tenant'
 import './LayoutHeader.scss'
 
@@ -178,6 +179,7 @@ export default function LayoutHeader({
         ) : null}
       </div>
       <Space size={4} className="layout-header__right" align="center">
+        {!isMobile ? <MenuSearch /> : null}
         {!isMobile ? (
           <button
             type="button"

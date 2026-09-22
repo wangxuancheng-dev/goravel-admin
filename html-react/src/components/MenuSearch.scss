@@ -1,0 +1,123 @@
+.menu-search-trigger {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto !important;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px !important;
+  margin-inline-end: 2px;
+  flex-shrink: 0;
+}
+
+.menu-search-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--app-border-subtle, #d9d9d9);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  color: inherit;
+  opacity: 0.72;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .menu-search-kbd {
+    display: none;
+  }
+
+  .menu-search-trigger {
+    width: 36px !important;
+    padding: 0 !important;
+  }
+}
+
+html.dark .menu-search-kbd {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.menu-search-modal .ant-modal-content {
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.menu-search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu-search-results {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.menu-search-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  transition: background-color 0.15s ease;
+}
+
+.menu-search-item:hover,
+.menu-search-item.is-active {
+  background: color-mix(in srgb, var(--ant-color-primary, #1677ff) 10%, transparent);
+}
+
+.menu-search-item__icon {
+  flex-shrink: 0;
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.75;
+}
+
+.menu-search-item__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.menu-search-item__path {
+  flex-shrink: 0;
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+.menu-search-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+}
+
+html.dark .menu-search-empty {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.menu-search-footer {
+  padding-top: 4px;
+  border-top: 1px solid var(--app-border-subtle, #f0f0f0);
+  font-size: 12px;
+  opacity: 0.6;
+}

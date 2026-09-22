@@ -169,7 +169,7 @@
     "menu_search": "Search Menu",
     "menu_search_placeholder": "Search menu...",
     "menu_search_no_results": "No matching menus found",
-    "menu_search_hint": "Enter keywords to search menus",
+    "menu_search_hint": "Type to filter menus, use arrow keys to select",
     "settings": "Settings",
     "menu_mode": "Navigation Mode",
     "menu_mode_sidebar": "Sidebar",
@@ -183,7 +183,8 @@
     "lock_password_invalid": "Invalid lock screen password",
     "unlock": "Unlock",
     "back_to_login": "Back to Login",
-    "current_tenant": "Current tenant"
+    "current_tenant": "Current tenant",
+    "menu_search_shortcut_hint": "Press {{shortcut}} to open / Esc to close"
   },
   "menu": {
     "dashboard": "Dashboard",
