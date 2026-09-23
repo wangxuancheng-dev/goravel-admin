@@ -8,6 +8,7 @@ import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { getTenantAdminLoginUrl } from '@/utils/tenant'
 import { ERROR_CODES, type ApiError } from '@/types'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
+import LanguageSwitch from '@/components/LanguageSwitch'
 
 export default function PlatformLogin() {
   const { t } = useTranslation()
@@ -122,8 +123,9 @@ export default function PlatformLogin() {
         position: 'relative',
       }}
     >
-      <div style={{ position: 'absolute', top: 20, right: 20 }}>
+      <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', alignItems: 'center', gap: 4 }}>
         <DarkModeSwitch className="layout-header__icon-btn platform-header__icon-btn" />
+        <LanguageSwitch className="layout-header__icon-btn platform-header__icon-btn" />
       </div>
       <div
         style={{

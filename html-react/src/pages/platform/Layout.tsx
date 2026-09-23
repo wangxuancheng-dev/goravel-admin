@@ -14,6 +14,7 @@ import {
 } from '@/api/platform'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
+import LanguageSwitch from '@/components/LanguageSwitch'
 import { useAppStore } from '@/stores/app'
 
 const { Header, Sider, Content } = Layout
@@ -151,6 +152,7 @@ export default function PlatformLayout() {
             </Typography.Text>
           ) : null}
           <DarkModeSwitch className="layout-header__icon-btn platform-header__icon-btn" />
+          <LanguageSwitch className="layout-header__icon-btn platform-header__icon-btn" />
           <Button type="link" onClick={() => setPwdOpen(true)} style={{ color: '#93c5fd' }}>
             {t('platform.change_password')}
           </Button>

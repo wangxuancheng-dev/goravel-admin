@@ -6,6 +6,7 @@
         <span class="admin-name">{{ adminName }}</span>
         <el-tag v-if="isViewer" size="small" type="info" effect="plain" class="role-tag">{{ $t('platform.role_viewer') }}</el-tag>
         <DarkModeSwitch class="platform-header-dark" />
+        <LanguageSwitch class="platform-header-lang" />
         <el-button link type="primary" @click="pwdVisible = true">{{ $t('platform.change_password') }}</el-button>
         <el-button link type="primary" @click="onLogout">{{ $t('header.logout') }}</el-button>
       </div>
@@ -56,6 +57,7 @@ import { ElMessage } from 'element-plus'
 import { logoutPlatform, updatePlatformPassword } from '@/api/platform'
 import { getPlatformAdmin } from '@/utils/platformRequest'
 import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
+import LanguageSwitch from '@/components/LanguageSwitch.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -158,6 +160,16 @@ const onLogout = async () => {
   padding: 6px;
 }
 .platform-header-dark :deep(.dark-mode-switch:hover) {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.platform-header-lang :deep(.language-switch) {
+  color: rgba(255, 255, 255, 0.85);
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px;
+}
+.platform-header-lang :deep(.language-switch:hover) {
   background-color: rgba(255, 255, 255, 0.1);
   color: #fff;
 }

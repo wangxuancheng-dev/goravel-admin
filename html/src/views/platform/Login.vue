@@ -2,6 +2,7 @@
   <div class="platform-login">
     <div class="platform-login__toolbar">
       <DarkModeSwitch class="platform-login-dark" />
+      <LanguageSwitch class="platform-login-lang" />
     </div>
     <div class="platform-login__card">
       <h1>{{ $t('platform.title') }}</h1>
@@ -69,6 +70,7 @@ import { ElMessage } from 'element-plus'
 import { completePlatformLogin, getPlatformLoginCaptcha, platformLogin } from '@/api/platform'
 import { getTenantAdminLoginUrl } from '@/utils/tenant'
 import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
+import LanguageSwitch from '@/components/LanguageSwitch.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -191,6 +193,9 @@ const submit = async () => {
   position: absolute;
   top: 20px;
   right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .platform-login-dark :deep(.dark-mode-switch) {
   color: rgba(255, 255, 255, 0.85);
@@ -199,6 +204,16 @@ const submit = async () => {
   padding: 6px;
 }
 .platform-login-dark :deep(.dark-mode-switch:hover) {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.platform-login-lang :deep(.language-switch) {
+  color: rgba(255, 255, 255, 0.85);
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px;
+}
+.platform-login-lang :deep(.language-switch:hover) {
   background-color: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
