@@ -7,6 +7,7 @@ import (
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
 
+	"goravel/app/models"
 	"goravel/app/services"
 )
 
@@ -59,9 +60,11 @@ func (r *TenantSeed) Handle(ctx console.Context) error {
 	}
 
 	if err := svc.SeedTenant(tenant, seeders...); err != nil {
+		_ = services.RecordDirectTenantOpLog(tenant, models.TenantOpSeed, models.TenantOpStatusFailed, err.Error(), "", services.CliTenantOpActor)
 		ctx.Error(err.Error())
 		return err
 	}
+	_ = services.RecordDirectTenantOpLog(tenant, models.TenantOpSeed, models.TenantOpStatusSuccess, "seed ok", "", services.CliTenantOpActor)
 	ctx.Success("seed 完成")
 	return nil
 }

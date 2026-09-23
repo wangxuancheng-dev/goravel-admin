@@ -479,6 +479,18 @@ func MarkTenantOpFailedIncludingTrashed(id uint, op, message string, at time.Tim
 	})
 }
 
+// CliTenantOpActor is stored on tenant_op_logs rows written by Artisan tenant:* commands.
+var CliTenantOpActor = TenantOpActor{Name: "cli"}
+
+// RecordDirectTenantOpLog writes a finished op-log row (CLI migrate/seed without the queue path).
+func RecordDirectTenantOpLog(tenant *models.Tenant, op, status, message, batchID string, actor TenantOpActor) uint {
+	if actor.Name == "" && actor.ID == 0 {
+		actor = CliTenantOpActor
+	}
+	now := time.Now()
+	return CreateTenantOpLog(tenant, op, status, message, batchID, actor, &now, &now)
+}
+
 // CreateTenantOpLog inserts one landlord history row; returns id (0 on failure).
 func CreateTenantOpLog(tenant *models.Tenant, op, status, message, batchID string, actor TenantOpActor, started, finished *time.Time) uint {
 	if tenant == nil || tenant.ID == 0 || op == "" {

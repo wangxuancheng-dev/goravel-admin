@@ -64,6 +64,7 @@ func (r *TenantSeedAll) Handle(ctx console.Context) error {
 	}
 	ctx.Info(fmt.Sprintf("seed-all: %d tenant(s), concurrency=%d", len(ready), concurrency))
 
+	batchID := services.NewTenantOpsBatchID()
 	conn := services.NewTenantConnectionService()
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
@@ -78,12 +79,18 @@ func (r *TenantSeedAll) Handle(ctx console.Context) error {
 			defer func() { <-sem }()
 
 			ctx.Info(fmt.Sprintf("seed %s ...", tenant.Code))
-			if err := conn.SeedTenant(&tenant, seeders...); err != nil {
+			err := conn.SeedTenant(&tenant, seeders...)
+			status := models.TenantOpStatusSuccess
+			msg := "seed ok"
+			if err != nil {
+				status = models.TenantOpStatusFailed
+				msg = err.Error()
 				ctx.Error(fmt.Sprintf("%s failed: %v", tenant.Code, err))
 				failed.Add(1)
-				return
+			} else {
+				ctx.Success(fmt.Sprintf("%s ok", tenant.Code))
 			}
-			ctx.Success(fmt.Sprintf("%s ok", tenant.Code))
+			_ = services.RecordDirectTenantOpLog(&tenant, models.TenantOpSeed, status, msg, batchID, services.CliTenantOpActor)
 		}()
 	}
 	wg.Wait()
@@ -92,7 +99,8 @@ func (r *TenantSeedAll) Handle(ctx console.Context) error {
 		ctx.Info(fmt.Sprintf("skipped %d non-ready tenant(s)", skipped))
 	}
 	if failed.Load() > 0 {
-		return fmt.Errorf("%d tenant seed(s) failed", failed.Load())
+		return fmt.Errorf("%d tenant seed(s) failed (batch=%s)", failed.Load(), batchID)
 	}
+	ctx.Info(fmt.Sprintf("seed-all ok (batch=%s)", batchID))
 	return nil
 }

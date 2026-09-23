@@ -267,6 +267,7 @@ export default function PlatformTenantList() {
   const [healthDesc, setHealthDesc] = useState(t('platform.cli_ops_hint'))
   const [opsSummary, setOpsSummary] = useState<{
     failed_provision?: number
+    failed_seed?: number
     busy?: number
     total?: number
     deleted?: number
@@ -380,6 +381,7 @@ export default function PlatformTenantList() {
       if (summary) {
         setOpsSummary({
           failed_provision: Number(summary.failed_provision ?? 0),
+          failed_seed: Number(summary.failed_seed ?? 0),
           busy: Number(summary.busy ?? 0),
           total: Number(summary.total ?? 0),
           deleted: Number(summary.deleted ?? 0),
@@ -1045,6 +1047,33 @@ export default function PlatformTenantList() {
     })
   }
 
+  const retryFailedSeeds = () => {
+    modal.confirm({
+      title: t('tenant.retry_failed_seed'),
+      content: t('tenant.retry_failed_seed_confirm'),
+      onOk: async () => {
+        setBatchLoading(true)
+        try {
+          const res = await opsPlatformTenantBatch({
+            op: 'seed',
+            last_op: 'seed',
+            last_op_status: 'failed',
+          })
+          const data = (res as { data?: { queued_count?: number; batch_id?: string } })?.data
+          const n = Number(data?.queued_count ?? 0)
+          const batch = data?.batch_id ? t('tenant.batch_id_suffix', { id: data.batch_id }) : ''
+          message.success(t('tenant.batch_queued', { n, batch }))
+          await refresh()
+          await refreshOpsSummary()
+        } catch (error) {
+          showError(error, t('common.operation_failed'))
+        } finally {
+          setBatchLoading(false)
+        }
+      },
+    })
+  }
+
   const provisionLabel = (status?: string) => {
     switch (status) {
       case 'ready':
@@ -1620,6 +1649,13 @@ export default function PlatformTenantList() {
                     {t('tenant.retry_failed_migrate')}
                   </Button>
                   <Button
+                    loading={batchLoading}
+                    disabled={(opsSummary?.failed_seed ?? 0) < 1}
+                    onClick={retryFailedSeeds}
+                  >
+                    {t('tenant.retry_failed_seed')}
+                  </Button>
+                  <Button
                     type="primary"
                     onClick={() => {
                       form.resetFields()
@@ -1699,6 +1735,9 @@ export default function PlatformTenantList() {
               : ''}
             {(opsSummary.failed_purge ?? 0) > 0
               ? ` · ${t('tenant.failed_purge_count', { n: opsSummary.failed_purge })}`
+              : ''}
+            {(opsSummary.failed_seed ?? 0) > 0
+              ? ` · ${t('tenant.failed_seed_count', { n: opsSummary.failed_seed })}`
               : ''}
             {(opsSummary.maintenance ?? 0) > 0
               ? ` · ${t('tenant.ops_maintenance')} ${opsSummary.maintenance}`

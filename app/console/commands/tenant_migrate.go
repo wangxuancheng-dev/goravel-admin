@@ -6,6 +6,7 @@ import (
 	"github.com/goravel/framework/contracts/console"
 	"github.com/goravel/framework/contracts/console/command"
 
+	"goravel/app/models"
 	"goravel/app/services"
 )
 
@@ -38,10 +39,17 @@ func (r *TenantMigrate) Handle(ctx console.Context) error {
 	}
 
 	ctx.Info(fmt.Sprintf("正在 migrate 租户 %s (%s)...", tenant.Code, tenant.ConnectionName))
-	if err := svc.MigrateTenant(tenant); err != nil {
+	err = svc.MigrateTenant(tenant)
+	status := models.TenantOpStatusSuccess
+	msg := "migrate ok"
+	if err != nil {
+		status = models.TenantOpStatusFailed
+		msg = err.Error()
+		_ = services.RecordDirectTenantOpLog(tenant, models.TenantOpMigrate, status, msg, "", services.CliTenantOpActor)
 		ctx.Error(err.Error())
 		return err
 	}
+	_ = services.RecordDirectTenantOpLog(tenant, models.TenantOpMigrate, status, msg, "", services.CliTenantOpActor)
 	ctx.Success("migrate 完成")
 	return nil
 }

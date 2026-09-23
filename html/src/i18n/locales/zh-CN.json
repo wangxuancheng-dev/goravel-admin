@@ -1374,7 +1374,10 @@
     "op_status_running": "执行中",
     "op_status_success": "成功",
     "op_status_failed": "失败",
-    "op_purge": "清理"
+    "op_purge": "清理",
+    "retry_failed_seed": "重试全部失败填充",
+    "retry_failed_seed_confirm": "将为最近运维为 seed 且失败的租户入队填充（最多 100 个），是否继续？",
+    "failed_seed_count": "填充失败 {n}"
   },
   "platform": {
     "title": "租户运维",

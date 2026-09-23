@@ -543,6 +543,7 @@ type TenantOpsSummary struct {
 	ByProvision            map[string]int64  `json:"by_provision"`
 	ByLastOpStatus         map[string]int64  `json:"by_last_op_status"`
 	FailedProvision        int64             `json:"failed_provision"`
+	FailedSeed             int64             `json:"failed_seed"`
 	Busy                   int64             `json:"busy"`
 	Deleted                int64             `json:"deleted"`
 	FailedPurge            int64             `json:"failed_purge"`
@@ -597,6 +598,9 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 			os = models.TenantOpStatusIdle
 		}
 		sum.ByLastOpStatus[os]++
+		if strings.TrimSpace(t.LastOp) == models.TenantOpSeed && os == models.TenantOpStatusFailed {
+			sum.FailedSeed++
+		}
 		if ps == models.TenantProvisionMigrating || os == models.TenantOpStatusQueued || os == models.TenantOpStatusRunning {
 			sum.Busy++
 		}

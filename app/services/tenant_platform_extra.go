@@ -247,6 +247,12 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 
 // ListForBatchOp returns tenants for batch seed/backup/migrate.
 func (s *TenantAdminService) ListForBatchOp(ids []uint, provisionStatus string, status *uint8, limit int) ([]models.Tenant, error) {
+	return s.ListForBatchOpFiltered(ids, provisionStatus, status, "", "", limit)
+}
+
+// ListForBatchOpFiltered is ListForBatchOp plus optional last_op / last_op_status filters
+// (e.g. retry all seed failures: last_op=seed, last_op_status=failed).
+func (s *TenantAdminService) ListForBatchOpFiltered(ids []uint, provisionStatus string, status *uint8, lastOp, lastOpStatus string, limit int) ([]models.Tenant, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, err
 	}
@@ -265,6 +271,12 @@ func (s *TenantAdminService) ListForBatchOp(ids []uint, provisionStatus string, 
 	}
 	if status != nil {
 		query = query.Where("status", *status)
+	}
+	if op := NormalizeTenantLastOpFilter(lastOp); op != "" {
+		query = query.Where("last_op", op)
+	}
+	if st := NormalizeTenantLastOpStatusFilter(lastOpStatus); st != "" {
+		query = query.Where("last_op_status", st)
 	}
 	var list []models.Tenant
 	if err := query.Order("id asc").Limit(limit).Find(&list); err != nil {

@@ -1159,15 +1159,21 @@ func tenantPostgresSSLMode() string {
 	return mode
 }
 
-// schemaSessionDatabaseName returns the live session database (MySQL SELECT DATABASE()).
+// schemaSessionDatabaseName returns the live session database name.
+// MySQL: SELECT DATABASE(); PostgreSQL: SELECT current_database().
 // Prefer this over Orm.DatabaseName(), which can lie after a Connection cache hit.
 func schemaSessionDatabaseName(schema interface{ Orm() orm.Orm }) string {
 	if schema == nil || schema.Orm() == nil || schema.Orm().Query() == nil {
 		return ""
 	}
+	q := schema.Orm().Query()
 	var name string
-	if err := schema.Orm().Query().Raw("SELECT DATABASE()").Scan(&name); err != nil {
-		return ""
+	if err := q.Raw("SELECT DATABASE()").Scan(&name); err == nil && strings.TrimSpace(name) != "" {
+		return name
 	}
-	return name
+	name = ""
+	if err := q.Raw("SELECT current_database()").Scan(&name); err == nil {
+		return strings.TrimSpace(name)
+	}
+	return ""
 }

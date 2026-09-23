@@ -122,6 +122,8 @@ PLATFORM_ADMIN_NAME=平台管理员
 6. **Async ops**: per-tenant migrate / seed / backup / restore via `tenant_ops` (`long-running`); production needs Redis + long-running worker. `migrate-all` / `backup-all` remain CLI: `backup-all` enqueues long-running (paged fan-out); scheduled `backup-scheduled` rotates `TENANT_BACKUP_SCHEDULE_BATCH` tenants/day.
 7. **Fleet migrate/seed concurrency**: `TENANCY_MIGRATE_CONCURRENCY` (default 2) limits CLI `tenant:migrate-all` / `seed-all` **and** platform UI batch migrate/seed (`tenant_ops_fleet`); CLI `--concurrency=N` overrides. Separate from `QUEUE_LONG_RUNNING_CONCURRENT` (per-tenant / backup) and `QUEUE_SCHEDULE_CONCURRENT` (collection); see [Concurrency knobs](#concurrency-knobs-tune-with-queue-workers).
 
+8. **CLI op logs**: 	enant:migrate / migrate-all / seed / seed-all write 	enant_op_logs (operator=cli, shared atch_id for fleets). Platform can filter last_op / last_op_status and retry failed seeds. Session DB checks use MySQL DATABASE() and PostgreSQL current_database().
+
 ## 公网部署（推荐）
 
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。

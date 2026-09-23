@@ -37,6 +37,9 @@
         <template v-if="(opsSummary.failed_purge || 0) > 0">
           · {{ $t('tenant.failed_purge_count', { n: opsSummary.failed_purge }) }}
         </template>
+        <template v-if="(opsSummary.failed_seed || 0) > 0">
+          · {{ $t('tenant.failed_seed_count', { n: opsSummary.failed_seed }) }}
+        </template>
         <template v-if="(opsSummary.maintenance || 0) > 0">
           · {{ $t('tenant.ops_maintenance') }} {{ opsSummary.maintenance }}
         </template>
@@ -64,6 +67,14 @@
           @click="retryFailedMigrates"
         >
           {{ $t('tenant.retry_failed_migrate') }}
+        </el-button>
+        <el-button
+          size="small"
+          :loading="batchLoading"
+          :disabled="!(opsSummary?.failed_seed > 0)"
+          @click="retryFailedSeeds"
+        >
+          {{ $t('tenant.retry_failed_seed') }}
         </el-button>
         <el-button
           size="small"
@@ -1254,6 +1265,33 @@ const retryFailedMigrates = async () => {
   batchLoading.value = true
   try {
     const res = await migratePlatformTenantBatch({ provision_status: 'failed', with_seed: false })
+    const n = res?.data?.queued_count ?? 0
+    const batch = res?.data?.batch_id ? t('tenant.batch_id_suffix', { id: res.data.batch_id }) : ''
+    ElMessage.success(t('tenant.batch_queued', { n, batch }))
+    await loadData()
+    await refreshOpsSummary()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+const retryFailedSeeds = async () => {
+  try {
+    await ElMessageBox.confirm(t('tenant.retry_failed_seed_confirm'), t('tenant.retry_failed_seed'), {
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  batchLoading.value = true
+  try {
+    const res = await opsPlatformTenantBatch({
+      op: 'seed',
+      last_op: 'seed',
+      last_op_status: 'failed'
+    })
     const n = res?.data?.queued_count ?? 0
     const batch = res?.data?.batch_id ? t('tenant.batch_id_suffix', { id: res.data.batch_id }) : ''
     ElMessage.success(t('tenant.batch_queued', { n, batch }))

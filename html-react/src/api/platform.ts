@@ -284,6 +284,8 @@ export function opsPlatformTenantBatch(data?: {
   op?: 'migrate' | 'seed' | 'backup'
   ids?: Array<string | number>
   provision_status?: string
+  last_op?: string
+  last_op_status?: string
   status?: number
   with_seed?: boolean
   keep?: number

@@ -511,6 +511,8 @@ type tenantOpsBatchBody struct {
 	Op              string `json:"op" form:"op"` // migrate|seed|backup
 	IDs             []uint `json:"ids" form:"ids"`
 	ProvisionStatus string `json:"provision_status" form:"provision_status"`
+	LastOp          string `json:"last_op" form:"last_op"`
+	LastOpStatus    string `json:"last_op_status" form:"last_op_status"`
 	Status          *uint8 `json:"status" form:"status"`
 	WithSeed        bool   `json:"with_seed" form:"with_seed"`
 	Limit           int    `json:"limit" form:"limit"`
@@ -902,15 +904,20 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 	default:
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
 	}
-	if len(body.IDs) == 0 && strings.TrimSpace(body.ProvisionStatus) == "" && body.Status == nil {
+	if len(body.IDs) == 0 && strings.TrimSpace(body.ProvisionStatus) == "" && body.Status == nil &&
+		strings.TrimSpace(body.LastOp) == "" && strings.TrimSpace(body.LastOpStatus) == "" {
 		if op == models.TenantOpMigrate {
 			body.ProvisionStatus = models.TenantProvisionFailed
+		} else if op == models.TenantOpSeed {
+			// Default "retry failed seeds" when no explicit filter (safer than seeding every active tenant).
+			body.LastOp = models.TenantOpSeed
+			body.LastOpStatus = models.TenantOpStatusFailed
 		} else {
 			active := models.TenantStatusActive
 			body.Status = &active
 		}
 	}
-	tenants, err := c.service().ListForBatchOp(body.IDs, body.ProvisionStatus, body.Status, body.Limit)
+	tenants, err := c.service().ListForBatchOpFiltered(body.IDs, body.ProvisionStatus, body.Status, body.LastOp, body.LastOpStatus, body.Limit)
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
 	}

@@ -119,6 +119,8 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 6. **异步运维**：单户 migrate / seed / backup / restore 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` 仍可用 CLI：`backup-all` 改为入队 long-running（分页扇出），定时 `backup-scheduled` 按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` 户。
 7. **全舰队 migrate/seed 并发**：`TENANCY_MIGRATE_CONCURRENCY`（默认 2）控制 CLI `tenant:migrate-all` / `seed-all` **以及**平台 UI 批量 migrate/seed（`tenant_ops_fleet`）；CLI `--concurrency=N` 可临时覆盖。与 `QUEUE_LONG_RUNNING_CONCURRENT`（单户/backup）、`QUEUE_SCHEDULE_CONCURRENT`（采集）**不是同一旋钮**；见 [并发旋钮对照](#并发旋钮对照与队列一起调)。
 
+8. **CLI 运维记录**：	enant:migrate / migrate-all / seed / seed-all 会写入 	enant_op_logs（operator=cli，fleet 带同一 atch_id），平台可筛 last_op/last_op_status，并可一键「重试失败填充」。会话库名校验同时支持 MySQL DATABASE() 与 PostgreSQL current_database()。
+
 ## 公网部署（推荐）
 
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。

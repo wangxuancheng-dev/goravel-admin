@@ -57,6 +57,7 @@ func (r *TenantMigrateAll) Handle(ctx console.Context) error {
 
 	ctx.Info(fmt.Sprintf("migrate-all: %d tenant(s), concurrency=%d", len(tenants), concurrency))
 
+	batchID := services.NewTenantOpsBatchID()
 	svc := services.NewTenantConnectionService()
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
@@ -71,18 +72,25 @@ func (r *TenantMigrateAll) Handle(ctx console.Context) error {
 			defer func() { <-sem }()
 
 			ctx.Info(fmt.Sprintf("migrate %s ...", tenant.Code))
-			if err := svc.MigrateTenant(&tenant); err != nil {
+			err := svc.MigrateTenant(&tenant)
+			status := models.TenantOpStatusSuccess
+			msg := "migrate ok"
+			if err != nil {
+				status = models.TenantOpStatusFailed
+				msg = err.Error()
 				ctx.Error(fmt.Sprintf("%s failed: %v", tenant.Code, err))
 				failed.Add(1)
-				return
+			} else {
+				ctx.Success(fmt.Sprintf("%s done", tenant.Code))
 			}
-			ctx.Success(fmt.Sprintf("%s done", tenant.Code))
+			_ = services.RecordDirectTenantOpLog(&tenant, models.TenantOpMigrate, status, msg, batchID, services.CliTenantOpActor)
 		}()
 	}
 	wg.Wait()
 
 	if failed.Load() > 0 {
-		return fmt.Errorf("%d tenant migrate(s) failed", failed.Load())
+		return fmt.Errorf("%d tenant migrate(s) failed (batch=%s)", failed.Load(), batchID)
 	}
+	ctx.Info(fmt.Sprintf("migrate-all ok (batch=%s)", batchID))
 	return nil
 }

@@ -39,6 +39,10 @@ func TestNormalizeTenantLastOpStatusFilter(t *testing.T) {
 	assert.Equal(t, "", NormalizeTenantLastOpStatusFilter(""))
 }
 
+func TestCliTenantOpActorName(t *testing.T) {
+	assert.Equal(t, "cli", CliTenantOpActor.Name)
+}
+
 func TestWebsiteBrandingPublicKeys(t *testing.T) {
 	// Document the public branding contract without hitting ORM.
 	keys := []string{"site_enabled", "site_name", "site_logo", "site_copyright"}

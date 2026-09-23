@@ -1272,7 +1272,10 @@
     "op_status_running": "Running",
     "op_status_success": "Success",
     "op_status_failed": "Failed",
-    "op_purge": "Purge"
+    "op_purge": "Purge",
+    "retry_failed_seed": "Retry all failed seeds",
+    "retry_failed_seed_confirm": "Enqueue seed for tenants whose last op is seed/failed (max 100). Continue?",
+    "failed_seed_count": "seed failed {{n}}"
   },
   "platform": {
     "title": "Tenant Ops",
