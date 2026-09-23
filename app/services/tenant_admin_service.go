@@ -23,6 +23,10 @@ type TenantAdminFilters struct {
 	ProvisionStatus string
 	// SchemaStatus: aligned|behind|failed|running|unknown (computed vs current binary).
 	SchemaStatus string
+	// LastOp: migrate|seed|backup|restore|purge
+	LastOp string
+	// LastOpStatus: idle|queued|running|success|failed
+	LastOpStatus string
 	// Maintenance: "" = any; "1"/"true" = on; "0"/"false" = off.
 	Maintenance string
 	// Trashed: "" = exclude soft-deleted (default); "only" = recycle bin; "with" = include both.
@@ -42,11 +46,34 @@ func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
 		Status:          strings.TrimSpace(ctx.Request().Query("status", "")),
 		ProvisionStatus: strings.TrimSpace(ctx.Request().Query("provision_status", "")),
 		SchemaStatus:    strings.TrimSpace(ctx.Request().Query("schema_status", "")),
+		LastOp:          strings.TrimSpace(ctx.Request().Query("last_op", "")),
+		LastOpStatus:    strings.TrimSpace(ctx.Request().Query("last_op_status", "")),
 		Maintenance:     strings.TrimSpace(ctx.Request().Query("maintenance", "")),
 		Trashed:         strings.TrimSpace(ctx.Request().Query("trashed", "")),
 		DomainHost:      strings.TrimSpace(ctx.Request().Query("domain_host", "")),
 		DomainStatus:    strings.TrimSpace(ctx.Request().Query("domain_status", "")),
 		HealthStatus:    strings.TrimSpace(ctx.Request().Query("health_status", "")),
+	}
+}
+
+// NormalizeTenantLastOpFilter returns a known op name or empty (ignore unknown).
+func NormalizeTenantLastOpFilter(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup, models.TenantOpRestore, models.TenantOpPurge:
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return ""
+	}
+}
+
+// NormalizeTenantLastOpStatusFilter returns a known status or empty (ignore unknown).
+func NormalizeTenantLastOpStatusFilter(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case models.TenantOpStatusIdle, models.TenantOpStatusQueued, models.TenantOpStatusRunning,
+		models.TenantOpStatusSuccess, models.TenantOpStatusFailed:
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return ""
 	}
 }
 
@@ -138,6 +165,12 @@ func (s *TenantAdminService) GetList(filters TenantAdminFilters, page, pageSize 
 	}
 	if filters.ProvisionStatus != "" {
 		query = query.Where("provision_status", filters.ProvisionStatus)
+	}
+	if op := NormalizeTenantLastOpFilter(filters.LastOp); op != "" {
+		query = query.Where("last_op", op)
+	}
+	if st := NormalizeTenantLastOpStatusFilter(filters.LastOpStatus); st != "" {
+		query = query.Where("last_op_status", st)
 	}
 	switch strings.ToLower(filters.Maintenance) {
 	case "1", "true", "yes", "on":

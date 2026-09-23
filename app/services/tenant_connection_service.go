@@ -831,14 +831,56 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 // SeedTenant runs db:seed on the tenant connection.
 // seeders empty => all registered seeders; otherwise same as db:seed --seeder=Name.
 // Uses per-goroutine Schema+Orm binds when routers are installed (parallel-safe with migrate).
+// Marks last_op=seed + last_op_status so CLI seed-all failures are visible in the platform UI
+// (same as MigrateTenant). Does not change provision_status (schema may already be ready).
 func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...string) error {
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
+	var runErr error
 	if appfacades.TenantAwareSchemaInstalled() && appfacades.TenantAwareOrmInstalled() {
-		return s.seedTenantParallel(tenant, seeders...)
+		runErr = s.seedTenantParallel(tenant, seeders...)
+	} else {
+		runErr = s.seedTenantSerial(tenant, seeders...)
 	}
-	return s.seedTenantSerial(tenant, seeders...)
+	s.markSeedOpResult(tenant, runErr)
+	return runErr
+}
+
+// markSeedOpResult persists last_op fields after SeedTenant (CLI + direct callers).
+// Queue RunTenantOp may overwrite these with the enclosing op (e.g. migrate+seed).
+func (s *TenantConnectionService) markSeedOpResult(tenant *models.Tenant, runErr error) {
+	if tenant == nil || tenant.ID == 0 {
+		return
+	}
+	now := time.Now()
+	if runErr != nil {
+		msg := runErr.Error()
+		if len(msg) > 2000 {
+			msg = msg[:2000]
+		}
+		_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+			"last_op":         models.TenantOpSeed,
+			"last_op_status":  models.TenantOpStatusFailed,
+			"last_op_message": msg,
+			"last_op_at":      now,
+		})
+		tenant.LastOp = models.TenantOpSeed
+		tenant.LastOpStatus = models.TenantOpStatusFailed
+		tenant.LastOpMessage = msg
+		tenant.LastOpAt = &now
+		return
+	}
+	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+		"last_op":         models.TenantOpSeed,
+		"last_op_status":  models.TenantOpStatusSuccess,
+		"last_op_message": "seed ok",
+		"last_op_at":      now,
+	})
+	tenant.LastOp = models.TenantOpSeed
+	tenant.LastOpStatus = models.TenantOpStatusSuccess
+	tenant.LastOpMessage = "seed ok"
+	tenant.LastOpAt = &now
 }
 
 func (s *TenantConnectionService) seedTenantParallel(tenant *models.Tenant, seeders ...string) error {

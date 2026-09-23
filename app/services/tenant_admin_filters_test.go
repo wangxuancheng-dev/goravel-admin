@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"goravel/app/models"
 )
 
 func TestTenantAdminFiltersIncludeProvisionStatus(t *testing.T) {
@@ -13,10 +15,28 @@ func TestTenantAdminFiltersIncludeProvisionStatus(t *testing.T) {
 		Status:          "1",
 		ProvisionStatus: "failed",
 		SchemaStatus:    "behind",
+		LastOp:          "seed",
+		LastOpStatus:    "failed",
 	}
 	assert.Equal(t, "failed", f.ProvisionStatus)
 	assert.Equal(t, "acme", f.Code)
 	assert.Equal(t, "behind", f.SchemaStatus)
+	assert.Equal(t, "seed", f.LastOp)
+	assert.Equal(t, "failed", f.LastOpStatus)
+}
+
+func TestNormalizeTenantLastOpFilter(t *testing.T) {
+	assert.Equal(t, models.TenantOpSeed, NormalizeTenantLastOpFilter(" Seed "))
+	assert.Equal(t, models.TenantOpMigrate, NormalizeTenantLastOpFilter("MIGRATE"))
+	assert.Equal(t, "", NormalizeTenantLastOpFilter("drop"))
+	assert.Equal(t, "", NormalizeTenantLastOpFilter(""))
+}
+
+func TestNormalizeTenantLastOpStatusFilter(t *testing.T) {
+	assert.Equal(t, models.TenantOpStatusFailed, NormalizeTenantLastOpStatusFilter("FAILED"))
+	assert.Equal(t, models.TenantOpStatusSuccess, NormalizeTenantLastOpStatusFilter("success"))
+	assert.Equal(t, "", NormalizeTenantLastOpStatusFilter("done"))
+	assert.Equal(t, "", NormalizeTenantLastOpStatusFilter(""))
 }
 
 func TestWebsiteBrandingPublicKeys(t *testing.T) {

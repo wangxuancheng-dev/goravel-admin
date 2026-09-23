@@ -878,6 +878,8 @@ const initialSearchForm = {
   status: '',
   provision_status: '',
   schema_status: '',
+  last_op: '',
+  last_op_status: '',
   maintenance: '',
   domain_host: '',
   domain_status: '',
@@ -1165,6 +1167,32 @@ const searchFields = computed(() => {
         { label: t('tenant.provision_migrating'), value: 'migrating' },
         { label: t('tenant.provision_ready'), value: 'ready' },
         { label: t('tenant.provision_failed'), value: 'failed' }
+      ]
+    },
+    {
+      prop: 'last_op',
+      label: t('tenant.last_op_filter'),
+      type: 'select',
+      width: '140px',
+      options: [
+        { label: t('tenant.op_migrate'), value: 'migrate' },
+        { label: t('tenant.op_seed'), value: 'seed' },
+        { label: t('tenant.op_backup'), value: 'backup' },
+        { label: t('tenant.op_restore'), value: 'restore' },
+        { label: t('tenant.op_purge'), value: 'purge' }
+      ]
+    },
+    {
+      prop: 'last_op_status',
+      label: t('tenant.last_op_status_filter'),
+      type: 'select',
+      width: '140px',
+      options: [
+        { label: t('tenant.op_status_failed'), value: 'failed' },
+        { label: t('tenant.op_status_success'), value: 'success' },
+        { label: t('tenant.op_status_running'), value: 'running' },
+        { label: t('tenant.op_status_queued'), value: 'queued' },
+        { label: t('tenant.op_status_idle'), value: 'idle' }
       ]
     },
     {

@@ -1357,7 +1357,15 @@
     "backup_schedule": "Scheduled backup",
     "backup_schedule_enabled": "Scheduled backup on",
     "backup_schedule_disabled": "Scheduled backup off",
-    "backup_schedule_at": "Schedule time (UTC)"
+    "backup_schedule_at": "Schedule time (UTC)",
+    "last_op_filter": "Last op type",
+    "last_op_status_filter": "Last op status",
+    "op_status_idle": "Idle",
+    "op_status_queued": "Queued",
+    "op_status_running": "Running",
+    "op_status_success": "Success",
+    "op_status_failed": "Failed",
+    "op_purge": "Purge"
   },
   "platform": {
     "title": "Tenant Ops",

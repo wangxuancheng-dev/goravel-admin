@@ -1268,7 +1268,15 @@
     "backup_schedule": "定时备份",
     "backup_schedule_enabled": "已开启定时备份",
     "backup_schedule_disabled": "未开启定时备份",
-    "backup_schedule_at": "计划时间(UTC)"
+    "backup_schedule_at": "计划时间(UTC)",
+    "last_op_filter": "最近运维类型",
+    "last_op_status_filter": "运维结果",
+    "op_status_idle": "空闲",
+    "op_status_queued": "已排队",
+    "op_status_running": "执行中",
+    "op_status_success": "成功",
+    "op_status_failed": "失败",
+    "op_purge": "清理"
   },
   "platform": {
     "title": "租户运维",
