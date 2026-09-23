@@ -7,6 +7,7 @@ import (
 	"goravel/app/models"
 	"goravel/app/production"
 	"goravel/app/utils"
+	wsnotifications "goravel/app/websocket/notifications"
 )
 
 type AppServiceProvider struct {
@@ -21,6 +22,8 @@ func (receiver *AppServiceProvider) Boot(app foundation.Application) {
 	// 框架的其他配置（密钥、bucket等）直接从 .env 读取
 	receiver.syncStorageDiskFromDatabase()
 	production.WarnInsecureDefaults()
+	// Multi-API WS fan-out: same ./main start, no extra command (Redis Pub/Sub).
+	wsnotifications.StartRedisBridge()
 }
 
 // syncStorageDiskFromDatabase 从数据库同步文件存储驱动选择

@@ -134,6 +134,15 @@ QUEUE_SCHEDULE_CONCURRENT=10
 
 Runner 名是连字符 `queue-*`（见 `bootstrap/runners.go`），不是 `queue:*`。`queue:*` 用于生产 Artisan 命令白名单过滤，不能用来关队列 Runner。
 
+
+### 4.2 多台 API 与 WebSocket
+
+通知 WebSocket（`/ws/admin/notifications`）连接挂在各 API 进程内存里。默认 **`WEBSOCKET_REDIS_BRIDGE=true`**：每台用普通 `./main` 启动时，`AppServiceProvider.Boot` 会自动订阅 Redis Pub/Sub，**不需要**像队列那样单独命令。任一 API/Worker 上产生的 `Broadcast` / `SendToAdmin` 会推到其他 API 上已连接的客户端（共用 `REDIS_*`）。
+
+- 需要 Redis 可达；单机或无 Redis 时可 `WEBSOCKET_REDIS_BRIDGE=false`（仅本机推送）
+- 可选频道：`WEBSOCKET_REDIS_CHANNEL`（默认 `goravel:ws:notifications`）
+- LB 对 `/ws` 做 sticky 仍有助于重连粘滞，但跨机推送不再依赖 sticky
+
 活跃商户量级对应多少台 API / Worker / DB：见 [多租户 · 规模与推荐配置](/advanced/tenancy#规模与推荐配置)。
 
 ## 5. 上线最短路径

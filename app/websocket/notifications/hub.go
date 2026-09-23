@@ -143,6 +143,11 @@ func (h *NotificationHub) payload(notification *models.Notification) map[string]
 		sender = *notification.SenderID
 	}
 
+	createdAt := ""
+	if notification.CreatedAt != nil && !notification.CreatedAt.IsZero() {
+		createdAt = notification.CreatedAt.Format(time.RFC3339)
+	}
+
 	return map[string]any{
 		"id":          notification.ID,
 		"title":       notification.Title,
@@ -152,21 +157,32 @@ func (h *NotificationHub) payload(notification *models.Notification) map[string]
 		"receiver_id": receiver,
 		"is_read":     notification.IsRead,
 		"read_at":     readAt,
-		"created_at":  notification.CreatedAt.Format(time.RFC3339),
+		"created_at":  createdAt,
 	}
 }
 
 func (h *NotificationHub) Broadcast(tenantID uint, notification *models.Notification) {
+	// Local first for low latency; Redis fan-out reaches other processes (skip self via origin).
+	h.deliverLocalNotification(tenantID, notification)
+	_ = publishNotification(tenantID, notification)
+}
+
+// deliverLocalNotification enqueues a notification for clients on this process only.
+func (h *NotificationHub) deliverLocalNotification(tenantID uint, notification *models.Notification) {
 	select {
 	case h.broadcast <- broadcastMsg{tenantID: tenantID, notification: notification}:
-		// 成功发送
 	case <-h.stop:
-		// Hub 已停止，忽略广播
 	}
 }
 
 // SendToAdmin pushes an arbitrary JSON payload to one admin's connections (all tabs/windows).
 func (h *NotificationHub) SendToAdmin(tenantID, adminID uint, payload map[string]any) {
+	h.deliverLocalAdminPayload(tenantID, adminID, payload)
+	_ = publishAdminPayload(tenantID, adminID, payload)
+}
+
+// deliverLocalAdminPayload pushes to local clients only.
+func (h *NotificationHub) deliverLocalAdminPayload(tenantID, adminID uint, payload map[string]any) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return

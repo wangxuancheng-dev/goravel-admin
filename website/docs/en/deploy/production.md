@@ -92,6 +92,12 @@ QUEUE_SCHEDULE_CONCURRENT=10
 
 Use `queue-*` (hyphen), not `queue:*`. The latter is for production Artisan command filters, not queue runners. See Chinese [生产清单](/deploy/production) §4.1.
 
+### WebSocket on multiple API nodes
+
+Notification WS hub is process-local; with **`WEBSOCKET_REDIS_BRIDGE=true`** (default), every normal `./main` Boot starts a Redis Pub/Sub subscriber — **no separate WS command**. Any API/Worker that calls `Broadcast` / `SendToAdmin` fans out to clients connected on other API processes (same Redis as `REDIS_*`).
+
+Requirements: reachable Redis (`database.redis.default`). Disable with `WEBSOCKET_REDIS_BRIDGE=false` for single-node / no Redis. Optional sticky sessions on `/ws` still help reconnect affinity but are not required for cross-node push.
+
 ## Resource ownership (admin)
 
 - **Exports:** download / SSE progress / delete — owner or configured `admin.super_admin_id`  
