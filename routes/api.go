@@ -24,7 +24,7 @@ func Api() {
 		router.Get("public/customer-service", publicConfigController.CustomerService)
 	})
 
-	// 支付回调：通用 {type}；租户从路径末段绑定。新渠道 RegisterPaymentGateway 后无需加路由。
+	// Payment notify: generic {type}; tenant from path suffix. New channels: payment.RegisterGateway — no new route.
 	facades.Route().Prefix("api").Middleware(middleware.Lang(), middleware.Blacklist()).Group(func(router route.Router) {
 		router.Post("payment/notify/{type}/{tenant}", paymentNotifyController.Notify)
 		router.Post("payment/notify/{type}", paymentNotifyController.NotifyLegacy)

@@ -23,8 +23,9 @@ CreatePayment (订单 pending)
 | 订单 | `app/services/order_service.go` | 分表订单 CRUD；`UpdateOrderByOrderNo` |
 | 支付记录 | `app/services/payment_service.go` | 分表支付单；创建时校验订单金额 |
 | 落库编排 | `app/services/payment_apply.go` | **唯一**写成功态入口 `ApplyPaidResult` |
-| 网关注册表 | `app/payment/driver.go` | `RegisterGateway` / `LookupGateway`（services aliases） |
+| 网关注册表 | `app/payment/driver.go` | `RegisterGateway` / `LookupGateway`（call `payment.*` directly） |
 | 网关实现 | `app/payment/gateways/*.go` | per-channel Create/Query/Notify（returns `PaidResult`, no DB writes） |
+| Payment wiring | `providers.PaymentServiceProvider` | blank-import gateways; inject `ResolvePaymentAmount` |
 | 回调 | `payment_notify_controller.go` | `POST /api/payment/notify/{type}[/{tenant}]` |
 
 ## 2. 分表如何定位（回调一定找得到）
@@ -124,13 +125,13 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 }
 ```
 
-`app/services` blank-imports `goravel/app/payment/gateways` (`payment_gateway_boot.go`) so new `init` registrations load automatically.
+`providers.PaymentServiceProvider` blank-imports `goravel/app/payment/gateways` so new `init` registrations load automatically.
 
 2. Admin `payment_methods.type` must match `Type()` (e.g. `stripe`)
 3. Add the type to `PAYMENT_GATEWAYS_ENABLED` (production: explicit allowlist)
 4. Frontend (optional): extend `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` + i18n
 
-List types via `RegisteredPaymentGatewayTypes()` / `/api/admin/info` → `payment_gateways`. Reference: `app/payment/gateways/mock.go`.
+List types via `payment.RegisteredGatewayTypes()` / `/api/admin/info` → `payment_gateways`. Reference: `app/payment/gateways/mock.go`.
 
 ### 6.1.1 Two implementation styles (both supported)
 
@@ -142,7 +143,7 @@ List types via `RegisteredPaymentGatewayTypes()` / `/api/admin/info` → `paymen
 Shared rules:
 
 - Same register / route / apply path (`payment.RegisterGateway` + `notify/{type}` + services `ApplyPaidResult`)
-- Drivers must **not** import `app/services` (no cycles); amount lookup uses `payment.ResolvePaymentAmount` wired by services
+- Drivers must **not** import `app/services` (no cycles); amount lookup uses `payment.ResolvePaymentAmount` wired by `PaymentServiceProvider`
 - Secrets in `payment_methods.config` JSON
 
 ### 6.2 Explicitly do not
@@ -164,7 +165,7 @@ Shared rules:
 | `app/payment/gateways/` | All channel drivers (scales to dozens) |
 | `app/payment/driver.go` | Registry |
 | `app/services/payment_apply.go` | `ApplyPaidResult` |
-| `app/services/payment_gateway_*.go` | Allowlist, service facade, blank-import |
+| `app/services/payment_gateway_*.go` | Allowlist + PaymentGatewayService; registry is `app/payment` |
 
 ### 6.4 Implementation discipline
 

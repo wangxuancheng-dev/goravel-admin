@@ -8,9 +8,9 @@ import (
 	apppayment "goravel/app/payment"
 )
 
-// PaymentGatewayService 第三方支付下单/查询/回调（与后台支付记录 CRUD 解耦）。
-// 渠道实现在 app/payment/gateways；注册表在 app/payment；落库统一 ApplyPaidResult。
-// 文档：website/docs/advanced/payments.md
+// PaymentGatewayService: third-party create/query/notify (separate from payment CRUD).
+// Drivers: app/payment/gateways; registry: app/payment; DB apply: ApplyPaidResult only.
+// Docs: website/docs/advanced/payments.md
 type PaymentGatewayService interface {
 	CreatePaymentOrder(payment *models.Payment, clientIP string) (map[string]any, error)
 	QueryPaymentOrder(payment *models.Payment) (map[string]any, error)

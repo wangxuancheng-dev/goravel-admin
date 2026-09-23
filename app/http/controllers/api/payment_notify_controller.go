@@ -8,6 +8,7 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/http/response"
 	"goravel/app/models"
+	apppayment "goravel/app/payment"
 	"goravel/app/services"
 	"goravel/app/tenancy"
 )
@@ -47,7 +48,7 @@ func (c *PaymentNotifyController) handle(ctx http.Context, typ, tenantCode strin
 	if typ == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidPaymentType)
 	}
-	if _, ok := services.LookupPaymentGateway(typ); !ok {
+	if _, ok := apppayment.LookupGateway(typ); !ok {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidPaymentType)
 	}
 	if !services.IsPaymentGatewayEnabled(typ) {

@@ -12,10 +12,15 @@ const (
 	DriverNull          = "null"
 )
 
-// ErrUnsupported 表示当前驱动尚未实现某能力（业务层可回退 DB）。
+// ErrUnsupported means the current driver does not implement an operation (caller may fall back to DB).
 var ErrUnsupported = errors.New("search: operation not supported by current driver")
 
-// Engine 可切换的搜索引擎抽象（类似 Laravel Scout Engine）。
+// Engine is a swappable search backend (Scout-style).
+// Package boundary (extractable later as a Goravel package):
+//   - Engine + Resolve + indexes/config/outbox live here; SDK clients in drivers/*.
+//   - Domain packages must NOT import app/services; order DB access via SetOrderLoaders.
+//   - App wires engine factory + loaders via providers.SearchServiceProvider.
+//   - search/orders is an optional adapter (document/Push/Query) for this admin app.
 type Engine interface {
 	Name() string
 	Ping(ctx context.Context) error

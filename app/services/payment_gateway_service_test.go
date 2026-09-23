@@ -11,6 +11,7 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
 	apppayment "goravel/app/payment"
+	_ "goravel/app/payment/gateways" // unit tests do not boot PaymentServiceProvider
 	"goravel/app/tenancyctx"
 )
 
@@ -35,7 +36,7 @@ func TestPaymentGatewayNotifyAndQueryStubs(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, apperrors.ErrInvalidPaymentType.Code, be.Code)
 
-	wechat, ok := LookupPaymentGateway("wechat")
+	wechat, ok := apppayment.LookupGateway("wechat")
 	require.True(t, ok)
 	_, err = wechat.Query(context.Background(), &models.Payment{PaymentNo: "P1"}, &models.PaymentMethod{Type: "wechat"}, map[string]any{})
 	require.Error(t, err)
@@ -43,7 +44,7 @@ func TestPaymentGatewayNotifyAndQueryStubs(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, apperrors.ErrPaymentGatewayNotImplemented.Code, be.Code)
 
-	alipay, ok := LookupPaymentGateway("alipay")
+	alipay, ok := apppayment.LookupGateway("alipay")
 	require.True(t, ok)
 	_, err = alipay.Query(context.Background(), &models.Payment{PaymentNo: "P1"}, &models.PaymentMethod{Type: "alipay"}, map[string]any{})
 	require.Error(t, err)
@@ -53,7 +54,7 @@ func TestPaymentGatewayNotifyAndQueryStubs(t *testing.T) {
 }
 
 func TestRegisteredPaymentGatewaysIncludeBuiltin(t *testing.T) {
-	types := RegisteredPaymentGatewayTypes()
+	types := apppayment.RegisteredGatewayTypes()
 	assert.Contains(t, types, "mock")
 	assert.Contains(t, types, "wechat")
 	assert.Contains(t, types, "alipay")
@@ -77,7 +78,7 @@ func TestPaymentGatewayAllowlist(t *testing.T) {
 	restore("")
 	assert.True(t, IsPaymentGatewayEnabled("mock"))
 	assert.True(t, IsPaymentGatewayEnabled("wechat"))
-	assert.ElementsMatch(t, RegisteredPaymentGatewayTypes(), EnabledPaymentGateways())
+	assert.ElementsMatch(t, apppayment.RegisteredGatewayTypes(), EnabledPaymentGateways())
 
 	restore("wechat,alipay")
 	assert.False(t, IsPaymentGatewayEnabled("mock"))
@@ -94,12 +95,12 @@ func TestPaymentGatewayAllowlist(t *testing.T) {
 
 func TestRegisterPaymentGatewayCustomType(t *testing.T) {
 	const typ = "demo_ext_channel"
-	RegisterPaymentGateway(&stubPaymentDriver{typ: typ})
+	apppayment.RegisterGateway(&stubPaymentDriver{typ: typ})
 	t.Cleanup(func() {
 		apppayment.UnregisterGateway(typ)
 	})
 
-	d, ok := LookupPaymentGateway(typ)
+	d, ok := apppayment.LookupGateway(typ)
 	require.True(t, ok)
 	assert.Equal(t, typ, d.Type())
 

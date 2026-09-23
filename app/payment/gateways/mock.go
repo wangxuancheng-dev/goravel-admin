@@ -1,5 +1,6 @@
-// Package gateways holds PaymentGatewayDriver implementations (one file per channel).
+// Package gateways holds payment.GatewayDriver implementations (one file per channel).
 // Register via payment.RegisterGateway in init(). Do not import goravel/app/services.
+// App loads this package via providers.PaymentServiceProvider blank-import.
 package gateways
 
 import (

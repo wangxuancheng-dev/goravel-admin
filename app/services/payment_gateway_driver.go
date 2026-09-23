@@ -10,27 +10,11 @@ import (
 	apppayment "goravel/app/payment"
 )
 
-// PaymentGatewayDriver is an alias of payment.GatewayDriver used by this package's allowlist helpers.
-type PaymentGatewayDriver = apppayment.GatewayDriver
-
-// RegisterPaymentGateway registers a driver (thin facade over payment.RegisterGateway).
-func RegisterPaymentGateway(driver PaymentGatewayDriver) {
-	apppayment.RegisterGateway(driver)
-}
-
-// LookupPaymentGateway returns a registered driver for type (e.g. "mock", "wechat").
-func LookupPaymentGateway(typ string) (PaymentGatewayDriver, bool) {
-	return apppayment.LookupGateway(typ)
-}
-
-// RegisteredPaymentGatewayTypes returns sorted registered type names.
-func RegisteredPaymentGatewayTypes() []string {
-	return apppayment.RegisteredGatewayTypes()
-}
-
-func requirePaymentGateway(typ string) (PaymentGatewayDriver, error) {
+// requirePaymentGateway returns a registered driver that is also allowlisted.
+// Registry API lives in app/payment (RegisterGateway / LookupGateway); do not re-export it here.
+func requirePaymentGateway(typ string) (apppayment.GatewayDriver, error) {
 	typ = apppayment.NormalizeGatewayType(typ)
-	d, ok := LookupPaymentGateway(typ)
+	d, ok := apppayment.LookupGateway(typ)
 	if !ok || d == nil {
 		return nil, apperrors.ErrInvalidPaymentType.WithMessage(fmt.Sprintf("unsupported payment gateway type: %s", typ))
 	}
@@ -47,7 +31,7 @@ func IsPaymentGatewayEnabled(typ string) bool {
 	if typ == "" {
 		return false
 	}
-	if _, ok := LookupPaymentGateway(typ); !ok {
+	if _, ok := apppayment.LookupGateway(typ); !ok {
 		return false
 	}
 	allow := paymentGatewayAllowlist()
@@ -60,7 +44,7 @@ func IsPaymentGatewayEnabled(typ string) bool {
 
 // EnabledPaymentGateways returns registered drivers filtered by PAYMENT_GATEWAYS_ENABLED.
 func EnabledPaymentGateways() []string {
-	registered := RegisteredPaymentGatewayTypes()
+	registered := apppayment.RegisteredGatewayTypes()
 	allow := paymentGatewayAllowlist()
 	if len(allow) == 0 {
 		return registered

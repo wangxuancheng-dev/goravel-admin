@@ -9,11 +9,13 @@ import (
 	"goravel/app/models"
 )
 
-// GatewayDriver is one payment channel (mock / wechat / stripe / …).
+// GatewayDriver is one payment channel (mock / wechat / stripe / ...).
 //
-// Drivers live in app/payment/gateways (one file per type). Registry stays here so
-// gateways never import services (no cycle). services.ApplyPaidResult is the only
-// write path — Notify returns *PaidResult; PaymentGatewayService applies it.
+// Package boundary (extractable later as a Goravel package):
+//   - Registry + PaidResult + helpers live here; drivers in gateways/ (one file per type).
+//   - Gateways must NOT import app/services (no cycle). Amount lookup uses ResolvePaymentAmount.
+//   - Notify only returns *PaidResult; app services.ApplyPaidResult is the only DB write path.
+//   - App wires drivers + ResolvePaymentAmount via providers.PaymentServiceProvider.
 //
 // Implementation style (both first-class):
 //   - External Go module / SDK in go.mod (see gateways/wechat.go)

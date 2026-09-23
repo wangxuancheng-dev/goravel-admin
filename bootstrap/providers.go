@@ -61,6 +61,7 @@ func Providers() []foundation.ServiceProvider {
 		&process.ServiceProvider{},
 		&view.ServiceProvider{},
 		&providers.AppServiceProvider{},
+		&providers.PaymentServiceProvider{},
 		&providers.SearchServiceProvider{},
 		&providers.AuthServiceProvider{},
 		&providers.RouteServiceProvider{},

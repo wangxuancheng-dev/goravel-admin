@@ -13,8 +13,10 @@ import (
 	"goravel/app/services"
 )
 
-// SearchServiceProvider registers the switchable search.Engine (SEARCH_DRIVER).
-// Concrete SDK clients stay inside each driver package (no app/clients or ES DI binding).
+// SearchServiceProvider registers the switchable search.Engine (SEARCH_DRIVER)
+// and injects order loaders into search/orders.
+// Domain: app/search (+ drivers, orders adapter). App services own DB reads.
+// To extract later: move search/ to a module; keep this provider as the wiring point.
 type SearchServiceProvider struct{}
 
 func (r *SearchServiceProvider) Register(app foundation.Application) {

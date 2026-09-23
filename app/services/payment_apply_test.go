@@ -10,10 +10,11 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
 	apppayment "goravel/app/payment"
+	_ "goravel/app/payment/gateways" // unit tests do not boot PaymentServiceProvider
 )
 
 func TestMockNotifyRequiresOutTradeNo(t *testing.T) {
-	d, ok := LookupPaymentGateway("mock")
+	d, ok := apppayment.LookupGateway("mock")
 	require.True(t, ok)
 	_, err := d.Notify(context.Background(), &models.PaymentMethod{Type: "mock", Config: "{}"}, map[string]any{"trade_status": "SUCCESS"})
 	require.Error(t, err)

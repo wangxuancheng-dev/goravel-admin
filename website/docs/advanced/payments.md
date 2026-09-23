@@ -19,8 +19,9 @@ CreatePayment (订单 pending)
 | 订单 | `app/services/order_service.go` | 分表订单 CRUD；`UpdateOrderByOrderNo` |
 | 支付记录 | `app/services/payment_service.go` | 分表支付单；创建时校验订单金额 |
 | 落库编排 | `app/services/payment_apply.go` | **唯一**写成功态入口 `ApplyPaidResult` |
-| 网关注册表 | `app/payment/driver.go` | `RegisterGateway` / `LookupGateway`（services 有同名别名） |
+| 网关注册表 | `app/payment/driver.go` | `RegisterGateway` / `LookupGateway`（调用方直接用 `payment.*`） |
 | 网关实现 | `app/payment/gateways/*.go` | 各渠道 Create/Query/Notify（返回 `PaidResult`，不落库） |
+| 支付接线 | `providers.PaymentServiceProvider` | blank-import gateways；注入 `ResolvePaymentAmount` |
 | 回调 | `payment_notify_controller.go` | `POST /api/payment/notify/{type}[/{tenant}]` |
 
 ## 2. 分表如何定位（回调一定找得到）
@@ -120,17 +121,17 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 }
 ```
 
-确保 `app/services` 已 blank-import `goravel/app/payment/gateways`（见 `payment_gateway_boot.go`），新文件的 `init` 会自动注册。
+确保已注册 `providers.PaymentServiceProvider`（blank-import `goravel/app/payment/gateways`），新文件的 `init` 会自动注册。
 
 2. 后台支付方式 `type` 与 `Type()` 同一字符串（如 `stripe`）
 3. 把新 type 写入 `PAYMENT_GATEWAYS_ENABLED`（生产务必白名单，不要长期空 / `*`）
 4. 前端（可选）：在 Vue/React 的 `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` 增加同名项与 i18n（`payment_method.type_<name>`）；未配置字段时仍可出现在下拉（来自 `config.payment_gateways`），但表单无专用字段。只注册已实现的驱动类型。
 
-已注册类型可用 `RegisteredPaymentGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考：`app/payment/gateways/mock.go`。
+已注册类型可用 `payment.RegisteredGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考：`app/payment/gateways/mock.go`。
 
 ### 6.1.1 两种实现方式（都支持）
 
-驱动只负责实现 `PaymentGatewayDriver`；**怎么调第三方不限**，以下两种都是一等公民：
+驱动只负责实现 `payment.GatewayDriver`；**怎么调第三方不限**，以下两种都是一等公民：
 
 | 方式 | 何时用 | 做法 | 仓库内参考 |
 |------|--------|------|------------|
@@ -140,7 +141,7 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 共同点：
 
 - 注册、路由、落库路径相同（`payment.RegisterGateway` + `notify/{type}` + services `ApplyPaidResult`）
-- 驱动 **禁止** import `app/services`（避免循环依赖）；金额回查等通过 `payment.ResolvePaymentAmount` 钩子由 services 注入
+- 驱动 **禁止** import `app/services`（避免循环依赖）；金额回查等通过 `payment.ResolvePaymentAmount` 钩子由 `PaymentServiceProvider` 注入
 - 密钥 / 商户号放在 `payment_methods.config` JSON，不要硬编码
 
 ### 6.2 明确不做
@@ -162,7 +163,7 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 | `app/payment/gateways/` | 所有渠道驱动（可扩展到几十个） |
 | `app/payment/driver.go` | 注册表接口 |
 | `app/services/payment_apply.go` | `ApplyPaidResult` 编排 |
-| `app/services/payment_gateway_*.go` | 白名单、Service 门面、blank-import 驱动包 |
+| `app/services/payment_gateway_*.go` | 白名单 + PaymentGatewayService；注册表在 `app/payment` |
 
 ### 6.4 实现纪律
 
