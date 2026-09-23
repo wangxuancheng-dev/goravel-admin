@@ -10,7 +10,7 @@
 4. `APP_DEBUG=false`，关闭 Swagger / 代码生成器 / pprof
 5. `MODULE_PAYMENTS_ENABLED=false`
 6. 一户一库时：`TENANCY_RESOLVER=subdomain`，`TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`
-7. `migrate`（平台库）；租户库用平台 UI 异步迁移或 `tenant:migrate` / `tenant:migrate-all`；异步运维需 `long-running` worker
+7. `migrate`（平台库）；租户库用平台 UI 异步迁移或 `tenant:migrate` / `tenant:migrate-all [--concurrency=N]`（默认 `TENANCY_MIGRATE_CONCURRENCY`，见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)）；异步运维需 `long-running` worker
 8. 修改默认管理员密码；平台管理员用 `platform:install`
 
 应用在 `APP_ENV=production` 时会对不安全默认项打 **Warning** 日志（不阻断启动），见 `app/production/warn.go`。
@@ -79,7 +79,7 @@ readinessProbe:
 | 5xx 比例升高 | 网关/日志告警 |
 | 队列堆积 / failed_jobs 增长 | Worker 存活、Redis、导出/导入任务；可选 `queue:alert-backlog`（见下） |
 | 磁盘（日志、`storage/backups`） | 备份与日志轮转 |
-| MySQL `Threads_connected` 接近 `max_connections` | 下调 `TENANCY_POOL_*` 或扩容；量级建议见 [多租户 · 规模与推荐配置](/advanced/tenancy#规模与推荐配置) |
+| MySQL `Threads_connected` 接近 `max_connections` | 下调 `TENANCY_POOL_*` 或扩容；量级建议见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调) |
 | 证书到期 | HTTPS |
 
 可选：配置 `OTEL_*` 接入 Jaeger/Grafana（见 OPENSOURCE 进阶段）。
@@ -90,7 +90,7 @@ readinessProbe:
 - Queue Worker：与 Web 分离，消费 `default` + `long-running` + **`schedule`**（灵活定时）及可选 `search`（见 `bootstrap/runners.go`）  
 - 定时：`schedule:run` 或框架 `goravel:schedule` runner（多机时只留一台）  
 - 备份：平台库 + 各租户库（`tenant:backup` / 入队式 `tenant:backup-all`）；公网务必异地副本，不要只留本机 `storage/backups`
-- 多租户规模 / 机器分布：见 [多租户 · 规模与推荐配置](/advanced/tenancy#规模与推荐配置)
+- 多租户规模 / 机器分布：见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)
 
 ### 4.1 多机：API 与 Queue Worker 分角色
 
@@ -143,7 +143,7 @@ Runner 名是连字符 `queue-*`（见 `bootstrap/runners.go`），不是 `queue
 - 可选频道：`WEBSOCKET_REDIS_CHANNEL`（默认 `goravel:ws:notifications`）
 - LB 对 `/ws` 做 sticky 仍有助于重连粘滞，但跨机推送不再依赖 sticky
 
-活跃商户量级对应多少台 API / Worker / DB：见 [多租户 · 规模与推荐配置](/advanced/tenancy#规模与推荐配置)。
+活跃商户量级对应多少台 API / Worker / DB：见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)。
 
 ## 5. 上线最短路径
 

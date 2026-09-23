@@ -391,7 +391,8 @@ type tenantMigrateBatchBody struct {
 	Limit           int    `json:"limit" form:"limit"`
 }
 
-// MigrateBatch enqueues migrate for multiple tenants (e.g. all failed).
+// MigrateBatch enqueues migrate for multiple tenants as one fleet job
+// (TENANCY_MIGRATE_CONCURRENCY), same parallel path as tenant:migrate-all.
 func (c *TenantController) MigrateBatch(ctx http.Context) http.Response {
 	var body tenantMigrateBatchBody
 	_ = ctx.Request().Bind(&body)
@@ -407,6 +408,7 @@ func (c *TenantController) MigrateBatch(ctx http.Context) http.Response {
 	queued := make([]map[string]any, 0)
 	skipped := make([]map[string]any, 0)
 	failed := make([]map[string]any, 0)
+	items := make([]services.TenantOpsArgs, 0, len(tenants))
 	for i := range tenants {
 		tenant := &tenants[i]
 		_, args, err := c.ops().BeginQueuedOp(tenant.ID, models.TenantOpMigrate, body.WithSeed, actor, batchID)
@@ -418,24 +420,26 @@ func (c *TenantController) MigrateBatch(ctx http.Context) http.Response {
 			})
 			continue
 		}
-		payload, err := json.Marshal(args)
-		if err != nil {
-			_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
-			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
-			continue
+		items = append(items, args)
+		queued = append(queued, map[string]any{"id": tenant.ID, "code": tenant.Code, "op_log_id": args.OpLogID})
+	}
+	if len(items) > 0 {
+		if err := services.EnqueuePreparedTenantOpsBatch(items); err != nil {
+			for _, args := range items {
+				tenant, getErr := c.service().GetByID(args.TenantID)
+				if getErr != nil {
+					continue
+				}
+				_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
+				failed = append(failed, map[string]any{"id": args.TenantID, "code": tenant.Code, "error": err.Error()})
+			}
+			queued = queued[:0]
 		}
-		if err := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
-			Type:  "string",
-			Value: string(payload),
-		}}).OnQueue("long-running").Dispatch(); err != nil {
-			_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
-			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
-			continue
-		}
-		queued = append(queued, map[string]any{"id": tenant.ID, "code": tenant.Code})
 	}
 	return response.Success(ctx, map[string]any{
 		"batch_id":      batchID,
+		"mode":          "fleet",
+		"concurrency":   services.FleetConcurrencyForResponse(),
 		"queued_count":  len(queued),
 		"skipped_count": len(skipped),
 		"failed_count":  len(failed),
@@ -885,6 +889,7 @@ func (c *TenantController) QueueStatus(ctx http.Context) http.Response {
 }
 
 // OpsBatch enqueues migrate|seed|backup for multiple tenants.
+// migrate/seed use one fleet job (TENANCY_MIGRATE_CONCURRENCY); backup stays 1 job/tenant.
 func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 	var body tenantOpsBatchBody
 	_ = ctx.Request().Bind(&body)
@@ -918,6 +923,8 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 	queued := make([]map[string]any, 0)
 	skipped := make([]map[string]any, 0)
 	failed := make([]map[string]any, 0)
+	fleetItems := make([]services.TenantOpsArgs, 0)
+
 	for i := range tenants {
 		tenant := &tenants[i]
 		var args services.TenantOpsArgs
@@ -931,25 +938,55 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 			skipped = append(skipped, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": beginErr.Error()})
 			continue
 		}
-		payload, err := json.Marshal(args)
-		if err != nil {
-			_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
-			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
-			continue
-		}
-		if err := facades.Queue().Job(&jobs.TenantOps{}, []queue.Arg{{
-			Type:  "string",
-			Value: string(payload),
-		}}).OnQueue("long-running").Dispatch(); err != nil {
-			_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
-			failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
-			continue
+		if op == models.TenantOpBackup {
+			if err := services.EnqueueTenantOps(args); err != nil {
+				_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
+				failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
+				continue
+			}
+		} else {
+			fleetItems = append(fleetItems, args)
 		}
 		queued = append(queued, map[string]any{"id": tenant.ID, "code": tenant.Code, "op_log_id": args.OpLogID})
 	}
+
+	mode := "per_tenant"
+	concurrency := 0
+	if op != models.TenantOpBackup && len(fleetItems) > 0 {
+		mode = "fleet"
+		concurrency = services.FleetConcurrencyForResponse()
+		if err := services.EnqueuePreparedTenantOpsBatch(fleetItems); err != nil {
+			for _, args := range fleetItems {
+				tenant, getErr := c.service().GetByID(args.TenantID)
+				if getErr != nil {
+					continue
+				}
+				_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
+				failed = append(failed, map[string]any{"id": args.TenantID, "code": tenant.Code, "error": err.Error()})
+			}
+			// Drop migrate/seed from queued list on dispatch failure.
+			filtered := make([]map[string]any, 0)
+			failIDs := map[uint]struct{}{}
+			for _, f := range failed {
+				if id, ok := f["id"].(uint); ok {
+					failIDs[id] = struct{}{}
+				}
+			}
+			for _, q := range queued {
+				id, _ := q["id"].(uint)
+				if _, bad := failIDs[id]; !bad {
+					filtered = append(filtered, q)
+				}
+			}
+			queued = filtered
+		}
+	}
+
 	return response.Success(ctx, map[string]any{
 		"op":            op,
 		"batch_id":      batchID,
+		"mode":          mode,
+		"concurrency":   concurrency,
 		"queued_count":  len(queued),
 		"skipped_count": len(skipped),
 		"failed_count":  len(failed),

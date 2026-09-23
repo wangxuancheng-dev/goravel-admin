@@ -95,6 +95,7 @@ When new application code requires new columns/tables:
 ```bash
 docker run --rm --env-file .env <new-image> /www/main artisan migrate
 docker run --rm --env-file .env <new-image> /www/main artisan tenant:migrate-all
+# Optional: --concurrency=N or TENANCY_MIGRATE_CONCURRENCY (default 2; raise with many tenants.host)
 ```
 
 3. Confirm tenants are aligned (platform console Ops overview / schema status).

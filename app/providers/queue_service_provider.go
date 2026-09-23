@@ -49,6 +49,15 @@ func (receiver *QueueServiceProvider) Boot(app foundation.Application) {
 			{Type: "string", Value: payload},
 		}).OnQueue("long-running").Dispatch()
 	}
+	services.EnqueueTenantOpsFleetFn = func(args services.TenantOpsFleetArgs) error {
+		payload, err := services.MarshalTenantOpsFleetArgsJSON(args)
+		if err != nil {
+			return err
+		}
+		return facades.Queue().Job(&jobs.TenantOpsFleet{}, []queue.Arg{
+			{Type: "string", Value: payload},
+		}).OnQueue("long-running").Dispatch()
+	}
 }
 
 func (receiver *QueueServiceProvider) Jobs() []queue.Job {
@@ -68,6 +77,7 @@ func (receiver *QueueServiceProvider) Jobs() []queue.Job {
 		&jobs.ExportArticles{},
 		&jobs.ImportOrders{},
 		&jobs.TenantOps{},
+		&jobs.TenantOpsFleet{},
 		&jobs.ImportArticles{},
 		// 搜索引擎同步任务（订单；文章等后续同目录加 sync_*_search.go）
 		&jobs.SyncOrderSearch{},

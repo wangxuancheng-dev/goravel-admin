@@ -40,6 +40,7 @@ TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发
                                           # 远程 host 始终要求独立 username/password
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
 TENANCY_BACKUP_KEEP=10                    # tenant:backup 保留份数；0=不清理
+TENANCY_MIGRATE_CONCURRENCY=2             # tenant:migrate-all / seed-all 并发；可用 --concurrency 覆盖；上限 100
 TENANCY_POOL_MAX_IDLE_CONNS=2
 TENANCY_POOL_MAX_OPEN_CONNS=20
 
@@ -116,6 +117,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试（防永久卡住）。
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
 6. **异步运维**：单户 migrate / seed / backup / restore 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` 仍可用 CLI：`backup-all` 改为入队 long-running（分页扇出），定时 `backup-scheduled` 按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` 户。
+7. **全舰队 migrate/seed 并发**：`TENANCY_MIGRATE_CONCURRENCY`（默认 2）控制 CLI `tenant:migrate-all` / `seed-all` **以及**平台 UI 批量 migrate/seed（`tenant_ops_fleet`）；CLI `--concurrency=N` 可临时覆盖。与 `QUEUE_LONG_RUNNING_CONCURRENT`（单户/backup）、`QUEUE_SCHEDULE_CONCURRENT`（采集）**不是同一旋钮**；见 [并发旋钮对照](#并发旋钮对照与队列一起调)。
 
 ## 公网部署（推荐）
 
@@ -238,6 +240,62 @@ shop.customer-b.com.     CNAME  tenants.example.com.
 | 强制页大小 | `TENANCY_SCOPE_BATCH` | 0=跟自动策略 | 可强制每页 N 户 |
 | 灵活定时 | `next_run_at` + tick 扇出 + `schedule` 队列（`QUEUE_SCHEDULE_CONCURRENT`） | 行为与按分钟匹配一致 | tick **只入队**；Worker 并行执行 handler |
 | 全舰队备份 | `tenant:backup-all` / `backup-scheduled` | 小舰队可一次入队 | 入队 `long-running`；定时按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` |
+| 全舰队 migrate/seed | `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency` | 默认 2；单机同 host 建议 2–5 | 多 `tenants.host` 时可 20–50（真实并行 DDL/seed；勿盲目开满打爆 DB） |
+
+### 全舰队 schema 迁移（`tenant:migrate-all`）
+
+一户一库时每户独立 DDL/seed，墙钟大致为 `户数 × 单户耗时 / 并发`。`MigrateTenant` / `SeedTenant` 使用每 goroutine 绑定的 Schema+Orm（不翻转全局 `database.default`），故 `TENANCY_MIGRATE_CONCURRENCY` 对 migrate-all 与 seed-all 均为 **真正并行**。压力落在各租户库所在的 MySQL/PG 上。
+
+| 部署 | 建议并发 | 说明 |
+|------|----------|------|
+| 单机 / 同 host 多库 | 2–5 | 默认 2；再高易顶 `max_connections` / 磁盘 IO |
+| 约 100 户 / 一台租户库机，多 host | 20–50 | 开户填不同 `tenants.host` 分散；仍是**全局**并发上限，非按 host 分组 |
+| 平台 UI 批量 migrate/seed | `TENANCY_MIGRATE_CONCURRENCY`（`tenant_ops_fleet`） | 与 CLI 同路径；`QUEUE_LONG_RUNNING_CONCURRENT=1` 即可 |
+
+失败户会写 `provision_status=failed` + `last_migrate_error`，可筛失败后批量重试，不必每次全舰队重跑。发版：新镜像先平台 `migrate`，再 `tenant:migrate-all`（可 `--concurrency`），再切流量。
+
+### 并发旋钮对照（与队列一起调）
+
+这些参数**不是**同一个东西，调高其中一个不会自动提高另一个：
+
+| 参数 | 控制什么 | 典型场景 |
+|------|----------|----------|
+| `TENANCY_MIGRATE_CONCURRENCY` | **本进程内** `tenant:migrate-all` / `tenant:seed-all` 同时处理几户（goroutine） | CLI 发版窗口全舰队 DDL/seed |
+| `QUEUE_LONG_RUNNING_CONCURRENT` | **每个** long-running Worker 同时跑几个任务 | 单户 `tenant_ops`、backup 批量；**批量 migrate/seed 只需 1**（fleet 占一槽） |
+| `QUEUE_SCHEDULE_CONCURRENT` | **每个** schedule Worker 同时跑几个灵活定时/采集 job | 日常分钟级业务，与 migrate **抢租户库 IO** |
+| `QUEUE_CONCURRENT` | default 队列并行度 | 导出、通知等普通任务 |
+
+**一起调的原则（同机租户库）：**
+
+1. **发版跑 `migrate-all` / `seed-all` 时**：把 `QUEUE_SCHEDULE_CONCURRENT` 临时降到 `1–2`（或先停 schedule tick），`QUEUE_LONG_RUNNING_CONCURRENT` 保持 `1`，**不要**同时在平台 UI 再点批量迁移——否则 CLI 并发 + Worker 并发叠在同一批 MySQL/PG 上。
+2. **墙钟**：`≈ ceil(户数 / TENANCY_MIGRATE_CONCURRENCY) × 单户 migrate 耗时`；seed 通常远快于 migrate，可共用同一并发值。
+3. **日常运行**：`TENANCY_MIGRATE_CONCURRENCY` 只影响 CLI，可长期保持较大；真正常驻压力看 `QUEUE_SCHEDULE_CONCURRENT × Worker 台数` 与 `TENANCY_POOL_MAX_OPEN_CONNS`。
+4. **经验上界**：单机同 host 建议 CLI 并发 `2–5`；多 `tenants.host` 才开到 `20–50`。队列侧 long-running 默认 `1` 即可，schedule 按采集 SLA 单独加。
+5. **批量 migrate/seed**：CLI 与平台 UI 批量都读 `TENANCY_MIGRATE_CONCURRENCY`。`QUEUE_LONG_RUNNING_CONCURRENT` 不必跟着开大。发版时仍勿同时 CLI + UI 两路叠压同一批库。
+
+**平台 UI 批量 migrate / seed / backup：**
+
+1. **批量** migrate/seed 入队 **一个** `tenant_ops_fleet` 任务，内部用 `TENANCY_MIGRATE_CONCURRENCY`（与 CLI `migrate-all` 同路径）。单户操作仍走普通 `tenant_ops`。`QUEUE_LONG_RUNNING_CONCURRENT` 对批量迁保持 **1** 即可（fleet 只占一个队列槽）。
+2. Worker 机须跑 `queue-long-running`（勿设 `APP_DISABLED_RUNNERS=queue-*`）；API 机通常只 Dispatch。
+3. 改 `.env` 后须 **重启消费 long-running 的 Worker 进程**（并发在启动时读入，见 `bootstrap/runners.go`）。只改 env 不重启 Worker → 仍是旧并发。只重启 API、Worker 不重启 → UI 入队照常但并行度不变。
+4. 批量迁速度靠调大 `TENANCY_MIGRATE_CONCURRENCY`（改完 **下次** 入队的 fleet 即生效，或重启 Worker 前已入队的不受影响）。backup 批量仍是一户一任务，并行看 `QUEUE_LONG_RUNNING_CONCURRENT`。
+
+| 改哪个 | 要不要重启 | 说明 |
+|--------|------------|------|
+| `QUEUE_LONG_RUNNING_CONCURRENT` / `QUEUE_SCHEDULE_CONCURRENT` / `QUEUE_CONCURRENT` | **要**：重启对应队列 Worker | 启动时固定 Concurrent |
+| `TENANCY_MIGRATE_CONCURRENCY` | CLI **下次** `artisan tenant:migrate-all` 即生效；长期跑的 API/Worker 不必为它重启 | 也可用一次性 `--concurrency=N`，无需改 env |
+| 平台 UI 点迁移 | 不重启也能入队 | 并行度仍取决于已启动的 Worker 并发 |
+
+**建议取值（可直接抄，同机一库主机）：**
+
+| 场景 | `TENANCY_MIGRATE_CONCURRENCY`（CLI / UI 批量 migrate·seed） | `QUEUE_LONG_RUNNING_CONCURRENT`（单户 / backup 批量） | `QUEUE_SCHEDULE_CONCURRENT` |
+|------|--------------------------------------|----------------------------------------|------------------------------|
+| 本地 / 小舰队 &lt;50 户 | **2–3**（默认 2） | **1** | **5–10**（默认常 10） |
+| 单机同 host，发版 migrate-all | **3–5** | **1**（发版窗口勿开大） | 临时 **1–2** 或停 tick |
+| ~100 户/台库机，已分 `tenants.host` | **20–40** | **1–2** | **5–10** |
+| 几千户、多 host | **40–50**（上限 100，慎用） | **1–2**；更快就加 Worker 台 | 按 SLA，常从 **10** 起 |
+
+经验：UI 批量迁调 `TENANCY_MIGRATE_CONCURRENCY`（与 CLI 相同）；`QUEUE_LONG_RUNNING_CONCURRENT` 默认 **1** 即可。墙钟粗算 `ceil(户数/并发) × 单户 migrate 秒数`（本仓库实测单户 DDL 约十余秒量级）。
 
 ### 活跃量级 × 调参对照
 
@@ -246,7 +304,7 @@ shop.customer-b.com.     CNAME  tenants.example.com.
 | &lt; 50 | 默认 `IDLE=2` / `OPEN=20` 可留；可先降到 `OPEN=10` | 可同机 Worker；`QUEUE_CONNECTION=redis` | 单机或小规格云 Redis |
 | 50–200 | `IDLE=1–2`，`OPEN=3–5`；缩短 idle/lifetime（如 120 / 600） | API 与 Worker **分角色**（见 [生产清单](/deploy/production) §4.1）；`QUEUE_LONG_RUNNING_CONCURRENT` 保持较小 | 托管 Redis，盯 `used_memory` 与 backlog |
 | 200–1000 | `OPEN=2–3`；`REGISTERED_MAX=300` 可选 | 独立 Worker：`default` + `long-running` + **`schedule`** | 更大规格；导出导入注意吵邻居 |
-| 几千 | `OPEN=2`；`REGISTERED_MAX=300–500`；`tenants.host` **分库主机** | Worker 可水平扩；`QUEUE_SCHEDULE_CONCURRENT` 按采集耗时调 | 托管高可用；吵邻居再拆缓存/队列 |
+| 几千 | `OPEN=2`；`REGISTERED_MAX=300–500`；`tenants.host` **分库主机**；migrate 可 `TENANCY_MIGRATE_CONCURRENCY=20–50` | Worker 可水平扩；`QUEUE_SCHEDULE_CONCURRENT` 按采集耗时调 | 托管高可用；吵邻居再拆缓存/队列 |
 
 ### 机器规模与角色分布（经验）
 
@@ -299,6 +357,7 @@ TENANCY_SCOPE_AUTO_BATCH_AT=200
 TENANCY_SCOPE_AUTO_BATCH=100
 TENANCY_FLEX_SCHEDULE_TICK_LIMIT=2000
 TENANCY_FLEX_SCHEDULE_QUEUE=schedule
+TENANCY_MIGRATE_CONCURRENCY=40
 QUEUE_SCHEDULE_CONCURRENT=10
 TENANT_BACKUP_SCHEDULE_ENABLED=true
 TENANT_BACKUP_SCHEDULE_BATCH=100
@@ -327,7 +386,7 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
 6. **PG sslmode**：`TENANCY_POSTGRES_SSLMODE` 或 `DB_SSLMODE`。
 7. **备份/恢复**：`tenant:backup [--keep=N]`、`tenant:backup-all`（入队，非同步 dump 全舰队）、`tenant:backup-scheduled`（日批轮转）；PG schema 隔离备份用 `pg_dump -n`，恢复用 `PGOPTIONS=--search_path`。
-8. **CLI 范围**：`RunTenantScope` 仅遍历 **active + ready**；`tenant:migrate-all` 仍可覆盖 pending（单独查询）。
+8. **CLI 范围**：`RunTenantScope` 仅遍历 **active + ready**；`tenant:migrate-all` 仍可覆盖 pending（单独查询）；并发见 `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`。
 9. **未绑定隔离**：tenancy 开启但 ctx 未绑定时，`CacheKey` → `t_unbound:*`，`StoragePrefix` → `tenants/_unbound_/`（不与共享根冲突）。
 
 ## 首启（推荐）
@@ -366,13 +425,14 @@ go run . artisan tenant:create {code} {name} \
   [--database=] [--schema=] [--skip-create] [--migrate]
 
 go run . artisan tenant:migrate {id|code}
-go run . artisan tenant:migrate-all
+go run . artisan tenant:migrate-all [--concurrency=N]
 go run . artisan tenant:seed {id|code} [--class=...]
 go run . artisan tenant:seed-all
 go run . artisan tenant:list
 go run . artisan tenant:enable|disable {id|code}
 go run . artisan tenant:backup {id|code} [--keep=N]
-go run . artisan tenant:backup-all [--keep=N] [--limit=N] [--rotate]\ngo run . artisan tenant:backup-scheduled   # needs TENANT_BACKUP_SCHEDULE_ENABLED [--limit=N] [--rotate]\ngo run . artisan tenant:backup-scheduled   # needs TENANT_BACKUP_SCHEDULE_ENABLED
+go run . artisan tenant:backup-all [--keep=N] [--limit=N] [--rotate]
+go run . artisan tenant:backup-scheduled   # needs TENANT_BACKUP_SCHEDULE_ENABLED
 go run . artisan tenant:restore {id|code} {sql路径}
 
 # tenancy 开启时，以下命令默认遍历启用租户；可用 --tenant={code|id} 限定

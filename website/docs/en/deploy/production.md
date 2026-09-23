@@ -7,6 +7,7 @@ Full Chinese detail: [生产清单](/deploy/production).
 ## Before go-live
 
 1. `migrate` succeeds; after `db:seed`, change default `admin` password  
+   - Multi-tenant: also `tenant:migrate-all` (concurrency: `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`; see [Tenancy concurrency knobs](/en/advanced/tenancy#concurrency-knobs-tune-with-queue-workers))
 2. Redis up; web process + queue workers stay running  
 3. HTTPS + reverse proxy  
 4. Disable or lock down: Swagger, pprof, code generator  

@@ -25,6 +25,10 @@ func EvictOrmConnectionCache(name string) {
 	if o == nil {
 		return
 	}
+	// Unwrap tenant-aware router so we mutate the real Orm.queries map.
+	if r, ok := o.(*ormRouter); ok {
+		o = r.base
+	}
 	rv := reflect.ValueOf(o)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return

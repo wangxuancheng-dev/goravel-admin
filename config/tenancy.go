@@ -53,6 +53,8 @@ func init() {
 		"flex_schedule_tick_limit": config.Env("TENANCY_FLEX_SCHEDULE_TICK_LIMIT", 2000),
 		// logical queue name for FlexibleScheduleRun jobs
 		"flex_schedule_queue": config.Env("TENANCY_FLEX_SCHEDULE_QUEUE", "schedule"),
+		// tenant:migrate-all goroutine limit (CLI --concurrency overrides; clamped 1..100)
+		"migrate_concurrency": config.Env("TENANCY_MIGRATE_CONCURRENCY", 2),
 		// platform:install 默认管理员（也可传 CLI 参数）
 		"platform_admin_username": config.Env("PLATFORM_ADMIN_USERNAME", ""),
 		"platform_admin_password": config.Env("PLATFORM_ADMIN_PASSWORD", ""),

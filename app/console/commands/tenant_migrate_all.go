@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -11,6 +12,7 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 )
 
 type TenantMigrateAll struct{}
@@ -20,11 +22,19 @@ func (r *TenantMigrateAll) Signature() string {
 }
 
 func (r *TenantMigrateAll) Description() string {
-	return "对所有启用中的租户执行 migrate（并发上限 2）"
+	return "Migrate all active tenants (concurrency: TENANCY_MIGRATE_CONCURRENCY / --concurrency)"
 }
 
 func (r *TenantMigrateAll) Extend() command.Extend {
-	return command.Extend{Category: "tenant"}
+	return command.Extend{
+		Category: "tenant",
+		Flags: []command.Flag{
+			&command.IntFlag{
+				Name:  "concurrency",
+				Usage: "parallel tenants (overrides TENANCY_MIGRATE_CONCURRENCY; clamped 1..100)",
+			},
+		},
+	}
 }
 
 func (r *TenantMigrateAll) Handle(ctx console.Context) error {
@@ -36,12 +46,19 @@ func (r *TenantMigrateAll) Handle(ctx console.Context) error {
 		return err
 	}
 	if len(tenants) == 0 {
-		ctx.Info("没有启用中的租户")
+		ctx.Info("no active tenants")
 		return nil
 	}
 
+	concurrency := tenancy.MigrateConcurrency()
+	if raw := strings.TrimSpace(ctx.Option("concurrency")); raw != "" {
+		concurrency = tenancy.ClampMigrateConcurrency(ctx.OptionInt("concurrency"))
+	}
+
+	ctx.Info(fmt.Sprintf("migrate-all: %d tenant(s), concurrency=%d", len(tenants), concurrency))
+
 	svc := services.NewTenantConnectionService()
-	sem := make(chan struct{}, 2)
+	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 	var failed atomic.Int64
 
@@ -55,11 +72,11 @@ func (r *TenantMigrateAll) Handle(ctx console.Context) error {
 
 			ctx.Info(fmt.Sprintf("migrate %s ...", tenant.Code))
 			if err := svc.MigrateTenant(&tenant); err != nil {
-				ctx.Error(fmt.Sprintf("%s 失败: %v", tenant.Code, err))
+				ctx.Error(fmt.Sprintf("%s failed: %v", tenant.Code, err))
 				failed.Add(1)
 				return
 			}
-			ctx.Success(fmt.Sprintf("%s 完成", tenant.Code))
+			ctx.Success(fmt.Sprintf("%s done", tenant.Code))
 		}()
 	}
 	wg.Wait()

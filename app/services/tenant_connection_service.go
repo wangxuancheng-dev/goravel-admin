@@ -10,6 +10,8 @@ import (
 
 	"github.com/goravel/framework/contracts/database/driver"
 	"github.com/goravel/framework/contracts/database/orm"
+	schemaContract "github.com/goravel/framework/contracts/database/schema"
+	contractsseeder "github.com/goravel/framework/contracts/database/seeder"
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/database/migration"
 	"github.com/goravel/framework/facades"
@@ -129,14 +131,14 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 	if err != nil {
 		return err
 	}
+	// Config.Add + Connection must share ormConnectionMu with parallel openTenantSchema.
+	appfacades.LockOrmConnectionBuild()
 	facades.Config().Add("database.connections."+tenant.ConnectionName, cfg)
-
-	// Verify before marking registered. Framework Connection() returns an Orm with
-	// a nil query on BuildQuery failure (e.g. Access denied); without this check
-	// BindHTTP succeeds and the next OrmQuery(ctx) nil-dereferences.
-	if err := s.warmConnection(tenant.ConnectionName); err != nil {
+	warmErr := s.warmConnectionLocked(tenant.ConnectionName)
+	appfacades.UnlockOrmConnectionBuild()
+	if warmErr != nil {
 		appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
-		return apperrors.ErrTenantConnectionFailed.WithError(err)
+		return apperrors.ErrTenantConnectionFailed.WithError(warmErr)
 	}
 	registeredMu.Lock()
 	markRegisteredLocked(tenant.ConnectionName)
@@ -146,11 +148,17 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 
 // warmConnection opens the pool and pings; safe when BuildQuery left query nil.
 func (s *TenantConnectionService) warmConnection(connectionName string) error {
-	o := appfacades.Orm()
-	if o == nil {
-		return fmt.Errorf("orm unavailable")
-	}
-	to := o.Connection(connectionName)
+	to := appfacades.BuildOrmConnection(connectionName)
+	return s.finishWarm(to, connectionName)
+}
+
+// warmConnectionLocked assumes LockOrmConnectionBuild is held.
+func (s *TenantConnectionService) warmConnectionLocked(connectionName string) error {
+	to := appfacades.BuildOrmConnectionLocked(connectionName)
+	return s.finishWarm(to, connectionName)
+}
+
+func (s *TenantConnectionService) finishWarm(to orm.Orm, connectionName string) error {
 	if to == nil || to.Query() == nil {
 		return fmt.Errorf("init %s connection failed", connectionName)
 	}
@@ -743,9 +751,10 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 	return tenancyctx.WithTenant(ctx, tenant.ID, tenant.ConnectionName, tenant.Code), nil
 }
 
-// WithTenantConnection 在租户连接上串行执行（migrate / seed 共用）。
-// 仅切换 Schema 连接与（为 Artisan seed/migrate 兼容）临时 database.default；
-// 平台查询请始终走 PlatformOrmQuery（钉死 platform_connection，不受 default 翻转影响）。
+// WithTenantConnection runs fn with Schema / database.default flipped to the tenant
+// (seed and other Artisan paths that still need the global facade). Serialized via
+// migrateMu. Prefer MigrateTenant for migrate — it uses BindTenantSchema and can run
+// in parallel with TENANCY_MIGRATE_CONCURRENCY.
 func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn func() error) error {
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
@@ -763,8 +772,14 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 	_ = appfacades.PlatformConnectionName()
 
 	prevDefault := facades.Config().GetString("database.default")
+	appfacades.LockOrmConnectionBuild()
 	facades.Config().Add("database.default", tenant.ConnectionName)
-	defer facades.Config().Add("database.default", prevDefault)
+	appfacades.UnlockOrmConnectionBuild()
+	defer func() {
+		appfacades.LockOrmConnectionBuild()
+		facades.Config().Add("database.default", prevDefault)
+		appfacades.UnlockOrmConnectionBuild()
+	}()
 
 	schema := facades.Schema()
 	prevConn := schema.GetConnection()
@@ -813,22 +828,52 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 	return fn()
 }
 
-// SeedTenant 在租户连接上执行 db:seed。
-// seeders 为空则跑全部；否则等价于 db:seed --seeder=Name（可多个）。
+// SeedTenant runs db:seed on the tenant connection.
+// seeders empty => all registered seeders; otherwise same as db:seed --seeder=Name.
+// Uses per-goroutine Schema+Orm binds when routers are installed (parallel-safe with migrate).
 func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...string) error {
+	if tenant == nil {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	if appfacades.TenantAwareSchemaInstalled() && appfacades.TenantAwareOrmInstalled() {
+		return s.seedTenantParallel(tenant, seeders...)
+	}
+	return s.seedTenantSerial(tenant, seeders...)
+}
+
+func (s *TenantConnectionService) seedTenantParallel(tenant *models.Tenant, seeders ...string) error {
+	sch, err := s.openTenantSchema(tenant)
+	if err != nil {
+		return err
+	}
+	appfacades.BindTenantSchemaAndOrm(sch)
+	defer appfacades.UnbindTenantSchemaAndOrm()
+
+	if appfacades.BoundTenantSchema() == nil || appfacades.BoundTenantOrm() == nil {
+		appfacades.UnbindTenantSchemaAndOrm()
+		return s.seedTenantSerial(tenant, seeders...)
+	}
+
+	// Call seeders on this goroutine. Artisan.Call runs Handle in a NEW goroutine
+	// (framework console), which would not see BindTenantSchemaAndOrm.
+	if err := runTenantSeeders(seeders...); err != nil {
+		return err
+	}
+	n, err := sch.Orm().Query().Table("admins").Count()
+	if err != nil {
+		return fmt.Errorf("seed verify failed: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("seed failed: admins empty on %s", sch.Orm().DatabaseName())
+	}
+	return nil
+}
+
+func (s *TenantConnectionService) seedTenantSerial(tenant *models.Tenant, seeders ...string) error {
 	return s.WithTenantConnection(tenant, func() error {
-		cmd := "db:seed --force"
-		for _, name := range seeders {
-			name = strings.TrimSpace(name)
-			if name == "" {
-				continue
-			}
-			cmd += " --seeder=" + name
-		}
-		if err := facades.Artisan().Call(cmd); err != nil {
+		if err := runTenantSeeders(seeders...); err != nil {
 			return err
 		}
-		// Artisan seed may return nil even when data landed on the wrong DB.
 		n, err := facades.Orm().Query().Table("admins").Count()
 		if err != nil {
 			return fmt.Errorf("seed verify failed: %w", err)
@@ -840,27 +885,45 @@ func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...s
 	})
 }
 
-// MigrateTenant 在租户连接上执行 migrate，成功后标记 provision_status=ready。
+// runTenantSeeders runs registered seeders on the current goroutine (same as
+// db:seed --force [--seeder=...], without Artisan's extra Handle goroutine).
+func runTenantSeeders(names ...string) error {
+	facade := facades.Seeder()
+	if facade == nil {
+		return fmt.Errorf("seeder facade unavailable")
+	}
+	var list []contractsseeder.Seeder
+	trimmed := make([]string, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			trimmed = append(trimmed, name)
+		}
+	}
+	if len(trimmed) == 0 {
+		list = facade.GetSeeders()
+	} else {
+		list = make([]contractsseeder.Seeder, 0, len(trimmed))
+		for _, name := range trimmed {
+			item := facade.GetSeeder(name)
+			if item == nil {
+				return fmt.Errorf("seeder not found: %s", name)
+			}
+			list = append(list, item)
+		}
+	}
+	if len(list) == 0 {
+		return nil
+	}
+	return facade.Call(list)
+}
+
+// MigrateTenant runs migrations on the tenant connection and marks provision_status=ready.
+// Uses a per-goroutine Schema bind (no global database.default flip) so tenant:migrate-all
+// concurrency and long-running workers can run true parallel DDL.
 func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	var migCount int64
-	err := s.WithTenantConnection(tenant, func() error {
-		// Call Migrator.Run directly: Artisan migrate returns nil even on failure.
-		migrator := migration.NewMigrator(facades.Artisan(), facades.Schema(), "migrations")
-		if err := migrator.Run(); err != nil {
-			return err
-		}
-		if !facades.Schema().HasTable("admins") {
-			return fmt.Errorf("migrate failed: admins table missing on %s", facades.Schema().Orm().DatabaseName())
-		}
-		if facades.Schema().HasTable("migrations") {
-			n, countErr := facades.Orm().Query().Table("migrations").Count()
-			if countErr != nil {
-				return countErr
-			}
-			migCount = n
-		}
-		return nil
-	})
+	err := s.migrateTenantParallel(tenant, &migCount)
 	now := time.Now()
 	if err != nil {
 		_ = s.SetProvisionStatus(tenant, models.TenantProvisionFailed)
@@ -904,6 +967,113 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	return nil
 }
 
+// migrateTenantParallel opens an independent Schema for the tenant connection, binds it for
+// this goroutine (so migration Up() via facades.Schema() hits the tenant DB), and runs Migrator.
+func (s *TenantConnectionService) migrateTenantParallel(tenant *models.Tenant, migCount *int64) error {
+	if tenant == nil {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	sch, err := s.openTenantSchema(tenant)
+	if err != nil {
+		return err
+	}
+	appfacades.BindTenantSchema(sch)
+	defer appfacades.UnbindTenantSchema()
+
+	// Without the router, migration Up() still hits the global Schema — use serial path.
+	if !appfacades.TenantAwareSchemaInstalled() || appfacades.BoundTenantSchema() == nil {
+		appfacades.UnbindTenantSchema()
+		return s.withTenantConnectionMigrate(tenant, migCount)
+	}
+
+	// Call Migrator.Run directly: Artisan migrate returns nil even on failure.
+	migrator := migration.NewMigrator(facades.Artisan(), sch, "migrations")
+	if err := migrator.Run(); err != nil {
+		return err
+	}
+	if !sch.HasTable("admins") {
+		return fmt.Errorf("migrate failed: admins table missing on %s", sch.Orm().DatabaseName())
+	}
+	if sch.HasTable("migrations") {
+		n, countErr := sch.Orm().Query().Table("migrations").Count()
+		if countErr != nil {
+			return countErr
+		}
+		*migCount = n
+	}
+	return nil
+}
+
+// withTenantConnectionMigrate is the legacy serial path (global Schema flip) used when the
+// tenant-aware Schema router is not installed.
+func (s *TenantConnectionService) withTenantConnectionMigrate(tenant *models.Tenant, migCount *int64) error {
+	return s.WithTenantConnection(tenant, func() error {
+		migrator := migration.NewMigrator(facades.Artisan(), facades.Schema(), "migrations")
+		if err := migrator.Run(); err != nil {
+			return err
+		}
+		if !facades.Schema().HasTable("admins") {
+			return fmt.Errorf("migrate failed: admins table missing on %s", facades.Schema().Orm().DatabaseName())
+		}
+		if facades.Schema().HasTable("migrations") {
+			n, countErr := facades.Orm().Query().Table("migrations").Count()
+			if countErr != nil {
+				return countErr
+			}
+			*migCount = n
+		}
+		return nil
+	})
+}
+
+// openTenantSchema returns a Schema bound to the tenant connection (not the global singleton).
+func (s *TenantConnectionService) openTenantSchema(tenant *models.Tenant) (schemaContract.Schema, error) {
+	if err := s.EnsureRegistered(tenant); err != nil {
+		return nil, err
+	}
+	_ = appfacades.PlatformConnectionName()
+	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
+
+	root := facades.Schema()
+	if root == nil {
+		return nil, apperrors.ErrTenantConnectionFailed.WithMessage("schema facade unavailable")
+	}
+	sch := root.Connection(tenant.ConnectionName)
+	if sch == nil {
+		return nil, apperrors.ErrTenantConnectionFailed.WithMessage("tenant schema connection unavailable: " + tenant.ConnectionName)
+	}
+
+	if tenant.Isolation != models.TenantIsolationSchema {
+		want := tenant.Database
+		if want == "" {
+			want = facades.Config().GetString("database.connections."+tenant.ConnectionName+".database", "")
+		}
+		got := schemaSessionDatabaseName(sch)
+		if got == "" {
+			got = sch.Orm().DatabaseName()
+		}
+		if want != "" && got != want {
+			appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
+			sch = root.Connection(tenant.ConnectionName)
+			if sch == nil {
+				return nil, apperrors.ErrTenantConnectionFailed.WithMessage("tenant schema reconnect failed")
+			}
+			got = schemaSessionDatabaseName(sch)
+			if got == "" {
+				got = sch.Orm().DatabaseName()
+			}
+			if want != "" && got != want {
+				return nil, fmt.Errorf("tenant schema DATABASE()=%s want %s (orm connection cache)", got, want)
+			}
+		}
+	}
+
+	if db, err := sch.Orm().DB(); err == nil && db != nil {
+		applyTenantPoolLimits(db)
+	}
+	return sch, nil
+}
+
 // Ping verifies the tenant database connection is reachable.
 func (s *TenantConnectionService) Ping(tenant *models.Tenant, timeout time.Duration) error {
 	if tenant == nil {
@@ -915,11 +1085,7 @@ func (s *TenantConnectionService) Ping(tenant *models.Tenant, timeout time.Durat
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	o := appfacades.Orm()
-	if o == nil {
-		return apperrors.ErrTenantConnectionFailed.WithMessage("orm unavailable")
-	}
-	to := o.Connection(tenant.ConnectionName)
+	to := appfacades.BuildOrmConnection(tenant.ConnectionName)
 	// Failed BuildQuery yields Orm with nil query; DB() would nil-deref.
 	if to == nil || to.Query() == nil {
 		s.Forget(tenant.ConnectionName)

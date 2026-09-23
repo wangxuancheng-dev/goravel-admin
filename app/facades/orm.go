@@ -32,7 +32,7 @@ func OrmQuery(ctx context.Context) orm.Query {
 	}
 	if tenancy.Enabled() {
 		if conn, ok := tenancyctx.ConnectionFrom(ctx); ok {
-			to := o.Connection(conn)
+			to := BuildOrmConnection(conn)
 			if to == nil {
 				return nil
 			}
@@ -49,7 +49,11 @@ func OrmTransaction(ctx context.Context, fn func(tx orm.Query) error) error {
 	}
 	if tenancy.Enabled() {
 		if conn, ok := tenancyctx.ConnectionFrom(ctx); ok {
-			return Orm().Connection(conn).WithContext(ctx).Transaction(fn)
+			to := BuildOrmConnection(conn)
+			if to == nil {
+				return Orm().Transaction(fn)
+			}
+			return to.WithContext(ctx).Transaction(fn)
 		}
 	}
 	return Orm().WithContext(ctx).Transaction(fn)
@@ -88,11 +92,7 @@ func PlatformConnectionName() string {
 // PlatformOrmQuery always uses the pinned platform (landlord) connection — tenants metadata / DDL only.
 // Safe to call while WithTenantConnection temporarily flips database.default for Artisan migrate/seed.
 func PlatformOrmQuery(ctx context.Context) orm.Query {
-	o := Orm()
-	if o == nil {
-		return nil
-	}
-	po := o.Connection(PlatformConnectionName())
+	po := BuildOrmConnection(PlatformConnectionName())
 	if po == nil {
 		return nil
 	}
