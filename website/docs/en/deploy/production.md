@@ -99,6 +99,8 @@ Notification WS hub is process-local; with **`WEBSOCKET_REDIS_BRIDGE=true`** (de
 
 Requirements: reachable Redis (`database.redis.default`). Disable with `WEBSOCKET_REDIS_BRIDGE=false` for single-node / no Redis. Optional sticky sessions on `/ws` still help reconnect affinity but are not required for cross-node push.
 
+**Vanity / custom admin domains** (page apex differs from API apex, e.g. `tenant.example.xyz` → `api.example.top`): the browser cannot complete cross-site WSS to the API host. The SPA uses same-origin `wss://<page-host>/ws/admin/notifications`. Deploy `html-react/worker.js` (or `html/worker.js`) with `[vars] API_ORIGIN=https://api.example.top` so Cloudflare proxies `/ws` to the API. If the SPA is on nginx instead, add a `/ws` `proxy_pass` on that vhost (see root `nginx.conf` comments).
+
 Monitor **WS online admins / WS connections** aggregates cluster-wide from a Redis ZSET (`WEBSOCKET_REDIS_PRESENCE_KEY`, default `goravel:ws:presence`) when the bridge is on; stale entries expire ~45s after disconnect.
 
 ## Resource ownership (admin)

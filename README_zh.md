@@ -339,6 +339,8 @@ npx wrangler deploy
 
 **注意：** `worker.js` 会处理 SPA 路由，当路径不是静态资源时回退到 `index.html`。仅上传 `dist`、不带 Worker 时，刷新 `/admins` 等路径会 404。
 
+**独立域名 / 自定义域名（与 API 不同 apex）：** SPA 会连接同源 wss://<页面域名>/ws/...。请在 wrangler.toml 的 [vars] 中设置 API_ORIGIN（例如 https://api.xuancheng888.top），由 Worker 把 /ws 反代到 API。未配置反代时，WebSocket 到不了 Go。
+
 ### Cloudflare 部署文档站（VitePress）
 
 文档在 `website/`，与后台前端分开部署（独立 Worker / 域名）：

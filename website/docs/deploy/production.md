@@ -144,6 +144,8 @@ Runner 名是连字符 `queue-*`（见 `bootstrap/runners.go`），不是 `queue
 - 监控页「WS 在线管理员 / WS 连接数」在 bridge 开启时从 Redis ZSET（`WEBSOCKET_REDIS_PRESENCE_KEY`，默认 `goravel:ws:presence`）汇总全集群；断连后约 45s TTL 过期清理
 - LB 对 `/ws` 做 sticky 仍有助于重连粘滞，但跨机推送不再依赖 sticky
 
+**独立域名 / 自定义管理端域名**（页面 apex 与 API apex 不同，例如 	enant.example.xyz → pi.example.top）：浏览器无法完成跨站 WSS。SPA 使用同源 wss://<页面域名>/ws/admin/notifications。部署 html-react/worker.js（或 html/worker.js）并设置 [vars] API_ORIGIN=https://api.example.top，由 Cloudflare 把 /ws 反代到 API。若 SPA 用 nginx 托管，在该 vhost 增加 /ws 的 proxy_pass（见根目录 ginx.conf 注释）。
+
 活跃商户量级对应多少台 API / Worker / DB：见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)。
 
 ## 5. 上线最短路径

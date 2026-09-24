@@ -76,6 +76,7 @@ func Admin() {
 			router.Get("notifications/unread-count", notificationController.UnreadCount)
 			router.Get("notifications/recent", notificationController.Recent)
 			router.Post("notifications/ws-ticket", notificationWsController.Ticket)
+			router.Post("notifications/ws-client-log", notificationWsController.ClientLog)
 			router.Post("notifications/{id}/read", notificationController.MarkRead)
 			router.Post("notifications/read-all", notificationController.MarkAllRead)
 

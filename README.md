@@ -340,6 +340,8 @@ npx wrangler deploy
 
 **Note:** `worker.js` handles SPA routing by falling back to `index.html` for non-asset paths. Uploading only `dist` without the Worker will 404 on refresh of routes like `/admins`.
 
+**Vanity / custom domains (different apex from API):** the SPA opens `wss://<page-host>/ws/...` (same-origin). Set `API_ORIGIN` in `wrangler.toml` `[vars]` (e.g. `https://api.xuancheng888.top`) so the Worker proxies `/ws` to the API. Without that proxy, WebSocket never reaches Go.
+
 ### Cloudflare docs site (VitePress)
 
 Docs live under `website/` and should be a **separate** Worker / domain from the admin SPA:

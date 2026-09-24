@@ -53,6 +53,10 @@ export function createNotificationWsTicket() {
   return request({ url: '/notifications/ws-ticket', method: 'post' })
 }
 
+export function postNotificationWsClientLog(data: Record<string, unknown>) {
+  return request({ url: '/notifications/ws-client-log', method: 'post', data })
+}
+
 export function createNotification(data: Record<string, unknown>) {
   return request({ url: '/notifications', method: 'post', data })
 }

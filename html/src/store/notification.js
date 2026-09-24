@@ -15,7 +15,7 @@ import { playNotificationSound } from '../utils/sound'
 const { t } = i18n.global
 
 export const useNotificationStore = defineStore('notification', {
-  state: () => ({
+    state: () => ({
     items: [],
     unreadCount: 0,
     loading: false,
@@ -25,10 +25,25 @@ export const useNotificationStore = defineStore('notification', {
     initializing: false,
     retryCount: 0,
     retryTimer: null,
+    pollTimer: null,
     wsAuthErrorNotified: false,
     soundDebounceTimer: null // 声音防抖定时器
   }),
   actions: {
+    startPoll() {
+      if (this.pollTimer) return
+      this.wsConnected = false
+      this.refresh()
+      this.pollTimer = setInterval(() => {
+        this.refresh()
+      }, 15000)
+    },
+    stopPoll() {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer)
+        this.pollTimer = null
+      }
+    },
     async init() {
       if (this.initializing) {
         return
@@ -82,16 +97,34 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
     async connect() {
-      if (this.ws || this.wsConnected) {
+      if (this.ws || this.wsConnected || this.pollTimer) {
         return
       }
       const token = Storage.getItem('token', '')
       if (!token || typeof token !== 'string') {
         return
       }
+
       const authQuery = await this.resolveWsAuthQuery()
       if (!authQuery) {
         return
+      }
+
+      // Cross-site (vanity apex != API apex): same-origin wss://page-host/ws (needs CDN /ws proxy).
+      let crossSite = false
+      const apiBase = String(import.meta.env.VITE_WS_BASE_URL || import.meta.env.VITE_API_BASE_URL || '').trim()
+      if (apiBase && typeof window !== 'undefined') {
+        try {
+          const withScheme = /^(https?|wss?):\/\//i.test(apiBase) ? apiBase : `https://${apiBase}`
+          const apiHost = new URL(withScheme).hostname.toLowerCase()
+          const etld = (h) => {
+            const p = String(h || '').toLowerCase().split('.').filter(Boolean)
+            return p.length <= 2 ? p.join('.') : p.slice(-2).join('.')
+          }
+          crossSite = etld(apiHost) !== etld(window.location.hostname)
+        } catch (_) {
+          crossSite = false
+        }
       }
       
       // 构建 WebSocket URL
@@ -100,33 +133,33 @@ export const useNotificationStore = defineStore('notification', {
       let wsUrl
       const wsBaseURL = import.meta.env.VITE_WS_BASE_URL
       const apiBaseURL = import.meta.env.VITE_API_BASE_URL
-      
-      if (wsBaseURL) {
+      const path = `/ws/admin/notifications?${authQuery}`
+      const pageProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+
+      if (crossSite) {
+        wsUrl = `${pageProto}//${window.location.host}${path}`
+      } else if (wsBaseURL) {
         const base = wsBaseURL.replace(/\/+$/, '')
         if (base.startsWith('wss://') || base.startsWith('ws://')) {
-          wsUrl = `${base}/ws/admin/notifications?${authQuery}`
+          wsUrl = `${base}${path}`
         } else if (base.startsWith('https://')) {
-          wsUrl = base.replace('https://', 'wss://') + `/ws/admin/notifications?${authQuery}`
+          wsUrl = base.replace('https://', 'wss://') + path
         } else if (base.startsWith('http://')) {
-          wsUrl = base.replace('http://', 'ws://') + `/ws/admin/notifications?${authQuery}`
+          wsUrl = base.replace('http://', 'ws://') + path
         } else {
-          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-          wsUrl = `${protocol}//${base}/ws/admin/notifications?${authQuery}`
+          wsUrl = `${pageProto}//${base}${path}`
         }
       } else if (apiBaseURL) {
         const base = apiBaseURL.replace(/\/+$/, '')
         if (base.startsWith('https://')) {
-          wsUrl = base.replace('https://', 'wss://') + `/ws/admin/notifications?${authQuery}`
+          wsUrl = base.replace('https://', 'wss://') + path
         } else if (base.startsWith('http://')) {
-          wsUrl = base.replace('http://', 'ws://') + `/ws/admin/notifications?${authQuery}`
+          wsUrl = base.replace('http://', 'ws://') + path
         } else {
-          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-          wsUrl = `${protocol}//${base}/ws/admin/notifications?${authQuery}`
+          wsUrl = `${pageProto}//${base}${path}`
         }
       } else {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        const host = window.location.host
-        wsUrl = `${protocol}//${host}/ws/admin/notifications?${authQuery}`
+        wsUrl = `${pageProto}//${window.location.host}${path}`
       }
 
       // HTTPS pages cannot open ws:// (mixed content); force wss.
@@ -134,12 +167,21 @@ export const useNotificationStore = defineStore('notification', {
         wsUrl = 'wss://' + wsUrl.slice('ws://'.length)
       }
 
-      this.ws = new WebSocket(wsUrl)
+      try {
+        this.ws = new WebSocket(wsUrl)
+      } catch (error) {
+        console.warn('WebSocket construct failed:', error)
+        if (crossSite) {
+          this.startPoll()
+        }
+        return
+      }
       this.ws.onopen = () => {
         this.wsConnected = true
         this.retryCount = 0
         this.lastWsCloseCode = null
         this.wsAuthErrorNotified = false
+        this.stopPoll()
       }
       this.ws.onmessage = (event) => {
         try {
@@ -153,6 +195,10 @@ export const useNotificationStore = defineStore('notification', {
         this.wsConnected = false
         this.ws = null
         this.lastWsCloseCode = event?.code || null
+        if (crossSite && (this.retryCount || 0) > 8) {
+          this.startPoll()
+          return
+        }
         this.scheduleReconnect()
       }
       this.ws.onerror = () => {
@@ -201,6 +247,7 @@ export const useNotificationStore = defineStore('notification', {
         this.ws.close()
         this.ws = null
       }
+      this.stopPoll()
       this.wsConnected = false
       this.initializing = false
       this.lastWsCloseCode = null

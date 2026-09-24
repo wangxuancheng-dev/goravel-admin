@@ -5,3 +5,8 @@ main = "worker.js"
 [assets]
 directory = "./dist"
 binding = "ASSETS"
+
+# Required for vanity/custom-domain same-origin WSS (/ws -> API).
+# Override per env in Cloudflare dashboard if needed.
+[vars]
+API_ORIGIN = "https://api.xuancheng888.top"

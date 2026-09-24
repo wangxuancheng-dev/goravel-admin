@@ -5,10 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	appfacades "goravel/app/facades"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -73,7 +76,15 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 		})
 	}
 
-	logger.InfofHTTP(ctx, "WebSocket ticket issued tenant_id=%d origin_host=%s", tenantID, originHost)
+	logger.InfofHTTP(ctx, "WebSocket ticket issued tenant_id=%d origin_host=%s ticket_len=%d", tenantID, originHost, len(ticket))
+	// #region agent log
+	debugWsNDJSON("A", "notification_ws_controller.go:Ticket", "ticket_issued", map[string]any{
+		"tenant_id":   tenantID,
+		"origin_host": originHost,
+		"ticket_len":  len(ticket),
+		"ticket_pref": ticketPrefix(ticket),
+	})
+	// #endregion
 
 	return response.Success(ctx, apphttp.Json{
 		"ticket":     ticket,
@@ -81,29 +92,69 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 	})
 }
 
+// ClientLog receives browser-side WS debug events (auth required).
+func (r *NotificationWsController) ClientLog(ctx apphttp.Context) apphttp.Response {
+	var body map[string]any
+	if err := ctx.Request().Bind(&body); err != nil {
+		return response.Error(ctx, http.StatusBadRequest, "invalid_argument")
+	}
+	hyp, _ := body["hypothesisId"].(string)
+	msg, _ := body["message"].(string)
+	data, _ := body["data"].(map[string]any)
+	if data == nil {
+		data = map[string]any{}
+	}
+	data["page_host"] = originHostFromHeader(ctx.Request().Header("Origin", ""))
+	// #region agent log
+	debugWsNDJSON(hyp, "notification_ws_controller.go:ClientLog", msg, data)
+	// #endregion
+	return response.Success(ctx)
+}
+
 func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response {
 	upgrade := ctx.Request().Header("Upgrade", "")
 	connection := ctx.Request().Header("Connection", "")
 	origin := ctx.Request().Header("Origin", "")
-	logger.InfofHTTP(ctx, "WebSocket connection attempt path=%s upgrade=%s connection=%s origin=%s",
-		ctx.Request().Path(), upgrade, connection, origin)
+	ticketQuery := str.Of(ctx.Request().Query("ticket")).Trim().String()
+	logger.InfofHTTP(ctx, "WebSocket connection attempt path=%s upgrade=%s connection=%s origin=%s ticket_len=%d",
+		ctx.Request().Path(), upgrade, connection, origin, len(ticketQuery))
+	// #region agent log
+	debugWsNDJSON("A", "notification_ws_controller.go:Server", "ws_attempt", map[string]any{
+		"upgrade":     upgrade,
+		"connection":  connection,
+		"origin":      origin,
+		"ticket_len":  len(ticketQuery),
+		"ticket_pref": ticketPrefix(ticketQuery),
+		"host":        ctx.Request().Host(),
+	})
+	// #endregion
 
 	isUpgrade := strings.EqualFold(strings.TrimSpace(upgrade), "websocket")
-	ticketQuery := str.Of(ctx.Request().Query("ticket")).Trim().String()
 
 	// Non-upgrade GET must not burn one-time / signed tickets.
 	if ticketQuery != "" && !isUpgrade {
 		logger.WarnfHTTP(ctx, "WebSocket ticket present without Upgrade header (not consumed)")
+		// #region agent log
+		debugWsNDJSON("A", "notification_ws_controller.go:Server", "reject_no_upgrade", map[string]any{"ticket_len": len(ticketQuery)})
+		// #endregion
 		return response.Error(ctx, http.StatusBadRequest, "websocket_upgrade_required")
 	}
 
 	token, fromTicket, ticketOriginHost, ticketID, ticketErr := r.extractToken(ctx)
 	if ticketErr != "" {
 		logger.WarnfHTTP(ctx, "WebSocket connection rejected: %s origin=%s", ticketErr, origin)
+		// #region agent log
+		debugWsNDJSON("B", "notification_ws_controller.go:Server", "reject_ticket", map[string]any{
+			"error": ticketErr, "origin": origin, "ticket_pref": ticketPrefix(ticketQuery),
+		})
+		// #endregion
 		return response.Error(ctx, http.StatusUnauthorized, ticketErr)
 	}
 	if token == "" {
 		logger.WarnfHTTP(ctx, "WebSocket connection rejected: token_required")
+		// #region agent log
+		debugWsNDJSON("B", "notification_ws_controller.go:Server", "reject_token_required", map[string]any{"origin": origin})
+		// #endregion
 		return response.Error(ctx, http.StatusUnauthorized, "token_required")
 	}
 
@@ -123,6 +174,11 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	accessToken, err := r.tokenService(ctx).FindToken(token)
 	if err != nil || accessToken == nil || accessToken.TokenableType != "admin" {
 		logger.WarnfHTTP(ctx, "WebSocket connection rejected: invalid_token from_ticket=%v", fromTicket)
+		// #region agent log
+		debugWsNDJSON("C", "notification_ws_controller.go:Server", "reject_invalid_token", map[string]any{
+			"from_ticket": fromTicket, "err": fmt.Sprintf("%v", err),
+		})
+		// #endregion
 		return response.Error(ctx, http.StatusUnauthorized, "invalid_token")
 	}
 
@@ -138,6 +194,11 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	if !r.isOriginAllowed(req, tenantID, ticketOriginHost, fromTicket) {
 		logger.WarnfHTTP(ctx, "WebSocket connection rejected: origin_not_allowed origin=%s host=%s tenant_id=%d ticket_origin=%s from_ticket=%v",
 			origin, req.Host, tenantID, ticketOriginHost, fromTicket)
+		// #region agent log
+		debugWsNDJSON("D", "notification_ws_controller.go:Server", "reject_origin", map[string]any{
+			"origin": origin, "ticket_origin": ticketOriginHost, "from_ticket": fromTicket, "tenant_id": tenantID,
+		})
+		// #endregion
 		return response.Error(ctx, http.StatusForbidden, "origin_not_allowed")
 	}
 
@@ -146,10 +207,12 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	})
 	if err != nil {
 		logger.ErrorfHTTP(ctx, "notification ws upgrade error: %v", err)
+		// #region agent log
+		debugWsNDJSON("E", "notification_ws_controller.go:Server", "reject_accept", map[string]any{"err": err.Error()})
+		// #endregion
 		return ctx.Response().String(http.StatusInternalServerError, "upgrade_failed: "+err.Error())
 	}
 
-	// Best-effort one-time mark (works across nodes when CACHE_STORE=redis).
 	if ticketID != "" {
 		_ = facades.Cache().Put(wsTicketUsedPrefix+ticketID, "1", wsTicketTTL)
 		_ = facades.Cache().Forget(wsTicketCachePrefix + ticketID)
@@ -158,6 +221,11 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	wsnotifications.Hub().RegisterConnection(conn, tenantID, admin.ID)
 	logger.InfofHTTP(ctx, "WebSocket connected admin_id=%d tenant_id=%d origin=%s from_ticket=%v",
 		admin.ID, tenantID, origin, fromTicket)
+	// #region agent log
+	debugWsNDJSON("E", "notification_ws_controller.go:Server", "ws_connected", map[string]any{
+		"admin_id": admin.ID, "tenant_id": tenantID, "from_ticket": fromTicket,
+	})
+	// #endregion
 
 	return nil
 }
@@ -447,3 +515,50 @@ func getConfigStringSlice(key string) []string {
 		return []string{}
 	}
 }
+
+func ticketPrefix(ticket string) string {
+	if len(ticket) <= 24 {
+		return ticket
+	}
+	return ticket[:12] + "..." + ticket[len(ticket)-8:]
+}
+
+// #region agent log
+func debugWsNDJSON(hypothesisId, location, message string, data map[string]any) {
+	payload := map[string]any{
+		"sessionId":    "79bec9",
+		"hypothesisId": hypothesisId,
+		"location":     location,
+		"message":      message,
+		"data":         data,
+		"timestamp":    time.Now().UnixMilli(),
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	line := string(b)
+	// Always mirror into application log so operators can grep without fighting cwd.
+	facades.Log().Infof("DBG79bec9 %s", line)
+
+	paths := []string{
+		facades.App().StoragePath("logs", "debug-79bec9.log"),
+		filepath.Join("storage", "logs", "debug-79bec9.log"),
+		"/tmp/debug-79bec9.log",
+	}
+	raw := append([]byte(line), '\n')
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		_ = os.MkdirAll(filepath.Dir(p), 0755)
+		f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			continue
+		}
+		_, _ = f.Write(raw)
+		_ = f.Close()
+	}
+}
+
+// #endregion
