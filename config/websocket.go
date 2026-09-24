@@ -13,5 +13,7 @@ func init() {
 		"redis_connection": config.Env("WEBSOCKET_REDIS_CONNECTION", "default"),
 		// Pub/Sub channel (shared by all API/Worker processes).
 		"redis_channel": config.Env("WEBSOCKET_REDIS_CHANNEL", "goravel:ws:notifications"),
+		// ZSET key for cluster-wide WS presence (monitor online_admins / connections).
+		"presence_key": config.Env("WEBSOCKET_REDIS_PRESENCE_KEY", "goravel:ws:presence"),
 	})
 }

@@ -141,6 +141,7 @@ Runner 名是连字符 `queue-*`（见 `bootstrap/runners.go`），不是 `queue
 
 - 需要 Redis 可达；单机或无 Redis 时可 `WEBSOCKET_REDIS_BRIDGE=false`（仅本机推送）
 - 可选频道：`WEBSOCKET_REDIS_CHANNEL`（默认 `goravel:ws:notifications`）
+- 监控页「WS 在线管理员 / WS 连接数」在 bridge 开启时从 Redis ZSET（`WEBSOCKET_REDIS_PRESENCE_KEY`，默认 `goravel:ws:presence`）汇总全集群；断连后约 45s TTL 过期清理
 - LB 对 `/ws` 做 sticky 仍有助于重连粘滞，但跨机推送不再依赖 sticky
 
 活跃商户量级对应多少台 API / Worker / DB：见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)。

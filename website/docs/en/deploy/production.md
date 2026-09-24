@@ -99,6 +99,8 @@ Notification WS hub is process-local; with **`WEBSOCKET_REDIS_BRIDGE=true`** (de
 
 Requirements: reachable Redis (`database.redis.default`). Disable with `WEBSOCKET_REDIS_BRIDGE=false` for single-node / no Redis. Optional sticky sessions on `/ws` still help reconnect affinity but are not required for cross-node push.
 
+Monitor **WS online admins / WS connections** aggregates cluster-wide from a Redis ZSET (`WEBSOCKET_REDIS_PRESENCE_KEY`, default `goravel:ws:presence`) when the bridge is on; stale entries expire ~45s after disconnect.
+
 ## Resource ownership (admin)
 
 - **Exports:** download / SSE progress / delete — owner or configured `admin.super_admin_id`  

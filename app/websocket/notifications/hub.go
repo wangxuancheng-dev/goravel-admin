@@ -51,10 +51,11 @@ func (h *NotificationHub) run() {
 	for {
 		select {
 		case <-h.stop:
-			// 收到停止信号，关闭所有客户端连接并退出
+			// Stop: close local clients and drop Redis presence entries.
 			h.mu.Lock()
 			for _, adminClients := range h.clients {
 				for client := range adminClients {
+					presenceRemove(client)
 					close(client.send)
 				}
 			}
@@ -73,19 +74,18 @@ func (h *NotificationHub) run() {
 
 func (h *NotificationHub) addClient(client *notificationClient) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	key := adminKey{tenantID: client.tenantID, adminID: client.adminID}
 	if _, ok := h.clients[key]; !ok {
 		h.clients[key] = make(map[*notificationClient]bool)
 	}
 	h.clients[key][client] = true
+	h.mu.Unlock()
+
+	presenceTouch(client)
 }
 
 func (h *NotificationHub) removeClient(client *notificationClient) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	key := adminKey{tenantID: client.tenantID, adminID: client.adminID}
 	if adminClients, ok := h.clients[key]; ok {
 		if _, exists := adminClients[client]; exists {
@@ -96,6 +96,9 @@ func (h *NotificationHub) removeClient(client *notificationClient) {
 			delete(h.clients, key)
 		}
 	}
+	h.mu.Unlock()
+
+	presenceRemove(client)
 }
 
 func (h *NotificationHub) dispatch(tenantID uint, notification *models.Notification) {
@@ -208,7 +211,17 @@ func (h *NotificationHub) Stop() {
 	close(h.stop)
 }
 
+// Stats returns online admin count and WS connection count.
+// With WEBSOCKET_REDIS_BRIDGE enabled, counts are cluster-wide via Redis presence;
+// otherwise (or if Redis is down) falls back to this process only.
 func (h *NotificationHub) Stats() (int, int) {
+	if admins, connections, ok := presenceClusterStats(); ok {
+		return admins, connections
+	}
+	return h.localStats()
+}
+
+func (h *NotificationHub) localStats() (int, int) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -217,6 +230,5 @@ func (h *NotificationHub) Stats() (int, int) {
 	for _, adminClients := range h.clients {
 		connections += len(adminClients)
 	}
-
 	return admins, connections
 }

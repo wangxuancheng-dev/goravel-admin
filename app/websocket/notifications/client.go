@@ -2,6 +2,8 @@ package notifications
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"time"
 
 	"github.com/coder/websocket"
@@ -11,8 +13,17 @@ type notificationClient struct {
 	hub      *NotificationHub
 	conn     *websocket.Conn
 	send     chan []byte
+	connID   string
 	tenantID uint
 	adminID  uint
+}
+
+func newConnID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return bridgeInstanceID + ":" + hex.EncodeToString([]byte(time.Now().Format(time.RFC3339Nano)))
+	}
+	return bridgeInstanceID + ":" + hex.EncodeToString(b)
 }
 
 func newNotificationClient(hub *NotificationHub, conn *websocket.Conn, tenantID, adminID uint) *notificationClient {
@@ -20,6 +31,7 @@ func newNotificationClient(hub *NotificationHub, conn *websocket.Conn, tenantID,
 		hub:      hub,
 		conn:     conn,
 		send:     make(chan []byte, 256),
+		connID:   newConnID(),
 		tenantID: tenantID,
 		adminID:  adminID,
 	}
@@ -34,6 +46,8 @@ func (c *notificationClient) serve() {
 	}()
 
 	ctx := c.conn.CloseRead(context.Background())
+	ticker := time.NewTicker(presenceHeartbeatInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -48,6 +62,8 @@ func (c *notificationClient) serve() {
 			if err != nil {
 				return
 			}
+		case <-ticker.C:
+			presenceTouch(c)
 		case <-ctx.Done():
 			return
 		}
