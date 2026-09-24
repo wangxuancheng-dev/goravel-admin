@@ -26,14 +26,11 @@ import (
 	wsnotifications "goravel/app/websocket/notifications"
 )
 
-type NotificationWsController struct {}
-
+type NotificationWsController struct{}
 
 const (
 	wsTicketCachePrefix = "ws:ticket:"
 	wsTicketTTL         = 60 * time.Second
-	// wsTicketOriginHostKey stores the Origin host baked into a one-time ticket.
-	wsTicketOriginHostKey = "ws_ticket_origin_host"
 )
 
 func NewNotificationWsController() *NotificationWsController {
@@ -43,7 +40,6 @@ func NewNotificationWsController() *NotificationWsController {
 func (r *NotificationWsController) tokenService(ctx apphttp.Context) services.TokenService {
 	return services.NewTokenServiceImpl(ctx)
 }
-
 
 func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response {
 	admin := r.currentAdmin(ctx)
@@ -66,15 +62,15 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 	}
 	cacheKey := wsTicketCachePrefix + ticket
 	// Format: tenantID|adminID|originHost|token (token last so it may contain "|").
-	// originHost lets Server allow the same SPA Origin (vanity / custom domain) without
-	// relying on DOMAINS_ADMIN or tenant_domains lookup at upgrade time.
-	originHost := originHostFromHeader(ctx.Request().Header("Origin", ""))
+	originHost := clientPageHost(ctx)
 	cacheValue := fmt.Sprintf("%d|%d|%s|%s", tenantID, admin.ID, originHost, token)
 	if err := facades.Cache().Put(cacheKey, cacheValue, wsTicketTTL); err != nil {
 		return response.ErrorWithLog(ctx, "notification", err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
+
+	logger.InfofHTTP(ctx, "WebSocket ticket issued tenant_id=%d origin_host=%s", tenantID, originHost)
 
 	return response.Success(ctx, apphttp.Json{
 		"ticket":     ticket,
@@ -83,12 +79,13 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 }
 
 func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response {
-	logger.InfofHTTP(ctx, "WebSocket connection attempt path=%s upgrade=%s connection=%s",
+	logger.InfofHTTP(ctx, "WebSocket connection attempt path=%s upgrade=%s connection=%s origin=%s",
 		ctx.Request().Path(),
 		ctx.Request().Header("Upgrade", ""),
-		ctx.Request().Header("Connection", ""))
+		ctx.Request().Header("Connection", ""),
+		ctx.Request().Header("Origin", ""))
 
-	token := r.extractToken(ctx)
+	token, fromTicket, ticketOriginHost := r.extractToken(ctx)
 	if token == "" {
 		logger.WarnfHTTP(ctx, "WebSocket connection rejected: token_required")
 		// Must return Error: discarded Error + Abort() defaults to empty 400 body.
@@ -124,10 +121,9 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 
 	req := ctx.Request().Origin()
 	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
-	ticketOriginHost, _ := ctx.Value(wsTicketOriginHostKey).(string)
-	if !r.isOriginAllowed(req, tenantID, ticketOriginHost) {
-		logger.WarnfHTTP(ctx, "WebSocket connection rejected: origin_not_allowed origin=%s host=%s tenant_id=%d ticket_origin=%s",
-			req.Header.Get("Origin"), req.Host, tenantID, ticketOriginHost)
+	if !r.isOriginAllowed(req, tenantID, ticketOriginHost, fromTicket) {
+		logger.WarnfHTTP(ctx, "WebSocket connection rejected: origin_not_allowed origin=%s host=%s tenant_id=%d ticket_origin=%s from_ticket=%v",
+			req.Header.Get("Origin"), req.Host, tenantID, ticketOriginHost, fromTicket)
 		return response.Error(ctx, http.StatusForbidden, "origin_not_allowed")
 	}
 
@@ -142,54 +138,53 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	}
 
 	wsnotifications.Hub().RegisterConnection(conn, tenantID, admin.ID)
-	logger.InfofHTTP(ctx, "WebSocket connected admin_id=%d tenant_id=%d", admin.ID, tenantID)
+	logger.InfofHTTP(ctx, "WebSocket connected admin_id=%d tenant_id=%d origin=%s from_ticket=%v",
+		admin.ID, tenantID, req.Header.Get("Origin"), fromTicket)
 
 	return nil
 }
 
-func (r *NotificationWsController) extractToken(ctx apphttp.Context) string {
+func (r *NotificationWsController) extractToken(ctx apphttp.Context) (token string, fromTicket bool, ticketOriginHost string) {
 	ticket := str.Of(ctx.Request().Query("ticket")).Trim().String()
 	if ticket != "" {
-		token, ok := r.consumeTicket(ctx, ticket)
+		tok, originHost, ok := r.consumeTicket(ctx, ticket)
 		if ok {
-			return token
+			return tok, true, originHost
 		}
 		// Ticket present but unusable: do not fall through to Authorization (browsers omit it).
 		logger.WarnfHTTP(ctx, "WebSocket ticket invalid, expired, or tenant bind failed")
-		return ""
+		return "", false, ""
 	}
 
 	// Keep header parsing only for non-browser clients.
 	authorization := str.Of(ctx.Request().Header("Authorization", "")).Trim().String()
 	if authorization != "" {
-		return authorization
+		return authorization, false, ""
 	}
 
-	return ""
+	return "", false, ""
 }
 
-func (r *NotificationWsController) consumeTicket(ctx apphttp.Context, ticket string) (string, bool) {
+func (r *NotificationWsController) consumeTicket(ctx apphttp.Context, ticket string) (token string, ticketOriginHost string, ok bool) {
 	cacheKey := wsTicketCachePrefix + ticket
 	value := facades.Cache().GetString(cacheKey, "")
 	if value == "" {
-		return "", false
+		return "", "", false
 	}
 	_ = facades.Cache().Forget(cacheKey)
 
 	// Prefer 4-part (with origin host); accept legacy 3-part tickets.
 	parts := strings.SplitN(value, "|", 4)
 	var tenantID uint64
-	var token string
-	var ticketOriginHost string
 	switch len(parts) {
 	case 4:
 		var err error
 		tenantID, err = strconv.ParseUint(parts[0], 10, 32)
 		if err != nil {
-			return "", false
+			return "", "", false
 		}
 		if _, err := strconv.ParseUint(parts[1], 10, 32); err != nil {
-			return "", false
+			return "", "", false
 		}
 		ticketOriginHost = strings.TrimSpace(parts[2])
 		token = parts[3]
@@ -197,33 +192,30 @@ func (r *NotificationWsController) consumeTicket(ctx apphttp.Context, ticket str
 		var err error
 		tenantID, err = strconv.ParseUint(parts[0], 10, 32)
 		if err != nil {
-			return "", false
+			return "", "", false
 		}
 		if _, err := strconv.ParseUint(parts[1], 10, 32); err != nil {
-			return "", false
+			return "", "", false
 		}
 		token = parts[2]
 	default:
-		return "", false
+		return "", "", false
 	}
 	if token == "" {
-		return "", false
-	}
-	if ticketOriginHost != "" {
-		ctx.WithValue(wsTicketOriginHostKey, ticketOriginHost)
+		return "", "", false
 	}
 	if tenancy.Enabled() {
 		if tenantID == 0 {
 			logger.WarnfHTTP(ctx, "WebSocket ticket has no tenant_id (re-issue ticket with X-Tenant-ID)")
-			return "", false
+			return "", "", false
 		}
 		// Bind by id only: BindHTTP(id) + Origin code (acme.*) used to raise tenant_hint_conflict.
 		if err := services.NewTenantConnectionService().BindHTTPByTenantID(ctx, uint(tenantID)); err != nil {
 			logger.WarnfHTTP(ctx, "WebSocket ticket tenant bind failed: tenant_id=%d err=%v", tenantID, err)
-			return "", false
+			return "", "", false
 		}
 	}
-	return token, true
+	return token, ticketOriginHost, true
 }
 
 func (r *NotificationWsController) currentAdmin(ctx apphttp.Context) *models.Admin {
@@ -238,7 +230,14 @@ func (r *NotificationWsController) currentAdmin(ctx apphttp.Context) *models.Adm
 	return nil
 }
 
-func (r *NotificationWsController) isOriginAllowed(req *http.Request, tenantID uint, ticketOriginHost string) bool {
+func (r *NotificationWsController) isOriginAllowed(req *http.Request, tenantID uint, ticketOriginHost string, fromTicket bool) bool {
+	// Valid one-time ticket already authenticated the session. Origin allowlists
+	// (DOMAINS_ADMIN / TENANCY_BASE_DOMAIN / tenant_domains) miss vanity hosts on a
+	// second apex or customer CDN; do not block ticket upgrades on Origin alone.
+	if fromTicket {
+		return true
+	}
+
 	origin := strings.TrimSpace(req.Header.Get("Origin"))
 	if origin == "" {
 		return false
@@ -259,12 +258,10 @@ func (r *NotificationWsController) isOriginAllowed(req *http.Request, tenantID u
 		return true
 	}
 
-	// Same Origin that minted the ticket (covers vanity / custom domains reliably).
 	if ticketOriginHost != "" && originHost == tenancy.NormalizeHost(ticketOriginHost) {
 		return true
 	}
 
-	// CORS: "*" / base subdomain / active vanity.
 	if appmiddleware.IsCorsOriginAllowed(origin) {
 		return true
 	}
@@ -281,7 +278,6 @@ func (r *NotificationWsController) isOriginAllowed(req *http.Request, tenantID u
 		return true
 	}
 
-	// Ticket already bound: allow Origin that resolves to the same tenant.
 	if tenancy.Enabled() && tenantID > 0 && r.originBelongsToTenant(originHost, tenantID) {
 		return true
 	}
@@ -300,6 +296,14 @@ func (r *NotificationWsController) originBelongsToTenant(originHost string, tena
 	}
 	tenant, err := services.NewTenantConnectionService().FindTenantByIDOrCode(hint)
 	return err == nil && tenant != nil && tenant.ID == tenantID
+}
+
+// clientPageHost prefers Origin, then Referer (some same-origin proxies omit Origin).
+func clientPageHost(ctx apphttp.Context) string {
+	if host := originHostFromHeader(ctx.Request().Header("Origin", "")); host != "" {
+		return host
+	}
+	return originHostFromHeader(ctx.Request().Header("Referer", ""))
 }
 
 func originHostFromHeader(origin string) string {
