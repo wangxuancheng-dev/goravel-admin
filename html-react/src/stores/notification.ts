@@ -34,6 +34,7 @@ let ws: WebSocket | null = null
 let retryCount = 0
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 let initializing = false
+let connecting = false
 
 function buildWsUrl(authQuery: string): string {
   const wsBaseURL = import.meta.env.VITE_WS_BASE_URL as string | undefined
@@ -144,10 +145,11 @@ async function connectWs(
   set: (partial: Partial<NotificationState>) => void,
   get: () => NotificationState,
 ) {
-  if (ws) return
+  if (ws || connecting) return
   const token = Storage.getItem<string>('token', '')
   if (!token) return
 
+  connecting = true
   let authQuery = ''
   try {
     const res = await createNotificationWsTicket()
@@ -155,12 +157,23 @@ async function connectWs(
     if (ticket) authQuery = `ticket=${encodeURIComponent(ticket)}`
   } catch (error) {
     logger.warn('Create notification ws ticket failed:', error)
+    connecting = false
     return
   }
-  if (!authQuery) return
+  if (!authQuery) {
+    connecting = false
+    return
+  }
 
   const url = buildWsUrl(authQuery)
-  ws = new WebSocket(url)
+  try {
+    ws = new WebSocket(url)
+  } catch (error) {
+    connecting = false
+    logger.warn('WebSocket construct failed:', error)
+    return
+  }
+  connecting = false
   ws.onopen = () => {
     set({ wsConnected: true })
     retryCount = 0
