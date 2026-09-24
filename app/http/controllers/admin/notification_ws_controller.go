@@ -58,6 +58,10 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 	// Ticket keys stay unprefixed: WS upgrade has no Tenant middleware, but ULID is unique.
 	// Embed tenant id so Server can BindHTTP before token/admin lookup.
 	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
+	if tenancy.Enabled() && tenantID == 0 {
+		logger.WarnfHTTP(ctx, "WebSocket ticket refused: tenant not bound (send X-Tenant-ID when calling api.* host)")
+		return response.Error(ctx, http.StatusBadRequest, "tenant_required")
+	}
 	cacheKey := wsTicketCachePrefix + ticket
 	cacheValue := fmt.Sprintf("%d|%d|%s", tenantID, admin.ID, token)
 	if err := facades.Cache().Put(cacheKey, cacheValue, wsTicketTTL); err != nil {
@@ -73,19 +77,16 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 }
 
 func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response {
-	// 记录 WebSocket 连接尝试（仅 Debug 模式）
-	logger.DebugfHTTP(ctx, "WebSocket connection attempt from %s, path: %s, upgrade: %s, connection: %s",
-		ctx.Request().Ip(),
+	logger.InfofHTTP(ctx, "WebSocket connection attempt path=%s upgrade=%s connection=%s",
 		ctx.Request().Path(),
 		ctx.Request().Header("Upgrade", ""),
 		ctx.Request().Header("Connection", ""))
 
 	token := r.extractToken(ctx)
 	if token == "" {
-		logger.WarnfHTTP(ctx, "WebSocket connection rejected: token required")
-		response.Error(ctx, http.StatusUnauthorized, "token_required")
-		ctx.Request().Abort()
-		return nil
+		logger.WarnfHTTP(ctx, "WebSocket connection rejected: token_required")
+		// Must return Error: discarded Error + Abort() defaults to empty 400 body.
+		return response.Error(ctx, http.StatusUnauthorized, "token_required")
 	}
 
 	// Non-ticket Authorization path: bind tenant from header/query if still unbound.
@@ -94,12 +95,9 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 			if err := services.NewTenantConnectionService().BindHTTP(ctx, ""); err != nil {
 				logger.WarnfHTTP(ctx, "WebSocket tenant bind failed: %v", err)
 				if businessErr, ok := apperrors.GetBusinessError(err); ok {
-					response.Error(ctx, http.StatusBadRequest, businessErr.Code)
-				} else {
-					response.Error(ctx, http.StatusBadRequest, "tenant_required")
+					return response.Error(ctx, http.StatusBadRequest, businessErr.Code)
 				}
-				ctx.Request().Abort()
-				return nil
+				return response.Error(ctx, http.StatusBadRequest, "tenant_required")
 			}
 		}
 	}
@@ -107,25 +105,22 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	token = str.Of(token).ChopStart("Bearer ").Trim().String()
 	accessToken, err := r.tokenService(ctx).FindToken(token)
 	if err != nil || accessToken == nil || accessToken.TokenableType != "admin" {
-		response.Error(ctx, http.StatusUnauthorized, "invalid_token")
-		ctx.Request().Abort()
-		return nil
+		logger.WarnfHTTP(ctx, "WebSocket connection rejected: invalid_token")
+		return response.Error(ctx, http.StatusUnauthorized, "invalid_token")
 	}
 
 	var admin models.Admin
 	if err := appfacades.OrmQuery(ctx).Where("id", accessToken.TokenableID).FirstOrFail(&admin); err != nil {
-		response.Error(ctx, http.StatusUnauthorized, "user_not_found")
-		ctx.Request().Abort()
-		return nil
+		logger.WarnfHTTP(ctx, "WebSocket connection rejected: user_not_found")
+		return response.Error(ctx, http.StatusUnauthorized, "user_not_found")
 	}
 	_ = r.tokenService(ctx).UpdateLastUsedAt(token)
 
 	req := ctx.Request().Origin()
 	if !r.isOriginAllowed(req) {
-		logger.WarnfHTTP(ctx, "WebSocket connection rejected: origin not allowed")
-		response.Error(ctx, http.StatusForbidden, "origin_not_allowed")
-		ctx.Request().Abort()
-		return nil
+		logger.WarnfHTTP(ctx, "WebSocket connection rejected: origin_not_allowed origin=%s host=%s",
+			req.Header.Get("Origin"), req.Host)
+		return response.Error(ctx, http.StatusForbidden, "origin_not_allowed")
 	}
 
 	// Origin already verified above; skip library check.
@@ -134,11 +129,13 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	})
 	if err != nil {
 		logger.ErrorfHTTP(ctx, "notification ws upgrade error: %v", err)
-		return ctx.Response().String(http.StatusInternalServerError, "upgrade_failed")
+		// Accept may have already written a status; still return a body when possible.
+		return ctx.Response().String(http.StatusInternalServerError, "upgrade_failed: "+err.Error())
 	}
 
 	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
 	wsnotifications.Hub().RegisterConnection(conn, tenantID, admin.ID)
+	logger.InfofHTTP(ctx, "WebSocket connected admin_id=%d tenant_id=%d", admin.ID, tenantID)
 
 	return nil
 }
@@ -150,7 +147,9 @@ func (r *NotificationWsController) extractToken(ctx apphttp.Context) string {
 		if ok {
 			return token
 		}
-		logger.WarnfHTTP(ctx, "WebSocket ticket invalid or expired")
+		// Ticket present but unusable: do not fall through to Authorization (browsers omit it).
+		logger.WarnfHTTP(ctx, "WebSocket ticket invalid, expired, or tenant bind failed")
+		return ""
 	}
 
 	// Keep header parsing only for non-browser clients.
@@ -185,8 +184,13 @@ func (r *NotificationWsController) consumeTicket(ctx apphttp.Context, ticket str
 	if token == "" {
 		return "", false
 	}
-	if tenancy.Enabled() && tenantID > 0 {
-		if err := services.NewTenantConnectionService().BindHTTP(ctx, fmt.Sprintf("%d", tenantID)); err != nil {
+	if tenancy.Enabled() {
+		if tenantID == 0 {
+			logger.WarnfHTTP(ctx, "WebSocket ticket has no tenant_id (re-issue ticket with X-Tenant-ID)")
+			return "", false
+		}
+		// Bind by id only: BindHTTP(id) + Origin code (acme.*) used to raise tenant_hint_conflict.
+		if err := services.NewTenantConnectionService().BindHTTPByTenantID(ctx, uint(tenantID)); err != nil {
 			logger.WarnfHTTP(ctx, "WebSocket ticket tenant bind failed: tenant_id=%d err=%v", tenantID, err)
 			return "", false
 		}

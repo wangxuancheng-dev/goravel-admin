@@ -673,8 +673,13 @@ func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error 
 	if ctx != nil {
 		reqHost := tenancy.RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
 		raw = tenancy.PickTenantHostCode(reqHost, ctx.Request().Header("Origin", ""), s.tenantCodeFromHost)
+		// Host/Origin often yield a tenant code while X-Tenant-ID / WS tickets pass a numeric id.
 		if raw != "" && clientHint != "" && !strings.EqualFold(clientHint, raw) {
-			return apperrors.ErrTenantHintConflict
+			if !s.hintsReferToSameTenant(clientHint, raw) {
+				return apperrors.ErrTenantHintConflict
+			}
+			// Prefer explicit client hint (header / ticket id) when both name the same tenant.
+			raw = clientHint
 		}
 	}
 	if raw == "" {
@@ -686,6 +691,36 @@ func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error 
 	if strings.TrimSpace(raw) == "" {
 		return apperrors.ErrTenantRequired
 	}
+	return s.bindHTTPTenant(ctx, raw)
+}
+
+// BindHTTPByTenantID binds from a trusted tenant id (e.g. one-time WS ticket).
+// Skips Host/Origin hint picking so api.* + Origin tenant subdomain cannot false-conflict.
+func (s *TenantConnectionService) BindHTTPByTenantID(ctx http.Context, tenantID uint) error {
+	if !tenancy.Enabled() {
+		return nil
+	}
+	if tenantID == 0 {
+		return apperrors.ErrTenantRequired
+	}
+	return s.bindHTTPTenant(ctx, fmt.Sprintf("%d", tenantID))
+}
+
+func (s *TenantConnectionService) hintsReferToSameTenant(a, b string) bool {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	if a == "" || b == "" {
+		return false
+	}
+	if strings.EqualFold(a, b) {
+		return true
+	}
+	ta, errA := s.FindTenantByIDOrCode(a)
+	tb, errB := s.FindTenantByIDOrCode(b)
+	return errA == nil && errB == nil && ta != nil && tb != nil && ta.ID == tb.ID
+}
+
+func (s *TenantConnectionService) bindHTTPTenant(ctx http.Context, raw string) error {
 	tenant, err := s.FindTenantByIDOrCode(raw)
 	if err != nil {
 		return apperrors.ErrTenantNotFound.WithError(err)
