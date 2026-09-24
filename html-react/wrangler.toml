@@ -5,6 +5,8 @@ main = "worker.js"
 [assets]
 directory = "./dist"
 binding = "ASSETS"
+# Ensure /ws hits this Worker before SPA asset fallback.
+run_worker_first = ["/ws", "/ws/*"]
 
 # Required for vanity/custom-domain same-origin WSS (/ws -> API).
 # Override per env in Cloudflare dashboard if needed.
