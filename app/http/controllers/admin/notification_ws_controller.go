@@ -1,6 +1,10 @@
 package admin
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	appfacades "goravel/app/facades"
 	"net/http"
@@ -30,7 +34,9 @@ type NotificationWsController struct{}
 
 const (
 	wsTicketCachePrefix = "ws:ticket:"
+	wsTicketUsedPrefix  = "ws:ticket-used:"
 	wsTicketTTL         = 60 * time.Second
+	wsTicketVersion     = "v1"
 )
 
 func NewNotificationWsController() *NotificationWsController {
@@ -52,24 +58,22 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 		return response.Error(ctx, http.StatusUnauthorized, "token_required")
 	}
 
-	ticket := strings.ToLower(ulid.Make().String())
-	// Ticket keys stay unprefixed: WS upgrade has no Tenant middleware, but ULID is unique.
 	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
 	if tenancy.Enabled() && tenantID == 0 {
 		logger.WarnfHTTP(ctx, "WebSocket ticket refused: tenant not bound (send X-Tenant-ID when calling api.* host)")
 		return response.Error(ctx, http.StatusBadRequest, "tenant_required")
 	}
-	cacheKey := wsTicketCachePrefix + ticket
-	// Format: tenantID|adminID|originHost|token (token last so it may contain "|").
+
 	originHost := clientPageHost(ctx)
-	cacheValue := fmt.Sprintf("%d|%d|%s|%s", tenantID, admin.ID, originHost, token)
-	if err := facades.Cache().Put(cacheKey, cacheValue, wsTicketTTL); err != nil {
+	exp := time.Now().Add(wsTicketTTL).Unix()
+	ticket, err := mintSignedWsTicket(tenantID, admin.ID, exp, originHost, token)
+	if err != nil {
 		return response.ErrorWithLog(ctx, "notification", err, map[string]any{
 			"admin_id": admin.ID,
 		})
 	}
 
-	logger.InfofHTTP(ctx, "WebSocket ticket issued tenant_id=%d origin_host=%s ticket=%s", tenantID, originHost, ticket)
+	logger.InfofHTTP(ctx, "WebSocket ticket issued tenant_id=%d origin_host=%s", tenantID, originHost)
 
 	return response.Success(ctx, apphttp.Json{
 		"ticket":     ticket,
@@ -87,13 +91,13 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	isUpgrade := strings.EqualFold(strings.TrimSpace(upgrade), "websocket")
 	ticketQuery := str.Of(ctx.Request().Query("ticket")).Trim().String()
 
-	// Non-upgrade GET (prefetch / health / open-in-tab) must not burn one-time tickets.
+	// Non-upgrade GET must not burn one-time / signed tickets.
 	if ticketQuery != "" && !isUpgrade {
 		logger.WarnfHTTP(ctx, "WebSocket ticket present without Upgrade header (not consumed)")
 		return response.Error(ctx, http.StatusBadRequest, "websocket_upgrade_required")
 	}
 
-	token, fromTicket, ticketOriginHost, ticketCacheKey, ticketErr := r.extractToken(ctx)
+	token, fromTicket, ticketOriginHost, ticketID, ticketErr := r.extractToken(ctx)
 	if ticketErr != "" {
 		logger.WarnfHTTP(ctx, "WebSocket connection rejected: %s origin=%s", ticketErr, origin)
 		return response.Error(ctx, http.StatusUnauthorized, ticketErr)
@@ -103,7 +107,6 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 		return response.Error(ctx, http.StatusUnauthorized, "token_required")
 	}
 
-	// Non-ticket Authorization path: bind tenant from header/query if still unbound.
 	if tenancy.Enabled() {
 		if _, ok := helpers.GetTenantIDFromContext(ctx); !ok {
 			if err := services.NewTenantConnectionService().BindHTTP(ctx, ""); err != nil {
@@ -146,9 +149,10 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 		return ctx.Response().String(http.StatusInternalServerError, "upgrade_failed: "+err.Error())
 	}
 
-	// Burn ticket only after a successful upgrade so probes / failed Accept do not invalidate it.
-	if ticketCacheKey != "" {
-		_ = facades.Cache().Forget(ticketCacheKey)
+	// Best-effort one-time mark (works across nodes when CACHE_STORE=redis).
+	if ticketID != "" {
+		_ = facades.Cache().Put(wsTicketUsedPrefix+ticketID, "1", wsTicketTTL)
+		_ = facades.Cache().Forget(wsTicketCachePrefix + ticketID)
 	}
 
 	wsnotifications.Hub().RegisterConnection(conn, tenantID, admin.ID)
@@ -158,15 +162,14 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	return nil
 }
 
-// extractToken returns bearer/ticket token. ticketErr is a stable error_code when ticket path fails.
-func (r *NotificationWsController) extractToken(ctx apphttp.Context) (token string, fromTicket bool, ticketOriginHost, ticketCacheKey, ticketErr string) {
+func (r *NotificationWsController) extractToken(ctx apphttp.Context) (token string, fromTicket bool, ticketOriginHost, ticketID, ticketErr string) {
 	ticket := str.Of(ctx.Request().Query("ticket")).Trim().String()
 	if ticket != "" {
-		tok, originHost, cacheKey, errCode := r.loadTicket(ctx, ticket)
+		tok, originHost, id, errCode := r.loadTicket(ctx, ticket)
 		if errCode != "" {
 			return "", false, "", "", errCode
 		}
-		return tok, true, originHost, cacheKey, ""
+		return tok, true, originHost, id, ""
 	}
 
 	authorization := str.Of(ctx.Request().Header("Authorization", "")).Trim().String()
@@ -177,12 +180,42 @@ func (r *NotificationWsController) extractToken(ctx apphttp.Context) (token stri
 	return "", false, "", "", ""
 }
 
-// loadTicket reads a one-time ticket without deleting it (caller forgets after Accept).
-func (r *NotificationWsController) loadTicket(ctx apphttp.Context, ticket string) (token, ticketOriginHost, cacheKey, errCode string) {
-	cacheKey = wsTicketCachePrefix + ticket
+func (r *NotificationWsController) loadTicket(ctx apphttp.Context, ticket string) (token, ticketOriginHost, ticketID, errCode string) {
+	// Preferred: HMAC-signed ticket (works across API nodes without shared memory cache).
+	if strings.HasPrefix(ticket, wsTicketVersion+".") {
+		tenantID, _, exp, originHost, nonce, tok, parseErr := splitSignedPayload(ticket)
+		if parseErr != "" {
+			logger.WarnfHTTP(ctx, "WebSocket signed ticket rejected: %s", parseErr)
+			return "", "", "", parseErr
+		}
+		if time.Now().Unix() > exp {
+			return "", "", "", "ticket_invalid"
+		}
+		if facades.Cache().GetString(wsTicketUsedPrefix+nonce, "") != "" {
+			logger.WarnfHTTP(ctx, "WebSocket signed ticket already used id=%s", nonce)
+			return "", "", "", "ticket_invalid"
+		}
+		if tenancy.Enabled() {
+			if tenantID == 0 {
+				return "", "", "", "tenant_required"
+			}
+			if err := services.NewTenantConnectionService().BindHTTPByTenantID(ctx, tenantID); err != nil {
+				logger.WarnfHTTP(ctx, "WebSocket ticket tenant bind failed: tenant_id=%d err=%v", tenantID, err)
+				if businessErr, ok := apperrors.GetBusinessError(err); ok {
+					return "", "", "", businessErr.Code
+				}
+				return "", "", "", "tenant_required"
+			}
+		}
+		return tok, originHost, nonce, ""
+	}
+
+	// Legacy ULID cache tickets (single-node memory / older builds).
+	ticketID = strings.ToLower(ticket)
+	cacheKey := wsTicketCachePrefix + ticketID
 	value := facades.Cache().GetString(cacheKey, "")
 	if value == "" {
-		logger.WarnfHTTP(ctx, "WebSocket ticket missing or expired ticket=%s", ticket)
+		logger.WarnfHTTP(ctx, "WebSocket ticket missing or expired ticket=%s", ticketID)
 		return "", "", "", "ticket_invalid"
 	}
 
@@ -218,7 +251,6 @@ func (r *NotificationWsController) loadTicket(ctx apphttp.Context, ticket string
 	}
 	if tenancy.Enabled() {
 		if tenantID == 0 {
-			logger.WarnfHTTP(ctx, "WebSocket ticket has no tenant_id")
 			return "", "", "", "tenant_required"
 		}
 		if err := services.NewTenantConnectionService().BindHTTPByTenantID(ctx, uint(tenantID)); err != nil {
@@ -229,7 +261,60 @@ func (r *NotificationWsController) loadTicket(ctx apphttp.Context, ticket string
 			return "", "", "", "tenant_required"
 		}
 	}
-	return token, ticketOriginHost, cacheKey, ""
+	return token, ticketOriginHost, ticketID, ""
+}
+
+func mintSignedWsTicket(tenantID, adminID uint, exp int64, originHost, token string) (string, error) {
+	key := strings.TrimSpace(facades.Config().GetString("app.key"))
+	if key == "" {
+		return "", fmt.Errorf("APP_KEY is empty")
+	}
+	nonce := strings.ToLower(ulid.Make().String())
+	// version|tenant|admin|exp|origin|nonce|token
+	payload := fmt.Sprintf("%s|%d|%d|%d|%s|%s|%s",
+		wsTicketVersion, tenantID, adminID, exp, originHost, nonce, token)
+	mac := hmac.New(sha256.New, []byte(key))
+	_, _ = mac.Write([]byte(payload))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	return wsTicketVersion + "." + base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + sig, nil
+}
+
+func splitSignedPayload(ticket string) (tenantID uint, adminID uint, exp int64, originHost, nonce, token, errCode string) {
+	parts := strings.Split(ticket, ".")
+	if len(parts) != 3 || parts[0] != wsTicketVersion {
+		return 0, 0, 0, "", "", "", "ticket_invalid"
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return 0, 0, 0, "", "", "", "ticket_invalid"
+	}
+	key := strings.TrimSpace(facades.Config().GetString("app.key"))
+	if key == "" {
+		return 0, 0, 0, "", "", "", "ticket_invalid"
+	}
+	mac := hmac.New(sha256.New, []byte(key))
+	_, _ = mac.Write(raw)
+	want := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(want), []byte(parts[2])) {
+		return 0, 0, 0, "", "", "", "ticket_invalid"
+	}
+	fields := strings.SplitN(string(raw), "|", 7)
+	if len(fields) != 7 || fields[0] != wsTicketVersion {
+		return 0, 0, 0, "", "", "", "ticket_invalid"
+	}
+	tid, err := strconv.ParseUint(fields[1], 10, 32)
+	if err != nil {
+		return 0, 0, 0, "", "", "", "ticket_invalid"
+	}
+	aid, err := strconv.ParseUint(fields[2], 10, 32)
+	if err != nil {
+		return 0, 0, 0, "", "", "", "ticket_invalid"
+	}
+	expVal, err := strconv.ParseInt(fields[3], 10, 64)
+	if err != nil {
+		return 0, 0, 0, "", "", "", "ticket_invalid"
+	}
+	return uint(tid), uint(aid), expVal, fields[4], fields[5], fields[6], ""
 }
 
 func (r *NotificationWsController) currentAdmin(ctx apphttp.Context) *models.Admin {
@@ -245,7 +330,6 @@ func (r *NotificationWsController) currentAdmin(ctx apphttp.Context) *models.Adm
 }
 
 func (r *NotificationWsController) isOriginAllowed(req *http.Request, tenantID uint, ticketOriginHost string, fromTicket bool) bool {
-	// Valid ticket already authenticated the client (vanity / alternate apex / CDN).
 	if fromTicket {
 		return true
 	}
