@@ -117,9 +117,10 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	_ = r.tokenService(ctx).UpdateLastUsedAt(token)
 
 	req := ctx.Request().Origin()
-	if !r.isOriginAllowed(req) {
-		logger.WarnfHTTP(ctx, "WebSocket connection rejected: origin_not_allowed origin=%s host=%s",
-			req.Header.Get("Origin"), req.Host)
+	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
+	if !r.isOriginAllowed(req, tenantID) {
+		logger.WarnfHTTP(ctx, "WebSocket connection rejected: origin_not_allowed origin=%s host=%s tenant_id=%d",
+			req.Header.Get("Origin"), req.Host, tenantID)
 		return response.Error(ctx, http.StatusForbidden, "origin_not_allowed")
 	}
 
@@ -133,7 +134,6 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 		return ctx.Response().String(http.StatusInternalServerError, "upgrade_failed: "+err.Error())
 	}
 
-	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
 	wsnotifications.Hub().RegisterConnection(conn, tenantID, admin.ID)
 	logger.InfofHTTP(ctx, "WebSocket connected admin_id=%d tenant_id=%d", admin.ID, tenantID)
 
@@ -210,7 +210,7 @@ func (r *NotificationWsController) currentAdmin(ctx apphttp.Context) *models.Adm
 	return nil
 }
 
-func (r *NotificationWsController) isOriginAllowed(req *http.Request) bool {
+func (r *NotificationWsController) isOriginAllowed(req *http.Request, tenantID uint) bool {
 	origin := strings.TrimSpace(req.Header.Get("Origin"))
 	if origin == "" {
 		return false
@@ -231,16 +231,44 @@ func (r *NotificationWsController) isOriginAllowed(req *http.Request) bool {
 		return true
 	}
 
-	allowedAdminDomains := getConfigStringSlice("domains.admin")
-	if len(allowedAdminDomains) > 0 && !matchDomain(originHost, allowedAdminDomains) {
-		base := tenancy.BaseDomain()
-		underBase := base != "" && (originHost == base || strings.HasSuffix(originHost, "."+base))
-		if !underBase && !services.NewTenantDomainService().IsActiveHost(originHost) {
-			return false
-		}
+	// CORS first: "*" / base subdomain / active vanity — do not let DOMAINS_ADMIN
+	// short-circuit before this (vanity Origins were rejected while HTTP CORS passed).
+	if appmiddleware.IsCorsOriginAllowed(origin) {
+		return true
 	}
 
-	return appmiddleware.IsCorsOriginAllowed(origin)
+	allowedAdminDomains := getConfigStringSlice("domains.admin")
+	if len(allowedAdminDomains) > 0 && matchDomain(originHost, allowedAdminDomains) {
+		return true
+	}
+	base := tenancy.BaseDomain()
+	if base != "" && (originHost == base || strings.HasSuffix(originHost, "."+base)) {
+		return true
+	}
+	if services.NewTenantDomainService().IsActiveHost(originHost) {
+		return true
+	}
+
+	// Ticket already bound: allow Origin that resolves to the same tenant
+	// (vanity host or {code}.TENANCY_BASE_DOMAIN).
+	if tenancy.Enabled() && tenantID > 0 && r.originBelongsToTenant(originHost, tenantID) {
+		return true
+	}
+
+	return false
+}
+
+// originBelongsToTenant reports whether originHost maps to the given tenant id.
+func (r *NotificationWsController) originBelongsToTenant(originHost string, tenantID uint) bool {
+	hint := services.NewTenantDomainService().ResolveActiveCode(originHost)
+	if hint == "" {
+		hint = tenancy.SubdomainHint(originHost)
+	}
+	if hint == "" {
+		return false
+	}
+	tenant, err := services.NewTenantConnectionService().FindTenantByIDOrCode(hint)
+	return err == nil && tenant != nil && tenant.ID == tenantID
 }
 
 func matchDomain(host string, patterns []string) bool {
