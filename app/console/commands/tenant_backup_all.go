@@ -16,7 +16,7 @@ type TenantBackupAll struct{}
 
 func (r *TenantBackupAll) Signature() string { return "tenant:backup-all" }
 func (r *TenantBackupAll) Description() string {
-	return "Enqueue backups for ready tenants onto long-running queue (paged; use --rotate for one page)"
+	return "Enqueue ready-tenant backups as tenant_ops_fleet (TENANCY_BACKUP_CONCURRENCY; --rotate for one page)"
 }
 func (r *TenantBackupAll) Extend() command.Extend {
 	return command.Extend{
@@ -55,20 +55,21 @@ func (r *TenantBackupAll) Handle(ctx console.Context) error {
 		opts.AfterID = cast.ToUint(raw)
 	}
 	if opts.Rotate {
-		ctx.Info("enqueue one backup page (rotate cursor)")
+		ctx.Info(fmt.Sprintf("enqueue one backup page (rotate; backup_concurrency=%d)", tenancy.BackupConcurrency()))
 	} else {
-		ctx.Info("enqueue ready-tenant backups to long-running (paged fan-out)")
+		ctx.Info(fmt.Sprintf("enqueue ready-tenant backups as fleet (backup_concurrency=%d)", tenancy.BackupConcurrency()))
 	}
 	report, err := services.FanOutTenantBackups(opts)
 	if err != nil {
 		ctx.Error(err.Error())
 		return err
 	}
-	ctx.Info(fmt.Sprintf("batch_id=%s queued=%d skipped=%d failed=%d next_after_id=%d",
-		report.BatchID, report.Queued, report.Skipped, report.Failed, report.NextAfterID))
+	ctx.Info(fmt.Sprintf("batch_id=%s mode=%s concurrency=%d fleet_jobs=%d queued=%d skipped=%d failed=%d next_after_id=%d",
+		report.BatchID, report.Mode, report.Concurrency, report.FleetJobs,
+		report.Queued, report.Skipped, report.Failed, report.NextAfterID))
 	if report.Failed > 0 {
 		return fmt.Errorf("%d tenant backup enqueue(s) failed", report.Failed)
 	}
-	ctx.Success("tenant:backup-all enqueue done (workers run dumps on long-running)")
+	ctx.Success("tenant:backup-all enqueue done (workers run dumps on long-running fleet)")
 	return nil
 }

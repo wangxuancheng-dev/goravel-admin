@@ -7,6 +7,7 @@ import (
 
 	"github.com/goravel/framework/facades"
 
+	"goravel/app/models"
 	"goravel/app/tenancy"
 )
 
@@ -45,7 +46,8 @@ func MarshalTenantOpsFleetArgsJSON(args TenantOpsFleetArgs) (string, error) {
 	return string(b), nil
 }
 
-// RunTenantOpsFleet executes migrate/seed items with TENANCY_MIGRATE_CONCURRENCY.
+// RunTenantOpsFleet executes migrate/seed/backup items with the matching concurrency
+// knob (TENANCY_MIGRATE_CONCURRENCY or TENANCY_BACKUP_CONCURRENCY).
 // Always returns nil after fan-out so the queue does not retry the whole fleet
 // (per-tenant success/fail is already recorded on each tenant / op log).
 func RunTenantOpsFleet(args TenantOpsFleetArgs) error {
@@ -53,12 +55,17 @@ func RunTenantOpsFleet(args TenantOpsFleetArgs) error {
 	if len(items) == 0 {
 		return nil
 	}
-	concurrency := tenancy.MigrateConcurrency()
+	op := items[0].Op
+	concurrency := fleetConcurrencyForOp(op)
 	if args.Concurrency >= 1 {
-		concurrency = tenancy.ClampMigrateConcurrency(args.Concurrency)
+		if op == models.TenantOpBackup {
+			concurrency = tenancy.ClampBackupConcurrency(args.Concurrency)
+		} else {
+			concurrency = tenancy.ClampMigrateConcurrency(args.Concurrency)
+		}
 	}
 	facades.Log().Infof("tenant_ops_fleet: items=%d concurrency=%d op=%s batch=%s",
-		len(items), concurrency, items[0].Op, items[0].BatchID)
+		len(items), concurrency, op, items[0].BatchID)
 
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
@@ -99,7 +106,42 @@ func EnqueuePreparedTenantOpsBatch(items []TenantOpsArgs) error {
 	return EnqueueTenantOpsFleet(TenantOpsFleetArgs{Items: items})
 }
 
-// FleetConcurrencyForResponse exposes the effective concurrency for API payloads.
+// backupFleetChunkSize caps items per queue payload (thousands of tenants -> several fleet jobs).
+const backupFleetChunkSize = 500
+
+// EnqueuePreparedTenantOpsBatchChunked enqueues items in chunks (used by backup-all / scheduled).
+func EnqueuePreparedTenantOpsBatchChunked(items []TenantOpsArgs, chunkSize int) error {
+	if len(items) == 0 {
+		return nil
+	}
+	if chunkSize < 1 {
+		chunkSize = backupFleetChunkSize
+	}
+	for start := 0; start < len(items); start += chunkSize {
+		end := start + chunkSize
+		if end > len(items) {
+			end = len(items)
+		}
+		if err := EnqueuePreparedTenantOpsBatch(items[start:end]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func fleetConcurrencyForOp(op string) int {
+	if op == models.TenantOpBackup {
+		return tenancy.BackupConcurrency()
+	}
+	return tenancy.MigrateConcurrency()
+}
+
+// FleetConcurrencyForResponse exposes migrate concurrency (legacy API field).
 func FleetConcurrencyForResponse() int {
 	return tenancy.MigrateConcurrency()
+}
+
+// FleetConcurrencyForOpResponse exposes effective fleet concurrency for an op.
+func FleetConcurrencyForOpResponse(op string) int {
+	return fleetConcurrencyForOp(op)
 }

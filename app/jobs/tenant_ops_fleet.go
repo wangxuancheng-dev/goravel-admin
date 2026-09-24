@@ -11,8 +11,8 @@ import (
 	"goravel/app/services"
 )
 
-// TenantOpsFleet runs many migrate/seed ops in one long-running job using
-// TENANCY_MIGRATE_CONCURRENCY (same path as tenant:migrate-all).
+// TenantOpsFleet runs many migrate/seed/backup ops in one long-running job
+// (TENANCY_MIGRATE_CONCURRENCY or TENANCY_BACKUP_CONCURRENCY).
 type TenantOpsFleet struct{}
 
 func (r *TenantOpsFleet) Signature() string {

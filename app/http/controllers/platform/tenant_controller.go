@@ -891,7 +891,8 @@ func (c *TenantController) QueueStatus(ctx http.Context) http.Response {
 }
 
 // OpsBatch enqueues migrate|seed|backup for multiple tenants.
-// migrate/seed use one fleet job (TENANCY_MIGRATE_CONCURRENCY); backup stays 1 job/tenant.
+// All three use tenant_ops_fleet (migrate/seed: TENANCY_MIGRATE_CONCURRENCY;
+// backup: TENANCY_BACKUP_CONCURRENCY).
 func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 	var body tenantOpsBatchBody
 	_ = ctx.Request().Bind(&body)
@@ -945,23 +946,15 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 			skipped = append(skipped, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": beginErr.Error()})
 			continue
 		}
-		if op == models.TenantOpBackup {
-			if err := services.EnqueueTenantOps(args); err != nil {
-				_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
-				failed = append(failed, map[string]any{"id": tenant.ID, "code": tenant.Code, "error": err.Error()})
-				continue
-			}
-		} else {
-			fleetItems = append(fleetItems, args)
-		}
+		fleetItems = append(fleetItems, args)
 		queued = append(queued, map[string]any{"id": tenant.ID, "code": tenant.Code, "op_log_id": args.OpLogID})
 	}
 
 	mode := "per_tenant"
 	concurrency := 0
-	if op != models.TenantOpBackup && len(fleetItems) > 0 {
+	if len(fleetItems) > 0 {
 		mode = "fleet"
-		concurrency = services.FleetConcurrencyForResponse()
+		concurrency = services.FleetConcurrencyForOpResponse(op)
 		if err := services.EnqueuePreparedTenantOpsBatch(fleetItems); err != nil {
 			for _, args := range fleetItems {
 				tenant, getErr := c.service().GetByID(args.TenantID)
@@ -971,7 +964,6 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 				_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
 				failed = append(failed, map[string]any{"id": args.TenantID, "code": tenant.Code, "error": err.Error()})
 			}
-			// Drop migrate/seed from queued list on dispatch failure.
 			filtered := make([]map[string]any, 0)
 			failIDs := map[uint]struct{}{}
 			for _, f := range failed {

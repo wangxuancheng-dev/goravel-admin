@@ -24,3 +24,22 @@ func TestResolveBackupScheduleBatch(t *testing.T) {
 		t.Fatalf("cap got %d", got)
 	}
 }
+
+func TestResolveBackupScheduleMode(t *testing.T) {
+	prev := facades.Config().GetString("tenancy.backup_schedule_mode", "full")
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.backup_schedule_mode", prev)
+	})
+	facades.Config().Add("tenancy.backup_schedule_mode", "rotate")
+	if got := ResolveBackupScheduleMode(); got != BackupScheduleModeRotate {
+		t.Fatalf("got %s", got)
+	}
+	facades.Config().Add("tenancy.backup_schedule_mode", "FULL")
+	if got := ResolveBackupScheduleMode(); got != BackupScheduleModeFull {
+		t.Fatalf("got %s", got)
+	}
+	facades.Config().Add("tenancy.backup_schedule_mode", "weird")
+	if got := ResolveBackupScheduleMode(); got != BackupScheduleModeFull {
+		t.Fatalf("default full got %s", got)
+	}
+}

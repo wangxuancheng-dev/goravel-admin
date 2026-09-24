@@ -11,12 +11,14 @@ import (
 	"goravel/app/tenancy"
 )
 
-// TenantBackupScheduled enqueues one rotated page of tenant backups when enabled.
+// TenantBackupScheduled enqueues daily tenant backups when enabled.
+// Mode full (default): every ready tenant via backup fleet (TENANCY_BACKUP_CONCURRENCY).
+// Mode rotate: one page of TENANT_BACKUP_SCHEDULE_BATCH with cursor.
 type TenantBackupScheduled struct{}
 
 func (r *TenantBackupScheduled) Signature() string { return "tenant:backup-scheduled" }
 func (r *TenantBackupScheduled) Description() string {
-	return "Daily rotated backup enqueue (no-op unless TENANT_BACKUP_SCHEDULE_ENABLED=true)"
+	return "Daily tenant backup enqueue (full fleet or rotate; needs TENANT_BACKUP_SCHEDULE_ENABLED=true)"
 }
 func (r *TenantBackupScheduled) Extend() command.Extend {
 	return command.Extend{Category: "tenant"}
@@ -32,20 +34,29 @@ func (r *TenantBackupScheduled) Handle(ctx console.Context) error {
 		return nil
 	}
 	keep := facades.Config().GetInt("tenancy.backup_keep", 10)
-	batch := services.ResolveBackupScheduleBatch()
-	ctx.Info(fmt.Sprintf("enqueue up to %d tenant backups (rotate)", batch))
-	report, err := services.FanOutTenantBackups(services.TenantBackupFanOutOptions{
-		Keep:      keep,
-		Limit:     batch,
-		Rotate:    true,
-		RotateKey: "tenant:backup-scheduled",
-		Actor:     services.TenantOpActor{Name: "schedule:tenant:backup-scheduled"},
-	})
+	mode := services.ResolveBackupScheduleMode()
+	opts := services.TenantBackupFanOutOptions{
+		Keep:  keep,
+		Actor: services.TenantOpActor{Name: "schedule:tenant:backup-scheduled"},
+	}
+	if mode == services.BackupScheduleModeRotate {
+		batch := services.ResolveBackupScheduleBatch()
+		ctx.Info(fmt.Sprintf("enqueue up to %d tenant backups (rotate; backup_concurrency=%d)",
+			batch, tenancy.BackupConcurrency()))
+		opts.Limit = batch
+		opts.Rotate = true
+		opts.RotateKey = "tenant:backup-scheduled"
+	} else {
+		ctx.Info(fmt.Sprintf("enqueue all ready-tenant backups (full fleet; backup_concurrency=%d)",
+			tenancy.BackupConcurrency()))
+	}
+	report, err := services.FanOutTenantBackups(opts)
 	if err != nil {
 		return err
 	}
-	ctx.Info(fmt.Sprintf("batch_id=%s queued=%d skipped=%d failed=%d next_after_id=%d",
-		report.BatchID, report.Queued, report.Skipped, report.Failed, report.NextAfterID))
+	ctx.Info(fmt.Sprintf("batch_id=%s mode=%s concurrency=%d fleet_jobs=%d queued=%d skipped=%d failed=%d next_after_id=%d",
+		report.BatchID, report.Mode, report.Concurrency, report.FleetJobs,
+		report.Queued, report.Skipped, report.Failed, report.NextAfterID))
 	if report.Failed > 0 {
 		return fmt.Errorf("%d tenant backup enqueue(s) failed", report.Failed)
 	}

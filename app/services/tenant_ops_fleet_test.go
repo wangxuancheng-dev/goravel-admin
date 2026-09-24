@@ -1,6 +1,10 @@
 package services
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/goravel/framework/facades"
+)
 
 func TestRunTenantOpsFleetEmpty(t *testing.T) {
 	if err := RunTenantOpsFleet(TenantOpsFleetArgs{}); err != nil {
@@ -54,5 +58,45 @@ func TestEnqueuePreparedTenantOpsBatchMultiUsesFleet(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("expected multi-item batch to use EnqueueTenantOpsFleet")
+	}
+}
+
+func TestEnqueuePreparedTenantOpsBatchChunked(t *testing.T) {
+	fleets := 0
+	singles := 0
+	prevFleet := EnqueueTenantOpsFleetFn
+	prevOps := EnqueueTenantOpsFn
+	EnqueueTenantOpsFleetFn = func(args TenantOpsFleetArgs) error {
+		fleets++
+		return nil
+	}
+	EnqueueTenantOpsFn = func(args TenantOpsArgs) error {
+		singles++
+		return nil
+	}
+	t.Cleanup(func() {
+		EnqueueTenantOpsFleetFn = prevFleet
+		EnqueueTenantOpsFn = prevOps
+	})
+
+	items := make([]TenantOpsArgs, 0, 3)
+	for i := 1; i <= 3; i++ {
+		items = append(items, TenantOpsArgs{TenantID: uint(i), Op: "backup"})
+	}
+	if err := EnqueuePreparedTenantOpsBatchChunked(items, 2); err != nil {
+		t.Fatal(err)
+	}
+	// 2 + 1 => one fleet (2 items) + one single EnqueueTenantOps
+	if fleets != 1 || singles != 1 {
+		t.Fatalf("fleets=%d singles=%d want 1/1", fleets, singles)
+	}
+}
+
+func TestFleetConcurrencyForOpResponseBackup(t *testing.T) {
+	prev := facades.Config().GetInt("tenancy.backup_concurrency", 2)
+	facades.Config().Add("tenancy.backup_concurrency", 4)
+	t.Cleanup(func() { facades.Config().Add("tenancy.backup_concurrency", prev) })
+	if got := FleetConcurrencyForOpResponse("backup"); got != 4 {
+		t.Fatalf("got %d", got)
 	}
 }

@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/goravel/framework/facades"
 
@@ -39,14 +40,17 @@ type TenantBackupFanOutOptions struct {
 
 // TenantBackupFanOutReport summarizes enqueue results.
 type TenantBackupFanOutReport struct {
-	Queued      int    `json:"queued"`
-	Skipped     int    `json:"skipped"`
-	Failed      int    `json:"failed"`
-	NextAfterID uint   `json:"next_after_id"`
-	BatchID     string `json:"batch_id"`
+	Queued       int    `json:"queued"`
+	Skipped      int    `json:"skipped"`
+	Failed       int    `json:"failed"`
+	NextAfterID  uint   `json:"next_after_id"`
+	BatchID      string `json:"batch_id"`
+	Mode         string `json:"mode"`
+	Concurrency  int    `json:"concurrency"`
+	FleetJobs    int    `json:"fleet_jobs"`
 }
 
-// ResolveBackupScheduleBatch returns daily scheduled backup page size.
+// ResolveBackupScheduleBatch returns daily scheduled backup page size (rotate mode).
 func ResolveBackupScheduleBatch() int {
 	n := facades.Config().GetInt("tenancy.backup_schedule_batch", 100)
 	if n < 1 {
@@ -58,8 +62,23 @@ func ResolveBackupScheduleBatch() int {
 	return n
 }
 
-// FanOutTenantBackups enqueues mysqldump/pg_dump jobs for ready+active tenants.
-// Does not wait for dumps: long-running workers execute TenantOps.
+// BackupScheduleModeFull / Rotate for TENANT_BACKUP_SCHEDULE_MODE.
+const (
+	BackupScheduleModeFull   = "full"
+	BackupScheduleModeRotate = "rotate"
+)
+
+// ResolveBackupScheduleMode returns full (every ready tenant daily) or rotate.
+func ResolveBackupScheduleMode() string {
+	mode := strings.ToLower(strings.TrimSpace(facades.Config().GetString("tenancy.backup_schedule_mode", BackupScheduleModeFull)))
+	if mode == BackupScheduleModeRotate {
+		return BackupScheduleModeRotate
+	}
+	return BackupScheduleModeFull
+}
+
+// FanOutTenantBackups prepares backup ops and enqueues tenant_ops_fleet chunk(s)
+// using TENANCY_BACKUP_CONCURRENCY (same parallel path as UI batch backup).
 func FanOutTenantBackups(opts TenantBackupFanOutOptions) (*TenantBackupFanOutReport, error) {
 	if !tenancy.Enabled() {
 		return nil, apperrors.ErrTenancyDisabled
@@ -71,9 +90,14 @@ func FanOutTenantBackups(opts TenantBackupFanOutOptions) (*TenantBackupFanOutRep
 	if batchID == "" {
 		batchID = NewTenantOpsBatchID()
 	}
-	report := &TenantBackupFanOutReport{BatchID: batchID}
+	report := &TenantBackupFanOutReport{
+		BatchID:     batchID,
+		Mode:        "fleet",
+		Concurrency: tenancy.BackupConcurrency(),
+	}
 
-	enqueuePage := func(tenants []models.Tenant) {
+	var items []TenantOpsArgs
+	collectPage := func(tenants []models.Tenant) {
 		for i := range tenants {
 			t := &tenants[i]
 			_, args, err := ops.BeginQueuedBackup(t.ID, opts.Keep, opts.Actor, batchID)
@@ -81,12 +105,7 @@ func FanOutTenantBackups(opts TenantBackupFanOutOptions) (*TenantBackupFanOutRep
 				report.Skipped++
 				continue
 			}
-			if err := EnqueueTenantOps(args); err != nil {
-				_ = ops.MarkOpFailed(t, err.Error(), args.OpLogID)
-				report.Failed++
-				continue
-			}
-			report.Queued++
+			items = append(items, args)
 		}
 	}
 
@@ -112,7 +131,7 @@ func FanOutTenantBackups(opts TenantBackupFanOutOptions) (*TenantBackupFanOutRep
 				return report, err
 			}
 		}
-		enqueuePage(tenants)
+		collectPage(tenants)
 		next := uint(0)
 		if len(tenants) >= limit {
 			next = tenants[len(tenants)-1].ID
@@ -121,25 +140,44 @@ func FanOutTenantBackups(opts TenantBackupFanOutOptions) (*TenantBackupFanOutRep
 		if opts.Rotate {
 			storeScopeCursor(opts.RotateKey, next)
 		}
+	} else {
+		// Drain all ready tenants (CLI backup-all / scheduled full).
+		for {
+			tenants, err := conn.ListReadyActiveTenantsPage(afterID, pageSize)
+			if err != nil {
+				return report, err
+			}
+			if len(tenants) == 0 {
+				break
+			}
+			collectPage(tenants)
+			if len(tenants) < pageSize {
+				break
+			}
+			afterID = tenants[len(tenants)-1].ID
+		}
+		report.NextAfterID = 0
+	}
+
+	if len(items) == 0 {
 		return report, nil
 	}
 
-	// Drain all ready tenants into the queue (CLI backup-all default).
-	for {
-		tenants, err := conn.ListReadyActiveTenantsPage(afterID, pageSize)
-		if err != nil {
-			return report, err
+	fleetJobs := (len(items) + backupFleetChunkSize - 1) / backupFleetChunkSize
+	report.FleetJobs = fleetJobs
+	if err := EnqueuePreparedTenantOpsBatchChunked(items, backupFleetChunkSize); err != nil {
+		for _, args := range items {
+			tenant, getErr := ops.admin.GetByID(args.TenantID)
+			if getErr != nil {
+				report.Failed++
+				continue
+			}
+			_ = ops.MarkOpFailed(tenant, err.Error(), args.OpLogID)
+			report.Failed++
 		}
-		if len(tenants) == 0 {
-			break
-		}
-		enqueuePage(tenants)
-		if len(tenants) < pageSize {
-			break
-		}
-		afterID = tenants[len(tenants)-1].ID
+		return report, err
 	}
-	report.NextAfterID = 0
+	report.Queued = len(items)
 	return report, nil
 }
 

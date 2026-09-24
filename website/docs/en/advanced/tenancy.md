@@ -121,6 +121,10 @@ PLATFORM_ADMIN_NAME=平台管理员
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
 6. **Async ops**: per-tenant migrate / seed / backup / restore via `tenant_ops` (`long-running`); production needs Redis + long-running worker. `migrate-all` / `backup-all` remain CLI: `backup-all` enqueues long-running (paged fan-out); scheduled `backup-scheduled` rotates `TENANT_BACKUP_SCHEDULE_BATCH` tenants/day.
 7. **Fleet migrate/seed concurrency**: `TENANCY_MIGRATE_CONCURRENCY` (default 2) limits CLI `tenant:migrate-all` / `seed-all` **and** platform UI batch migrate/seed (`tenant_ops_fleet`); CLI `--concurrency=N` overrides. Separate from `QUEUE_LONG_RUNNING_CONCURRENT` (per-tenant / backup) and `QUEUE_SCHEDULE_CONCURRENT` (collection); see [Concurrency knobs](#concurrency-knobs-tune-with-queue-workers).
+8. **Daily full-fleet backup**: with `TENANT_BACKUP_SCHEDULE_MODE=full` (default), `tenant:backup-scheduled` enqueues **all** ready tenants; dumps run via `tenant_ops_fleet` + `TENANCY_BACKUP_CONCURRENCY` (default 2, max 50). `MODE=rotate` keeps `TENANT_BACKUP_SCHEDULE_BATCH` paging. CLI `backup-all` / UI batch backup use the same path. Wall clock ≈ ceil(tenants/concurrency)×per-tenant dump seconds; keep `QUEUE_LONG_RUNNING_CONCURRENT=1` (fleet uses one slot).
+
+
+
 
 8. **CLI op logs**: 	enant:migrate / migrate-all / seed / seed-all write 	enant_op_logs (operator=cli, shared atch_id for fleets). Platform can filter last_op / last_op_status and retry failed seeds. Session DB checks use MySQL DATABASE() and PostgreSQL current_database().
 
@@ -267,7 +271,7 @@ These are **different** controls — raising one does not raise the others:
 | Knob | What it limits | Typical use |
 |------|----------------|-------------|
 | `TENANCY_MIGRATE_CONCURRENCY` | **In-process** parallel tenants for `tenant:migrate-all` / `tenant:seed-all` (goroutines) | CLI fleet DDL/seed in a maintenance window |
-| `QUEUE_LONG_RUNNING_CONCURRENT` | Jobs per long-running Worker | Per-tenant `tenant_ops`, batch backup; **batch migrate/seed only needs 1** (fleet uses one slot) |
+| `QUEUE_LONG_RUNNING_CONCURRENT` | Jobs per long-running Worker | Per-tenant `tenant_ops`; **batch migrate/seed/backup only needs 1** (fleet uses one slot) |
 | `QUEUE_SCHEDULE_CONCURRENT` | Jobs per schedule Worker | Minute collection / flexible schedules — **competes for tenant-DB IO** with migrate |
 | `QUEUE_CONCURRENT` | Default queue parallelism | Exports, notifications, etc. |
 
