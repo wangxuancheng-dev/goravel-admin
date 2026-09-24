@@ -218,6 +218,15 @@ func (r *NotificationWsController) isOriginAllowed(req *http.Request) bool {
 	}
 
 	originHost := tenancy.NormalizeHost(parsed.Hostname())
+	// Same-host via reverse proxy: Origin host matches the request Host.
+	reqHost := tenancy.NormalizeHost(req.Host)
+	if i := strings.Index(reqHost, ":"); i > 0 {
+		reqHost = reqHost[:i]
+	}
+	if reqHost != "" && originHost == reqHost {
+		return true
+	}
+
 	allowedAdminDomains := getConfigStringSlice("domains.admin")
 	if len(allowedAdminDomains) > 0 && !matchDomain(originHost, allowedAdminDomains) {
 		base := tenancy.BaseDomain()

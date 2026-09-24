@@ -42,11 +42,19 @@ function buildWsUrl(authQuery: string): string {
 
   const toWs = (base: string) => {
     const cleaned = base.replace(/\/+$/, '')
-    if (cleaned.startsWith('wss://') || cleaned.startsWith('ws://')) return cleaned + path
-    if (cleaned.startsWith('https://')) return cleaned.replace('https://', 'wss://') + path
-    if (cleaned.startsWith('http://')) return cleaned.replace('http://', 'ws://') + path
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${protocol}//${cleaned}${path}`
+    let url: string
+    if (cleaned.startsWith('wss://') || cleaned.startsWith('ws://')) url = cleaned + path
+    else if (cleaned.startsWith('https://')) url = cleaned.replace('https://', 'wss://') + path
+    else if (cleaned.startsWith('http://')) url = cleaned.replace('http://', 'ws://') + path
+    else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      url = `${protocol}//${cleaned}${path}`
+    }
+    // HTTPS pages cannot open ws:// (mixed content); force wss.
+    if (window.location.protocol === 'https:' && url.startsWith('ws://')) {
+      url = `wss://${url.slice('ws://'.length)}`
+    }
+    return url
   }
 
   if (wsBaseURL) return toWs(wsBaseURL)

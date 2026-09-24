@@ -823,6 +823,7 @@ func (r *MonitorController) GetSystemInfo(ctx http.Context) http.Response {
 		healthStatus = "warning"
 	}
 	wsAdmins, wsConnections := wsnotifications.Hub().Stats()
+	wsLocalAdmins, wsLocalConnections := wsnotifications.Hub().LocalStats()
 
 	physicalCores := 0
 	for _, info := range cpuInfo {
@@ -907,8 +908,10 @@ func (r *MonitorController) GetSystemInfo(ctx http.Context) http.Response {
 			"cache_store":      facades.Config().GetString("cache.default", "file"),
 		},
 		"websocket": map[string]any{
-			"online_admins": wsAdmins,
-			"connections":   wsConnections,
+			"online_admins":     wsAdmins,
+			"connections":       wsConnections,
+			"local_admins":      wsLocalAdmins,
+			"local_connections": wsLocalConnections,
 		},
 		"health": map[string]any{
 			"status":      healthStatus,

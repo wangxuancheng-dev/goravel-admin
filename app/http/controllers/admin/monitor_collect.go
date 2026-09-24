@@ -378,6 +378,7 @@ func (r *MonitorController) doCollectSystemInfo(ctx http.Context) map[string]any
 		}
 	}
 	wsAdmins, wsConnections := wsnotifications.Hub().Stats()
+	wsLocalAdmins, wsLocalConnections := wsnotifications.Hub().LocalStats()
 
 	result := map[string]any{
 		"os": runtime.GOOS,
@@ -453,8 +454,10 @@ func (r *MonitorController) doCollectSystemInfo(ctx http.Context) map[string]any
 			"cache_store":      facades.Config().GetString("cache.default", "file"),
 		},
 		"websocket": map[string]any{
-			"online_admins": wsAdmins,
-			"connections":   wsConnections,
+			"online_admins":     wsAdmins,
+			"connections":       wsConnections,
+			"local_admins":      wsLocalAdmins,
+			"local_connections": wsLocalConnections,
 		},
 		"system": map[string]any{
 			"hostname": func() string {

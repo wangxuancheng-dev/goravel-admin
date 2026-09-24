@@ -83,7 +83,7 @@ func presenceTouch(c *notificationClient) {
 		Score:  presenceExpireUnix(),
 		Member: member,
 	}).Err(); err != nil {
-		facades.Log().Debugf("websocket presence touch failed: %v", err)
+		facades.Log().Warningf("websocket presence touch failed: %v", err)
 	}
 }
 

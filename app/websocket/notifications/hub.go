@@ -81,7 +81,8 @@ func (h *NotificationHub) addClient(client *notificationClient) {
 	h.clients[key][client] = true
 	h.mu.Unlock()
 
-	presenceTouch(client)
+	// Async so a slow Redis cannot block the hub loop.
+	go presenceTouch(client)
 }
 
 func (h *NotificationHub) removeClient(client *notificationClient) {
@@ -98,7 +99,7 @@ func (h *NotificationHub) removeClient(client *notificationClient) {
 	}
 	h.mu.Unlock()
 
-	presenceRemove(client)
+	go presenceRemove(client)
 }
 
 func (h *NotificationHub) dispatch(tenantID uint, notification *models.Notification) {
@@ -214,10 +215,21 @@ func (h *NotificationHub) Stop() {
 // Stats returns online admin count and WS connection count.
 // With WEBSOCKET_REDIS_BRIDGE enabled, counts are cluster-wide via Redis presence;
 // otherwise (or if Redis is down) falls back to this process only.
+// Local sockets are never under-reported: if presence lags or ZADD failed, use local.
 func (h *NotificationHub) Stats() (int, int) {
+	h.syncLocalPresence()
+	localAdmins, localConns := h.localStats()
 	if admins, connections, ok := presenceClusterStats(); ok {
+		if connections < localConns {
+			return localAdmins, localConns
+		}
 		return admins, connections
 	}
+	return localAdmins, localConns
+}
+
+// LocalStats returns process-local hub counts (ignores Redis presence).
+func (h *NotificationHub) LocalStats() (int, int) {
 	return h.localStats()
 }
 
@@ -231,4 +243,22 @@ func (h *NotificationHub) localStats() (int, int) {
 		connections += len(adminClients)
 	}
 	return admins, connections
+}
+
+// syncLocalPresence re-touches Redis for every local client before cluster Stats.
+func (h *NotificationHub) syncLocalPresence() {
+	if !presenceEnabled() {
+		return
+	}
+	h.mu.RLock()
+	clients := make([]*notificationClient, 0)
+	for _, adminClients := range h.clients {
+		for c := range adminClients {
+			clients = append(clients, c)
+		}
+	}
+	h.mu.RUnlock()
+	for _, c := range clients {
+		presenceTouch(c)
+	}
 }

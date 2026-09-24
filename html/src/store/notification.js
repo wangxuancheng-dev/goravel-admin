@@ -102,37 +102,36 @@ export const useNotificationStore = defineStore('notification', {
       const apiBaseURL = import.meta.env.VITE_API_BASE_URL
       
       if (wsBaseURL) {
-        // 如果配置了单独的 WebSocket 域名，使用它
         const base = wsBaseURL.replace(/\/+$/, '')
         if (base.startsWith('wss://') || base.startsWith('ws://')) {
-          // 如果已经包含协议，直接使用
           wsUrl = `${base}/ws/admin/notifications?${authQuery}`
         } else if (base.startsWith('https://')) {
           wsUrl = base.replace('https://', 'wss://') + `/ws/admin/notifications?${authQuery}`
         } else if (base.startsWith('http://')) {
           wsUrl = base.replace('http://', 'ws://') + `/ws/admin/notifications?${authQuery}`
         } else {
-          // 如果没有协议，根据当前页面协议判断
           const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
           wsUrl = `${protocol}//${base}/ws/admin/notifications?${authQuery}`
         }
       } else if (apiBaseURL) {
-        // 如果没有配置 WebSocket 域名，使用 API 基础 URL
         const base = apiBaseURL.replace(/\/+$/, '')
         if (base.startsWith('https://')) {
           wsUrl = base.replace('https://', 'wss://') + `/ws/admin/notifications?${authQuery}`
         } else if (base.startsWith('http://')) {
           wsUrl = base.replace('http://', 'ws://') + `/ws/admin/notifications?${authQuery}`
         } else {
-          // 如果没有协议，根据当前页面协议判断
           const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
           wsUrl = `${protocol}//${base}/ws/admin/notifications?${authQuery}`
         }
       } else {
-        // 如果都没有配置，使用当前页面的协议和主机（开发环境）
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
         const host = window.location.host
         wsUrl = `${protocol}//${host}/ws/admin/notifications?${authQuery}`
+      }
+
+      // HTTPS pages cannot open ws:// (mixed content); force wss.
+      if (window.location.protocol === 'https:' && typeof wsUrl === 'string' && wsUrl.startsWith('ws://')) {
+        wsUrl = 'wss://' + wsUrl.slice('ws://'.length)
       }
 
       this.ws = new WebSocket(wsUrl)
