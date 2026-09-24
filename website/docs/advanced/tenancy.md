@@ -118,13 +118,14 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试（防永久卡住）。
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
-6. **异步运维**：单户 migrate / seed / backup / restore 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` 仍可用 CLI：`backup-all` 改为入队 long-running（分页扇出），定时 `backup-scheduled` 按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` 户。
-7. **全舰队 migrate/seed 并发**：`TENANCY_MIGRATE_CONCURRENCY`（默认 2）控制 CLI `tenant:migrate-all` / `seed-all` **以及**平台 UI 批量 migrate/seed（`tenant_ops_fleet`）；CLI `--concurrency=N` 可临时覆盖。与 `QUEUE_LONG_RUNNING_CONCURRENT`（单户/backup）、`QUEUE_SCHEDULE_CONCURRENT`（采集）**不是同一旋钮**；见 [并发旋钮对照](#并发旋钮对照与队列一起调)。
-8. **全舰队每日备份**：`TENANT_BACKUP_SCHEDULE_MODE=full`（默认）时 `tenant:backup-scheduled` 每天入队**全部** ready 租户；内部用 `tenant_ops_fleet` + `TENANCY_BACKUP_CONCURRENCY`（默认 2，上限 50）。`MODE=rotate` 仍按 `TENANT_BACKUP_SCHEDULE_BATCH` 轮转。CLI `backup-all` / UI 批量 backup 同路径。墙钟 ≈ ceil(户数/并发)×单户 dump 秒数；`QUEUE_LONG_RUNNING_CONCURRENT=1` 即可（fleet 占一槽）。
+6. **异步运维**：单户 migrate / seed / backup / restore / rollback 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` / `rollback-all` 仍可用 CLI：`backup-all` 改为入队 long-running（分页扇出），定时 `backup-scheduled` 按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` 户。
+7. **全舰队 migrate/seed 并发**：`TENANCY_MIGRATE_CONCURRENCY`（默认 2）控制 CLI `tenant:migrate-all` / `seed-all` / `rollback-all` **以及**平台 UI 批量 migrate/seed/rollback（`tenant_ops_fleet`）；CLI `--concurrency=N` 可临时覆盖。与 `QUEUE_LONG_RUNNING_CONCURRENT`（单户/backup）、`QUEUE_SCHEDULE_CONCURRENT`（采集）**不是同一旋钮**；见 [并发旋钮对照](#并发旋钮对照与队列一起调)。
+8. **全舰队 schema 回滚**：`tenant:rollback` / `tenant:rollback-all` 与平台 UI 单户/批量 rollback 共用 `TENANCY_MIGRATE_CONCURRENCY`（`tenant_ops_fleet`）。`--step=N` 回滚最近 N 个迁移文件；`--batch=N` 回滚 `migrations.batch=N`；二者为 0 时回滚上一批次。**首次 migrate 常把全部文件记为 batch 1**，默认 0/0 会整批撤销——生产请优先 `--step=1`，并先备份。
+9. **全舰队每日备份**：`TENANT_BACKUP_SCHEDULE_MODE=full`（默认）时 `tenant:backup-scheduled` 每天入队**全部** ready 租户；内部用 `tenant_ops_fleet` + `TENANCY_BACKUP_CONCURRENCY`（默认 2，上限 50）。`MODE=rotate` 仍按 `TENANT_BACKUP_SCHEDULE_BATCH` 轮转。CLI `backup-all` / UI 批量 backup 同路径。墙钟 ≈ ceil(户数/并发)×单户 dump 秒数；`QUEUE_LONG_RUNNING_CONCURRENT=1` 即可（fleet 占一槽）。
 
 
 
-8. **CLI 运维记录**：	enant:migrate / migrate-all / seed / seed-all 会写入 	enant_op_logs（operator=cli，fleet 带同一 atch_id），平台可筛 last_op/last_op_status，并可一键「重试失败填充」。会话库名校验同时支持 MySQL DATABASE() 与 PostgreSQL current_database()。
+10. **CLI 运维记录**：`tenant:migrate` / `migrate-all` / `seed` / `seed-all` / `rollback` / `rollback-all` 会写入 `tenant_op_logs`（operator=cli，fleet 带同一 `batch_id`），平台可筛 `last_op`/`last_op_status`，并可一键「重试失败填充」。会话库名校验同时支持 MySQL `DATABASE()` 与 PostgreSQL `current_database()`。
 
 ## 公网部署（推荐）
 
@@ -388,13 +389,14 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 1. **Landlord 迁移跳过**：平台表迁移（`tenants` / `platform_admins` / `jobs` / provision/migrate meta）在 `tenant_*` 连接上 `SkipOnTenantConnection` 空跑，避免污染租户库。
 2. **Migrate / 运维可见性**：`last_migrate_error` / `migrated_at`；平台 UI 另有 `last_op` / `last_op_status` / `last_op_message` / `last_backup_path`。失败写 `provision_status=failed`（seed 失败不降级已 ready）。
-3. **连接探测 / 异步操作**：`POST .../ping`；`.../migrate|seed|backup` 入队。
+3. **连接探测 / 异步操作**：`POST .../ping`；`.../migrate|seed|backup|rollback` 入队。
 4. **登录限流**：`login` limiter 键含 body/query/header/`subdomain` 租户提示，避免跨租户互相锁号。
 5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
 6. **PG sslmode**：`TENANCY_POSTGRES_SSLMODE` 或 `DB_SSLMODE`。
-7. **备份/恢复**：`tenant:backup [--keep=N]`、`tenant:backup-all`（入队，非同步 dump 全舰队）、`tenant:backup-scheduled`（日批轮转）；PG schema 隔离备份用 `pg_dump -n`，恢复用 `PGOPTIONS=--search_path`。
-8. **CLI 范围**：`RunTenantScope` 仅遍历 **active + ready**；`tenant:migrate-all` 仍可覆盖 pending（单独查询）；并发见 `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`。
-9. **未绑定隔离**：tenancy 开启但 ctx 未绑定时，`CacheKey` → `t_unbound:*`，`StoragePrefix` → `tenants/_unbound_/`（不与共享根冲突）。
+7. **迁移回滚**：`tenant:rollback` / `rollback-all`（及 UI/fleet）；默认建议 `--step=1`，避免 0/0 整批撤销首次 migrate。
+8. **备份/恢复**：`tenant:backup [--keep=N]`、`tenant:backup-all`（入队，非同步 dump 全舰队）、`tenant:backup-scheduled`（日批轮转）；PG schema 隔离备份用 `pg_dump -n`，恢复用 `PGOPTIONS=--search_path`。
+9. **CLI 范围**：`RunTenantScope` 仅遍历 **active + ready**；`tenant:migrate-all` 仍可覆盖 pending（单独查询）；并发见 `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`。
+10. **未绑定隔离**：tenancy 开启但 ctx 未绑定时，`CacheKey` → `t_unbound:*`，`StoragePrefix` → `tenants/_unbound_/`（不与共享根冲突）。
 
 ## 首启（推荐）
 
@@ -435,6 +437,8 @@ go run . artisan tenant:migrate {id|code}
 go run . artisan tenant:migrate-all [--concurrency=N]
 go run . artisan tenant:seed {id|code} [--class=...]
 go run . artisan tenant:seed-all
+go run . artisan tenant:rollback {id|code} [--step=N] [--batch=N]
+go run . artisan tenant:rollback-all [--step=N] [--batch=N] [--concurrency=N]
 go run . artisan tenant:list
 go run . artisan tenant:enable|disable {id|code}
 go run . artisan tenant:backup {id|code} [--keep=N]
@@ -562,5 +566,5 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 
 - Tenant list: domain_status (unbound/pending/active/verify_failed) + domain_host search; health_status.
 - Onboard API: POST /api/platform/tenants/onboard (create → queue migrate[+seed] → optional domain → login_links).
-- Health: 	enant:health-inspect (hourly) writes health_* / last_ping_*; alerts via TENANT_OPS_ALERT_WEBHOOK_URL and optional TENANT_HEALTH_ALERT_MAIL.
+- Health: tenant:health-inspect (hourly) writes health_* / last_ping_*; alerts via TENANT_OPS_ALERT_WEBHOOK_URL and optional TENANT_HEALTH_ALERT_MAIL.
 - Manual: POST /api/platform/tenants/health-inspect.

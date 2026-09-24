@@ -23,11 +23,12 @@ const (
 	TenantProvisionReady     = "ready"
 	TenantProvisionFailed    = "failed"
 
-	TenantOpMigrate = "migrate"
-	TenantOpSeed    = "seed"
-	TenantOpBackup  = "backup"
-	TenantOpRestore = "restore"
-	TenantOpPurge   = "purge"
+	TenantOpMigrate  = "migrate"
+	TenantOpSeed     = "seed"
+	TenantOpBackup   = "backup"
+	TenantOpRestore  = "restore"
+	TenantOpPurge    = "purge"
+	TenantOpRollback = "rollback"
 
 	TenantOpStatusIdle    = "idle"
 	TenantOpStatusQueued  = "queued"

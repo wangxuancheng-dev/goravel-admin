@@ -25,10 +25,13 @@ type TenantOpActor struct {
 // TenantOpsArgs is the queue payload for platform tenant maintenance jobs.
 type TenantOpsArgs struct {
 	TenantID     uint   `json:"tenant_id"`
-	Op           string `json:"op"` // migrate|seed|backup|restore|purge
+	Op           string `json:"op"` // migrate|seed|backup|restore|purge|rollback
 	WithSeed     bool   `json:"with_seed,omitempty"`
 	BackupName   string `json:"backup_name,omitempty"`
 	Keep         int    `json:"keep,omitempty"`
+	// Step / MigBatch: migration rollback (Migrator.Rollback). 0/0 = last batch.
+	Step    int `json:"step,omitempty"`
+	MigBatch int `json:"mig_batch,omitempty"`
 	OpLogID      uint   `json:"op_log_id,omitempty"`
 	BatchID      string `json:"batch_id,omitempty"`
 	OperatorID   uint   `json:"operator_id,omitempty"`
@@ -76,7 +79,7 @@ func (s *TenantOpsService) BeginQueuedOpWithBackup(id uint, op string, withSeed 
 	}
 	op = strings.TrimSpace(op)
 	switch op {
-	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup, models.TenantOpRestore:
+	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup, models.TenantOpRestore, models.TenantOpRollback:
 	default:
 		return nil, TenantOpsArgs{}, apperrors.ErrInvalidArgument.WithMessage("unknown tenant op")
 	}
@@ -141,6 +144,23 @@ func (s *TenantOpsService) BeginQueuedOpWithBackup(id uint, op string, withSeed 
 		OperatorID:   actor.ID,
 		OperatorName: actor.Name,
 	}, nil
+}
+
+// BeginQueuedRollback enqueues migrate rollback (step/migBatch: 0/0 = last batch).
+func (s *TenantOpsService) BeginQueuedRollback(id uint, step, migBatch int, actor TenantOpActor, batchID string) (*models.Tenant, TenantOpsArgs, error) {
+	tenant, args, err := s.BeginQueuedOpWithBackup(id, models.TenantOpRollback, false, "", actor, batchID)
+	if err != nil {
+		return nil, TenantOpsArgs{}, err
+	}
+	if step < 0 {
+		step = 0
+	}
+	if migBatch < 0 {
+		migBatch = 0
+	}
+	args.Step = step
+	args.MigBatch = migBatch
+	return tenant, args, nil
 }
 
 // BeginQueuedBackup enqueues backup with optional keep override (negative = config default).
@@ -271,6 +291,11 @@ func RunTenantOp(args TenantOpsArgs) error {
 			if runErr == nil {
 				successMsg = "restore ok: " + args.BackupName
 			}
+		}
+	case models.TenantOpRollback:
+		runErr = svc.conn.RollbackTenant(tenant, args.Step, args.MigBatch)
+		if runErr == nil {
+			successMsg = fmt.Sprintf("rollback ok (step=%d batch=%d)", args.Step, args.MigBatch)
 		}
 	default:
 		runErr = apperrors.ErrInvalidArgument.WithMessage("unknown tenant op: " + op)

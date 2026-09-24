@@ -133,6 +133,7 @@ func fleetConcurrencyForOp(op string) int {
 	if op == models.TenantOpBackup {
 		return tenancy.BackupConcurrency()
 	}
+	// migrate / seed / rollback share DDL-style concurrency
 	return tenancy.MigrateConcurrency()
 }
 

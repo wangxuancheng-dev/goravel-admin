@@ -82,6 +82,8 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.TenantCreate{},
 		&commands.TenantMigrate{},
 		&commands.TenantMigrateAll{},
+		&commands.TenantRollback{},
+		&commands.TenantRollbackAll{},
 		&commands.TenantSeed{},
 		&commands.TenantSeedAll{},
 		&commands.TenantList{},

@@ -1275,7 +1275,14 @@
     "op_purge": "Purge",
     "retry_failed_seed": "Retry all failed seeds",
     "retry_failed_seed_confirm": "Enqueue seed for tenants whose last op is seed/failed (max 100). Continue?",
-    "failed_seed_count": "seed failed {{n}}"
+    "failed_seed_count": "seed failed {{n}}",
+    "op_rollback": "Rollback",
+    "op_rollback_confirm": "Queue migration rollback for this tenant?",
+    "op_rollback_step": "Step (N files; 0 = use batch)",
+    "op_rollback_batch": "Batch (migrations.batch; 0/0 = last batch)",
+    "op_rollback_hint": "Prefer --step=1. First migrate often puts all files in batch 1; step=0 batch=0 rolls back the entire last batch.",
+    "batch_rollback": "Batch rollback",
+    "batch_rollback_confirm": "Enqueue rollback (step=1) for {{n}} selected tenant(s)? Prefer backup first."
   },
   "platform": {
     "title": "Tenant Ops",

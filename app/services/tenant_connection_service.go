@@ -1009,6 +1009,119 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	return nil
 }
 
+// RollbackTenant rolls back migrations on the tenant connection.
+// step>0: last N migration files; migBatch>0: that migrations.batch; both 0: last batch (GetLast).
+// Uses BindTenantSchema so it can run in parallel with TENANCY_MIGRATE_CONCURRENCY.
+func (s *TenantConnectionService) RollbackTenant(tenant *models.Tenant, step, migBatch int) error {
+	if step < 0 {
+		step = 0
+	}
+	if migBatch < 0 {
+		migBatch = 0
+	}
+	var migCount int64
+	err := s.rollbackTenantParallel(tenant, step, migBatch, &migCount)
+	now := time.Now()
+	if err != nil {
+		msg := err.Error()
+		if len(msg) > 2000 {
+			msg = msg[:2000]
+		}
+		_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+			"last_op":         models.TenantOpRollback,
+			"last_op_status":  models.TenantOpStatusFailed,
+			"last_op_message": msg,
+			"last_op_at":      now,
+		})
+		tenant.LastOp = models.TenantOpRollback
+		tenant.LastOpStatus = models.TenantOpStatusFailed
+		tenant.LastOpMessage = msg
+		tenant.LastOpAt = &now
+		return err
+	}
+
+	provision := models.TenantProvisionReady
+	// Bind briefly to check admins still exists after rollback.
+	if checkErr := s.withTenantHasAdmins(tenant); checkErr != nil {
+		provision = models.TenantProvisionPending
+	}
+	_ = s.SetProvisionStatus(tenant, provision)
+	msg := fmt.Sprintf("rollback ok (step=%d batch=%d)", step, migBatch)
+	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+		"schema_migration_count": migCount,
+		"last_op":                models.TenantOpRollback,
+		"last_op_status":         models.TenantOpStatusSuccess,
+		"last_op_message":        msg,
+		"last_op_at":             now,
+		"last_migrate_error":     "",
+	})
+	tenant.SchemaMigrationCount = migCount
+	tenant.LastOp = models.TenantOpRollback
+	tenant.LastOpStatus = models.TenantOpStatusSuccess
+	tenant.LastOpMessage = msg
+	tenant.LastOpAt = &now
+	tenant.LastMigrateError = ""
+	return nil
+}
+
+func (s *TenantConnectionService) withTenantHasAdmins(tenant *models.Tenant) error {
+	sch, err := s.openTenantSchema(tenant)
+	if err != nil {
+		return err
+	}
+	if !sch.HasTable("admins") {
+		return fmt.Errorf("admins missing")
+	}
+	return nil
+}
+
+func (s *TenantConnectionService) rollbackTenantParallel(tenant *models.Tenant, step, migBatch int, migCount *int64) error {
+	if tenant == nil {
+		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	sch, err := s.openTenantSchema(tenant)
+	if err != nil {
+		return err
+	}
+	appfacades.BindTenantSchema(sch)
+	defer appfacades.UnbindTenantSchema()
+
+	if !appfacades.TenantAwareSchemaInstalled() || appfacades.BoundTenantSchema() == nil {
+		appfacades.UnbindTenantSchema()
+		return s.withTenantConnectionRollback(tenant, step, migBatch, migCount)
+	}
+
+	migrator := migration.NewMigrator(facades.Artisan(), sch, "migrations")
+	if err := migrator.Rollback(step, migBatch); err != nil {
+		return err
+	}
+	if sch.HasTable("migrations") {
+		n, countErr := sch.Orm().Query().Table("migrations").Count()
+		if countErr != nil {
+			return countErr
+		}
+		*migCount = n
+	}
+	return nil
+}
+
+func (s *TenantConnectionService) withTenantConnectionRollback(tenant *models.Tenant, step, migBatch int, migCount *int64) error {
+	return s.WithTenantConnection(tenant, func() error {
+		migrator := migration.NewMigrator(facades.Artisan(), facades.Schema(), "migrations")
+		if err := migrator.Rollback(step, migBatch); err != nil {
+			return err
+		}
+		if facades.Schema().HasTable("migrations") {
+			n, countErr := facades.Orm().Query().Table("migrations").Count()
+			if countErr != nil {
+				return countErr
+			}
+			*migCount = n
+		}
+		return nil
+	})
+}
+
 // migrateTenantParallel opens an independent Schema for the tenant connection, binds it for
 // this goroutine (so migration Up() via facades.Schema() hits the tenant DB), and runs Migrator.
 func (s *TenantConnectionService) migrateTenantParallel(tenant *models.Tenant, migCount *int64) error {

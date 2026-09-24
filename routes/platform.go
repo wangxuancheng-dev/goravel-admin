@@ -97,6 +97,7 @@ func Platform() {
 				router.Post("tenants/{id}/seed", tenantController.Seed)
 				router.Post("tenants/{id}/backup", tenantController.Backup)
 				router.Post("tenants/{id}/restore", tenantController.Restore)
+				router.Post("tenants/{id}/rollback", tenantController.Rollback)
 				router.Post("tenants/{id}/backups/prune", tenantController.PruneBackups)
 				router.Post("tenants/{id}/admins/{adminId}/reset-password", tenantController.ResetTenantAdminPassword)
 				router.Post("tenants/{id}/admins/unlock", tenantController.UnlockTenantAdmin)

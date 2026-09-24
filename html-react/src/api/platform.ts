@@ -86,6 +86,10 @@ export function migratePlatformTenant(id: string | number, data?: { with_seed?: 
   return platformRequest.post(`/tenants/${id}/migrate`, data || {})
 }
 
+export function rollbackPlatformTenant(id: string | number, data?: { step?: number; batch?: number }) {
+  return platformRequest.post(`/tenants/${id}/rollback`, data || {})
+}
+
 export function seedPlatformTenant(id: string | number) {
   return platformRequest.post(`/tenants/${id}/seed`)
 }
@@ -281,7 +285,7 @@ export function getPlatformTenantQueueStatus() {
 }
 
 export function opsPlatformTenantBatch(data?: {
-  op?: 'migrate' | 'seed' | 'backup'
+  op?: 'migrate' | 'seed' | 'backup' | 'rollback'
   ids?: Array<string | number>
   provision_status?: string
   last_op?: string
@@ -290,6 +294,8 @@ export function opsPlatformTenantBatch(data?: {
   with_seed?: boolean
   keep?: number
   limit?: number
+  step?: number
+  batch?: number
 }) {
   return platformRequest.post('/tenants/ops-batch', data || {})
 }

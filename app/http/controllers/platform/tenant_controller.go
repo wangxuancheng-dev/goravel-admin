@@ -508,7 +508,7 @@ type tenantPurgeBody struct {
 }
 
 type tenantOpsBatchBody struct {
-	Op              string `json:"op" form:"op"` // migrate|seed|backup
+	Op              string `json:"op" form:"op"` // migrate|seed|backup|rollback
 	IDs             []uint `json:"ids" form:"ids"`
 	ProvisionStatus string `json:"provision_status" form:"provision_status"`
 	LastOp          string `json:"last_op" form:"last_op"`
@@ -517,6 +517,14 @@ type tenantOpsBatchBody struct {
 	WithSeed        bool   `json:"with_seed" form:"with_seed"`
 	Limit           int    `json:"limit" form:"limit"`
 	Keep            *int   `json:"keep" form:"keep"`
+	// Step / Batch: migration rollback (0/0 = last migrations batch)
+	Step  int `json:"step" form:"step"`
+	Batch int `json:"batch" form:"batch"`
+}
+
+type tenantRollbackBody struct {
+	Step  int `json:"step" form:"step"`
+	Batch int `json:"batch" form:"batch"`
 }
 
 type tenantPruneBody struct {
@@ -609,6 +617,33 @@ func (c *TenantController) Restore(ctx http.Context) http.Response {
 		name = strings.TrimSpace(body.Name)
 	}
 	return c.enqueueOpWithOpts(ctx, models.TenantOpRestore, false, name, -1)
+}
+
+// Rollback enqueues migrate rollback (step/batch; 0/0 = last migrations batch).
+func (c *TenantController) Rollback(ctx http.Context) http.Response {
+	id := helpers.GetUintRoute(ctx, "id")
+	if id == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	var body tenantRollbackBody
+	_ = ctx.Request().Bind(&body)
+	actor := platformActor(ctx)
+	tenant, args, err := c.ops().BeginQueuedRollback(id, body.Step, body.Batch, actor, "")
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, map[string]any{"id": id})
+	}
+	if err := services.EnqueueTenantOps(args); err != nil {
+		_ = c.ops().MarkOpFailed(tenant, err.Error(), args.OpLogID)
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, apperrors.ErrTenantOpQueueFailed.WithError(err), map[string]any{"id": id})
+	}
+	return response.Success(ctx, map[string]any{
+		"queued":    true,
+		"op":        models.TenantOpRollback,
+		"step":      args.Step,
+		"batch":     args.MigBatch,
+		"op_log_id": args.OpLogID,
+		"tenant":    services.TenantToJSON(tenant),
+	})
 }
 
 // Destroy soft-deletes tenant metadata; optional DROP DB. Object storage is NOT purged here
@@ -890,9 +925,7 @@ func (c *TenantController) QueueStatus(ctx http.Context) http.Response {
 	return response.Success(ctx, map[string]any{"queue": services.BuildPlatformQueueStatus()})
 }
 
-// OpsBatch enqueues migrate|seed|backup for multiple tenants.
-// All three use tenant_ops_fleet (migrate/seed: TENANCY_MIGRATE_CONCURRENCY;
-// backup: TENANCY_BACKUP_CONCURRENCY).
+// OpsBatch enqueues migrate|seed|backup|rollback for multiple tenants via tenant_ops_fleet.
 func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 	var body tenantOpsBatchBody
 	_ = ctx.Request().Bind(&body)
@@ -901,7 +934,7 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 		op = models.TenantOpMigrate
 	}
 	switch op {
-	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup:
+	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup, models.TenantOpRollback:
 	default:
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
 	}
@@ -910,9 +943,11 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 		if op == models.TenantOpMigrate {
 			body.ProvisionStatus = models.TenantProvisionFailed
 		} else if op == models.TenantOpSeed {
-			// Default "retry failed seeds" when no explicit filter (safer than seeding every active tenant).
 			body.LastOp = models.TenantOpSeed
 			body.LastOpStatus = models.TenantOpStatusFailed
+		} else if op == models.TenantOpRollback {
+			// Require explicit ids for rollback (destructive).
+			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
 		} else {
 			active := models.TenantStatusActive
 			body.Status = &active
@@ -937,9 +972,12 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 		tenant := &tenants[i]
 		var args services.TenantOpsArgs
 		var beginErr error
-		if op == models.TenantOpBackup {
+		switch op {
+		case models.TenantOpBackup:
 			_, args, beginErr = c.ops().BeginQueuedBackup(tenant.ID, keep, actor, batchID)
-		} else {
+		case models.TenantOpRollback:
+			_, args, beginErr = c.ops().BeginQueuedRollback(tenant.ID, body.Step, body.Batch, actor, batchID)
+		default:
 			_, args, beginErr = c.ops().BeginQueuedOp(tenant.ID, op, body.WithSeed && op == models.TenantOpMigrate, actor, batchID)
 		}
 		if beginErr != nil {
@@ -986,6 +1024,8 @@ func (c *TenantController) OpsBatch(ctx http.Context) http.Response {
 		"batch_id":      batchID,
 		"mode":          mode,
 		"concurrency":   concurrency,
+		"step":          body.Step,
+		"mig_batch":     body.Batch,
 		"queued_count":  len(queued),
 		"skipped_count": len(skipped),
 		"failed_count":  len(failed),

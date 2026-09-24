@@ -1279,7 +1279,14 @@
     "op_purge": "清理",
     "retry_failed_seed": "重试全部失败填充",
     "retry_failed_seed_confirm": "将为最近运维为 seed 且失败的租户入队填充（最多 100 个），是否继续？",
-    "failed_seed_count": "填充失败 {{n}}"
+    "failed_seed_count": "填充失败 {{n}}",
+    "op_rollback": "回滚迁移",
+    "op_rollback_confirm": "确认对该租户入队 migrate 回滚？",
+    "op_rollback_step": "步数 (最近 N 个文件；0 则看 batch)",
+    "op_rollback_batch": "批次 (migrations.batch；0/0=上一批)",
+    "op_rollback_hint": "建议 step=1。首次 migrate 常把全部文件记为 batch 1；step=0 且 batch=0 会回滚整个上一批次。",
+    "batch_rollback": "批量回滚",
+    "batch_rollback_confirm": "确认为选中的 {{n}} 个租户入队回滚（默认 step=1）？建议先备份。"
   },
   "platform": {
     "title": "租户运维",

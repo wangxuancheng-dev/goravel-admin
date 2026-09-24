@@ -101,6 +101,15 @@
         >
           {{ $t('tenant.batch_backup') }}
         </el-button>
+        <el-button
+          size="small"
+          type="danger"
+          :loading="batchLoading"
+          :disabled="selectedRows.length < 1"
+          @click="batchRollbackSelected"
+        >
+          {{ $t('tenant.batch_rollback') }}
+        </el-button>
       </template>
       <template v-if="!isRecycleView">
         <el-button size="small" @click="exportCsv">{{ $t('tenant.export_csv') }}</el-button>
@@ -239,6 +248,7 @@
             <el-dropdown-menu>
               <el-dropdown-item v-if="isOwner" command="seed" :disabled="isBusy(row)">{{ $t('tenant.op_seed') }}</el-dropdown-item>
               <el-dropdown-item v-if="isOwner" command="backup" :disabled="isBusy(row)">{{ $t('tenant.op_backup') }}</el-dropdown-item>
+              <el-dropdown-item v-if="isOwner" command="rollback" :disabled="isBusy(row)">{{ $t('tenant.op_rollback') }}</el-dropdown-item>
               <el-dropdown-item command="backups">{{ $t('tenant.op_backups') }}</el-dropdown-item>
               <el-dropdown-item command="overview">{{ $t('tenant.op_overview') }}</el-dropdown-item>
               <el-dropdown-item command="timeline">{{ $t('tenant.op_timeline') }}</el-dropdown-item>
@@ -436,6 +446,23 @@
     <template #footer>
       <el-button @click="migrateVisible = false">{{ $t('common.cancel') }}</el-button>
       <el-button type="primary" @click="submitMigrate">{{ $t('common.confirm') }}</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="rollbackVisible" :title="$t('tenant.op_rollback')" width="480px" destroy-on-close>
+    <p>{{ $t('tenant.op_rollback_confirm') }}</p>
+    <el-alert type="warning" :closable="false" show-icon class="migrate-tip" :title="$t('tenant.op_rollback_hint')" />
+    <el-form label-width="120px" class="migrate-tip">
+      <el-form-item :label="$t('tenant.op_rollback_step')">
+        <el-input-number v-model="rollbackStep" :min="0" :max="1000" />
+      </el-form-item>
+      <el-form-item :label="$t('tenant.op_rollback_batch')">
+        <el-input-number v-model="rollbackBatch" :min="0" :max="100000" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="rollbackVisible = false">{{ $t('common.cancel') }}</el-button>
+      <el-button type="danger" @click="submitRollback">{{ $t('common.confirm') }}</el-button>
     </template>
   </el-dialog>
 
@@ -765,6 +792,7 @@ import {
   migratePlatformTenant,
   migratePlatformTenantBatch,
   opsPlatformTenantBatch,
+  rollbackPlatformTenant,
   pingPlatformTenant,
   platformHealth,
   prunePlatformTenantBackups,
@@ -799,6 +827,10 @@ const health = ref(null)
 const migrateVisible = ref(false)
 const migrateRow = ref(null)
 const withSeed = ref(true)
+const rollbackVisible = ref(false)
+const rollbackRow = ref(null)
+const rollbackStep = ref(1)
+const rollbackBatch = ref(0)
 const opsSummary = ref(null)
 const batchLoading = ref(false)
 const selectedRows = ref([])
@@ -1190,6 +1222,7 @@ const searchFields = computed(() => {
         { label: t('tenant.op_seed'), value: 'seed' },
         { label: t('tenant.op_backup'), value: 'backup' },
         { label: t('tenant.op_restore'), value: 'restore' },
+        { label: t('tenant.op_rollback'), value: 'rollback' },
         { label: t('tenant.op_purge'), value: 'purge' }
       ]
     },
@@ -1460,6 +1493,13 @@ const openMigrate = (row) => {
   migrateVisible.value = true
 }
 
+const openRollback = (row) => {
+  rollbackRow.value = row
+  rollbackStep.value = 1
+  rollbackBatch.value = 0
+  rollbackVisible.value = true
+}
+
 const resetForm = () => {
   editingId.value = null
   passwordTouched.value = false
@@ -1612,6 +1652,9 @@ const onMoreCommand = (cmd, row) => {
     case 'backup':
       onBackup(row)
       break
+    case 'rollback':
+      openRollback(row)
+      break
     case 'backups':
       openBackups(row)
       break
@@ -1703,6 +1746,36 @@ const batchBackupSelected = async () => {
   batchLoading.value = true
   try {
     const res = await opsPlatformTenantBatch({ op: 'backup', ids })
+    const n = res?.data?.queued_count ?? 0
+    const batch = res?.data?.batch_id ? t('tenant.batch_id_suffix', { id: res.data.batch_id }) : ''
+    ElMessage.success(t('tenant.batch_queued', { n, batch }))
+    selectedRows.value = []
+    await loadData()
+    await refreshOpsSummary()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+const batchRollbackSelected = async () => {
+  const ids = selectedRows.value.map((r) => r.id).filter(Boolean)
+  if (!ids.length) {
+    ElMessage.warning(t('tenant.batch_need_selection'))
+    return
+  }
+  try {
+    await ElMessageBox.confirm(t('tenant.batch_rollback_confirm', { n: ids.length }), {
+      type: 'warning',
+      title: t('tenant.batch_rollback')
+    })
+  } catch {
+    return
+  }
+  batchLoading.value = true
+  try {
+    const res = await opsPlatformTenantBatch({ op: 'rollback', ids, step: 1, batch: 0 })
     const n = res?.data?.queued_count ?? 0
     const batch = res?.data?.batch_id ? t('tenant.batch_id_suffix', { id: res.data.batch_id }) : ''
     ElMessage.success(t('tenant.batch_queued', { n, batch }))
@@ -2031,6 +2104,23 @@ const submitMigrate = async () => {
     await migratePlatformTenant(migrateRow.value.id, { with_seed: withSeed.value })
     ElMessage.success(t('tenant.op_queued'))
     migrateVisible.value = false
+    loadData()
+  } catch (error) {
+    if (!error?.__handled) {
+      ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
+    }
+  }
+}
+
+const submitRollback = async () => {
+  if (!rollbackRow.value) return
+  try {
+    await rollbackPlatformTenant(rollbackRow.value.id, {
+      step: rollbackStep.value,
+      batch: rollbackBatch.value
+    })
+    ElMessage.success(t('tenant.op_queued'))
+    rollbackVisible.value = false
     loadData()
   } catch (error) {
     if (!error?.__handled) {

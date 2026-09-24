@@ -75,6 +75,10 @@ export function migratePlatformTenant(id, data = {}) {
   return platformRequest.post(`/tenants/${id}/migrate`, data)
 }
 
+export function rollbackPlatformTenant(id, data = {}) {
+  return platformRequest.post(`/tenants/${id}/rollback`, data)
+}
+
 export function seedPlatformTenant(id) {
   return platformRequest.post(`/tenants/${id}/seed`)
 }

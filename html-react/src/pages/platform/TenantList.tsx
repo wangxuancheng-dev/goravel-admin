@@ -53,6 +53,7 @@ import {
   migratePlatformTenant,
   migratePlatformTenantBatch,
   opsPlatformTenantBatch,
+  rollbackPlatformTenant,
   pingPlatformTenant,
   platformHealth,
   prunePlatformTenantBackups,
@@ -255,6 +256,9 @@ export default function PlatformTenantList() {
   const [onboardLoginUrl, setOnboardLoginUrl] = useState('')
   const [editing, setEditing] = useState<TenantRow | null>(null)
   const [migrateTarget, setMigrateTarget] = useState<TenantRow | null>(null)
+  const [rollbackTarget, setRollbackTarget] = useState<TenantRow | null>(null)
+  const [rollbackStep, setRollbackStep] = useState(1)
+  const [rollbackBatch, setRollbackBatch] = useState(0)
   const [passwordTouched, setPasswordTouched] = useState(false)
   const [storageSecretTouched, setStorageSecretTouched] = useState(false)
   const [withSeed, setWithSeed] = useState(true)
@@ -835,13 +839,16 @@ export default function PlatformTenantList() {
   }
 
   const runBatchOps = (
-    op: 'migrate' | 'seed' | 'backup',
+    op: 'migrate' | 'seed' | 'backup' | 'rollback',
     payload: {
       ids?: Array<string | number>
       provision_status?: string
       status?: number
       with_seed?: boolean
+      keep?: number
       limit?: number
+      step?: number
+      batch?: number
     },
     confirmTitle: string,
     confirmContent: string,
@@ -1487,6 +1494,19 @@ export default function PlatformTenantList() {
                   >
                     {t('tenant.op_backup')}
                   </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    danger
+                    disabled={busy}
+                    onClick={() => {
+                      setRollbackStep(1)
+                      setRollbackBatch(0)
+                      setRollbackTarget(row)
+                    }}
+                  >
+                    {t('tenant.op_rollback')}
+                  </Button>
                 </>
               ) : null}
               <Button type="link" size="small" onClick={() => void openBackups(row)}>
@@ -1640,6 +1660,21 @@ export default function PlatformTenantList() {
                     }
                   >
                     {t('tenant.batch_backup')}
+                  </Button>
+                  <Button
+                    danger
+                    loading={batchLoading}
+                    disabled={selectedRowKeys.length < 1}
+                    onClick={() =>
+                      runBatchOps(
+                        'rollback',
+                        { ids: selectedRowKeys.map((id) => Number(id)), step: 1, batch: 0 },
+                        t('tenant.batch_rollback'),
+                        t('tenant.batch_rollback_confirm', { n: selectedRowKeys.length }),
+                      )
+                    }
+                  >
+                    {t('tenant.batch_rollback')}
                   </Button>
                   <Button
                     loading={batchLoading}
@@ -1811,6 +1846,7 @@ export default function PlatformTenantList() {
                     { label: t('tenant.op_seed'), value: 'seed' },
                     { label: t('tenant.op_backup'), value: 'backup' },
                     { label: t('tenant.op_restore'), value: 'restore' },
+                    { label: t('tenant.op_rollback'), value: 'rollback' },
                     { label: t('tenant.op_purge'), value: 'purge' },
                   ],
                 },
@@ -2699,6 +2735,60 @@ export default function PlatformTenantList() {
             description={migrateTarget.last_migrate_error}
           />
         ) : null}
+      </Modal>
+
+      <Modal
+        title={t('tenant.op_rollback')}
+        open={!!rollbackTarget}
+        onCancel={() => setRollbackTarget(null)}
+        onOk={() => {
+          if (!rollbackTarget) return
+          void (async () => {
+            try {
+              await rollbackPlatformTenant(rollbackTarget.id, {
+                step: rollbackStep,
+                batch: rollbackBatch,
+              })
+              message.success(t('tenant.op_queued'))
+              setRollbackTarget(null)
+              await refresh()
+            } catch (error) {
+              showError(error, t('common.operation_failed'))
+            }
+          })()
+        }}
+        okButtonProps={{ danger: true }}
+        destroyOnHidden
+      >
+        <p>{t('tenant.op_rollback_confirm')}</p>
+        <Alert
+          style={{ marginBottom: 12 }}
+          type="warning"
+          showIcon
+          message={t('tenant.op_rollback_hint')}
+        />
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div>
+            <div style={{ marginBottom: 4 }}>{t('tenant.op_rollback_step')}</div>
+            <InputNumber
+              min={0}
+              max={1000}
+              style={{ width: '100%' }}
+              value={rollbackStep}
+              onChange={(v) => setRollbackStep(Number(v) || 0)}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4 }}>{t('tenant.op_rollback_batch')}</div>
+            <InputNumber
+              min={0}
+              max={100000}
+              style={{ width: '100%' }}
+              value={rollbackBatch}
+              onChange={(v) => setRollbackBatch(Number(v) || 0)}
+            />
+          </div>
+        </Space>
       </Modal>
 
       <Modal

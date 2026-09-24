@@ -59,7 +59,7 @@ func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
 // NormalizeTenantLastOpFilter returns a known op name or empty (ignore unknown).
 func NormalizeTenantLastOpFilter(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup, models.TenantOpRestore, models.TenantOpPurge:
+	case models.TenantOpMigrate, models.TenantOpSeed, models.TenantOpBackup, models.TenantOpRestore, models.TenantOpPurge, models.TenantOpRollback:
 		return strings.ToLower(strings.TrimSpace(raw))
 	default:
 		return ""
