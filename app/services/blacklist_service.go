@@ -2,14 +2,13 @@ package services
 
 import (
 	"context"
-
-	"github.com/goravel/framework/contracts/http"
-
-	appfacades "goravel/app/facades"
+	"strings"
 
 	"github.com/dromara/carbon/v2"
+	"github.com/goravel/framework/contracts/http"
 
 	apperrors "goravel/app/errors"
+	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/http/requests/admin"
 	"goravel/app/models"
@@ -19,8 +18,8 @@ import (
 type BlacklistService interface {
 	GetByID(id uint) (*models.Blacklist, error)
 	GetList(filters BlacklistFilters, page, pageSize int) ([]models.Blacklist, int64, error)
-	Create(req *admin.BlacklistCreate) (*models.Blacklist, error)
-	Update(id uint, req *admin.BlacklistUpdate) (*models.Blacklist, error)
+	Create(req *admin.BlacklistCreate, clientIP string) (*models.Blacklist, error)
+	Update(id uint, req *admin.BlacklistUpdate, clientIP string) (*models.Blacklist, error)
 	Delete(id uint) error
 }
 
@@ -100,8 +99,47 @@ func (s *BlacklistServiceImpl) GetList(filters BlacklistFilters, page, pageSize 
 	return blacklists, total, nil
 }
 
-func (s *BlacklistServiceImpl) Create(req *admin.BlacklistCreate) (*models.Blacklist, error) {
+func (s *BlacklistServiceImpl) enabledPatternsExcept(excludeID uint) ([]string, error) {
+	query := appfacades.OrmQuery(s.ctx).Model(&models.Blacklist{}).Where("status", 1)
+	if excludeID > 0 {
+		query = query.Where("id <> ?", excludeID)
+	}
+	var rows []models.Blacklist
+	if err := query.Get(&rows); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.IP != "" {
+			out = append(out, row.IP)
+		}
+	}
+	return out, nil
+}
+
+func ensureBlacklistKeepsClient(clientIP string, patterns []string) error {
+	clientIP = strings.TrimSpace(clientIP)
+	if clientIP == "" {
+		return nil
+	}
+	if clientIPMatchesPatterns(clientIP, patterns) {
+		return apperrors.ErrBlacklistLocksSelf.WithParams(map[string]any{"ip": clientIP})
+	}
+	return nil
+}
+
+func (s *BlacklistServiceImpl) Create(req *admin.BlacklistCreate, clientIP string) (*models.Blacklist, error) {
 	if err := s.validateIP(req.IP); err != nil {
+		return nil, err
+	}
+	patterns, err := s.enabledPatternsExcept(0)
+	if err != nil {
+		return nil, err
+	}
+	if req.Status == 1 {
+		patterns = append(patterns, req.IP)
+	}
+	if err := ensureBlacklistKeepsClient(clientIP, patterns); err != nil {
 		return nil, err
 	}
 
@@ -119,7 +157,6 @@ func (s *BlacklistServiceImpl) Create(req *admin.BlacklistCreate) (*models.Black
 	}
 	InvalidateBlacklistCache(s.ctx)
 
-	// map Create may not populate primary key — reload by IP.
 	var created models.Blacklist
 	if err := appfacades.OrmQuery(s.ctx).Where("ip", req.IP).OrderByDesc("id").First(&created); err != nil || created.ID == 0 {
 		return nil, apperrors.ErrCreateFailed.WithError(err)
@@ -127,23 +164,37 @@ func (s *BlacklistServiceImpl) Create(req *admin.BlacklistCreate) (*models.Black
 	return &created, nil
 }
 
-func (s *BlacklistServiceImpl) Update(id uint, req *admin.BlacklistUpdate) (*models.Blacklist, error) {
+func (s *BlacklistServiceImpl) Update(id uint, req *admin.BlacklistUpdate, clientIP string) (*models.Blacklist, error) {
 	blacklist, err := s.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
+	next := *blacklist
 	if req.IP != nil {
 		if err := s.validateIP(*req.IP); err != nil {
 			return nil, err
 		}
-		blacklist.IP = *req.IP
+		next.IP = *req.IP
 	}
 	if req.Remark != nil {
-		blacklist.Remark = *req.Remark
+		next.Remark = *req.Remark
 	}
 	if req.Status != nil {
-		blacklist.Status = *req.Status
+		next.Status = *req.Status
 	}
+
+	patterns, err := s.enabledPatternsExcept(id)
+	if err != nil {
+		return nil, err
+	}
+	if next.Status == 1 && next.IP != "" {
+		patterns = append(patterns, next.IP)
+	}
+	if err := ensureBlacklistKeepsClient(clientIP, patterns); err != nil {
+		return nil, err
+	}
+
+	*blacklist = next
 	if err := appfacades.OrmQuery(s.ctx).Save(blacklist); err != nil {
 		return nil, apperrors.ErrUpdateFailed.WithError(err)
 	}

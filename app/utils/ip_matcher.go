@@ -27,6 +27,7 @@ func IsIPInBlacklist(ip string, blacklistIPs string) bool {
 	if parsedIP == nil {
 		return false
 	}
+	matchIP := canonicalMatchIP(parsedIP)
 
 	// 分割多个IP（支持逗号分隔）
 	ipList := strings.SplitSeq(blacklistIPs, ",")
@@ -36,15 +37,19 @@ func IsIPInBlacklist(ip string, blacklistIPs string) bool {
 			continue
 		}
 
-		// 检查单个IP
-		if blacklistIP == ip {
+		// 检查单个IP（含 ::1 / 127.0.0.1 回环等价）
+		if patternIP := net.ParseIP(blacklistIP); patternIP != nil {
+			if canonicalMatchIP(patternIP).Equal(matchIP) {
+				return true
+			}
+		} else if blacklistIP == ip {
 			return true
 		}
 
 		// 检查CIDR格式 (192.168.0.0/24)
 		if str.Of(blacklistIP).Contains("/") {
 			_, ipNet, err := net.ParseCIDR(blacklistIP)
-			if err == nil && ipNet.Contains(parsedIP) {
+			if err == nil && (ipNet.Contains(parsedIP) || ipNet.Contains(matchIP)) {
 				return true
 			}
 		}
@@ -56,7 +61,7 @@ func IsIPInBlacklist(ip string, blacklistIPs string) bool {
 				startIP := net.ParseIP(str.Of(parts[0]).Trim().String())
 				endIP := net.ParseIP(str.Of(parts[1]).Trim().String())
 				if startIP != nil && endIP != nil {
-					if isIPInRange(parsedIP, startIP, endIP) {
+					if isIPInRange(matchIP, startIP, endIP) || isIPInRange(parsedIP, startIP, endIP) {
 						return true
 					}
 				}
@@ -65,6 +70,20 @@ func IsIPInBlacklist(ip string, blacklistIPs string) bool {
 	}
 
 	return false
+}
+
+// canonicalMatchIP normalizes IPv4-mapped and IPv6 loopback to IPv4 for comparisons.
+func canonicalMatchIP(ip net.IP) net.IP {
+	if ip == nil {
+		return nil
+	}
+	if v4 := ip.To4(); v4 != nil {
+		return v4
+	}
+	if ip.IsLoopback() {
+		return net.ParseIP("127.0.0.1").To4()
+	}
+	return ip
 }
 
 // isIPInRange 检查IP是否在指定范围内

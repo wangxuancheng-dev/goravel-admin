@@ -400,7 +400,9 @@
         "login_success_oidc": "企业 SSO 登录成功",
         "allowlist_not_found": "白名单不存在",
         "ip_not_allowed": "当前 IP 不在白名单中",
-        "revoke_others_success": "已踢出其他会话"
+        "revoke_others_success": "已踢出其他会话",
+        "allowlist_locks_self": "变更后当前 IP（{ip}）将无法访问，请先加入白名单",
+        "blacklist_locks_self": "不能将当前 IP（{ip}）加入黑名单"
     },
     "tenant_storage_not_configured": "租户自定义对象存储未配置完整",
     "tenant_storage_secret_corrupt": "租户对象存储密钥密文无效，请重新设置",

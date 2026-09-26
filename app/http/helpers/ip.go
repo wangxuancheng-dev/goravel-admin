@@ -74,5 +74,14 @@ func parseIP(ip string) string {
 		return ""
 	}
 
-	return ip
+	// Prefer IPv4 form for IPv4-mapped addresses (:ffff:x.x.x.x).
+	if v4 := parsedIP.To4(); v4 != nil {
+		return v4.String()
+	}
+	// Localhost via IPv6 (::1) -> 127.0.0.1 so allow/blacklist tips and rules match common IPv4 entries.
+	if parsedIP.IsLoopback() {
+		return "127.0.0.1"
+	}
+
+	return parsedIP.String()
 }

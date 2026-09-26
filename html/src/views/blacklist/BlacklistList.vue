@@ -21,6 +21,16 @@
     @page-change="loadData"
     @sort-change="handleSortChange"
   >
+    <template #toolbar-left>
+      <el-alert
+        v-if="clientIp"
+        type="info"
+        :closable="false"
+        show-icon
+        :title="t('blacklist.client_ip_tip', { ip: clientIp })"
+        style="margin-bottom: 8px; width: 100%;"
+      />
+    </template>
     <template #ip="{ row }">
       <div style="word-break: break-all;">
         {{ formatBlacklistIP(row.ip) }}
@@ -52,7 +62,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/ListPage.vue'
 import TableActionButtons from '@/components/TableActionButtons.vue'
@@ -69,6 +79,7 @@ import {
 
 const { t } = useI18n()
 const listPageRef = ref(null)
+const clientIp = ref('')
 
 const {
   pagination,
@@ -104,4 +115,13 @@ const operationActions = computed(() =>
     onDelete: handleDelete
   })
 )
+
+onMounted(async () => {
+  try {
+    const res = await getBlacklistList({ page: 1, page_size: 1 })
+    clientIp.value = String(res?.data?.client_ip || '')
+  } catch {
+    clientIp.value = ''
+  }
+})
 </script>

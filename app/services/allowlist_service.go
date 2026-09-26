@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 
 	"github.com/dromara/carbon/v2"
 	"github.com/goravel/framework/contracts/http"
@@ -17,9 +18,9 @@ import (
 type AllowlistService interface {
 	GetByID(id uint) (*models.Allowlist, error)
 	GetList(filters AllowlistFilters, page, pageSize int) ([]models.Allowlist, int64, error)
-	Create(req *admin.AllowlistCreate) (*models.Allowlist, error)
-	Update(id uint, req *admin.AllowlistUpdate) (*models.Allowlist, error)
-	Delete(id uint) error
+	Create(req *admin.AllowlistCreate, clientIP string) (*models.Allowlist, error)
+	Update(id uint, req *admin.AllowlistUpdate, clientIP string) (*models.Allowlist, error)
+	Delete(id uint, clientIP string) error
 }
 
 type AllowlistFilters struct {
@@ -93,10 +94,65 @@ func (s *AllowlistServiceImpl) GetList(filters AllowlistFilters, page, pageSize 
 	return list, total, nil
 }
 
-func (s *AllowlistServiceImpl) Create(req *admin.AllowlistCreate) (*models.Allowlist, error) {
+func (s *AllowlistServiceImpl) enabledPatternsExcept(excludeID uint) ([]string, error) {
+	if !appfacades.SchemaHasTable(s.ctx, "allowlists") {
+		return nil, nil
+	}
+	query := appfacades.OrmQuery(s.ctx).Model(&models.Allowlist{}).Where("status", 1)
+	if excludeID > 0 {
+		query = query.Where("id <> ?", excludeID)
+	}
+	var rows []models.Allowlist
+	if err := query.Get(&rows); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.IP != "" {
+			out = append(out, row.IP)
+		}
+	}
+	return out, nil
+}
+
+func ensureAllowlistKeepsClient(clientIP string, patterns []string) error {
+	clientIP = strings.TrimSpace(clientIP)
+	if clientIP == "" {
+		return nil
+	}
+	if len(patterns) == 0 {
+		return nil // unrestricted
+	}
+	if clientIPMatchesPatterns(clientIP, patterns) {
+		return nil
+	}
+	return apperrors.ErrAllowlistLocksSelf.WithParams(map[string]any{"ip": clientIP})
+}
+
+func clientIPMatchesPatterns(clientIP string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if pattern != "" && utils.IsIPInBlacklist(clientIP, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *AllowlistServiceImpl) Create(req *admin.AllowlistCreate, clientIP string) (*models.Allowlist, error) {
 	if err := s.validateIP(req.IP); err != nil {
 		return nil, err
 	}
+	patterns, err := s.enabledPatternsExcept(0)
+	if err != nil {
+		return nil, err
+	}
+	if req.Status == 1 {
+		patterns = append(patterns, req.IP)
+	}
+	if err := ensureAllowlistKeepsClient(clientIP, patterns); err != nil {
+		return nil, err
+	}
+
 	row := &models.Allowlist{}
 	createData := map[string]any{
 		"ip":         req.IP,
@@ -116,23 +172,37 @@ func (s *AllowlistServiceImpl) Create(req *admin.AllowlistCreate) (*models.Allow
 	return &created, nil
 }
 
-func (s *AllowlistServiceImpl) Update(id uint, req *admin.AllowlistUpdate) (*models.Allowlist, error) {
+func (s *AllowlistServiceImpl) Update(id uint, req *admin.AllowlistUpdate, clientIP string) (*models.Allowlist, error) {
 	row, err := s.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
+	next := *row
 	if req.IP != nil {
 		if err := s.validateIP(*req.IP); err != nil {
 			return nil, err
 		}
-		row.IP = *req.IP
+		next.IP = *req.IP
 	}
 	if req.Remark != nil {
-		row.Remark = *req.Remark
+		next.Remark = *req.Remark
 	}
 	if req.Status != nil {
-		row.Status = *req.Status
+		next.Status = *req.Status
 	}
+
+	patterns, err := s.enabledPatternsExcept(id)
+	if err != nil {
+		return nil, err
+	}
+	if next.Status == 1 && next.IP != "" {
+		patterns = append(patterns, next.IP)
+	}
+	if err := ensureAllowlistKeepsClient(clientIP, patterns); err != nil {
+		return nil, err
+	}
+
+	*row = next
 	if err := appfacades.OrmQuery(s.ctx).Save(row); err != nil {
 		return nil, apperrors.ErrUpdateFailed.WithError(err)
 	}
@@ -140,8 +210,15 @@ func (s *AllowlistServiceImpl) Update(id uint, req *admin.AllowlistUpdate) (*mod
 	return row, nil
 }
 
-func (s *AllowlistServiceImpl) Delete(id uint) error {
+func (s *AllowlistServiceImpl) Delete(id uint, clientIP string) error {
 	if _, err := s.GetByID(id); err != nil {
+		return err
+	}
+	patterns, err := s.enabledPatternsExcept(id)
+	if err != nil {
+		return err
+	}
+	if err := ensureAllowlistKeepsClient(clientIP, patterns); err != nil {
 		return err
 	}
 	if _, err := appfacades.OrmQuery(s.ctx).Where("id", id).Delete(&models.Allowlist{}); err != nil {

@@ -403,6 +403,8 @@
         "login_success_oidc": "Enterprise SSO login successful",
         "allowlist_not_found": "Allowlist entry not found",
         "ip_not_allowed": "Your IP address is not on the allowlist",
-        "revoke_others_success": "Other sessions revoked"
+        "revoke_others_success": "Other sessions revoked",
+        "allowlist_locks_self": "This change would lock out your current IP ({ip}); add it to the allowlist first",
+        "blacklist_locks_self": "Cannot blacklist your current IP ({ip})"
     }
 }

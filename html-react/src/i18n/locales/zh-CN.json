@@ -1378,7 +1378,8 @@
     "ip": "IP地址",
     "remark": "备注",
     "enabled": "已封禁",
-    "disabled": "未封禁"
+    "disabled": "未封禁",
+    "client_ip_tip": "当前访问 IP：{{ip}}（请勿将此地址加入黑名单）"
   },
   "online_admin": {
     "username": "用户名",
@@ -1851,7 +1852,9 @@
     "oidc_user_not_linked": "该企业账号未关联管理员",
     "ip_not_allowed": "当前 IP 不在白名单中",
     "allowlist_not_found": "白名单不存在",
-    "revoke_others_success": "已踢出其他会话"
+    "revoke_others_success": "已踢出其他会话",
+    "allowlist_locks_self": "变更后当前 IP（{{ip}}）将无法访问，请先加入白名单",
+    "blacklist_locks_self": "不能将当前 IP（{{ip}}）加入黑名单"
   },
   "code_generator": {
     "title": "代码生成器",
@@ -2196,6 +2199,7 @@
     "edit_allowlist": "编辑白名单",
     "ip_tip": "支持单 IP、CIDR、范围；启用任意条目后仅白名单可访问",
     "ip_required": "请输入IP地址",
-    "ip_format_error": "IP地址格式错误"
+    "ip_format_error": "IP地址格式错误",
+    "client_ip_tip": "当前访问 IP：{{ip}}（启用白名单时请确保包含此地址）"
   }
 }

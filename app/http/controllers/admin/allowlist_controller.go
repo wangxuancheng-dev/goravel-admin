@@ -27,7 +27,11 @@ func (c *AllowlistController) Index(ctx http.Context) http.Response {
 		return HandleGeneratedServiceError(ctx, "allowlist", http.StatusInternalServerError, err, nil)
 	}
 	return response.Success(ctx, http.Json{
-		"list": list, "total": total, "page": page, "page_size": pageSize,
+		"list":      list,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+		"client_ip": helpers.GetRealIP(ctx),
 	})
 }
 
@@ -37,7 +41,7 @@ func (c *AllowlistController) Show(ctx http.Context) http.Response {
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "allowlist", http.StatusNotFound, err, map[string]any{"id": id})
 	}
-	return response.Success(ctx, http.Json{"allowlist": row})
+	return response.Success(ctx, http.Json{"allowlist": row, "client_ip": helpers.GetRealIP(ctx)})
 }
 
 func (c *AllowlistController) Store(ctx http.Context) http.Response {
@@ -48,9 +52,9 @@ func (c *AllowlistController) Store(ctx http.Context) http.Response {
 	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
 		return resp
 	}
-	row, err := c.AllowlistService(ctx).Create(&req)
+	row, err := c.AllowlistService(ctx).Create(&req, helpers.GetRealIP(ctx))
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "allowlist", http.StatusInternalServerError, err, map[string]any{"ip": req.IP})
+		return HandleGeneratedServiceError(ctx, "allowlist", http.StatusBadRequest, err, map[string]any{"ip": req.IP})
 	}
 	return response.Success(ctx, http.Json{"allowlist": row})
 }
@@ -61,9 +65,9 @@ func (c *AllowlistController) Update(ctx http.Context) http.Response {
 	if resp := ValidateGeneratedRequest(ctx, &req); resp != nil {
 		return resp
 	}
-	row, err := c.AllowlistService(ctx).Update(id, &req)
+	row, err := c.AllowlistService(ctx).Update(id, &req, helpers.GetRealIP(ctx))
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "allowlist", http.StatusInternalServerError, err, map[string]any{"id": id})
+		return HandleGeneratedServiceError(ctx, "allowlist", http.StatusBadRequest, err, map[string]any{"id": id})
 	}
 	return response.Success(ctx, http.Json{"allowlist": row})
 }
@@ -73,8 +77,8 @@ func (c *AllowlistController) Destroy(ctx http.Context) http.Response {
 		return resp
 	}
 	id := helpers.GetUintRoute(ctx, "id")
-	if err := c.AllowlistService(ctx).Delete(id); err != nil {
-		return HandleGeneratedServiceError(ctx, "allowlist", http.StatusInternalServerError, err, map[string]any{"id": id})
+	if err := c.AllowlistService(ctx).Delete(id, helpers.GetRealIP(ctx)); err != nil {
+		return HandleGeneratedServiceError(ctx, "allowlist", http.StatusBadRequest, err, map[string]any{"id": id})
 	}
 	return response.Success(ctx, "delete_success", http.Json{})
 }

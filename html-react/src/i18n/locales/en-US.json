@@ -1374,7 +1374,8 @@
     "ip": "IP Address",
     "remark": "Remark",
     "enabled": "Blocked",
-    "disabled": "Not Blocked"
+    "disabled": "Not Blocked",
+    "client_ip_tip": "Your current IP: {{ip}} (do not blacklist this address)"
   },
   "online_admin": {
     "username": "Username",
@@ -1847,7 +1848,9 @@
     "oidc_user_not_linked": "No admin linked to this OIDC email",
     "ip_not_allowed": "IP is not on the allowlist",
     "allowlist_not_found": "Allowlist entry not found",
-    "revoke_others_success": "Other sessions revoked"
+    "revoke_others_success": "Other sessions revoked",
+    "allowlist_locks_self": "This change would lock out your current IP ({{ip}}); add it to the allowlist first",
+    "blacklist_locks_self": "Cannot blacklist your current IP ({{ip}})"
   },
   "code_generator": {
     "title": "Code Generator",
@@ -2192,6 +2195,7 @@
     "edit_allowlist": "Edit allowlist",
     "ip_tip": "Single IP / CIDR / range; when any entry is enabled, only allowlisted IPs may access",
     "ip_required": "Please enter IP address",
-    "ip_format_error": "Invalid IP address format"
+    "ip_format_error": "Invalid IP address format",
+    "client_ip_tip": "Your current IP: {{ip}} (include it when enabling the allowlist)"
   }
 }

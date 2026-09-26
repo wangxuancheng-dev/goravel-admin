@@ -83,6 +83,7 @@ func (c *BlacklistController) Index(ctx http.Context) http.Response {
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,
+		"client_ip": helpers.GetRealIP(ctx),
 	})
 }
 
@@ -131,9 +132,9 @@ func (c *BlacklistController) Store(ctx http.Context) http.Response {
 		return resp
 	}
 
-	blacklist, err := c.BlacklistService(ctx).Create(&req)
+	blacklist, err := c.BlacklistService(ctx).Create(&req, helpers.GetRealIP(ctx))
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "blacklist", http.StatusInternalServerError, err, map[string]any{"ip": req.IP})
+		return HandleGeneratedServiceError(ctx, "blacklist", http.StatusBadRequest, err, map[string]any{"ip": req.IP})
 	}
 
 	return response.Success(ctx, http.Json{
@@ -163,9 +164,9 @@ func (c *BlacklistController) Update(ctx http.Context) http.Response {
 		return resp
 	}
 
-	blacklist, err := c.BlacklistService(ctx).Update(id, &req)
+	blacklist, err := c.BlacklistService(ctx).Update(id, &req, helpers.GetRealIP(ctx))
 	if err != nil {
-		return HandleGeneratedServiceError(ctx, "blacklist", http.StatusInternalServerError, err, map[string]any{"id": id})
+		return HandleGeneratedServiceError(ctx, "blacklist", http.StatusBadRequest, err, map[string]any{"id": id})
 	}
 
 	return response.Success(ctx, http.Json{

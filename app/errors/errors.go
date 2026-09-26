@@ -30,6 +30,8 @@ var (
 	ErrBlacklistNotFound    = NewBusinessError("blacklist_not_found", "黑名单不存在")
 	ErrAllowlistNotFound    = NewBusinessError("allowlist_not_found", "白名单不存在")
 	ErrIPNotAllowed         = NewBusinessError("ip_not_allowed", "当前 IP 不在白名单中")
+	ErrAllowlistLocksSelf   = NewBusinessError("allowlist_locks_self", "变更后当前 IP（{ip}）将无法访问，请先加入白名单")
+	ErrBlacklistLocksSelf   = NewBusinessError("blacklist_locks_self", "不能将当前 IP（{ip}）加入黑名单")
 	ErrNotificationNotFound = NewBusinessError("notification_not_found", "通知不存在")
 	ErrAdminNotFound        = NewBusinessError("admin_not_found", "管理员不存在")
 	ErrRoleNotFound         = NewBusinessError("role_not_found", "角色不存在")
