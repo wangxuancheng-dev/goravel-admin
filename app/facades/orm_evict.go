@@ -17,10 +17,28 @@ import (
 //
 // Does not Close the underlying sql.DB: concurrent requests may still hold that
 // pool. Forget() / Orm.Fresh() remain responsible for full teardown.
+//
+// Must hold ormConnectionMu: parallel migrate/seed call Evict while
+// Orm/Schema.Connection mutates the same queries map under that lock.
 func EvictOrmConnectionCache(name string) {
 	if name == "" {
 		return
 	}
+	ormConnectionMu.Lock()
+	defer ormConnectionMu.Unlock()
+	evictOrmConnectionCacheLocked(name)
+}
+
+// EvictOrmConnectionCacheLocked is EvictOrmConnectionCache when the caller
+// already holds LockOrmConnectionBuild / ormConnectionMu.
+func EvictOrmConnectionCacheLocked(name string) {
+	if name == "" {
+		return
+	}
+	evictOrmConnectionCacheLocked(name)
+}
+
+func evictOrmConnectionCacheLocked(name string) {
 	o := Orm()
 	if o == nil {
 		return

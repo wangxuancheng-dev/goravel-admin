@@ -135,11 +135,12 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 	appfacades.LockOrmConnectionBuild()
 	facades.Config().Add("database.connections."+tenant.ConnectionName, cfg)
 	warmErr := s.warmConnectionLocked(tenant.ConnectionName)
-	appfacades.UnlockOrmConnectionBuild()
 	if warmErr != nil {
-		appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
+		appfacades.EvictOrmConnectionCacheLocked(tenant.ConnectionName)
+		appfacades.UnlockOrmConnectionBuild()
 		return apperrors.ErrTenantConnectionFailed.WithError(warmErr)
 	}
+	appfacades.UnlockOrmConnectionBuild()
 	registeredMu.Lock()
 	markRegisteredLocked(tenant.ConnectionName)
 	registeredMu.Unlock()
