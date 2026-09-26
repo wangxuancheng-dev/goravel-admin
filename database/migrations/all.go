@@ -16,6 +16,7 @@ func All() []schema.Migration {
 		&M20250101000006CreateDictionariesTable{},
 		&M20250101000015CreateConfigsTable{},
 		&M20250101000016CreateBlacklistsTable{},
+		&M20260926140000CreateAllowlistsTable{},
 		&M20250101000007CreateAdminRoleTable{},
 		&M20250101000008CreateRolePermissionTable{},
 		&M20250101000009CreateRoleMenuTable{},

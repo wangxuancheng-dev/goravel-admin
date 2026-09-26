@@ -28,6 +28,8 @@ var (
 	// 资源相关错误
 	ErrRecordNotFound       = NewBusinessError("record_not_found", "记录不存在")
 	ErrBlacklistNotFound    = NewBusinessError("blacklist_not_found", "黑名单不存在")
+	ErrAllowlistNotFound    = NewBusinessError("allowlist_not_found", "白名单不存在")
+	ErrIPNotAllowed         = NewBusinessError("ip_not_allowed", "当前 IP 不在白名单中")
 	ErrNotificationNotFound = NewBusinessError("notification_not_found", "通知不存在")
 	ErrAdminNotFound        = NewBusinessError("admin_not_found", "管理员不存在")
 	ErrRoleNotFound         = NewBusinessError("role_not_found", "角色不存在")

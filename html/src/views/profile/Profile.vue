@@ -251,6 +251,10 @@
                 </div>
               </div>
             </el-tab-pane>
+
+            <el-tab-pane :label="$t('profile.sessions')" name="sessions">
+              <ProfileSessions />
+            </el-tab-pane>
           </el-tabs>
         </el-card>
       </el-col>
@@ -300,6 +304,7 @@ import {
   bindGoogleAuthenticator, 
   unbindGoogleAuthenticator 
 } from '../../api/auth'
+import ProfileSessions from './ProfileSessions.vue'
 import { useUserStore } from '../../store/user'
 import { usePermission } from '../../composables/usePermission'
 

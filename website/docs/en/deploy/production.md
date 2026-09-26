@@ -181,7 +181,10 @@ OIDC_AUTO_PROVISION=false
 - Login page shows SSO when enabled; callback matches admin by **email** and issues JWT
 - Multi-tenant: SSO start URL must include `?tenant_code=` (SPA does this); OIDC `state` embeds `tenant_id` and the callback re-binds the tenant DB (callback route has no Tenant middleware)
 - Works with header/query, built-in subdomain, and vanity domains (login branding returns `tenant_code` so vanity SPAs can put it on the redirect URL)
-- Shared IdP only (`OIDC_*` is process-wide); per-tenant issuers are not supported
+- Default IdP from process `OIDC_*`; each tenant may override Issuer/Client under **System config → Enterprise SSO (OIDC)** (configs group `oidc`). `OIDC_REDIRECT_URL` / `OIDC_FRONTEND_REDIRECT` stay global
+- Profile page can list/revoke login sessions (`GET/DELETE /api/admin/auth/tokens`)
+- IP allowlist menu: when any enabled row exists, only listed IPs may access (empty = unrestricted). Checked on login and admin APIs
+- Audit webhook: `AUDIT_WEBHOOK_URL` or tenant `audit.webhook_url` — async JSON POST for login/operation logs
 - `OIDC_AUTO_PROVISION=true` creates a **disabled** admin (manual role assignment); keep off in production
 - Requires Cache (Redis recommended) for OIDC `state` (global key, not tenant-prefixed)
 

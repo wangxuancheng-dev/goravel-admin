@@ -236,7 +236,8 @@
     "platform_overview": "运维总览",
     "platform_admin": "平台管理员",
     "demo_activity": "活动调度演示",
-    "platform_alert": "告警投递"
+    "platform_alert": "告警投递",
+    "allowlist": "IP白名单"
   },
   "table": {
     "id": "ID",
@@ -327,7 +328,16 @@
     "unbind_failed": "解绑失败",
     "unbind_confirm": "解绑后，您将需要使用图形验证码登录。确定要解绑吗？",
     "must_change_password_title": "请先修改密码",
-    "must_change_password_desc": "管理员已重置您的密码，或账号要求强制改密。修改成功后方可继续使用系统。"
+    "must_change_password_desc": "管理员已重置您的密码，或账号要求强制改密。修改成功后方可继续使用系统。",
+    "sessions": "登录会话",
+    "session_hint": "可吊销其他设备上的会话；当前会话不会被「踢出其他设备」影响。",
+    "session_device": "设备",
+    "session_current": "当前",
+    "session_last_used": "最近使用",
+    "session_revoke": "吊销",
+    "session_revoke_confirm": "确认吊销该会话？",
+    "session_revoke_others": "踢出其他设备",
+    "session_revoke_others_confirm": "确认踢出所有其他会话？"
   },
   "notification": {
     "center": "通知中心",
@@ -1012,7 +1022,17 @@
     "update_success": "更新成功",
     "site_theme_color": "主题色",
     "site_theme_color_placeholder": "选择登录页与后台默认主题色",
-    "site_theme_color_tip": "租户白标：保存后登录页与顶栏标题/Logo/主题色会生效"
+    "site_theme_color_tip": "租户白标：保存后登录页与顶栏标题/Logo/主题色会生效",
+    "oidc_config": "企业 SSO (OIDC)",
+    "oidc_hint": "此处覆盖本租户 IdP；留空则回退到环境变量 OIDC_*。回调 URL 仍用全局 OIDC_REDIRECT_URL。",
+    "oidc_enabled": "启用 SSO",
+    "oidc_issuer": "Issuer",
+    "oidc_client_id": "Client ID",
+    "oidc_client_secret": "Client Secret",
+    "oidc_scopes": "Scopes",
+    "oidc_button_label": "按钮文案",
+    "oidc_auto_provision": "自动创建禁用账号",
+    "keep_blank_to_preserve": "留空则保留原值"
   },
   "tenant": {
     "add": "新建租户",
@@ -1828,7 +1848,10 @@
     "oidc_id_token_invalid": "OIDC id_token 无效",
     "oidc_claims_invalid": "OIDC 声明无效",
     "oidc_email_required": "OIDC 邮箱声明必填",
-    "oidc_user_not_linked": "该企业账号未关联管理员"
+    "oidc_user_not_linked": "该企业账号未关联管理员",
+    "ip_not_allowed": "当前 IP 不在白名单中",
+    "allowlist_not_found": "白名单不存在",
+    "revoke_others_success": "已踢出其他会话"
   },
   "code_generator": {
     "title": "代码生成器",
@@ -2163,5 +2186,16 @@
     "error": "错误",
     "retry": "重试",
     "retry_success": "已重新投递"
+  },
+  "allowlist": {
+    "ip": "IP地址",
+    "remark": "备注",
+    "enabled": "启用",
+    "disabled": "禁用",
+    "add_allowlist": "添加白名单",
+    "edit_allowlist": "编辑白名单",
+    "ip_tip": "支持单 IP、CIDR、范围；启用任意条目后仅白名单可访问",
+    "ip_required": "请输入IP地址",
+    "ip_format_error": "IP地址格式错误"
   }
 }

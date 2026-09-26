@@ -260,7 +260,10 @@ OIDC_AUTO_PROVISION=false
 - 登录页在启用后显示 SSO 按钮；回调按 **邮箱** 匹配已有管理员并签发 JWT
 - 多商户：发起 SSO 的 URL 需带 `?tenant_code=`（前端已处理）；OIDC `state` 内嵌 `tenant_id`，回调据此重新绑定租户库（callback 路由不走 Tenant 中间件）
 - 兼容参数 / 子域名 / 独立域名（vanity）：`login/branding` 回传已绑定的 `tenant_code`，供独立域名 SPA 拼到 redirect
-- IdP 配置为进程级共享（`OIDC_*`）；不支持每租户独立 Issuer
+- 默认使用进程级 `OIDC_*`；租户可在 **系统配置 → 企业 SSO (OIDC)** 覆盖 Issuer / Client（`configs` group `oidc`）。`OIDC_REDIRECT_URL` / `OIDC_FRONTEND_REDIRECT` 仍为全局
+- 个人中心可查看并吊销登录会话（`GET/DELETE /api/admin/auth/tokens`）
+- IP 白名单：系统菜单「IP白名单」；存在启用条目时仅允许名单内 IP（空=不限制）。登录与管理 API 均校验
+- 审计 Webhook：`AUDIT_WEBHOOK_URL` 或租户 `audit.webhook_url`，登录/操作日志异步 POST JSON
 - `OIDC_AUTO_PROVISION=true` 会创建**禁用**账号（仍需人工赋权），生产默认关闭
 - 需配置 Cache（推荐 Redis）保存 OIDC `state`（全局键，不按租户加前缀）
 

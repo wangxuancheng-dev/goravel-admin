@@ -85,3 +85,25 @@ export function unbindGoogleAuthenticator(data) {
   })
 }
 
+export function getAuthTokens() {
+  return request({
+    url: '/auth/tokens',
+    method: 'get'
+  })
+}
+
+export function revokeAuthToken(id) {
+  return request({
+    url: `/auth/tokens/${id}`,
+    method: 'delete'
+  })
+}
+
+export function revokeOtherAuthTokens() {
+  return request({
+    url: '/auth/tokens',
+    method: 'delete',
+    params: { except_current: 1 }
+  })
+}
+

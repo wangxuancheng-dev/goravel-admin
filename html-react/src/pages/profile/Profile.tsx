@@ -14,6 +14,7 @@ import { useUserStore } from '@/stores/user'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { usePermission } from '@/hooks/usePermission'
 import PageContainer from '@/components/PageContainer'
+import ProfileSessionsPanel from './ProfileSessionsPanel'
 import './Profile.scss'
 
 type GoogleAuthQrData = {
@@ -231,6 +232,9 @@ export default function ProfilePage() {
           onChange={(key) => {
             setActiveTab(key)
             if (key === '2fa' && !googleAuthPerm.disabled) void load2fa()
+            if (key === 'sessions') {
+              /* panel self-loads */
+            }
           }}
           items={([
             {
@@ -436,6 +440,11 @@ export default function ProfilePage() {
                   )}
                 </div>
               ),
+            },
+            {
+              key: 'sessions',
+              label: t('profile.sessions'),
+              children: <ProfileSessionsPanel />,
             },
           ].filter((item) => item.key !== '2fa' || googleAuthPerm.show))}
         />

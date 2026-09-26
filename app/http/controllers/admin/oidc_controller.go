@@ -29,7 +29,7 @@ func (c *OIDCController) oidcService(ctx http.Context) services.OIDCService {
 // Config returns public OIDC SSO flags for the login page.
 func (c *OIDCController) Config(ctx http.Context) http.Response {
 	return response.Success(ctx, http.Json{
-		"oidc": c.oidcService(ctx).PublicInfo(),
+		"oidc": c.oidcService(ctx).PublicInfo(ctx),
 	})
 }
 

@@ -400,6 +400,9 @@
         "oidc_claims_invalid": "OIDC claims invalid",
         "oidc_email_required": "OIDC email claim required",
         "oidc_user_not_linked": "No admin linked to this OIDC email",
-        "login_success_oidc": "Enterprise SSO login successful"
+        "login_success_oidc": "Enterprise SSO login successful",
+        "allowlist_not_found": "Allowlist entry not found",
+        "ip_not_allowed": "Your IP address is not on the allowlist",
+        "revoke_others_success": "Other sessions revoked"
     }
 }

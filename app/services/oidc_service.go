@@ -19,6 +19,7 @@ import (
 	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/utils"
 )
 
 // oidcStateCachePrefix is intentionally global (not tenancy.CacheKey).
@@ -31,9 +32,22 @@ type oidcStatePayload struct {
 	TenantCode string `json:"tenant_code,omitempty"`
 }
 
+// oidcRuntimeSettings merges process env (oidc.*) with tenant configs group "oidc".
+// redirect_url / frontend_redirect stay global (single registered callback URL).
+type oidcRuntimeSettings struct {
+	Enabled       bool
+	Issuer        string
+	ClientID      string
+	ClientSecret  string
+	RedirectURL   string
+	Scopes        string
+	ButtonLabel   string
+	AutoProvision bool
+}
+
 type OIDCService interface {
-	Enabled() bool
-	PublicInfo() map[string]any
+	Enabled(ctx context.Context) bool
+	PublicInfo(ctx context.Context) map[string]any
 	AuthURL(ctx http.Context) (string, error)
 	HandleCallback(ctx http.Context, code, state string) (plainToken string, admin *models.Admin, tenantCode string, err error)
 }
@@ -46,36 +60,76 @@ func NewOIDCService(authService AuthService) OIDCService {
 	return &OIDCServiceImpl{authService: authService}
 }
 
-func (s *OIDCServiceImpl) Enabled() bool {
-	if !facades.Config().GetBool("oidc.enabled", false) {
-		return false
+func (s *OIDCServiceImpl) resolveSettings(ctx context.Context) oidcRuntimeSettings {
+	cfg := oidcRuntimeSettings{
+		Enabled:       facades.Config().GetBool("oidc.enabled", false),
+		Issuer:        strings.TrimSpace(facades.Config().GetString("oidc.issuer", "")),
+		ClientID:      strings.TrimSpace(facades.Config().GetString("oidc.client_id", "")),
+		ClientSecret:  strings.TrimSpace(facades.Config().GetString("oidc.client_secret", "")),
+		RedirectURL:   strings.TrimSpace(facades.Config().GetString("oidc.redirect_url", "")),
+		Scopes:        strings.TrimSpace(facades.Config().GetString("oidc.scopes", "openid profile email")),
+		ButtonLabel:   strings.TrimSpace(facades.Config().GetString("oidc.button_label", "Enterprise SSO")),
+		AutoProvision: facades.Config().GetBool("oidc.auto_provision", false),
 	}
-	return strings.TrimSpace(facades.Config().GetString("oidc.issuer", "")) != "" &&
-		strings.TrimSpace(facades.Config().GetString("oidc.client_id", "")) != "" &&
-		strings.TrimSpace(facades.Config().GetString("oidc.redirect_url", "")) != ""
+	m := utils.GetConfigGroupMap(ctx, "oidc")
+	if v, ok := m["enabled"]; ok && strings.TrimSpace(v) != "" {
+		cfg.Enabled = utils.ParseConfigBool(v)
+	}
+	if v := strings.TrimSpace(m["issuer"]); v != "" {
+		cfg.Issuer = v
+	}
+	if v := strings.TrimSpace(m["client_id"]); v != "" {
+		cfg.ClientID = v
+	}
+	if v := strings.TrimSpace(m["client_secret"]); v != "" {
+		cfg.ClientSecret = v
+	}
+	if v := strings.TrimSpace(m["scopes"]); v != "" {
+		cfg.Scopes = v
+	}
+	if v := strings.TrimSpace(m["button_label"]); v != "" {
+		cfg.ButtonLabel = v
+	}
+	if v, ok := m["auto_provision"]; ok && strings.TrimSpace(v) != "" {
+		cfg.AutoProvision = utils.ParseConfigBool(v)
+	}
+	if cfg.ButtonLabel == "" {
+		cfg.ButtonLabel = "Enterprise SSO"
+	}
+	if cfg.Scopes == "" {
+		cfg.Scopes = "openid profile email"
+	}
+	return cfg
 }
 
-func (s *OIDCServiceImpl) PublicInfo() map[string]any {
-	enabled := s.Enabled()
+func (s *OIDCServiceImpl) settingsReady(cfg oidcRuntimeSettings) bool {
+	return cfg.Enabled && cfg.Issuer != "" && cfg.ClientID != "" && cfg.RedirectURL != ""
+}
+
+func (s *OIDCServiceImpl) Enabled(ctx context.Context) bool {
+	return s.settingsReady(s.resolveSettings(ctx))
+}
+
+func (s *OIDCServiceImpl) PublicInfo(ctx context.Context) map[string]any {
+	cfg := s.resolveSettings(ctx)
+	enabled := s.settingsReady(cfg)
 	info := map[string]any{
 		"enabled": enabled,
 	}
 	if enabled {
-		info["button_label"] = facades.Config().GetString("oidc.button_label", "Enterprise SSO")
+		info["button_label"] = cfg.ButtonLabel
 		info["redirect_path"] = "/api/admin/auth/oidc/redirect"
 	}
 	return info
 }
 
-func (s *OIDCServiceImpl) provider(ctx context.Context) (*oidc.Provider, *oauth2.Config, error) {
-	issuer := strings.TrimSpace(facades.Config().GetString("oidc.issuer", ""))
-	provider, err := oidc.NewProvider(ctx, issuer)
+func (s *OIDCServiceImpl) provider(ctx context.Context, cfg oidcRuntimeSettings) (*oidc.Provider, *oauth2.Config, error) {
+	provider, err := oidc.NewProvider(ctx, cfg.Issuer)
 	if err != nil {
 		return nil, nil, fmt.Errorf("oidc provider: %w", err)
 	}
-	scopesRaw := strings.TrimSpace(facades.Config().GetString("oidc.scopes", "openid profile email"))
 	var scopes []string
-	for _, part := range strings.Fields(scopesRaw) {
+	for _, part := range strings.Fields(cfg.Scopes) {
 		if part != "" {
 			scopes = append(scopes, part)
 		}
@@ -83,25 +137,27 @@ func (s *OIDCServiceImpl) provider(ctx context.Context) (*oidc.Provider, *oauth2
 	if len(scopes) == 0 {
 		scopes = []string{oidc.ScopeOpenID, "profile", "email"}
 	}
-	cfg := &oauth2.Config{
-		ClientID:     strings.TrimSpace(facades.Config().GetString("oidc.client_id", "")),
-		ClientSecret: strings.TrimSpace(facades.Config().GetString("oidc.client_secret", "")),
-		RedirectURL:  strings.TrimSpace(facades.Config().GetString("oidc.redirect_url", "")),
+	oauthCfg := &oauth2.Config{
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		RedirectURL:  cfg.RedirectURL,
 		Endpoint:     provider.Endpoint(),
 		Scopes:       scopes,
 	}
-	return provider, cfg, nil
+	return provider, oauthCfg, nil
 }
 
 func (s *OIDCServiceImpl) AuthURL(ctx http.Context) (string, error) {
-	if !s.Enabled() {
-		return "", apperrors.NewBusinessError("oidc_disabled", "OIDC SSO is disabled")
-	}
 	reqCtx := context.Background()
 	if ctx != nil && ctx.Context() != nil {
 		reqCtx = ctx.Context()
 	}
-	_, cfg, err := s.provider(reqCtx)
+	// Tenant ORM routing keys live on http.Context (same as ConfigService).
+	cfg := s.resolveSettings(ctx)
+	if !s.settingsReady(cfg) {
+		return "", apperrors.NewBusinessError("oidc_disabled", "OIDC SSO is disabled")
+	}
+	_, oauthCfg, err := s.provider(reqCtx, cfg)
 	if err != nil {
 		return "", err
 	}
@@ -128,13 +184,10 @@ func (s *OIDCServiceImpl) AuthURL(ctx http.Context) (string, error) {
 	if err := facades.Cache().Put(oidcStateCachePrefix+state, string(raw), 10*time.Minute); err != nil {
 		return "", fmt.Errorf("store oidc state: %w", err)
 	}
-	return cfg.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
+	return oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
 }
 
 func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (string, *models.Admin, string, error) {
-	if !s.Enabled() {
-		return "", nil, "", apperrors.NewBusinessError("oidc_disabled", "OIDC SSO is disabled")
-	}
 	code = strings.TrimSpace(code)
 	state = strings.TrimSpace(state)
 	if code == "" || state == "" {
@@ -170,11 +223,19 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 	if reqCtx == nil {
 		reqCtx = context.Background()
 	}
-	provider, cfg, err := s.provider(reqCtx)
+	if err := EnsureClientIPAllowed(ctx, helpers.GetRealIP(ctx)); err != nil {
+		return "", nil, tenantCode, err
+	}
+
+	cfg := s.resolveSettings(ctx)
+	if !s.settingsReady(cfg) {
+		return "", nil, tenantCode, apperrors.NewBusinessError("oidc_disabled", "OIDC SSO is disabled")
+	}
+	provider, oauthCfg, err := s.provider(reqCtx, cfg)
 	if err != nil {
 		return "", nil, tenantCode, err
 	}
-	token, err := cfg.Exchange(reqCtx, code)
+	token, err := oauthCfg.Exchange(reqCtx, code)
 	if err != nil {
 		return "", nil, tenantCode, apperrors.NewBusinessError("oidc_exchange_failed", "OIDC code exchange failed").WithError(err)
 	}
@@ -182,7 +243,7 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 	if !ok || rawIDToken == "" {
 		return "", nil, tenantCode, apperrors.NewBusinessError("oidc_id_token_missing", "OIDC id_token missing")
 	}
-	verifier := provider.Verifier(&oidc.Config{ClientID: cfg.ClientID})
+	verifier := provider.Verifier(&oidc.Config{ClientID: oauthCfg.ClientID})
 	idToken, err := verifier.Verify(reqCtx, rawIDToken)
 	if err != nil {
 		return "", nil, tenantCode, apperrors.NewBusinessError("oidc_id_token_invalid", "OIDC id_token invalid").WithError(err)
@@ -203,7 +264,7 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 		return "", nil, tenantCode, apperrors.NewBusinessError("oidc_email_required", "OIDC email claim required")
 	}
 
-	admin, err := s.findOrProvisionAdmin(reqCtx, email, claims.PreferredUsername, claims.Name, claims.Sub)
+	admin, err := s.findOrProvisionAdmin(ctx, cfg, email, claims.PreferredUsername, claims.Name, claims.Sub)
 	if err != nil {
 		return "", nil, tenantCode, err
 	}
@@ -230,7 +291,6 @@ func parseOIDCStatePayload(cached string) (oidcStatePayload, error) {
 	cached = strings.TrimSpace(cached)
 	var payload oidcStatePayload
 	if cached == "" || cached == "1" {
-		// Legacy single-tenant marker (tenancy off).
 		return payload, nil
 	}
 	if err := json.Unmarshal([]byte(cached), &payload); err != nil {
@@ -239,14 +299,14 @@ func parseOIDCStatePayload(cached string) (oidcStatePayload, error) {
 	return payload, nil
 }
 
-func (s *OIDCServiceImpl) findOrProvisionAdmin(ctx context.Context, email, preferredUsername, name, sub string) (*models.Admin, error) {
+func (s *OIDCServiceImpl) findOrProvisionAdmin(ctx context.Context, cfg oidcRuntimeSettings, email, preferredUsername, name, sub string) (*models.Admin, error) {
 	var admin models.Admin
 	err := appfacades.OrmQuery(ctx).Where("email", email).First(&admin)
 	if err == nil && admin.ID > 0 {
 		return &admin, nil
 	}
 
-	if !facades.Config().GetBool("oidc.auto_provision", false) {
+	if !cfg.AutoProvision {
 		return nil, apperrors.NewBusinessError("oidc_user_not_linked", "no admin linked to this OIDC email")
 	}
 
@@ -268,7 +328,6 @@ func (s *OIDCServiceImpl) findOrProvisionAdmin(ctx context.Context, email, prefe
 	if nickname == "" {
 		nickname = username
 	}
-	// Random unusable password; SSO-only provisioned accounts.
 	passwordHash, hashErr := facades.Hash().Make(randomStateOr("oidc-disabled-password"))
 	if hashErr != nil {
 		return nil, apperrors.ErrCreateFailed.WithError(hashErr)
@@ -278,7 +337,7 @@ func (s *OIDCServiceImpl) findOrProvisionAdmin(ctx context.Context, email, prefe
 		Password: passwordHash,
 		Nickname: nickname,
 		Email:    email,
-		Status:   0, // disabled until an owner assigns roles
+		Status:   0,
 	}
 	if err := appfacades.OrmQuery(ctx).Create(&admin); err != nil {
 		return nil, apperrors.ErrCreateFailed.WithError(err)

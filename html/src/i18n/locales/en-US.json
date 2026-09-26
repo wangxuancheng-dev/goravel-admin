@@ -223,7 +223,8 @@
     "platform_admin": "Platform admins",
     "demo_activity": "Demo Activities",
     "article": "Article",
-    "platform_alert": "Alert deliveries"
+    "platform_alert": "Alert deliveries",
+    "allowlist": "IP Allowlist"
   },
   "monitor_runtime": {
     "title": "Runtime Observability",
@@ -1113,7 +1114,17 @@
     "delete_success": "Delete successful",
     "site_theme_color": "Theme color",
     "site_theme_color_placeholder": "Default theme for login and admin chrome",
-    "site_theme_color_tip": "White-label: login title/logo/theme apply after save"
+    "site_theme_color_tip": "White-label: login title/logo/theme apply after save",
+    "oidc_config": "Enterprise SSO (OIDC)",
+    "oidc_hint": "Overrides IdP for this tenant; empty falls back to OIDC_* env. Callback URL stays global OIDC_REDIRECT_URL.",
+    "oidc_enabled": "Enable SSO",
+    "oidc_issuer": "Issuer",
+    "oidc_client_id": "Client ID",
+    "oidc_client_secret": "Client Secret",
+    "oidc_scopes": "Scopes",
+    "oidc_button_label": "Button label",
+    "oidc_auto_provision": "Auto-provision disabled admins",
+    "keep_blank_to_preserve": "Leave blank to keep current value"
   },
   "tenant": {
     "add": "Create tenant",
@@ -1790,7 +1801,16 @@
     "unbind_confirm": "After unbinding, you will need to use image captcha for login. Are you sure to unbind?",
     "google_code_required": "Please enter verification code",
     "google_code_format": "Verification code must be 6 digits",
-    "load_qr_code_failed": "Failed to load QR code"
+    "load_qr_code_failed": "Failed to load QR code",
+    "sessions": "Sessions",
+    "session_hint": "Revoke sessions on other devices. Revoke-others keeps the current session.",
+    "session_device": "Device",
+    "session_current": "Current",
+    "session_last_used": "Last used",
+    "session_revoke": "Revoke",
+    "session_revoke_confirm": "Revoke this session?",
+    "session_revoke_others": "Revoke other sessions",
+    "session_revoke_others_confirm": "Revoke all other sessions?"
   },
   "tabs": {
     "refresh": "Refresh",
@@ -2135,7 +2155,10 @@
     "oidc_id_token_invalid": "OIDC id_token invalid",
     "oidc_claims_invalid": "OIDC claims invalid",
     "oidc_email_required": "OIDC email claim required",
-    "oidc_user_not_linked": "No admin linked to this OIDC email"
+    "oidc_user_not_linked": "No admin linked to this OIDC email",
+    "ip_not_allowed": "IP is not on the allowlist",
+    "allowlist_not_found": "Allowlist entry not found",
+    "revoke_others_success": "Other sessions revoked"
   },
   "code_generator": {
     "title": "Code Generator",
@@ -2493,5 +2516,16 @@
     "error": "Error",
     "retry": "Retry",
     "retry_success": "Re-delivered"
+  },
+  "allowlist": {
+    "ip": "IP",
+    "remark": "Remark",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "add_allowlist": "Add allowlist",
+    "edit_allowlist": "Edit allowlist",
+    "ip_tip": "Single IP / CIDR / range; when any entry is enabled, only allowlisted IPs may access",
+    "ip_required": "Please enter IP address",
+    "ip_format_error": "Invalid IP address format"
   }
 }

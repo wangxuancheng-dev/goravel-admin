@@ -46,6 +46,9 @@ var sensitiveConfigKeys = map[string]map[string]struct{}{
 	"email": {
 		"email_password": {},
 	},
+	"oidc": {
+		"client_secret": {},
+	},
 	"payment": {
 		"api_key":      {},
 		"api_secret":   {},

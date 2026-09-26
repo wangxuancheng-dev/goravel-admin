@@ -15,7 +15,7 @@ func (s *PermissionSeeder) Signature() string {
 
 func (s *PermissionSeeder) Run() error {
 	// 获取菜单（权限需要关联菜单）
-	var adminMenu, roleMenu, permissionMenu, menuMenu, departmentMenu, positionMenu, dictionaryMenu, configMenu, blacklistMenu, onlineAdminMenu, orderMenu, userMenu, userBalanceLogMenu models.Menu
+	var adminMenu, roleMenu, permissionMenu, menuMenu, departmentMenu, positionMenu, dictionaryMenu, configMenu, blacklistMenu, allowlistMenu, onlineAdminMenu, orderMenu, userMenu, userBalanceLogMenu models.Menu
 	var operationLogMenu, loginLogMenu, systemLogMenu, observabilityMenu, monitorMenu, scheduleMenu, profileMenu, exportMenu, attachmentMenu, dashboardMenu, notificationMenu models.Menu
 	var paymentMethodMenu, paymentRecordMenu, demoActivityMenu models.Menu
 
@@ -34,6 +34,7 @@ func (s *PermissionSeeder) Run() error {
 	findMenu("dictionary", &dictionaryMenu)
 	findMenu("config", &configMenu)
 	findMenu("blacklist", &blacklistMenu)
+	findMenu("allowlist", &allowlistMenu)
 	findMenu("online-admin", &onlineAdminMenu)
 	findMenu("operation-log", &operationLogMenu)
 	findMenu("login-log", &loginLogMenu)
@@ -119,6 +120,12 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "黑名单创建", Slug: "blacklist.store", Method: "POST", Path: "/api/admin/blacklists", Description: "创建黑名单", Status: 1, Sort: 3, MenuID: blacklistMenu.ID},
 		{Name: "黑名单更新", Slug: "blacklist.update", Method: "PUT", Path: "/api/admin/blacklists/*", Description: "更新黑名单", Status: 1, Sort: 4, MenuID: blacklistMenu.ID},
 		{Name: "黑名单删除", Slug: "blacklist.destroy", Method: "DELETE", Path: "/api/admin/blacklists/*", Description: "删除黑名单", Status: 1, Sort: 5, MenuID: blacklistMenu.ID},
+
+		{Name: "Allowlist list", Slug: "allowlist.index", Method: "GET", Path: "/api/admin/allowlists", Description: "List IP allowlist", Status: 1, Sort: 1, MenuID: allowlistMenu.ID},
+		{Name: "Allowlist show", Slug: "allowlist.show", Method: "GET", Path: "/api/admin/allowlists/*", Description: "Show IP allowlist entry", Status: 1, Sort: 2, MenuID: allowlistMenu.ID},
+		{Name: "Allowlist create", Slug: "allowlist.store", Method: "POST", Path: "/api/admin/allowlists", Description: "Create IP allowlist entry", Status: 1, Sort: 3, MenuID: allowlistMenu.ID},
+		{Name: "Allowlist update", Slug: "allowlist.update", Method: "PUT", Path: "/api/admin/allowlists/*", Description: "Update IP allowlist entry", Status: 1, Sort: 4, MenuID: allowlistMenu.ID},
+		{Name: "Allowlist delete", Slug: "allowlist.destroy", Method: "DELETE", Path: "/api/admin/allowlists/*", Description: "Delete IP allowlist entry", Status: 1, Sort: 5, MenuID: allowlistMenu.ID},
 
 		// 在线管理员管理
 		{Name: "在线管理员列表", Slug: "online-admin.index", Method: "GET", Path: "/api/admin/online-admins", Description: "查看在线管理员列表", Status: 1, Sort: 1, MenuID: onlineAdminMenu.ID},

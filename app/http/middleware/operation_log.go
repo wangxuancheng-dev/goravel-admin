@@ -179,6 +179,18 @@ func OperationLog() http.Middleware {
 						"path":  savedPath,
 					})
 					logger.ErrorfContext(dbCtx, "Failed to create operation log: %v", err)
+				} else {
+					services.DispatchAuditWebhook(dbCtx, "operation_log", map[string]any{
+						"id":        operationLog.ID,
+						"admin_id":  operationLog.AdminID,
+						"method":    operationLog.Method,
+						"path":      operationLog.Path,
+						"title":     operationLog.Title,
+						"status":    operationLog.Status,
+						"ip":        operationLog.IP,
+						"duration":  operationLog.Duration,
+						"trace_id":  operationLog.TraceID,
+					})
 				}
 			}(persistCtx)
 		}

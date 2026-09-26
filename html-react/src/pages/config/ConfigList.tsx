@@ -597,6 +597,97 @@ function LoginSecurityConfigPanel() {
   )
 }
 
+function OidcConfigPanel() {
+  const { t } = useTranslation()
+  const { message } = App.useApp()
+  const showError = useUnhandledError()
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await getConfigByGroup('oidc')
+      const values = configsToForm(
+        res.data?.configs,
+        ['enabled', 'issuer', 'client_id', 'client_secret', 'scopes', 'button_label', 'auto_provision'],
+        {
+          enabled: (v) => v === '1' || v === 'true',
+          auto_provision: (v) => v === '1' || v === 'true',
+        },
+      )
+      form.setFieldsValue(values)
+    } catch (error) {
+      showError(error, t('common.query_failed'))
+    } finally {
+      setLoading(false)
+    }
+  }, [form, showError, t])
+
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
+
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields()
+      setSubmitting(true)
+      await saveConfig('oidc', {
+        enabled: values.enabled ? '1' : '0',
+        issuer: String(values.issuer || ''),
+        client_id: String(values.client_id || ''),
+        client_secret: String(values.client_secret || ''),
+        scopes: String(values.scopes || 'openid profile email'),
+        button_label: String(values.button_label || ''),
+        auto_provision: values.auto_provision ? '1' : '0',
+      })
+      message.success(t('config.update_success'))
+      await loadData()
+    } catch (error) {
+      if ((error as { errorFields?: unknown })?.errorFields) return
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Form form={form} layout="vertical" disabled={loading}>
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message={t('config.oidc_hint')}
+      />
+      <Form.Item name="enabled" label={t('config.oidc_enabled')} valuePropName="checked">
+        <Switch checkedChildren={t('common.enabled')} unCheckedChildren={t('common.disabled')} />
+      </Form.Item>
+      <Form.Item name="issuer" label={t('config.oidc_issuer')}>
+        <Input placeholder="https://login.microsoftonline.com/{tenant}/v2.0" />
+      </Form.Item>
+      <Form.Item name="client_id" label={t('config.oidc_client_id')}>
+        <Input />
+      </Form.Item>
+      <Form.Item name="client_secret" label={t('config.oidc_client_secret')}>
+        <Input.Password placeholder={t('config.keep_blank_to_preserve')} />
+      </Form.Item>
+      <Form.Item name="scopes" label={t('config.oidc_scopes')}>
+        <Input placeholder="openid profile email" />
+      </Form.Item>
+      <Form.Item name="button_label" label={t('config.oidc_button_label')}>
+        <Input />
+      </Form.Item>
+      <Form.Item name="auto_provision" label={t('config.oidc_auto_provision')} valuePropName="checked">
+        <Switch checkedChildren={t('common.enabled')} unCheckedChildren={t('common.disabled')} />
+      </Form.Item>
+      <PermissionButton permission="config.save" type="primary" loading={submitting} onClick={() => void handleSubmit()}>
+        {t('common.save')}
+      </PermissionButton>
+    </Form>
+  )
+}
+
 export default function ConfigList() {
   const { t } = useTranslation()
 
@@ -611,6 +702,7 @@ export default function ConfigList() {
             { key: 'captcha', label: t('config.captcha_config'), children: <CaptchaConfigPanel /> },
             { key: 'storage', label: t('config.storage_config'), children: <StorageConfigPanel /> },
             { key: 'login_security', label: t('config.login_security_config'), children: <LoginSecurityConfigPanel /> },
+            { key: 'oidc', label: t('config.oidc_config'), children: <OidcConfigPanel /> },
           ]}
         />
       </Card>

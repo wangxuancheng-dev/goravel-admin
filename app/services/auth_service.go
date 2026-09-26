@@ -365,6 +365,15 @@ func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, usernam
 		return err
 	}
 
+	DispatchAuditWebhook(tenancyctx.Detach(ctx), "login_log", map[string]any{
+		"id":       loginLog.ID,
+		"admin_id": adminID,
+		"username": username,
+		"status":   status,
+		"message":  message,
+		"ip":       ip,
+	})
+
 	// 异步查询 IP 地理位置信息并更新日志记录
 	// 这样不会阻塞登录流程
 	persistCtx := tenancyctx.Detach(ctx)

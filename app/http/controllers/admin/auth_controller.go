@@ -208,6 +208,14 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 		}
 	}
 
+	if err := services.EnsureClientIPAllowed(ctx, ip); err != nil {
+		if businessErr, ok := apperrors.GetBusinessError(err); ok && businessErr.Code == apperrors.ErrIPNotAllowed.Code {
+			r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "ip_not_allowed", requestData)
+			return response.Error(ctx, http.StatusForbidden, businessErr.Code)
+		}
+		return response.Error(ctx, http.StatusServiceUnavailable, "service_unavailable")
+	}
+
 	// ---- 登录失败锁定检查 ----
 	if locked, _ := r.lockoutService(ctx).IsLocked(ip, loginRequest.Username); locked {
 		lockMinutes := facades.Config().GetInt("login_security.lock_duration_minutes", 15)
@@ -369,7 +377,7 @@ func (r *AuthController) Branding(ctx http.Context) http.Response {
 	adminService := services.NewAdminServiceImpl(ctx)
 	tokenService := services.NewTokenServiceImpl(ctx)
 	authService := services.NewAuthServiceImpl(ctx, adminService, tokenService)
-	oidcInfo := services.NewOIDCService(authService).PublicInfo()
+	oidcInfo := services.NewOIDCService(authService).PublicInfo(ctx)
 	data := http.Json{
 		"branding": branding,
 		"oidc":     oidcInfo,
@@ -669,6 +677,9 @@ func (r *AuthController) Tokens(ctx http.Context) http.Response {
 		tokenList = append(tokenList, http.Json{
 			"id":           token.ID,
 			"name":         token.Name,
+			"browser":      token.Browser,
+			"ip":           token.IP,
+			"os":           token.OS,
 			"last_used_at": token.LastUsedAt,
 			"expires_at":   token.ExpiresAt,
 			"created_at":   token.CreatedAt,
@@ -714,14 +725,36 @@ func (r *AuthController) RevokeToken(ctx http.Context) http.Response {
 	return response.Success(ctx, "revoke_success")
 }
 
-// RevokeAllTokens 删除当前用户的所有token（踢出所有设备）
+// RevokeAllTokens 删除当前用户的 token（默认踢出其他设备，保留当前；except_current=0 则全部删除）
 func (r *AuthController) RevokeAllTokens(ctx http.Context) http.Response {
 	admin, resp := r.currentAdminFromContextRequired(ctx)
 	if resp != nil {
 		return resp
 	}
 
-	// 删除用户的所有token
+	exceptCurrent := ctx.Request().Query("except_current", "1") != "0"
+	currentTokenID := getCurrentTokenIDFromContext(ctx)
+	if exceptCurrent && currentTokenID > 0 {
+		tokens, err := r.tokenService(ctx).GetTokensByUser("admin", admin.ID)
+		if err != nil {
+			return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
+				"admin_id": admin.ID,
+			})
+		}
+		for _, token := range tokens {
+			if token.ID == currentTokenID {
+				continue
+			}
+			if _, err := appfacades.OrmQuery(ctx).Delete(&token); err != nil {
+				return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
+					"token_id": token.ID,
+					"admin_id": admin.ID,
+				})
+			}
+		}
+		return response.Success(ctx, "revoke_others_success")
+	}
+
 	if err := r.tokenService(ctx).DeleteTokensByUser("admin", admin.ID); err != nil {
 		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": admin.ID,

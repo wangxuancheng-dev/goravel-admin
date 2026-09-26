@@ -308,6 +308,19 @@ func (s *MenuSeeder) Run() error {
 
 	createOrUpdateMenu(models.Menu{
 		ParentID:  systemMenu.ID,
+		Title:     "IP白名单",
+		Slug:      "allowlist",
+		Icon:      "CircleCheck",
+		Path:      "/allowlists",
+		Component: "allowlist/AllowlistList",
+		Type:      2,
+		Status:    1,
+		Sort:      13,
+		IsHidden:  0,
+	})
+
+	createOrUpdateMenu(models.Menu{
+		ParentID:  systemMenu.ID,
 		Title:     "活动调度演示",
 		Slug:      "demo-activity",
 		Icon:      "Calendar",
@@ -328,7 +341,7 @@ func (s *MenuSeeder) Run() error {
 		Component: "order/OrderList",
 		Type:      2,
 		Status:    1,
-		Sort:      13,
+		Sort:      14,
 		IsHidden:  0,
 	})
 

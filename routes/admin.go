@@ -21,6 +21,7 @@ func Admin() {
 	dictionaryController := admin.NewDictionaryController()
 	configController := admin.NewConfigController()
 	blacklistController := admin.NewBlacklistController()
+	allowlistController := admin.NewAllowlistController()
 	onlineAdminController := admin.NewOnlineAdminController()
 	scheduleController := admin.NewScheduleController()
 	flexibleScheduleController := admin.NewFlexibleScheduleController()
@@ -57,7 +58,7 @@ func Admin() {
 		// 登录：body 内解析租户；验证码 / 公开附件：Header 解析租户（off 时 Tenant 为 no-op）
 		router.Middleware(middleware.Lang()).Group(func(router route.Router) {
 			router.Middleware(httpmiddleware.Throttle("login")).Post("login", adminAuthController.Login)
-			router.Middleware(middleware.Tenant(), middleware.Blacklist()).Group(func(router route.Router) {
+			router.Middleware(middleware.Tenant(), middleware.Allowlist(), middleware.Blacklist()).Group(func(router route.Router) {
 				router.Get("login/captcha", adminAuthController.Captcha)
 				router.Get("login/branding", adminAuthController.Branding)
 				router.Get("auth/oidc", oidcController.Config)
@@ -68,13 +69,16 @@ func Admin() {
 			router.Middleware(middleware.Blacklist()).Get("auth/oidc/callback", oidcController.Callback)
 		})
 
-		// 已登录：Tenant → Blacklist → Jwt → 强制改密门禁
-		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange()).Group(func(router route.Router) {
+		// 已登录：Tenant → Allowlist → Blacklist → Jwt → 强制改密门禁
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Allowlist(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange()).Group(func(router route.Router) {
 			// 认证相关
 			router.Get("info", adminAuthController.Info)
 
 			router.Post("logout", adminAuthController.Logout)
 			router.Get("heartbeat", adminAuthController.Heartbeat)
+			router.Get("auth/tokens", adminAuthController.Tokens)
+			router.Delete("auth/tokens/{id}", adminAuthController.RevokeToken)
+			router.Delete("auth/tokens", adminAuthController.RevokeAllTokens)
 
 			// 通知中心
 			router.Get("notifications", notificationController.Index)
@@ -112,8 +116,8 @@ func Admin() {
 			// 目前 attachmentController.Preview 已经是处理图片流的了
 		})
 
-		// 业务 CRUD：Tenant → Blacklist → Jwt → 强制改密 → 角色限流 → Permission
-		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange(), httpmiddleware.Throttle("adminApi"), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
+		// 业务 CRUD：Tenant → Allowlist → Blacklist → Jwt → 强制改密 → 角色限流 → Permission
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Allowlist(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange(), httpmiddleware.Throttle("adminApi"), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
 
 			router.Put("profile", adminAuthController.UpdateProfile)
 
@@ -164,6 +168,7 @@ func Admin() {
 
 			// 黑名单管理
 			router.Resource("blacklists", blacklistController)
+			router.Resource("allowlists", allowlistController)
 
 			// 在线管理员管理
 			router.Get("online-admins", onlineAdminController.Index)
