@@ -32,4 +32,6 @@ const (
 	ExportTypePayments              string = "payments"                // 支付记录导出
 	ExportTypeUsers                 string = "users"                   // 用户导出
 	ExportTypeOperationLogsArchive  string = "operation_logs_archive"  // 操作日志归档
+	ExportTypeLoginLogsArchive      string = "login_logs_archive"      // 登录日志归档
+	ExportTypeOperationLogsExport   string = "operation_logs_export"   // 操作日志导出（不删除）
 )

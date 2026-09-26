@@ -21,6 +21,7 @@ type DictionaryResponse struct {
 	TranslationKey string `json:"translation_key" example:"order.status.paid"`
 	Description    string `json:"description" example:"订单支付成功状态"`
 	Status         uint8  `json:"status" enums:"0,1" example:"1"`
+	IsSystem       uint8  `json:"is_system" enums:"0,1" example:"0"`
 	Sort           int    `json:"sort" example:"10"`
 	Remark         string `json:"remark" example:"系统默认值"`
 	CreatedAt      string `json:"created_at" example:"2024-01-01 00:00:00"`

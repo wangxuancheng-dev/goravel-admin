@@ -78,6 +78,12 @@ const staticRoutes = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/login/oidc-callback',
+    name: 'OidcCallback',
+    component: () => lazyLoad(() => import('../views/OidcCallback.vue')),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/platform/login',
     name: 'PlatformLogin',
     component: () => lazyLoad(() => import('../views/platform/Login.vue')),

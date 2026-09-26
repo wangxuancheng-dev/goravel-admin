@@ -73,9 +73,10 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusBadRequest
 	case code == "token_refresh_failed":
 		return http.StatusUnauthorized
+	case strings.HasPrefix(code, "oidc_"):
+		return http.StatusBadRequest
 	case code == "must_change_password" ||
-		strings.HasPrefix(code, "role_protected_") ||
-		strings.HasPrefix(code, "admin_protected_") ||
+		strings.Contains(code, "_protected_") ||
 		strings.HasPrefix(code, "admin_cannot_") ||
 		code == "protected_admin":
 		return http.StatusForbidden

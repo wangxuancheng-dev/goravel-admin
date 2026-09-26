@@ -132,7 +132,10 @@
     "google_code_required": "Please enter Google authenticator code",
     "google_code_invalid": "Invalid Google authenticator code",
     "google_code_format": "Code must be 6 digits",
-    "brand_fallback": "Admin"
+    "brand_fallback": "Admin",
+    "oidc_login": "Enterprise SSO",
+    "oidc_processing": "Completing enterprise login…",
+    "oidc_failed": "Enterprise login failed"
   },
   "error": {
     "default": "Request failed",
@@ -908,7 +911,20 @@
     "type": "Type",
     "label": "Label",
     "value": "Value",
-    "translation_key": "Translation Key"
+    "translation_key": "Translation Key",
+    "type_required": "Please select or enter type",
+    "label_required": "Please enter label",
+    "value_required": "Please enter value",
+    "delete_confirm": "Are you sure to delete this dictionary?",
+    "delete_success": "Delete successful",
+    "create_success": "Create successful",
+    "update_success": "Update successful",
+    "is_system": "System",
+    "system_yes": "Yes",
+    "system_no": "No",
+    "protected_cannot_delete": "System dictionary cannot be deleted",
+    "type_placeholder": "Select existing type or enter a new one",
+    "protected_tip": "System dictionary type, value and status cannot be changed"
   },
   "config": {
     "website_config": "Website",
@@ -1796,7 +1812,19 @@
     "monitor_file_descriptors_usage_high": "File descriptor usage too high: {{value}}%",
     "platform_last_owner": "Cannot remove the last active owner",
     "platform_cannot_modify_self": "Cannot change your own role or status",
-    "admin_cannot_delete_self": "Cannot delete yourself"
+    "admin_cannot_delete_self": "Cannot delete yourself",
+    "dictionary_already_exists": "Dictionary type and value already exist",
+    "dictionary_protected_cannot_delete": "System dictionary cannot be deleted",
+    "dictionary_protected_cannot_modify_key": "System dictionary type/value cannot be changed",
+    "dictionary_protected_cannot_disable": "System dictionary cannot be disabled",
+    "oidc_disabled": "OIDC SSO is disabled",
+    "oidc_invalid_state": "Invalid or expired OIDC state",
+    "oidc_exchange_failed": "OIDC code exchange failed",
+    "oidc_id_token_missing": "OIDC id_token missing",
+    "oidc_id_token_invalid": "OIDC id_token invalid",
+    "oidc_claims_invalid": "OIDC claims invalid",
+    "oidc_email_required": "OIDC email claim required",
+    "oidc_user_not_linked": "No admin linked to this OIDC email"
   },
   "code_generator": {
     "title": "Code Generator",

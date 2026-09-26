@@ -131,11 +131,14 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "操作日志批量删除", Slug: "operation_log.batch_delete", Method: "POST", Path: "/api/admin/operation-logs/batch-delete", Description: "批量删除操作日志", Status: 1, Sort: 4, MenuID: operationLogMenu.ID},
 		{Name: "操作日志清理", Slug: "operation_log.clean", Method: "POST", Path: "/api/admin/operation-logs/clean", Description: "清理操作日志", Status: 1, Sort: 5, MenuID: operationLogMenu.ID},
 		{Name: "操作日志归档", Slug: "operation_log.archive", Method: "POST", Path: "/api/admin/operation-logs/archive", Description: "归档并清理操作日志", Status: 1, Sort: 6, MenuID: operationLogMenu.ID},
+		{Name: "操作日志导出", Slug: "operation_log.export", Method: "POST", Path: "/api/admin/operation-logs/export", Description: "导出操作日志（不删除）", Status: 1, Sort: 7, MenuID: operationLogMenu.ID},
 		// 登录日志
 		{Name: "登录日志列表", Slug: "login_log.index", Method: "GET", Path: "/api/admin/login-logs", Description: "查看登录日志列表", Status: 1, Sort: 1, MenuID: loginLogMenu.ID},
 		{Name: "登录日志详情", Slug: "login_log.show", Method: "GET", Path: "/api/admin/login-logs/*", Description: "查看登录日志详情", Status: 1, Sort: 2, MenuID: loginLogMenu.ID},
 		{Name: "登录日志删除", Slug: "login_log.destroy", Method: "DELETE", Path: "/api/admin/login-logs/*", Description: "删除登录日志", Status: 1, Sort: 3, MenuID: loginLogMenu.ID},
 		{Name: "登录日志批量删除", Slug: "login_log.batch_delete", Method: "POST", Path: "/api/admin/login-logs/batch-delete", Description: "批量删除登录日志", Status: 1, Sort: 4, MenuID: loginLogMenu.ID},
+		{Name: "登录日志清理", Slug: "login_log.clean", Method: "POST", Path: "/api/admin/login-logs/clean", Description: "清理登录日志", Status: 1, Sort: 5, MenuID: loginLogMenu.ID},
+		{Name: "登录日志归档", Slug: "login_log.archive", Method: "POST", Path: "/api/admin/login-logs/archive", Description: "归档并清理登录日志", Status: 1, Sort: 6, MenuID: loginLogMenu.ID},
 		// {Name: "登录日志清理", Slug: "login_log.clean", Method: "POST", Path: "/api/admin/login-logs/clean", Description: "清理登录日志", Status: 1, Sort: 5, MenuID: loginLogMenu.ID},
 		// 系统日志
 		{Name: "系统日志列表", Slug: "system_log.index", Method: "GET", Path: "/api/admin/system-logs", Description: "查看系统日志列表", Status: 1, Sort: 1, MenuID: systemLogMenu.ID},

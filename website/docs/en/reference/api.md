@@ -633,42 +633,68 @@ Authorization: Bearer {token}
 
 ---
 
-## 字典管理
+## Dictionaries
 
-### 获取字典列表
+### List dictionaries
 
 ```http
 GET /dictionaries
 Authorization: Bearer {token}
 ```
 
-### 创建字典
+**Query parameters:**
+
+| Param | Type | Required | Description |
+|------|------|------|------|
+| type | string | no | Dictionary type (exact match) |
+| status | string | no | Status (1 enabled / 0 disabled) |
+| page | int | no | Page |
+| page_size | int | no | Page size |
+
+### List dictionary types
+
+```http
+GET /dictionaries/types
+Authorization: Bearer {token}
+```
+
+### Get dictionaries by type
+
+```http
+GET /dictionaries/type/{type}
+Authorization: Bearer {token}
+```
+
+### Create dictionary
 
 ```http
 POST /dictionaries
 Authorization: Bearer {token}
 ```
 
-**请求参数：**
+**Body:**
 
-| 参数 | 类型 | 必填 | 说明 |
+| Param | Type | Required | Description |
 |------|------|------|------|
-| parent_id | int | 否 | 父级ID（0为字典类型） |
-| name | string | 是 | 名称 |
-| code | string | 是 | 编码 |
-| value | string | 否 | 值 |
-| description | string | 否 | 描述 |
-| status | int | 否 | 状态 |
-| sort | int | 否 | 排序 |
+| type | string | yes | Dictionary type |
+| label | string | yes | Display label |
+| value | string | yes | Value (unique within type) |
+| translation_key | string | no | i18n key |
+| description | string | no | Description |
+| status | int | no | Status (1 enabled / 0 disabled) |
+| sort | int | no | Sort |
+| remark | string | no | Remark |
 
-### 更新字典
+> System dictionaries (`is_system=1`, e.g. `status` / `menu_type`) cannot be deleted; type/value cannot change; cannot be disabled.
+
+### Update dictionary
 
 ```http
 PUT /dictionaries/{id}
 Authorization: Bearer {token}
 ```
 
-### 删除字典
+### Delete dictionary
 
 ```http
 DELETE /dictionaries/{id}

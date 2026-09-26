@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Button, Form, Input, InputNumber, Modal, Radio, Space, Table } from 'antd'
+import { Button, Form, Input, InputNumber, Modal, Radio, Select, AutoComplete, Space, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { App } from 'antd'
 import { SettingOutlined } from '@ant-design/icons'
@@ -23,9 +23,13 @@ export interface SimpleField {
   name: string
   label: string
   required?: boolean
-  type?: 'input' | 'textarea' | 'number' | 'status' | 'password'
+  type?: 'input' | 'textarea' | 'number' | 'status' | 'password' | 'select'
   hideOnEdit?: boolean
   hideOnCreate?: boolean
+  options?: Array<{ label: string; value: string | number }>
+  allowCreate?: boolean
+  /** Disable when editing a row that isProtected() returns true */
+  lockedWhenProtected?: boolean
 }
 
 interface SimpleCrudRow {
@@ -57,6 +61,8 @@ interface SimpleCrudPageProps<T extends SimpleCrudRow> {
   requireSensitiveConfirmOnCreate?: boolean
   /** Prompt for confirm_code when deleting */
   requireSensitiveConfirmOnDelete?: boolean
+  /** Called after create/update/delete succeeds */
+  onMutated?: () => void | Promise<void>
 }
 
 export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCrudPageProps<T>) {
@@ -67,7 +73,9 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
   const [form] = Form.useForm()
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<string | number | null>(null)
+  const [editingRow, setEditingRow] = useState<T | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const protectedEditing = !!(editId && editingRow && props.isProtected?.(editingRow))
 
   const transformRow =
     props.transformRow ||
@@ -103,9 +111,13 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
 
   const { toolbar, confirmDelete } = useCrudActions({
     createPermission: props.permissions.store,
-    onRefresh: refresh,
+    onRefresh: async () => {
+      await refresh()
+      await props.onMutated?.()
+    },
     onCreate: () => {
       setEditId(null)
+      setEditingRow(null)
       form.resetFields()
       const defaults: Record<string, unknown> = { status: 1, sort: 0 }
       props.formFields.forEach((f) => {
@@ -135,6 +147,7 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
                 type="link"
                 onClick={() => {
                   setEditId(row.id)
+                  setEditingRow(row)
                   form.setFieldsValue(row)
                   setOpen(true)
                 }}
@@ -205,6 +218,7 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
       }
       setOpen(false)
       await refresh()
+      await props.onMutated?.()
     } catch (error) {
       if ((error as { errorFields?: unknown })?.errorFields) return
       if ((error as Error)?.message === 'cancel') return
@@ -270,10 +284,12 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
           {props.formFields.map((field) => {
             if (editId && field.hideOnEdit) return null
             if (!editId && field.hideOnCreate) return null
+            const locked = !!(field.lockedWhenProtected && protectedEditing)
             if (field.type === 'status') {
               return (
                 <Form.Item key={field.name} name={field.name} label={field.label}>
                   <Radio.Group
+                    disabled={locked}
                     options={[
                       { label: t('common.enabled'), value: 1 },
                       { label: t('common.disabled'), value: 0 },
@@ -282,17 +298,53 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
                 </Form.Item>
               )
             }
+            if (field.type === 'select') {
+              const selectOptions = (field.options || []).map((opt) => ({
+                label: opt.label,
+                value: opt.value,
+              }))
+              return (
+                <Form.Item
+                  key={field.name}
+                  name={field.name}
+                  label={field.label}
+                  rules={field.required ? [{ required: true, message: `${field.label}` }] : undefined}
+                >
+                  {field.allowCreate ? (
+                    <AutoComplete
+                      disabled={locked}
+                      options={selectOptions}
+                      placeholder={field.label}
+                      filterOption={(input, option) =>
+                        String(option?.value ?? '')
+                          .toLowerCase()
+                          .includes(input.toLowerCase())
+                      }
+                    />
+                  ) : (
+                    <Select
+                      disabled={locked}
+                      showSearch
+                      allowClear={!field.required}
+                      options={selectOptions}
+                      placeholder={field.label}
+                      optionFilterProp="label"
+                    />
+                  )}
+                </Form.Item>
+              )
+            }
             if (field.type === 'number') {
               return (
                 <Form.Item key={field.name} name={field.name} label={field.label}>
-                  <InputNumber style={{ width: '100%' }} min={0} />
+                  <InputNumber style={{ width: '100%' }} min={0} disabled={locked} />
                 </Form.Item>
               )
             }
             if (field.type === 'textarea') {
               return (
                 <Form.Item key={field.name} name={field.name} label={field.label}>
-                  <Input.TextArea rows={3} />
+                  <Input.TextArea rows={3} disabled={locked} />
                 </Form.Item>
               )
             }
@@ -304,7 +356,7 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
                   label={field.label}
                   rules={field.required ? [{ required: true, message: t('common.required', { defaultValue: field.label }) }] : undefined}
                 >
-                  <Input.Password />
+                  <Input.Password disabled={locked} />
                 </Form.Item>
               )
             }
@@ -315,7 +367,7 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
                 label={field.label}
                 rules={field.required ? [{ required: true, message: `${field.label}` }] : undefined}
               >
-                <Input />
+                <Input disabled={locked} />
               </Form.Item>
             )
           })}

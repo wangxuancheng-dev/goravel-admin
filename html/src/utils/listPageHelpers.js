@@ -54,7 +54,8 @@ export function createCrudActions(t, moduleName, handlers) {
       label: t('common.delete'),
       type: 'danger',
       permission: `${moduleName}.destroy`,
-      handler: handlers.onDelete
+      handler: handlers.onDelete,
+      disabled: handlers.deleteDisabled
     })
   }
 

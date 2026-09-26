@@ -9,6 +9,7 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
+	appmetrics "goravel/app/metrics"
 	"goravel/app/models"
 	"goravel/app/tenancyctx"
 	"goravel/app/utils/logger"
@@ -50,6 +51,8 @@ func ApiMetric() http.Middleware {
 			DurationMS:    durationMS,
 			OccurredAt:    occurredAt,
 		}
+
+		appmetrics.ObserveHTTP(method, routeTemplate, statusCode, time.Since(startAt))
 
 		persistCtx := tenancyctx.Detach(ctx)
 		go func(data models.ApiEndpointMetric, dbCtx context.Context) {

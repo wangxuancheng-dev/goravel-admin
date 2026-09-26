@@ -638,6 +638,29 @@ GET /dictionaries
 Authorization: Bearer {token}
 ```
 
+**查询参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 否 | 字典类型（精确匹配） |
+| status | string | 否 | 状态（1 启用 / 0 禁用） |
+| page | int | 否 | 页码 |
+| page_size | int | 否 | 每页数量 |
+
+### 获取全部字典类型
+
+```http
+GET /dictionaries/types
+Authorization: Bearer {token}
+```
+
+### 按类型获取字典项
+
+```http
+GET /dictionaries/type/{type}
+Authorization: Bearer {token}
+```
+
 ### 创建字典
 
 ```http
@@ -649,13 +672,16 @@ Authorization: Bearer {token}
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| parent_id | int | 否 | 父级ID（0为字典类型） |
-| name | string | 是 | 名称 |
-| code | string | 是 | 编码 |
-| value | string | 否 | 值 |
+| type | string | 是 | 字典类型 |
+| label | string | 是 | 显示标签 |
+| value | string | 是 | 字典值（同类型下唯一） |
+| translation_key | string | 否 | 多语言 Key |
 | description | string | 否 | 描述 |
-| status | int | 否 | 状态 |
+| status | int | 否 | 状态（1 启用 / 0 禁用） |
 | sort | int | 否 | 排序 |
+| remark | string | 否 | 备注 |
+
+> 系统字典（`is_system=1`，如 `status` / `menu_type`）不可删除，不可修改 type/value，不可禁用。
 
 ### 更新字典
 

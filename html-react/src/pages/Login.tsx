@@ -56,6 +56,9 @@ export default function LoginPage() {
   const { token } = theme.useToken()
   const [brandName, setBrandName] = useState('')
   const [brandLogoUrl, setBrandLogoUrl] = useState('')
+  const [oidcEnabled, setOidcEnabled] = useState(false)
+  const [oidcButtonLabel, setOidcButtonLabel] = useState('')
+  const [oidcRedirectPath, setOidcRedirectPath] = useState('/api/admin/auth/oidc/redirect')
 
   const loadBranding = async () => {
     try {
@@ -66,6 +69,20 @@ export default function LoginPage() {
       const b = res.data?.branding
       const name = String(b?.site_name || '').trim()
       setBrandName(name)
+      const oidc = (res.data as { oidc?: { enabled?: boolean; button_label?: string; redirect_path?: string }; tenant_code?: string })?.oidc
+      setOidcEnabled(!!oidc?.enabled)
+      setOidcButtonLabel(String(oidc?.button_label || t('login.oidc_login')).trim() || t('login.oidc_login'))
+      setOidcRedirectPath(String(oidc?.redirect_path || '/api/admin/auth/oidc/redirect'))
+      // Vanity / host-bound: SPA cannot map host→code; branding echoes bound tenant_code for SSO.
+      const boundCode = String((res.data as { tenant_code?: string })?.tenant_code || '')
+        .trim()
+        .toLowerCase()
+      if (boundCode) {
+        setTenantCode(boundCode)
+        if (!String(form.getFieldValue('tenant_code') || '').trim()) {
+          form.setFieldValue('tenant_code', boundCode)
+        }
+      }
       const logoRaw = String(b?.site_logo || '').trim()
       if (!logoRaw) {
         setBrandLogoUrl('')
@@ -76,7 +93,32 @@ export default function LoginPage() {
     } catch {
       setBrandName('')
       setBrandLogoUrl('')
+      setOidcEnabled(false)
     }
+  }
+
+  const handleOidcLogin = () => {
+    const tenantCode = String(form.getFieldValue('tenant_code') || '').trim().toLowerCase()
+    if (tenancyEnabled) {
+      if (showTenantField && !tenantCode) {
+        message.warning(t('login.tenant_code_required'))
+        return
+      }
+      if (tenantCode) {
+        setTenantCode(tenantCode)
+      }
+    }
+    const apiOrigin = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+    const path = oidcRedirectPath.startsWith('/') ? oidcRedirectPath : `/${oidcRedirectPath}`
+    let href = apiOrigin ? `${apiOrigin}${path}` : path
+    // Top-level navigation cannot send X-Tenant-ID / Origin; query binds redirect on shared API hosts.
+    const hint =
+      tenantCode || getTenantCode() || resolveTenantCodeFromHostname() || resolveTenantCodeFromLocation()
+    if (tenancyEnabled && hint) {
+      const sep = href.includes('?') ? '&' : '?'
+      href = `${href}${sep}tenant_code=${encodeURIComponent(hint)}`
+    }
+    window.location.href = href
   }
 
   /** Check whether captcha is enabled (do not show image yet). */
@@ -331,6 +373,13 @@ export default function LoginPage() {
                   {t('login.login')}
                 </Button>
               </Form.Item>
+              {oidcEnabled && (
+                <Form.Item>
+                  <Button block disabled={loading} onClick={handleOidcLogin}>
+                    {oidcButtonLabel}
+                  </Button>
+                </Form.Item>
+              )}
             </Form>
 
             <Space className="login-hint" size={4}>

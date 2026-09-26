@@ -17,6 +17,7 @@ import logger from '@/utils/logger'
 // Shell routes are eager: Vite HMR often breaks lazy MainLayout with
 // "Failed to fetch dynamically imported module ...?t=...".
 import LoginPage from '../pages/Login'
+import OidcCallbackPage from '../pages/OidcCallback'
 import MainLayout from '../layouts/MainLayout'
 import DashboardPage from '../pages/Dashboard'
 import ProfilePage from '../pages/profile/Profile'
@@ -146,6 +147,12 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
           handle: { requiresAuth: false },
         },
       ],
+    },
+    {
+      path: '/login/oidc-callback',
+      element: <OidcCallbackPage />,
+      errorElement: <RouteErrorFallback />,
+      handle: { requiresAuth: false },
     },
     {
       path: '/platform/login',

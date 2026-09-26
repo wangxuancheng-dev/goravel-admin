@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	appfacades "goravel/app/facades"
 	"strconv"
+	"strings"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
@@ -365,9 +366,19 @@ func (r *AuthController) Captcha(ctx http.Context) http.Response {
 // Branding returns public website branding for the login page (tenant-scoped when tenancy is on).
 func (r *AuthController) Branding(ctx http.Context) http.Response {
 	branding := services.NewConfigService(ctx).GetWebsiteBranding()
-	return response.Success(ctx, http.Json{
+	adminService := services.NewAdminServiceImpl(ctx)
+	tokenService := services.NewTokenServiceImpl(ctx)
+	authService := services.NewAuthServiceImpl(ctx, adminService, tokenService)
+	oidcInfo := services.NewOIDCService(authService).PublicInfo()
+	data := http.Json{
 		"branding": branding,
-	})
+		"oidc":     oidcInfo,
+	}
+	// Vanity hosts cannot derive tenant_code in the SPA; echo bound code for SSO redirect query.
+	if code, ok := helpers.GetTenantCodeFromContext(ctx); ok && strings.TrimSpace(code) != "" {
+		data["tenant_code"] = strings.TrimSpace(code)
+	}
+	return response.Success(ctx, data)
 }
 
 // Info 获取当前登录管理员信息

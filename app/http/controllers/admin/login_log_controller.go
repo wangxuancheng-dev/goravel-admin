@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"strconv"
+
 	"github.com/goravel/framework/contracts/http"
 
 	"goravel/app/constants"
@@ -82,4 +84,25 @@ func (c *LoginLogController) Clean(ctx http.Context) http.Response {
 		})
 	}
 	return response.Success(ctx, "clean_success", http.Json{})
+}
+
+// Archive exports old login logs to CSV then deletes them.
+func (c *LoginLogController) Archive(ctx http.Context) http.Response {
+	days := helpers.GetIntQuery(ctx, "days", constants.DefaultCleanLogDays)
+	if bodyDays := ctx.Request().Input("days"); bodyDays != "" {
+		if n, err := strconv.Atoi(bodyDays); err == nil && n > 0 {
+			days = n
+		}
+	}
+	exportID, err := c.LoginLogService(ctx).Archive(days)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "login-log", http.StatusInternalServerError, err, map[string]any{
+			"days":      days,
+			"export_id": exportID,
+		})
+	}
+	return response.Success(ctx, http.Json{
+		"export_id": exportID,
+		"days":      days,
+	})
 }

@@ -232,3 +232,43 @@ docker build --build-arg BUILD_FRONTEND=1 -t goravel-admin .
 
 平台租户列表支持按开通状态筛选、「重试全部失败迁移」批量入队；概览见 `GET /api/platform/tenants/ops-summary`。
 
+## 9. Prometheus 指标、OIDC SSO、审计保留
+
+### Prometheus
+
+```ini
+METRICS_ENABLED=true
+METRICS_TOKEN=strong-random-token
+```
+
+- 抓取：`GET /metrics`（可选 `Authorization: Bearer <METRICS_TOKEN>`）
+- 指标含 Go/进程默认采集，以及 `goravel_admin_http_requests_total` / `goravel_admin_http_request_duration_seconds`（来自管理端 API 中间件）
+- Nginx 示例已单独限制 `/metrics`；生产请配合内网 ACL 或 Token
+
+### OIDC / 企业 SSO
+
+```ini
+OIDC_ENABLED=true
+OIDC_ISSUER=https://login.microsoftonline.com/{tenant}/v2.0
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URL=https://api.example.com/api/admin/auth/oidc/callback
+OIDC_FRONTEND_REDIRECT=https://admin.example.com/login/oidc-callback
+OIDC_AUTO_PROVISION=false
+```
+
+- 登录页在启用后显示 SSO 按钮；回调按 **邮箱** 匹配已有管理员并签发 JWT
+- 多商户：发起 SSO 的 URL 需带 `?tenant_code=`（前端已处理）；OIDC `state` 内嵌 `tenant_id`，回调据此重新绑定租户库（callback 路由不走 Tenant 中间件）
+- 兼容参数 / 子域名 / 独立域名（vanity）：`login/branding` 回传已绑定的 `tenant_code`，供独立域名 SPA 拼到 redirect
+- IdP 配置为进程级共享（`OIDC_*`）；不支持每租户独立 Issuer
+- `OIDC_AUTO_PROVISION=true` 会创建**禁用**账号（仍需人工赋权），生产默认关闭
+- 需配置 Cache（推荐 Redis）保存 OIDC `state`（全局键，不按租户加前缀）
+
+### 审计日志保留
+
+```ini
+AUDIT_LOG_RETENTION_DAYS=30
+```
+
+- 定时：`operation_log:archive`、`login_log:archive`（先导出 CSV 到任务中心，再删除过期行）
+- 合规导出不删：`POST /api/admin/operation-logs/export?days=30`（权限 `operation_log.export`）

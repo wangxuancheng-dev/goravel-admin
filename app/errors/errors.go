@@ -35,7 +35,11 @@ var (
 	ErrPermissionNotFound   = NewBusinessError("permission_not_found", "权限不存在")
 	ErrDepartmentNotFound   = NewBusinessError("department_not_found", "部门不存在")
 	ErrPositionNotFound     = NewBusinessError("position_not_found", "岗位不存在")
-	ErrDictionaryNotFound   = NewBusinessError("dictionary_not_found", "字典不存在")
+	ErrDictionaryNotFound                 = NewBusinessError("dictionary_not_found", "字典不存在")
+	ErrDictionaryAlreadyExists            = NewBusinessError("dictionary_already_exists", "dictionary type and value already exist")
+	ErrDictionaryProtectedCannotDelete    = NewBusinessError("dictionary_protected_cannot_delete", "system dictionary cannot be deleted")
+	ErrDictionaryProtectedCannotModifyKey = NewBusinessError("dictionary_protected_cannot_modify_key", "system dictionary type/value cannot be changed")
+	ErrDictionaryProtectedCannotDisable   = NewBusinessError("dictionary_protected_cannot_disable", "system dictionary cannot be disabled")
 	ErrLogNotFound          = NewBusinessError("log_not_found", "日志不存在")
 
 	// IP 相关错误

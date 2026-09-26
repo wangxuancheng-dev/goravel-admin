@@ -129,7 +129,10 @@
     "google_code_required": "请输入谷歌验证码",
     "google_code_invalid": "谷歌验证码错误",
     "google_code_format": "验证码必须是6位数字",
-    "brand_fallback": "管理后台"
+    "brand_fallback": "管理后台",
+    "oidc_login": "企业账号登录",
+    "oidc_processing": "正在完成企业登录…",
+    "oidc_failed": "企业登录失败"
   },
   "error": {
     "default": "请求失败",
@@ -720,13 +723,19 @@
     "label": "标签",
     "value": "值",
     "translation_key": "多语言Key",
-    "type_required": "请输入类型",
+    "type_required": "请选择或输入类型",
     "label_required": "请输入标签",
     "value_required": "请输入值",
     "delete_confirm": "确定要删除该字典吗？",
     "delete_success": "删除成功",
     "create_success": "创建成功",
-    "update_success": "更新成功"
+    "update_success": "更新成功",
+    "is_system": "系统项",
+    "system_yes": "是",
+    "system_no": "否",
+    "protected_cannot_delete": "系统字典不可删除",
+    "type_placeholder": "选择已有类型或输入新类型",
+    "protected_tip": "系统字典不可修改类型、值和状态"
   },
   "position": {
     "add_position": "添加岗位",
@@ -2123,7 +2132,19 @@
     "monitor_file_descriptors_usage_high": "文件描述符使用率过高: {value}%",
     "platform_last_owner": "不能移除最后一个启用的管理员(owner)",
     "platform_cannot_modify_self": "不能修改自己的角色或状态",
-    "admin_cannot_delete_self": "不能删除自己"
+    "admin_cannot_delete_self": "不能删除自己",
+    "dictionary_already_exists": "同一类型下字典值已存在",
+    "dictionary_protected_cannot_delete": "系统字典不可删除",
+    "dictionary_protected_cannot_modify_key": "系统字典的类型和值不可修改",
+    "dictionary_protected_cannot_disable": "系统字典不可禁用",
+    "oidc_disabled": "未启用企业 SSO",
+    "oidc_invalid_state": "SSO 状态无效或已过期",
+    "oidc_exchange_failed": "SSO 授权码交换失败",
+    "oidc_id_token_missing": "缺少 OIDC id_token",
+    "oidc_id_token_invalid": "OIDC id_token 无效",
+    "oidc_claims_invalid": "OIDC 声明无效",
+    "oidc_email_required": "OIDC 邮箱声明必填",
+    "oidc_user_not_linked": "该企业账号未关联管理员"
   },
   "code_generator": {
     "title": "代码生成器",

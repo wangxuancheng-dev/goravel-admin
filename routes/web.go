@@ -21,9 +21,12 @@ func Web() {
 	}
 
 	healthController := controllers.NewHealthController()
+	metricsController := controllers.NewMetricsController()
 	// Liveness: process up (LB / k8s livenessProbe)
 	facades.Route().Get("/health", healthController.Live)
 	// Readiness: DB (+ Redis when required). Prefer this for k8s readinessProbe.
 	facades.Route().Get("/ready", healthController.Ready)
 	facades.Route().Get("/health/ready", healthController.Ready)
+	// Prometheus scrape (METRICS_ENABLED=true)
+	facades.Route().Get("/metrics", metricsController.Index)
 }

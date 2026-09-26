@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"path"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
@@ -12,6 +14,7 @@ import (
 	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/rbac"
+	"goravel/app/utils"
 )
 
 type LoginLogService interface {
@@ -20,6 +23,7 @@ type LoginLogService interface {
 	Delete(id uint) error
 	BatchDelete(ids []uint) error
 	Clean(days int) error
+	Archive(days int) (uint, error)
 }
 
 // LoginLogFilters 登录日志查询过滤器
@@ -137,4 +141,91 @@ func (s *LoginLogServiceImpl) Clean(days int) error {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
 	return nil
+}
+
+// Archive exports login logs older than N days to CSV then deletes those rows.
+func (s *LoginLogServiceImpl) Archive(days int) (uint, error) {
+	if days <= 0 {
+		days = constants.DefaultCleanLogDays
+	}
+	cutoffTime := time.Now().AddDate(0, 0, -days)
+
+	var logs []models.LoginLog
+	if err := appfacades.OrmQuery(s.ctx).Model(&models.LoginLog{}).
+		Where("created_at < ?", cutoffTime).
+		Order("id asc").
+		Find(&logs); err != nil {
+		return 0, apperrors.ErrQueryFailed.WithError(err)
+	}
+
+	adminID := uint(0)
+	if admin := rbac.AdminFromContext(s.ctx); admin != nil {
+		adminID = admin.ID
+	}
+
+	disk := utils.ResolveFileDisk(s.ctx)
+	exportRecord := models.Export{
+		AdminID: adminID,
+		Type:    models.ExportTypeLoginLogsArchive,
+		Status:  models.ExportStatusProcessing,
+		Disk:    disk,
+	}
+	if err := appfacades.OrmQuery(s.ctx).Create(&exportRecord); err != nil {
+		return 0, apperrors.ErrCreateFailed.WithError(err)
+	}
+
+	headers := []string{
+		"id", "admin_id", "username", "ip", "user_agent", "location", "status", "message", "request", "created_at",
+	}
+	data := make([][]string, 0, len(logs))
+	for _, log := range logs {
+		createdAt := ""
+		if log.CreatedAt != nil && !log.CreatedAt.IsZero() {
+			createdAt = log.CreatedAt.ToDateTimeString()
+		}
+		data = append(data, []string{
+			fmt.Sprintf("%d", log.ID),
+			fmt.Sprintf("%d", log.AdminID),
+			log.Username,
+			log.IP,
+			log.UserAgent,
+			log.Location,
+			fmt.Sprintf("%d", log.Status),
+			log.Message,
+			log.Request,
+			createdAt,
+		})
+	}
+
+	filename := fmt.Sprintf("login_logs_archive_%d_%s.csv", exportRecord.ID, time.Now().Format("20060102_150405"))
+	exportService := &ExportServiceImpl{
+		disk:   disk,
+		path:   "exports",
+		format: "csv",
+	}
+	filePath, err := exportService.ExportToCSV(headers, data, filename, true)
+	if err != nil {
+		exportRecord.Status = models.ExportStatusFailed
+		exportRecord.ErrorMsg = err.Error()
+		_ = appfacades.OrmQuery(s.ctx).Save(&exportRecord)
+		return exportRecord.ID, err
+	}
+
+	exportRecord.Path = filePath
+	exportRecord.Filename = path.Base(filePath)
+	exportRecord.Extension = "csv"
+	exportRecord.Status = models.ExportStatusSuccess
+	if storage, storErr := utils.StorageDisk(exportRecord.Disk); storErr == nil {
+		if size, sizeErr := storage.Size(filePath); sizeErr == nil {
+			exportRecord.Size = size
+		}
+	}
+	if err := appfacades.OrmQuery(s.ctx).Save(&exportRecord); err != nil {
+		return exportRecord.ID, apperrors.ErrUpdateFailed.WithError(err)
+	}
+
+	if err := s.Clean(days); err != nil {
+		return exportRecord.ID, err
+	}
+	return exportRecord.ID, nil
 }

@@ -125,6 +125,17 @@
                 {{ $t('login.login') }}
               </el-button>
             </el-form-item>
+            <el-form-item v-if="oidcEnabled">
+              <el-button
+                size="large"
+                class="login-button"
+                plain
+                :disabled="loading"
+                @click="handleOidcLogin"
+              >
+                {{ oidcButtonLabel }}
+              </el-button>
+            </el-form-item>
           </el-form>
           <div v-if="tenancyEnabled" class="platform-login-link">
             <router-link to="/platform/login">{{ $t('platform.title') }}</router-link>
@@ -219,6 +230,9 @@ const onTenantCodeChange = () => {
 
 const brandName = ref('')
 const brandLogoUrl = ref('')
+const oidcEnabled = ref(false)
+const oidcButtonLabel = ref('')
+const oidcRedirectPath = ref('/api/admin/auth/oidc/redirect')
 
 const loadBranding = async () => {
   try {
@@ -228,6 +242,18 @@ const loadBranding = async () => {
     const res = await getLoginBranding()
     const b = res?.data?.branding || {}
     brandName.value = String(b.site_name || '').trim()
+    const oidc = res?.data?.oidc || {}
+    oidcEnabled.value = !!oidc.enabled
+    oidcButtonLabel.value = String(oidc.button_label || t('login.oidc_login')).trim() || t('login.oidc_login')
+    oidcRedirectPath.value = String(oidc.redirect_path || '/api/admin/auth/oidc/redirect')
+    // Vanity / host-bound: SPA cannot map host→code; branding echoes bound tenant_code for SSO.
+    const boundCode = String(res?.data?.tenant_code || '').trim().toLowerCase()
+    if (boundCode) {
+      setTenantCode(boundCode)
+      if (!loginForm.tenant_code) {
+        loginForm.tenant_code = boundCode
+      }
+    }
     const logoRaw = String(b.site_logo || '').trim()
     if (!logoRaw) {
       brandLogoUrl.value = ''
@@ -238,7 +264,32 @@ const loadBranding = async () => {
   } catch {
     brandName.value = ''
     brandLogoUrl.value = ''
+    oidcEnabled.value = false
   }
+}
+
+const handleOidcLogin = () => {
+  const tenantCode = String(loginForm.tenant_code || '').trim().toLowerCase()
+  if (tenancyEnabled) {
+    if (showTenantField && !tenantCode) {
+      ElMessage.warning(t('login.tenant_code_required'))
+      return
+    }
+    if (tenantCode) {
+      setTenantCode(tenantCode)
+    }
+  }
+  const apiOrigin = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+  const path = oidcRedirectPath.value.startsWith('/') ? oidcRedirectPath.value : `/${oidcRedirectPath.value}`
+  let href = apiOrigin ? `${apiOrigin}${path}` : path
+  // Top-level navigation cannot send X-Tenant-ID / Origin; query binds redirect on shared API hosts.
+  const hint =
+    tenantCode || getTenantCode() || resolveTenantCodeFromHostname() || resolveTenantCodeFromLocation()
+  if (tenancyEnabled && hint) {
+    const sep = href.includes('?') ? '&' : '?'
+    href = `${href}${sep}tenant_code=${encodeURIComponent(hint)}`
+  }
+  window.location.href = href
 }
 
 // 获取图形验证码配置（不自动获取图片）

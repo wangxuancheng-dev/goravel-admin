@@ -11,6 +11,7 @@ import (
 
 func Admin() {
 	adminAuthController := admin.NewAuthController()
+	oidcController := admin.NewOIDCController()
 	adminController := admin.NewAdminController()
 	roleController := admin.NewRoleController()
 	permissionController := admin.NewPermissionController()
@@ -59,8 +60,12 @@ func Admin() {
 			router.Middleware(middleware.Tenant(), middleware.Blacklist()).Group(func(router route.Router) {
 				router.Get("login/captcha", adminAuthController.Captcha)
 				router.Get("login/branding", adminAuthController.Branding)
+				router.Get("auth/oidc", oidcController.Config)
+				router.Get("auth/oidc/redirect", oidcController.Redirect)
 				router.Get("public/images/{id}", attachmentController.PublicPreview)
 			})
+			// OIDC callback: IdP browser GET has no tenant header/host; bind from state inside handler.
+			router.Middleware(middleware.Blacklist()).Get("auth/oidc/callback", oidcController.Callback)
 		})
 
 		// 已登录：Tenant → Blacklist → Jwt → 强制改密门禁
@@ -199,6 +204,7 @@ func Admin() {
 			router.Post("operation-logs/batch-delete", operationLogController.BatchDestroy)
 			router.Post("operation-logs/clean", operationLogController.Clean)
 			router.Post("operation-logs/archive", operationLogController.Archive)
+			router.Post("operation-logs/export", operationLogController.Export)
 
 			// 导出 / 导入任务中心
 			router.Get("exports", exportController.Index)
@@ -219,6 +225,7 @@ func Admin() {
 			router.Delete("login-logs/{id}", loginLogController.Destroy)
 			router.Post("login-logs/batch-delete", loginLogController.BatchDestroy)
 			router.Post("login-logs/clean", loginLogController.Clean)
+			router.Post("login-logs/archive", loginLogController.Archive)
 
 			// 系统日志
 			router.Get("system-logs", systemLogController.Index)

@@ -151,5 +151,45 @@ Percentage canary needs Nginx/LB weights or Cloudflare Gradual Deployments. Repo
 - [Build & deploy](/en/deploy/build)  
 - [Docker production](/en/deploy/docker)  
 - [Testing](/en/guide/testing)  
-- [Open-source scope](/en/guide/opensource)  
+- [Open-source scope](/en/guide/opensource)
 
+## 9. Prometheus, OIDC SSO, audit retention
+
+### Prometheus
+
+```ini
+METRICS_ENABLED=true
+METRICS_TOKEN=strong-random-token
+```
+
+- Scrape `GET /metrics` (optional Bearer `METRICS_TOKEN`)
+- Includes Go/process collectors plus `goravel_admin_http_requests_*` from admin API middleware
+- Sample `nginx.conf` isolates `/metrics`; use ACL and/or token in production
+
+### OIDC / Enterprise SSO
+
+```ini
+OIDC_ENABLED=true
+OIDC_ISSUER=https://login.microsoftonline.com/{tenant}/v2.0
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URL=https://api.example.com/api/admin/auth/oidc/callback
+OIDC_FRONTEND_REDIRECT=https://admin.example.com/login/oidc-callback
+OIDC_AUTO_PROVISION=false
+```
+
+- Login page shows SSO when enabled; callback matches admin by **email** and issues JWT
+- Multi-tenant: SSO start URL must include `?tenant_code=` (SPA does this); OIDC `state` embeds `tenant_id` and the callback re-binds the tenant DB (callback route has no Tenant middleware)
+- Works with header/query, built-in subdomain, and vanity domains (login branding returns `tenant_code` so vanity SPAs can put it on the redirect URL)
+- Shared IdP only (`OIDC_*` is process-wide); per-tenant issuers are not supported
+- `OIDC_AUTO_PROVISION=true` creates a **disabled** admin (manual role assignment); keep off in production
+- Requires Cache (Redis recommended) for OIDC `state` (global key, not tenant-prefixed)
+
+### Audit retention
+
+```ini
+AUDIT_LOG_RETENTION_DAYS=30
+```
+
+- Schedules: `operation_log:archive`, `login_log:archive` (CSV to task center, then delete)
+- Export without delete: `POST /api/admin/operation-logs/export?days=30` (`operation_log.export`)
