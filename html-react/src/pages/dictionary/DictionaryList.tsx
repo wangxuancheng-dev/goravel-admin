@@ -67,6 +67,7 @@ export default function DictionaryList() {
         type: 'select' as const,
         options: typeOptions,
         allowCreate: true,
+        placeholder: t('dictionary.type_placeholder'),
         lockedWhenProtected: true,
       },
       { name: 'label', label: t('dictionary.label'), required: true },

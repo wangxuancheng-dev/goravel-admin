@@ -100,10 +100,12 @@ const formFields = computed(() => {
       disabled: loading.value || isSystem.value,
       filterable: true,
       clearable: false,
+      placeholder: t('dictionary.type_placeholder'),
       options: props.typeOptions,
       props: {
         allowCreate: true,
-        defaultFirstOption: true
+        defaultFirstOption: true,
+        reserveKeyword: false
       }
     },
     {

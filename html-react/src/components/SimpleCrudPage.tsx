@@ -28,6 +28,7 @@ export interface SimpleField {
   hideOnCreate?: boolean
   options?: Array<{ label: string; value: string | number }>
   allowCreate?: boolean
+  placeholder?: string
   /** Disable when editing a row that isProtected() returns true */
   lockedWhenProtected?: boolean
 }
@@ -314,7 +315,7 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
                     <AutoComplete
                       disabled={locked}
                       options={selectOptions}
-                      placeholder={field.label}
+                      placeholder={field.placeholder || field.label}
                       filterOption={(input, option) =>
                         String(option?.value ?? '')
                           .toLowerCase()
@@ -327,7 +328,7 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
                       showSearch
                       allowClear={!field.required}
                       options={selectOptions}
-                      placeholder={field.label}
+                      placeholder={field.placeholder || field.label}
                       optionFilterProp="label"
                     />
                   )}
