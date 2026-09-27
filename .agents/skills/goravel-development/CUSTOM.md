@@ -76,7 +76,7 @@ Do **not** invent docs under repo-root `docs/` (Swagger only). Edit VitePress:
 - Error: `{ code, message, error_code, trace_id?, errors? }`.
 - **New CRUD:** follow code generator output — `app/services/templates/controller.tpl`, example `article_controller.go`. Use `ValidateGeneratedRequest`, `HandleGeneratedServiceError` (in `generated_helpers.go`), service-layer `Create/Update/Delete`, pagination key `list`.
 - **Migrated CRUD:** article, position, attachment_category, blacklist, dictionary, permission, role, user (+ user_balance_log list/stats).
-- **Legacy modules** (menu, department, admin, payment, order, …): may use `FindByID`, per-action `ErrorWithLog`, `data` pagination — match in place when editing only.
+- **Legacy modules** (menu, department, admin, payment, order, …): may use per-action `ErrorWithLog`, older pagination shapes — match in place when editing only.
 - Business errors from service layer; reuse codes from `app/errors/errors.go`.
 
 ## Frontend (dual stack)

@@ -1,13 +1,10 @@
 package response
 
 import (
-	"reflect"
-
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
 
 	apperrors "goravel/app/errors"
-	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/http/trans"
 	"goravel/app/services"
@@ -602,96 +599,4 @@ func Export(ctx http.Context, messageKey string, headers []string, data [][]stri
 	}
 
 	return ctx.Response().Success().Json(response)
-}
-
-// FindByIDOptions 查找选项
-type FindByIDOptions struct {
-	// WithRelations 预加载关联，例如 []string{"Department", "Roles"}
-	WithRelations []string
-	// NotFoundMessageKey 未找到时的错误消息键，例如 "admin_not_found"
-	// 如果不提供，默认使用 "record_not_found"
-	NotFoundMessageKey string
-}
-
-// FindByID 通用的根据ID查找记录函数
-// T 必须是嵌入了 orm.Model 的模型类型
-// 使用示例：
-//
-//	// 简单查找
-//	admin, resp := response.FindByID[models.Admin](ctx, id, nil)
-//	if resp != nil {
-//		return resp
-//	}
-//
-//	// 带关联预加载
-//	admin, resp := response.FindByID[models.Admin](ctx, id, &response.FindByIDOptions{
-//		WithRelations:      []string{"Department", "Roles"},
-//		NotFoundMessageKey: "admin_not_found",
-//	})
-//	if resp != nil {
-//		return resp
-//	}
-func FindByID[T any](ctx http.Context, id uint, options *FindByIDOptions) (*T, http.Response) {
-	// 验证ID
-	if id == 0 {
-		return nil, Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
-	}
-
-	// 创建查询
-	query := appfacades.OrmQuery(ctx).Where("id", id)
-
-	// 应用关联预加载
-	if options != nil && len(options.WithRelations) > 0 {
-		for _, relation := range options.WithRelations {
-			query = query.With(relation)
-		}
-	}
-
-	// 查询记录
-	var model T
-	if err := query.First(&model); err != nil {
-		// 确定错误消息键，默认使用 record_not_found
-		messageKey := apperrors.ErrRecordNotFound.Code
-		if options != nil && options.NotFoundMessageKey != "" {
-			messageKey = options.NotFoundMessageKey
-		}
-		return nil, Error(ctx, http.StatusNotFound, messageKey)
-	}
-
-	// 检查记录是否存在（防御性编程）
-	// 通过反射检查 ID 字段，如果 ID 为 0，说明记录不存在
-	modelPtr := &model
-	if !hasValidID(modelPtr) {
-		// 确定错误消息键，默认使用 record_not_found
-		messageKey := apperrors.ErrRecordNotFound.Code
-		if options != nil && options.NotFoundMessageKey != "" {
-			messageKey = options.NotFoundMessageKey
-		}
-		return nil, Error(ctx, http.StatusNotFound, messageKey)
-	}
-
-	return modelPtr, nil
-}
-
-// hasValidID 检查模型是否有有效的 ID（ID != 0）
-// 使用反射来检查模型的 ID 字段
-func hasValidID(model any) bool {
-	v := reflect.ValueOf(model)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	// 查找 ID 字段
-	idField := v.FieldByName("ID")
-	if !idField.IsValid() {
-		// 如果没有找到 ID 字段，假设记录有效（防御性编程）
-		return true
-	}
-
-	// 检查 ID 是否为 0
-	if idField.Kind() == reflect.Uint || idField.Kind() == reflect.Uint32 || idField.Kind() == reflect.Uint64 {
-		return idField.Uint() != 0
-	}
-
-	return true
 }

@@ -27,12 +27,6 @@ Business rules (not found, conflicts) return `*errors.BusinessError` from servic
 
 These appear in older hand-written controllers (admin, payment_method, …). Keep when editing those files; do not copy for new modules.
 
-### Legacy: `response.FindByID` in controller
-```go
-x, resp := response.FindByID[models.X](ctx, id, &response.FindByIDOptions{...})
-if resp != nil { return resp }
-```
-
 ### Legacy: partial update via `Request().All()`
 Controller loads model, mutates fields present in request body, saves via service.
 

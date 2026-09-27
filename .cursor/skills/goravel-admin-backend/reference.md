@@ -49,7 +49,6 @@ Avoid attrs:
 - Business failure: `response.Error(ctx, 4xx, err)` or `businessErr.Code`
 - Unexpected infra: `response.ErrorWithLog(ctx, module, err, attrs)`
 - Paginated list: manual Success, or `response.Paginate` (export, online admins)
-- ORM load in controller: `response.FindByID` (legacy modules only)
 
 ## Response payload key conventions (observed)
 

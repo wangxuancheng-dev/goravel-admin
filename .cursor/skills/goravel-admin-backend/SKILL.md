@@ -126,7 +126,6 @@ New generated modules always use `"list"` for the rows array. Payment / order / 
 ## Hand-written modules (auth, export, config, …)
 
 Older/system modules may still use:
-- `response.FindByID` directly in controller
 - Partial update via `ctx.Request().All()` in controller
 - `response.Paginate` shortcut (export list, online admins)
 

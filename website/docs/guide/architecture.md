@@ -165,9 +165,6 @@ response.Success(ctx, data)
 
 // 错误响应
 response.Error(ctx, http.StatusBadRequest, "错误信息")
-
-// 泛型查找
-admin, resp := response.FindByID[models.Admin](ctx, id, nil)
 ```
 
 ---

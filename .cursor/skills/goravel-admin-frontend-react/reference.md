@@ -35,4 +35,4 @@ Prefer `common.<error_code>`, then `messages.<error_code>`.
 ## New admin CRUD modules
 - **Backend:** use Dev → Code Generator or match `article_controller.go` / `controller.tpl`
 - **Frontend:** generator produces `SimpleCrudPage` or List+FormModal+config — match output paradigm
-- Do not hand-write legacy controller patterns (FindByID in controller, partial menu-style update) for new modules
+- Do not hand-write legacy controller patterns (partial menu-style update in controller) for new modules
