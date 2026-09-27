@@ -88,6 +88,33 @@ func TestVueListPageTemplatePreview_EditorColumn(t *testing.T) {
 	}
 }
 
+func TestRequestUpdateTemplatePreview_RichTextPrepare(t *testing.T) {
+	s := NewCodeGeneratorService(context.Background())
+	fields := []FieldConfig{
+		{Name: "title", Label: "Title", ShowInList: true, ShowInForm: true, FormType: "input"},
+		{Name: "content", Label: "Content", ShowInList: true, ShowInForm: true, FormType: "editor"},
+	}
+
+	createCode, err := s.Preview("article", "articles", fields, "request_create", nil)
+	if err != nil {
+		t.Fatalf("preview request_create failed: %v", err)
+	}
+	if !strings.Contains(createCode, `PrepareRichTextFieldForValidation(data, "content")`) {
+		t.Fatal("request_create must prepare rich text content")
+	}
+
+	updateCode, err := s.Preview("article", "articles", fields, "request_update", nil)
+	if err != nil {
+		t.Fatalf("preview request_update failed: %v", err)
+	}
+	if !strings.Contains(updateCode, `PrepareRichTextFieldForValidation(data, "content")`) {
+		t.Fatal("request_update must prepare rich text content")
+	}
+	if !strings.Contains(updateCode, "func (r *ArticleUpdate) PrepareForValidation") {
+		t.Fatal("request_update must define PrepareForValidation")
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

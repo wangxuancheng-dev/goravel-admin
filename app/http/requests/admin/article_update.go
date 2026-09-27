@@ -1,9 +1,11 @@
 package admin
 
 import (
+	"goravel/app/http/helpers"
 	"goravel/app/http/trans"
 
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/contracts/validation"
 )
 
 type ArticleUpdate struct {
@@ -34,4 +36,11 @@ func (r *ArticleUpdate) Attributes(ctx http.Context) map[string]any {
 		"content":  trans.Get(ctx, "validation.attributes.content"),
 		"status":   trans.Get(ctx, "validation.attributes.status"),
 	}
+}
+
+func (r *ArticleUpdate) PrepareForValidation(ctx http.Context, data validation.Data) error {
+	if err := helpers.PrepareRichTextFieldForValidation(data, "content"); err != nil {
+		return err
+	}
+	return nil
 }
