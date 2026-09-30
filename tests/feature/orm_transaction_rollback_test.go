@@ -30,29 +30,38 @@ func configMarkerRow(key, value string) map[string]any {
 	}
 }
 
+func countConfigKeyOn(q orm.Query, key string) (int64, error) {
+	return q.Table("configs").Where("key", key).Count()
+}
+
 func countConfigKey(ctx context.Context, key string) (int64, error) {
 	return appfacades.OrmQuery(ctx).Table("configs").Where("key", key).Count()
 }
 
-// TestOrmTransactionRollbackDefault covers single-merchant / default connection:
-// insert inside OrmTransaction then return error must leave no row.
+// TestOrmTransactionRollbackDefault covers platform/default connection rollback.
+// Uses PlatformConnectionName explicitly so it stays valid even when TENANCY_DRIVER=database
+// (does not toggle tenancy.driver mid-suite).
 func TestOrmTransactionRollbackDefault(t *testing.T) {
-	withTenancyDriver(t, "off")
-	require.False(t, tenancy.Enabled())
+	platform := appfacades.BuildOrmConnection(appfacades.PlatformConnectionName())
+	require.NotNil(t, platform)
 
 	ctx := context.Background()
+	pq := platform.WithContext(ctx).Query()
 	if !appfacades.SchemaHasTable(ctx, "configs") {
-		t.Skip("configs table missing on default connection")
+		// SchemaHasTable follows tenant-aware schema; fall back to platform query probe.
+		if _, err := pq.Table("configs").Limit(1).Count(); err != nil {
+			t.Skip("configs table missing on platform connection")
+		}
 	}
 
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000_000)
 	key := "tx_rb_def_" + suffix
 
 	t.Cleanup(func() {
-		_, _ = appfacades.OrmQuery(ctx).Table("configs").Where("key", key).Delete(&models.Config{})
+		_, _ = pq.Table("configs").Where("key", key).Delete(&models.Config{})
 	})
 
-	err := appfacades.OrmTransaction(ctx, func(tx orm.Query) error {
+	err := platform.WithContext(ctx).Transaction(func(tx orm.Query) error {
 		if err := tx.Table("configs").Create(configMarkerRow(key, "should-roll-back")); err != nil {
 			return err
 		}
@@ -61,22 +70,23 @@ func TestOrmTransactionRollbackDefault(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "force rollback")
 
-	n, err := countConfigKey(ctx, key)
+	n, err := countConfigKeyOn(pq, key)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), n, "failed transaction must not leave a configs row")
 
-	err = appfacades.OrmTransaction(ctx, func(tx orm.Query) error {
+	err = platform.WithContext(ctx).Transaction(func(tx orm.Query) error {
 		return tx.Table("configs").Create(configMarkerRow(key, "committed"))
 	})
 	require.NoError(t, err)
 
-	n, err = countConfigKey(ctx, key)
+	n, err = countConfigKeyOn(pq, key)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), n, "successful transaction must commit")
 }
 
 // TestOrmTransactionRollbackTenant covers multi-tenant: OrmTransaction must open
 // on the tenant connection; rollback must not leave data in that tenant DB.
+// Mirrors TestDualTenantDatabaseIsolation (no InstallTenantAware* / Orm.Fresh mid-suite).
 func TestOrmTransactionRollbackTenant(t *testing.T) {
 	withTenancyDriver(t, "database")
 	require.True(t, tenancy.Enabled())
@@ -86,12 +96,6 @@ func TestOrmTransactionRollbackTenant(t *testing.T) {
 	t.Cleanup(func() {
 		facades.Config().Add("tenancy.allow_platform_db_credentials", prevAllow)
 	})
-
-	appfacades.InstallTenantAwareSchema(facades.App())
-	appfacades.InstallTenantAwareOrm(facades.App())
-	if def := facades.Config().GetString("database.default", "mysql"); def != "" {
-		facades.Schema().SetConnection(def)
-	}
 
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000_000)
 	code := "txrb" + suffix
@@ -103,7 +107,7 @@ func TestOrmTransactionRollbackTenant(t *testing.T) {
 	tn, err := adminSvc.Create(services.TenantCreateInput{
 		Code:    code,
 		Name:    "TX Rollback",
-		Migrate: true,
+		Migrate: false,
 	})
 	if err != nil {
 		t.Skipf("skip tenant OrmTransaction rollback: cannot create tenant DB: %v", err)
@@ -115,6 +119,8 @@ func TestOrmTransactionRollbackTenant(t *testing.T) {
 			facades.Schema().SetConnection(def)
 		}
 	})
+
+	require.NoError(t, conn.MigrateTenant(tn))
 
 	bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 
@@ -150,7 +156,6 @@ func TestOrmTransactionRollbackTenant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), afterCommit, "tenant successful transaction must commit")
 
-	// Platform / default must not receive the marker (isolation).
 	if appfacades.SchemaHasTable(context.Background(), "configs") {
 		platformN, pErr := appfacades.PlatformOrmQuery(nil).Table("configs").Where("key", key).Count()
 		require.NoError(t, pErr)
