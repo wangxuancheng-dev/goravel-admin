@@ -191,6 +191,7 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "修改资料", Slug: "profile.update", Method: "PUT", Path: "/api/admin/profile", Description: "修改当前登录管理员资料", Status: 1, Sort: 1, MenuID: profileMenu.ID},
 		{Name: "修改密码", Slug: "password.update", Method: "PUT", Path: "/api/admin/password", Description: "修改当前登录管理员密码", Status: 1, Sort: 2, MenuID: profileMenu.ID},
 		{Name: "谷歌验证码设置", Slug: "google_authenticator.manage", Method: "", Path: "/api/admin/google-authenticator/*", Description: "绑定/解绑当前登录管理员谷歌验证码", Status: 1, Sort: 3, MenuID: profileMenu.ID},
+		{Name: "登录会话管理", Slug: "auth_token.manage", Method: "", Path: "/api/admin/auth/tokens/*", Description: "查看并吊销当前登录管理员的登录会话", Status: 1, Sort: 4, MenuID: profileMenu.ID},
 		// 导出 / 导入任务中心
 		{Name: "导出列表", Slug: "export.index", Method: "GET", Path: "/api/admin/exports", Description: "查看导出记录列表", Status: 1, Sort: 1, MenuID: exportMenu.ID},
 		{Name: "导出数据下载", Slug: "export.download", Method: "GET", Path: "/api/admin/exports/*/download", Description: "下载导出数据文件", Status: 1, Sort: 2, MenuID: exportMenu.ID},

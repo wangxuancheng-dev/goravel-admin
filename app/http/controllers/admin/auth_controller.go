@@ -2,15 +2,17 @@ package admin
 
 import (
 	"encoding/json"
-	appfacades "goravel/app/facades"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
+	"github.com/goravel/framework/support/carbon"
 	"github.com/goravel/framework/support/str"
 
 	apperrors "goravel/app/errors"
+	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/http/requests/admin"
 	"goravel/app/http/response"
@@ -142,6 +144,20 @@ func getCurrentTokenIDFromContext(ctx http.Context) uint {
 	}
 
 	return 0
+}
+
+func formatTokenTime(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.Format("2006-01-02 15:04:05")
+}
+
+func formatTokenCarbonTime(t *carbon.DateTime) any {
+	if t == nil {
+		return nil
+	}
+	return t.ToDateTimeString()
 }
 
 func routeUintID(ctx http.Context, key, requiredErrorCode, invalidErrorCode string) (uint, http.Response) {
@@ -660,7 +676,6 @@ func (r *AuthController) Tokens(ctx http.Context) http.Response {
 		return resp
 	}
 
-	// 获取用户的所有token
 	tokens, err := r.tokenService(ctx).GetTokensByUser("admin", admin.ID)
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
@@ -668,10 +683,8 @@ func (r *AuthController) Tokens(ctx http.Context) http.Response {
 		})
 	}
 
-	// 获取当前使用的token
 	currentTokenID := getCurrentTokenIDFromContext(ctx)
 
-	// 格式化token列表
 	tokenList := make([]http.Json, 0, len(tokens))
 	for _, token := range tokens {
 		tokenList = append(tokenList, http.Json{
@@ -680,9 +693,9 @@ func (r *AuthController) Tokens(ctx http.Context) http.Response {
 			"browser":      token.Browser,
 			"ip":           token.IP,
 			"os":           token.OS,
-			"last_used_at": token.LastUsedAt,
-			"expires_at":   token.ExpiresAt,
-			"created_at":   token.CreatedAt,
+			"last_used_at": formatTokenTime(token.LastUsedAt),
+			"expires_at":   formatTokenTime(token.ExpiresAt),
+			"created_at":   formatTokenCarbonTime(token.CreatedAt),
 			"is_current":   token.ID == currentTokenID,
 		})
 	}
@@ -704,18 +717,19 @@ func (r *AuthController) RevokeToken(ctx http.Context) http.Response {
 		return resp
 	}
 
-	// 查询token是否存在且属于当前用户
 	var token models.PersonalAccessToken
 	if err := appfacades.OrmQuery(ctx).
 		Where("id", tokenID).
 		Where("tokenable_type", "admin").
 		Where("tokenable_id", admin.ID).
-		First(&token); err != nil {
+		FirstOrFail(&token); err != nil {
+		return response.Error(ctx, http.StatusNotFound, apperrors.ErrTokenNotFound.Code)
+	}
+	if token.ID == 0 {
 		return response.Error(ctx, http.StatusNotFound, apperrors.ErrTokenNotFound.Code)
 	}
 
-	// 删除token（直接通过ID删除，因为数据库中存储的是hash值，无法获取原始token）
-	if _, err := appfacades.OrmQuery(ctx).Delete(&token); err != nil {
+	if _, err := appfacades.OrmQuery(ctx).Where("id", token.ID).Delete(&models.PersonalAccessToken{}); err != nil {
 		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"token_id": token.ID,
 			"admin_id": admin.ID,

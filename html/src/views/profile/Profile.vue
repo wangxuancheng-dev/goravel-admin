@@ -252,7 +252,12 @@
               </div>
             </el-tab-pane>
 
-            <el-tab-pane :label="$t('profile.sessions')" name="sessions">
+            <el-tab-pane
+              v-if="getButtonState('auth_token.manage').show"
+              :label="$t('profile.sessions')"
+              name="sessions"
+              :disabled="getButtonState('auth_token.manage').disabled"
+            >
               <ProfileSessions />
             </el-tab-pane>
           </el-tabs>

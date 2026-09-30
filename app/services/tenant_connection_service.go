@@ -638,18 +638,18 @@ func (s *TenantConnectionService) FindTenantByIDOrCode(idOrCode string) (*models
 	q := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{})
 	if id := cast.ToUint(idOrCode); id > 0 && fmt.Sprintf("%d", id) == idOrCode {
 		if err := q.Where("id", id).First(&tenant); err != nil {
-			return nil, apperrors.ErrRecordNotFound.WithError(err)
+			return nil, apperrors.ErrTenantNotFound.WithError(err)
 		}
 		if tenant.ID == 0 {
-			return nil, apperrors.ErrRecordNotFound
+			return nil, apperrors.ErrTenantNotFound
 		}
 		return &tenant, nil
 	}
 	if err := q.Where("code", strings.ToLower(strings.TrimSpace(idOrCode))).First(&tenant); err != nil {
-		return nil, apperrors.ErrRecordNotFound.WithError(err)
+		return nil, apperrors.ErrTenantNotFound.WithError(err)
 	}
 	if tenant.ID == 0 {
-		return nil, apperrors.ErrRecordNotFound
+		return nil, apperrors.ErrTenantNotFound
 	}
 	return &tenant, nil
 }

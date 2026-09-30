@@ -76,9 +76,6 @@ func Admin() {
 
 			router.Post("logout", adminAuthController.Logout)
 			router.Get("heartbeat", adminAuthController.Heartbeat)
-			router.Get("auth/tokens", adminAuthController.Tokens)
-			router.Delete("auth/tokens/{id}", adminAuthController.RevokeToken)
-			router.Delete("auth/tokens", adminAuthController.RevokeAllTokens)
 
 			// 通知中心
 			router.Get("notifications", notificationController.Index)
@@ -130,6 +127,11 @@ func Admin() {
 			router.Get("google-authenticator/qrcode", adminAuthController.GetGoogleAuthenticatorQRCode)
 			router.Post("google-authenticator/bind", adminAuthController.BindGoogleAuthenticator)
 			router.Post("google-authenticator/unbind", adminAuthController.UnbindGoogleAuthenticator)
+
+			// Own login sessions (requires auth_token.manage); paths under auth/tokens/* for one permission slug
+			router.Get("auth/tokens/list", adminAuthController.Tokens)
+			router.Delete("auth/tokens/others", adminAuthController.RevokeAllTokens)
+			router.Delete("auth/tokens/{id}", adminAuthController.RevokeToken)
 
 			// 密码管理（重置他人密码仍需权限）
 			router.Put("admins/{id}/password", passwordController.ResetPassword)

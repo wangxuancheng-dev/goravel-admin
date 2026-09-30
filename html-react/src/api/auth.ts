@@ -88,7 +88,7 @@ export function unbindGoogleAuthenticator(data: { code: string }) {
 
 export function getAuthTokens() {
   return request({
-    url: '/auth/tokens',
+    url: '/auth/tokens/list',
     method: 'get',
   }) as Promise<ApiResponse<{ tokens?: Array<Record<string, unknown>> }>>
 }
@@ -102,7 +102,7 @@ export function revokeAuthToken(id: number | string) {
 
 export function revokeOtherAuthTokens() {
   return request({
-    url: '/auth/tokens',
+    url: '/auth/tokens/others',
     method: 'delete',
     params: { except_current: 1 },
   })

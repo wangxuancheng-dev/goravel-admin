@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 	"sync"
 	"time"
 
@@ -179,12 +180,26 @@ func (s *TokenServiceImpl) DeleteTokensByUser(tokenableType string, tokenableID 
 
 func (s *TokenServiceImpl) GetTokensByUser(tokenableType string, tokenableID uint) ([]models.PersonalAccessToken, error) {
 	var tokens []models.PersonalAccessToken
-	err := s.query().
+	q := s.query()
+	if q == nil {
+		return nil, apperrors.ErrQueryFailed.WithMessage("orm query is nil")
+	}
+	err := q.Model(&models.PersonalAccessToken{}).
 		Where("tokenable_type", tokenableType).
 		Where("tokenable_id", tokenableID).
 		Order("created_at desc").
-		Find(&tokens)
-	return tokens, err
+		Get(&tokens)
+	if err != nil {
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "record not found") {
+			return []models.PersonalAccessToken{}, nil
+		}
+		return nil, err
+	}
+	if tokens == nil {
+		tokens = []models.PersonalAccessToken{}
+	}
+	return tokens, nil
 }
 
 func (s *TokenServiceImpl) UpdateLastUsedAt(token string) error {

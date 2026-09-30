@@ -87,7 +87,7 @@ export function unbindGoogleAuthenticator(data) {
 
 export function getAuthTokens() {
   return request({
-    url: '/auth/tokens',
+    url: '/auth/tokens/list',
     method: 'get'
   })
 }
@@ -101,7 +101,7 @@ export function revokeAuthToken(id) {
 
 export function revokeOtherAuthTokens() {
   return request({
-    url: '/auth/tokens',
+    url: '/auth/tokens/others',
     method: 'delete',
     params: { except_current: 1 }
   })

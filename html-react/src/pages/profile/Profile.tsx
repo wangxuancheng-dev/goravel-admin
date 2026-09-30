@@ -57,6 +57,7 @@ export default function ProfilePage() {
   const showError = useUnhandledError()
   const { getButtonState } = usePermission()
   const googleAuthPerm = getButtonState('google_authenticator.manage')
+  const sessionsPerm = getButtonState('auth_token.manage')
   const adminInfo = useUserStore((s) => s.adminInfo)
   const passwordPerm = getButtonState('password.update')
   const mustChangePassword = !!adminInfo?.must_change_password
@@ -444,9 +445,14 @@ export default function ProfilePage() {
             {
               key: 'sessions',
               label: t('profile.sessions'),
+              disabled: sessionsPerm.disabled,
               children: <ProfileSessionsPanel />,
             },
-          ].filter((item) => item.key !== '2fa' || googleAuthPerm.show))}
+          ].filter((item) => {
+            if (item.key === '2fa') return googleAuthPerm.show
+            if (item.key === 'sessions') return sessionsPerm.show
+            return true
+          }))}
         />
       </Card>
 
