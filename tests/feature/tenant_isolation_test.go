@@ -2,11 +2,13 @@ package feature_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -94,6 +96,31 @@ func TestDualTenantDatabaseIsolation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), foundInB, "marker must not leak into tenant B")
+
+	// OrmTransaction must bind the tenant connection and roll back on error.
+	txKey := "iso_tx_" + suffix
+	boundA := tenancyctx.WithTenant(context.Background(), ta.ID, ta.ConnectionName, ta.Code)
+	err = appfacades.OrmTransaction(boundA, func(tx orm.Query) error {
+		if err := tx.Table("configs").Create(map[string]any{
+			"key":    txKey,
+			"value":  "roll-back",
+			"group":  "test",
+			"type":   "string",
+			"remark": "orm transaction rollback",
+		}); err != nil {
+			return err
+		}
+		return errors.New("force rollback")
+	})
+	require.Error(t, err)
+	var txCount int64
+	err = conn.WithTenantConnection(ta, func() error {
+		var qErr error
+		txCount, qErr = appfacades.OrmQuery(boundA).Table("configs").Where("key", txKey).Count()
+		return qErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), txCount, "tenant OrmTransaction rollback must not leave row")
 
 	idxA := search.OrdersIndexShortNameFor(tenantCtx(ta))
 	idxB := search.OrdersIndexShortNameFor(tenantCtx(tb))
