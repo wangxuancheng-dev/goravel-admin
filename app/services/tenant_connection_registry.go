@@ -59,17 +59,41 @@ func markRegisteredLocked(connectionName string) {
 	touchRegisteredLocked(connectionName)
 }
 
-func forgetRegisteredLocked(connectionName string, freshORM bool) {
+// forgetRegisteredLocked drops registry state for connectionName.
+// teardown=true closes the pool and clears config (Forget / DropStorage).
+// teardown=false only evicts the Orm query cache (idle/max eviction) so a later
+// EnsureRegistered can rebuild without a process-wide Orm.Fresh().
+func forgetRegisteredLocked(connectionName string, teardown bool) {
 	if connectionName == "" {
 		return
 	}
 	delete(registeredAt, connectionName)
+	if teardown {
+		teardownTenantConnectionLocked(connectionName)
+		return
+	}
 	appfacades.EvictOrmConnectionCache(connectionName)
-	if freshORM {
-		if o := appfacades.Orm(); o != nil {
-			o.Fresh()
+}
+
+// teardownTenantConnectionLocked closes the pool and clears config for name.
+// Does not take registeredMu. Avoids Orm.Fresh() which breaks later feature
+// tests when DropStorage runs mid-suite.
+func teardownTenantConnectionLocked(connectionName string) {
+	appfacades.LockOrmConnectionBuild()
+	defer appfacades.UnlockOrmConnectionBuild()
+
+	// Close while DSN still present (DropStorage calls Forget before DROP DATABASE).
+	if facades.Config().GetString("database.connections."+connectionName+".database", "") != "" {
+		if to := appfacades.BuildOrmConnectionLocked(connectionName); to != nil {
+			if db, err := to.DB(); err == nil && db != nil {
+				_ = db.Close()
+			}
 		}
 	}
+	appfacades.EvictOrmConnectionCacheLocked(connectionName)
+	// Empty map (not nil): prevents driver init with a stale DSN after drop.
+	facades.Config().Add("database.connections."+connectionName, map[string]any{})
+	facades.Config().Add("database.connections."+connectionName+"_maint", map[string]any{})
 }
 
 // evictRegisteredLocked drops idle and/or oldest entries so a new registration can proceed.

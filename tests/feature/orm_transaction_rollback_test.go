@@ -113,10 +113,15 @@ func TestOrmTransactionRollbackTenant(t *testing.T) {
 		t.Skipf("skip tenant OrmTransaction rollback: cannot create tenant DB: %v", err)
 	}
 	t.Cleanup(func() {
+		connName := tn.ConnectionName
 		_ = conn.DropStorage(tn)
 		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
-		if def := facades.Config().GetString("database.default", "mysql"); def != "" {
-			facades.Schema().SetConnection(def)
+		// DropStorage/Forget must not leave schema or default on the dropped tenant DSN.
+		platform := appfacades.PlatformConnectionName()
+		facades.Config().Add("database.default", platform)
+		facades.Schema().SetConnection(platform)
+		if connName != "" {
+			facades.Config().Add("database.connections."+connName, map[string]any{})
 		}
 	})
 

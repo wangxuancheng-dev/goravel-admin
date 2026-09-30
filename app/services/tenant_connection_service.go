@@ -119,9 +119,18 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 
 	registeredMu.Lock()
 	if isRegisteredLocked(tenant.ConnectionName) {
-		touchRegisteredLocked(tenant.ConnectionName)
+		configuredDB := facades.Config().GetString("database.connections."+tenant.ConnectionName+".database", "")
+		// Rebind when config was cleared (Forget) or points at another tenant DB
+		// (connection name reuse after DropStorage without a full Orm.Fresh).
+		if configuredDB != "" && (tenant.Database == "" || configuredDB == tenant.Database) {
+			touchRegisteredLocked(tenant.ConnectionName)
+			registeredMu.Unlock()
+			return nil
+		}
+		delete(registeredAt, tenant.ConnectionName)
 		registeredMu.Unlock()
-		return nil
+		teardownTenantConnectionLocked(tenant.ConnectionName)
+		registeredMu.Lock()
 	}
 	evicted := evictRegisteredLocked(tenant.ConnectionName)
 	registeredMu.Unlock()
@@ -203,8 +212,11 @@ func (s *TenantConnectionService) Forget(connectionName string) {
 	registerMu.Lock()
 	defer registerMu.Unlock()
 	registeredMu.Lock()
-	forgetRegisteredLocked(connectionName, true)
+	delete(registeredAt, connectionName)
 	registeredMu.Unlock()
+	// Close pool + clear config. Do not Orm.Fresh() — that mid-suite wipe left
+	// stale DSNs (e.g. tenant_txrb*) and broke later feature tests.
+	teardownTenantConnectionLocked(connectionName)
 }
 
 // ValidateTenantCredentials enforces dedicated DB users for remote hosts.
@@ -819,6 +831,16 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 
 	schema := facades.Schema()
 	prevConn := schema.GetConnection()
+	platformConn := appfacades.PlatformConnectionName()
+	restoreConn := prevConn
+	if restoreConn == "" {
+		restoreConn = platformConn
+	} else if strings.HasPrefix(restoreConn, "tenant_") &&
+		facades.Config().GetString("database.connections."+restoreConn+".database", "") == "" {
+		// Never restore onto a tenant_* name after Forget cleared its DSN —
+		// that re-inits dropped DBs (e.g. tenant_txrb*) and breaks later tests.
+		restoreConn = platformConn
+	}
 	// Always evict: Orm.Connection cache can report tenant DatabaseName while
 	// Query still uses the platform default DB (unqualified CREATE hits platform).
 	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
@@ -840,12 +862,12 @@ func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn
 				got = schema.Orm().DatabaseName()
 			}
 			if want != "" && got != want {
-				schema.SetConnection(prevConn)
+				schema.SetConnection(restoreConn)
 				return fmt.Errorf("tenant schema DATABASE()=%s want %s (orm connection cache)", got, want)
 			}
 		}
 	}
-	defer schema.SetConnection(prevConn)
+	defer schema.SetConnection(restoreConn)
 
 	if db, err := schema.Orm().DB(); err == nil && db != nil {
 		applyTenantPoolLimits(db)
