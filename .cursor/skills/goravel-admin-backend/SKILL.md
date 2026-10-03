@@ -5,6 +5,9 @@ description: Implements backend features in this Goravel admin project using cod
 
 # Goravel Admin Backend
 
+## Comments language
+Write new/edited code comments and Go docstrings in **English (ASCII)**. Put user-facing Chinese only in `lang/` i18n JSON. See `.cursor/rules/utf8-encoding.mdc`.
+
 ## Canonical response format (must match)
 All API responses are JSON and use the helpers in `app/http/response/response.go`.
 

@@ -7,6 +7,7 @@ description: Implements the Vue 3 + Vite admin frontend in html/ using the exist
 
 ## Project basics (assume by default)
 - Tech stack: Vue 3, Vite, TypeScript, Element Plus, Pinia, Vue Router, vue-i18n.
+- **Comments:** English (ASCII) in source; user-facing Chinese only in `html/src/i18n/locales/zh-CN.json`. See `.cursor/rules/utf8-encoding.mdc`.
 - Source root: `html/src` with alias `@` configured in `html/vite.config.js`.
 - API modules live in `html/src/api/*.js` and call `request` from `html/src/utils/request.js`.
 - **Dual frontend (required sync):** Vue and React are both supported admin UIs. New/changed admin features must be mirrored in `html-react/` in the same change set so neither side lags. Prefer matching React patterns when both exist; for React-only work under `html-react/`, use `goravel-admin-frontend-react`, then sync Vue here.

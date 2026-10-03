@@ -7,6 +7,7 @@ description: Implements the React 19 + Vite admin frontend in html-react/ using 
 
 ## Project basics
 - Tech stack: React 19, Vite, TypeScript, Ant Design 6, Zustand, React Router 7, react-i18next.
+- **Comments:** English (ASCII) in source; user-facing Chinese only in `html-react/src/i18n/locales/zh-CN.json`. See `.cursor/rules/utf8-encoding.mdc`.
 - Source root: `html-react/src` with alias `@`.
 - API modules: `html-react/src/api/*.ts` via `request` from `utils/request.ts`.
 - **Dual frontend (required sync):** Admin features must ship in **both** `html-react/` and `html/` in the same change set. Prefer implementing/adjusting the React page first as the pattern reference, then mirror to Vue so Vue users never miss the feature. Do not ship React-only or Vue-only admin features unless the user explicitly scopes one frontend.
