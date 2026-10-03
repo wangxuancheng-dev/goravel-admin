@@ -33,6 +33,9 @@ func TestReactListPageTemplatePreview(t *testing.T) {
 	if !strings.Contains(code, "getButtonState('article.update')") {
 		t.Fatal("status switch must use root ModuleName via $.ModuleName")
 	}
+	if strings.Contains(code, "normalizeRows") {
+		t.Fatal("react list page must not set normalizeRows; API normalizeListResponse is the boundary")
+	}
 	if strings.Contains(code, "<<") || strings.Contains(code, ">>>") {
 		t.Fatalf("template delimiters leaked into output")
 	}

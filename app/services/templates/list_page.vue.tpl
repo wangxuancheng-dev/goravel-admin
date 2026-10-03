@@ -202,7 +202,6 @@ const {
   defaultSort: 'id:desc',
   <<if .HasDelete>>deleteApi: delete<<.ModelName>>,<<end>>
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),
-  normalizeRows: false
 })
 
 <<if .HasImport>>

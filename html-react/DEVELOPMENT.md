@@ -71,14 +71,14 @@ export const deleteWidget = widgetApi.delete
 
 ```tsx
 const { tableData, onSearchFormChange, handleSearch, handleReset, ... } = useListPage<Row, SearchForm>({
-  fetchApi: getWidgetList,
+  fetchApi: getWidgetList, // API module should call normalizeListResponse
   initialSearchForm,
-  normalizeRows: true,
   transformData: transformWidgetRow,
 })
 ```
 
 - 搜索表单用 `onSearchFormChange`，不要 `as never`
+- 列表字段归一化只放在 API 的 `normalizeListResponse`，不要在 `useListPage` 再做一遍
 - `*.config.ts` 放 `initialSearchForm`、行类型、`transform*Row`
 - 页面文件放到 `src/pages/**`，菜单 `component` 填 `widget/WidgetList` 即可被动态路由加载
 

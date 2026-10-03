@@ -98,7 +98,6 @@ export default function OrderList() {
     fetchApi: getOrderList,
     initialSearchForm: initialSearch,
     defaultSort: 'created_at:desc',
-    normalizeRows: true,
     transformData: (row) => {
       const record = row
       return {

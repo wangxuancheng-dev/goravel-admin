@@ -65,7 +65,6 @@ export default function UserList() {
     fetchApi: getUserList,
     initialSearchForm: userInitialSearchForm,
     defaultSort: 'id:desc',
-    normalizeRows: true,
     transformData: transformUserRow,
   })
 

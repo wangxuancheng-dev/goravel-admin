@@ -21,7 +21,7 @@ export interface PaginatedData<T = unknown> {
 }
 
 /**
- * List API accepted by useListPage / useTableData.
+ * List API accepted by useListPage.
  * Row type is refined by transformData (or cast when omitted).
  */
 export type ListFetchFn = (

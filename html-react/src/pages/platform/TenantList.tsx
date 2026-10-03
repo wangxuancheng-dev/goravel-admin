@@ -479,7 +479,6 @@ export default function PlatformTenantList() {
       trashed: '',
     },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => {
       const record = row
       return {

@@ -114,7 +114,6 @@ const {
   initialSearchForm: loginLogInitialSearchForm,
   defaultSort: 'id:desc',
   deleteApi: deleteLoginLog,
-  normalizeRows: false,
   transformData: transformLoginLogRow,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })

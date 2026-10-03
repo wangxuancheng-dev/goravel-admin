@@ -49,7 +49,6 @@ export default function PlatformSystemLogList() {
     fetchApi: getPlatformSystemLogList,
     initialSearchForm,
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => transformSystemLogRow(row as unknown as Record<string, unknown>),
   })
 

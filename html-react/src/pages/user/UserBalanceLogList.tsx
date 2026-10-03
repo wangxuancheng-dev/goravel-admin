@@ -57,7 +57,6 @@ export default function UserBalanceLogList() {
     fetchApi: getUserBalanceLogList,
     initialSearchForm: { user_id: userId, type: '', source: '' },
     defaultSort: 'id:desc',
-    normalizeRows: true,
     transformData: (row) => {
       const record = row
       return {

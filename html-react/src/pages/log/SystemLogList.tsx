@@ -63,7 +63,6 @@ export default function SystemLogList() {
     fetchApi: getSystemLogList,
     initialSearchForm: { ...systemLogInitialSearchForm },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => transformSystemLogRow(row as unknown as Record<string, unknown>),
     onSearch: () => setSelectedRowKeys([]),
     onReset: () => setSelectedRowKeys([]),

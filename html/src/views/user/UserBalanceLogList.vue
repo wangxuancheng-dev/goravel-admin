@@ -141,7 +141,6 @@ const {
   initialSearchForm: initialSearchValues,
   buildParams: buildBalanceLogParams,
   defaultSort: 'id:desc',
-  normalizeRows: false,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })
 

@@ -14,34 +14,9 @@ import (
 	"goravel/app/utils"
 )
 
-// getTimeInputOrQueryUTC 按 query 优先、input 兜底读取时间并转换为 UTC
-func getTimeInputOrQueryUTC(ctx http.Context, paramName string) string {
-	return helpers.GetTimeInputOrQueryParam(ctx, paramName)
-}
-
-// getTimeQueryUTC 读取 query/body 时间参数并转换为 UTC
-func getTimeQueryUTC(ctx http.Context, paramName string) string {
-	return helpers.GetTimeInputOrQueryParam(ctx, paramName)
-}
-
-// parseOptionalTimeFromInputOrQuery 读取并解析可选时间参数，失败返回统一错误响应
-func parseOptionalTimeFromInputOrQuery(ctx http.Context, paramName, invalidKey string) (time.Time, http.Response) {
-	timeStr := getTimeInputOrQueryUTC(ctx, paramName)
-	if timeStr == "" {
-		return time.Time{}, nil
-	}
-
-	parsedTime, err := utils.ParseDateTime(timeStr)
-	if err != nil {
-		return time.Time{}, response.Error(ctx, nethttp.StatusBadRequest, invalidKey)
-	}
-
-	return parsedTime, nil
-}
-
-// parseOptionalTimeFromQuery 仅从 query 读取并解析可选时间参数
+// parseOptionalTimeFromQuery reads an optional time param (query preferred, input fallback) as UTC.
 func parseOptionalTimeFromQuery(ctx http.Context, paramName, invalidKey string) (time.Time, http.Response) {
-	timeStr := getTimeQueryUTC(ctx, paramName)
+	timeStr := helpers.GetTimeInputOrQueryParam(ctx, paramName)
 	if timeStr == "" {
 		return time.Time{}, nil
 	}
@@ -54,7 +29,7 @@ func parseOptionalTimeFromQuery(ctx http.Context, paramName, invalidKey string) 
 	return parsedTime, nil
 }
 
-// validateTimeRangeResponse 验证时间范围，失败时返回统一错误响应
+// validateTimeRangeResponse validates a time range and returns a unified error response on failure.
 func validateTimeRangeResponse(ctx http.Context, startTime, endTime time.Time, maxMonths ...int) http.Response {
 	valid, err := utils.ValidateTimeRange(startTime, endTime, maxMonths...)
 	if valid {

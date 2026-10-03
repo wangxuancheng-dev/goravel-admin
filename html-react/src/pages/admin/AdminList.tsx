@@ -61,7 +61,6 @@ export default function AdminList() {
     fetchApi: getAdminList,
     initialSearchForm: adminInitialSearchForm,
     defaultSort: 'id:desc',
-    normalizeRows: true,
     transformData: transformAdminRow,
   })
 

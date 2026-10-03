@@ -164,7 +164,6 @@ const {
   fetchApi: getPaymentList,
   initialSearchForm: paymentInitialSearchForm,
   defaultSort: 'created_at:desc',
-  normalizeRows: false,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })
 

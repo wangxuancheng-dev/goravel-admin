@@ -91,12 +91,6 @@ func ClientHint(ctx http.Context) string {
 	return raw
 }
 
-// HTTPHint resolves the tenant hint for middleware (no explicit body override).
-func HTTPHint(ctx http.Context) string {
-	hint, _ := ResolveHint(ctx, "")
-	return hint
-}
-
 // ResolveHint picks the effective tenant code/id for binding.
 // Priority for subdomain resolver: Host subdomain > (optional) client/body hint.
 // When subdomain is present and clientHint conflicts, returns ErrTenantHintConflict.

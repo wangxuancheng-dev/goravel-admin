@@ -78,15 +78,15 @@ Wire the list with:
 ```ts
 const { tableData, loading, searchForm, onSearchFormChange, handleSearch, handleReset, ... } =
   useListPage<Row, typeof initialSearchForm>({
-    fetchApi: getXList,
+    fetchApi: getXList, // must call normalizeListResponse in the API module
     initialSearchForm,
-    normalizeRows: true,
     transformData: transformXRow,
   })
 ```
 
 - Prefer `onSearchFormChange` for `SearchForm` (no `as never`).
 - Put search defaults / row mapping in `*.config.ts`, not inline in the List file when non-trivial.
+- Do **not** re-normalize list rows in `useListPage`; keep `normalizeListResponse` at the API boundary. Use `entityField` only for nested/detail payloads that may still be mixed-case.
 
 ### Do not mix
 Do not hand-roll a near-duplicate of `SimpleCrudPage` for simple modules. Do not force complex modules into `SimpleCrudPage`.

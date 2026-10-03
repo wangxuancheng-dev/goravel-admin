@@ -106,7 +106,6 @@ export default function SimpleCrudPage<T extends SimpleCrudRow>(props: SimpleCru
   } = useListPage<T>({
     fetchApi: props.fetchApi,
     initialSearchForm: props.initialSearchForm || {},
-    normalizeRows: true,
     transformData: transformRow,
   })
 

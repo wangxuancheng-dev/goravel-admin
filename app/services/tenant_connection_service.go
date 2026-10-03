@@ -93,11 +93,6 @@ func DefaultTenantSchemaName(code string) string {
 	return prefix + code
 }
 
-// TenancyEnabled is an alias of tenancy.Enabled.
-func TenancyEnabled() bool {
-	return tenancy.Enabled()
-}
-
 type TenantConnectionService struct{}
 
 func NewTenantConnectionService() *TenantConnectionService {
@@ -664,11 +659,6 @@ func (s *TenantConnectionService) FindTenantByIDOrCode(idOrCode string) (*models
 		return nil, apperrors.ErrTenantNotFound
 	}
 	return &tenant, nil
-}
-
-// ExtractTenantHint 从 Header / Query 取租户标识
-func ExtractTenantHint(ctx http.Context) string {
-	return tenancy.HTTPHint(ctx)
 }
 
 // BindHTTP 解析租户、注册连接并写入 HTTP context。

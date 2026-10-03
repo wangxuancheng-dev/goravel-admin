@@ -185,7 +185,6 @@ const {
   fetchApi: getNotificationList,
   initialSearchForm: notificationInitialSearchForm,
   defaultSort: 'id:desc',
-  normalizeRows: false,
   transformData: transformNotificationRow,
   buildParams: buildNotificationParams,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),

@@ -82,7 +82,6 @@ export default function OperationLogList() {
     fetchApi: getOperationLogList,
     initialSearchForm: createOperationLogInitialSearchForm(),
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => transformOperationLogRow(row as unknown as Record<string, unknown>),
     onSearch: () => setSelectedRowKeys([]),
     onReset: () => setSelectedRowKeys([]),

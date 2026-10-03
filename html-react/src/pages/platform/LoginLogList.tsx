@@ -48,7 +48,6 @@ export default function PlatformLoginLogList() {
     fetchApi: getPlatformLoginLogList,
     initialSearchForm: { username: '', ip: '', status: '' },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => ({
       id: entityField(row, 'id', '')!,
       username: String(entityField(row, 'username', '') ?? ''),

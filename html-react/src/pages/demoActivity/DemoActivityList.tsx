@@ -71,7 +71,6 @@ export default function DemoActivityList() {
   } = useListPage<DemoActivityRow>({
     fetchApi: getDemoActivityList,
     initialSearchForm: { title: '' },
-    normalizeRows: true,
   })
 
   const statusLabel = (status?: number) => {

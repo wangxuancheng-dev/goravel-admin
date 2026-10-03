@@ -50,7 +50,6 @@ export default function NotificationList() {
     fetchApi: getNotificationList,
     initialSearchForm: notificationInitialSearchForm,
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => transformNotificationRow(row as unknown as Record<string, unknown>),
     buildParams: buildNotificationParams,
     onLoadSuccess: (_rows, res) => {

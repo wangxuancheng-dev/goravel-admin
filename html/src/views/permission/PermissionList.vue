@@ -117,7 +117,6 @@ const {
   defaultSort: 'id:desc',
   deleteApi: deletePermission,
   requireSensitiveConfirm: true,
-  normalizeRows: false,
   immediate: false,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })

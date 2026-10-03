@@ -51,7 +51,6 @@ export default function PlatformAlertDeliveryList() {
     fetchApi: getPlatformAlertDeliveryList,
     initialSearchForm: { event: '', status: '', channel: '', tenant_code: '' },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => ({
       id: entityField(row, 'id', '')!,
       channel: String(entityField(row, 'channel', '') ?? ''),

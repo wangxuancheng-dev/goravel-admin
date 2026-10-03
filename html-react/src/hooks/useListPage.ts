@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildSearchParams } from '@/utils/buildSearchParams'
-import { useTableData } from './useTableData'
-import type { ApiResponse, ListFetchFn, PaginatedData } from '@/types'
+import logger from '@/utils/logger'
+import type { ApiResponse, ListFetchFn, PaginatedData, PaginationState } from '@/types'
 
 export interface UseListPageOptions<T, S extends Record<string, unknown>> {
   fetchApi: ListFetchFn
@@ -14,7 +14,6 @@ export interface UseListPageOptions<T, S extends Record<string, unknown>> {
   onSearch?: (() => void) | null
   onReset?: (() => void) | null
   selectionIdKey?: string
-  normalizeRows?: boolean
   autoLoad?: boolean
 }
 
@@ -43,25 +42,61 @@ export function useListPage<T = Record<string, unknown>, S extends Record<string
     onSearch = null,
     onReset = null,
     selectionIdKey = 'id',
-    normalizeRows = false,
     autoLoad = true,
   } = options
 
   const [searchForm, setSearchForm] = useState<S>({ ...initialSearchForm })
   const [selectedRows, setSelectedRows] = useState<T[]>([])
   const [orderBy, setOrderBy] = useState(defaultSort)
+  const [pagination, setPagination] = useState<PaginationState>({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+  })
+  const [tableData, setTableData] = useState<T[]>([])
+  const [loading, setLoading] = useState(false)
 
   const searchFormRef = useRef(searchForm)
   const orderByRef = useRef(orderBy)
   searchFormRef.current = searchForm
   orderByRef.current = orderBy
 
-  const { pagination, setPagination, tableData, loading, loadData: baseLoadData } = useTableData<T>({
-    fetchApi,
-    transformData,
-    onLoadSuccess,
-    normalizeRows,
-  })
+  const fetchRows = useCallback(
+    async (params: Record<string, unknown> = {}) => {
+      setLoading(true)
+      try {
+        const res = await fetchApi(params)
+        const rawList = (res.data?.list ?? res.data?.data ?? []) as unknown[]
+        let rows: T[] = []
+
+        if (Array.isArray(rawList)) {
+          rows = rawList.map((item) => {
+            const row = item as Record<string, unknown>
+            if (transformData) {
+              return transformData(row)
+            }
+            return row as T
+          })
+        }
+
+        setTableData(rows)
+        setPagination((prev) => ({
+          ...prev,
+          page: Number(params.page ?? prev.page),
+          pageSize: Number(params.page_size ?? prev.pageSize),
+          total: Number(res.data?.total ?? 0),
+        }))
+
+        onLoadSuccess?.(rows, res)
+      } catch (error) {
+        logger.error('loadData failed:', error)
+        throw error
+      } finally {
+        setLoading(false)
+      }
+    },
+    [fetchApi, transformData, onLoadSuccess],
+  )
 
   const loadData = useCallback(
     async (
@@ -90,9 +125,9 @@ export function useListPage<T = Record<string, unknown>, S extends Record<string
           ? buildParams(searchFormRef.current, baseParams)
           : buildSearchParams(searchFormRef.current, baseParams)
 
-      await baseLoadData(params)
+      await fetchRows(params)
     },
-    [pagination.page, pagination.pageSize, setPagination, buildParams, baseLoadData],
+    [pagination.page, pagination.pageSize, buildParams, fetchRows],
   )
 
   const loadDataRef = useRef(loadData)
@@ -106,7 +141,7 @@ export function useListPage<T = Record<string, unknown>, S extends Record<string
     onSearch?.()
     setPagination((prev) => ({ ...prev, page: 1 }))
     void loadData({ currentPage: 1 })
-  }, [onSearch, setPagination, loadData])
+  }, [onSearch, loadData])
 
   const handleReset = useCallback(() => {
     onReset?.()
@@ -117,7 +152,7 @@ export function useListPage<T = Record<string, unknown>, S extends Record<string
     setTimeout(() => {
       void loadDataRef.current({ currentPage: 1 }, defaultSort)
     }, 0)
-  }, [onReset, initialSearchForm, defaultSort, setPagination])
+  }, [onReset, initialSearchForm, defaultSort])
 
   /** Compatible with SearchForm.onChange without page-level casts. */
   const onSearchFormChange = useCallback((values: Record<string, unknown>) => {
@@ -132,7 +167,7 @@ export function useListPage<T = Record<string, unknown>, S extends Record<string
       setPagination((prev) => ({ ...prev, page: 1 }))
       void loadData({ currentPage: 1 }, next)
     },
-    [fieldMapping, defaultSort, setPagination, loadData],
+    [fieldMapping, defaultSort, loadData],
   )
 
   const selectedIds = selectedRows.map((row) => {

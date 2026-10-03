@@ -58,7 +58,6 @@ export default function LoginLogList() {
     fetchApi: getLoginLogList,
     initialSearchForm: { ...loginLogInitialSearchForm },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => transformLoginLogRow(row as unknown as Record<string, unknown>),
     onSearch: () => setSelectedRowKeys([]),
     onReset: () => setSelectedRowKeys([]),

@@ -66,7 +66,6 @@ export default function <<.ModelName>>List() {
   } = useListPage<< "<" >><<.ModelName>>Row<< ">" >>({
     fetchApi: get<<.ModelName>>List,
     initialSearchForm: <<.ModuleNameCamel>>InitialSearchForm,
-    normalizeRows: true,
     transformData: transform<<.ModelName>>Row,
     buildParams: build<<.ModelName>>ListParams,
   })

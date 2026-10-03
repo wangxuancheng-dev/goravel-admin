@@ -99,14 +99,6 @@ func ReleaseLock(lockKey, lockValue string, client *redis.Client) error {
 	return nil
 }
 
-// CloseLockClient 关闭锁的 Redis 客户端
-// 注意：由于现在使用公共 Redis 客户端池，通常不需要手动关闭
-// 此函数保留用于兼容性，但不会真正关闭客户端（客户端由连接池管理）
-func CloseLockClient(client *redis.Client) {
-	// 使用公共 Redis 客户端池，不需要手动关闭
-	// 客户端由连接池统一管理
-}
-
 // tryAcquireLockWithCache 使用缓存实现锁（降级方案，不保证原子性）
 // 注意：由于缓存操作的检查-设置不是原子的，在高并发下可能仍有竞态条件
 // 但至少可以提供基本的保护
@@ -197,8 +189,7 @@ func (g *LockGuard) Release() {
 		if err := ReleaseLock(g.lockKey, g.lockValue, g.client); err != nil {
 			facades.Log().Errorf("释放 Redis 锁失败: key=%s, error=%v", g.lockKey, err)
 		}
-		CloseLockClient(g.client)
-		g.client = nil // 防止重复关闭
+		g.client = nil
 	} else {
 		// 使用缓存时，直接删除
 		_ = facades.Cache().Forget(g.lockKey)

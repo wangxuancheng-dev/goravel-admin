@@ -113,7 +113,6 @@ const {
 } = useListPage<WidgetRow, WidgetSearchForm>({
   fetchApi: getWidgetList,
   initialSearchForm: widgetInitialSearchForm,
-  normalizeRows: true,
   transformData: transformWidgetRow,
 })
 

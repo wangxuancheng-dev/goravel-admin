@@ -181,7 +181,6 @@ const {
   initialSearchForm: operationLogInitialSearchForm,
   defaultSort: 'id:desc',
   deleteApi: deleteOperationLog,
-  normalizeRows: false,
   transformData: transformOperationLogRow,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })

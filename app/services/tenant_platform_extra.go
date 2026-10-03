@@ -245,13 +245,8 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 	return removed, nil
 }
 
-// ListForBatchOp returns tenants for batch seed/backup/migrate.
-func (s *TenantAdminService) ListForBatchOp(ids []uint, provisionStatus string, status *uint8, limit int) ([]models.Tenant, error) {
-	return s.ListForBatchOpFiltered(ids, provisionStatus, status, "", "", limit)
-}
-
-// ListForBatchOpFiltered is ListForBatchOp plus optional last_op / last_op_status filters
-// (e.g. retry all seed failures: last_op=seed, last_op_status=failed).
+// ListForBatchOpFiltered returns tenants for batch seed/backup/migrate,
+// with optional last_op / last_op_status filters (e.g. last_op=seed, last_op_status=failed).
 func (s *TenantAdminService) ListForBatchOpFiltered(ids []uint, provisionStatus string, status *uint8, lastOp, lastOpStatus string, limit int) ([]models.Tenant, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, err

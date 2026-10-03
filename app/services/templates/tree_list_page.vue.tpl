@@ -173,7 +173,6 @@ const {
   fetchApi: get<<.ModelName>>List,
   initialSearchForm: <<.ModuleNameCamel>>InitialSearchForm,
   buildParams: build<<.ModelName>>ListParams,
-  normalizeRows: false
 })
 
 const hasSearch = computed(() => {

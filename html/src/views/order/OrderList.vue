@@ -306,7 +306,6 @@ const {
   fetchApi: getOrderList,
   initialSearchForm: orderInitialSearchForm,
   defaultSort: 'created_at:desc',
-  normalizeRows: false,
   tableRef: computed(() => tableRef.value)
 })
 

@@ -104,7 +104,6 @@ export default function AttachmentList() {
     fetchApi: getAttachmentList,
     initialSearchForm: { ...attachmentInitialSearchForm },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => transformAttachmentRow(row as unknown as Record<string, unknown>),
     onLoadSuccess: (rows, res) => {
       if (typeof res?.data?.chunk_upload_supported === 'boolean') {

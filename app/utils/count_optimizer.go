@@ -9,8 +9,6 @@ import (
 	"time"
 
 	appfacades "goravel/app/facades"
-
-	"github.com/goravel/framework/contracts/database/orm"
 )
 
 // CountOptimizer 分页统计优化器
@@ -33,23 +31,6 @@ func NewCountOptimizer(ctx context.Context, threshold int64, moduleName string) 
 		Threshold:  threshold,
 		ModuleName: moduleName,
 	}
-}
-
-// OptimizedCount 优化的 count 查询（使用 ORM Query 对象）
-// query: ORM 查询对象（已应用筛选条件，但未应用排序和分页）
-// 注意：此方法会先尝试估算，如果失败则使用实际 count
-// 返回：总数、是否使用估算值、错误
-func (co *CountOptimizer) OptimizedCount(query orm.Query) (int64, bool, error) {
-	// 先尝试执行实际 count（如果数据量小，直接 count 也很快）
-	// 如果数据量大，我们可以通过执行时间来判断，但更简单的方法是先估算
-	// 这里我们提供一个简化版本：直接使用实际 count，如果慢的话可以后续优化
-
-	// 由于无法直接从 ORM Query 提取 SQL，这里提供一个变通方案：
-	// 先执行一次快速查询获取估算值（需要表名）
-	// 但更推荐使用 OptimizedCountWithTable 方法
-
-	actualCount, err := query.Count()
-	return actualCount, false, err
 }
 
 // extractRowsFromPostgreSQLExplain 从 PostgreSQL EXPLAIN JSON 结果中提取行数

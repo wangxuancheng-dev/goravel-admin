@@ -1,6 +1,5 @@
 export { usePermission } from './usePermission'
 export { useListPage } from './useListPage'
-export { useTableData } from './useTableData'
 export { useOptions } from './useOptions'
 export { useUnhandledError } from './useUnhandledError'
 export { useAttachmentChunkUpload } from './useAttachmentChunkUpload'

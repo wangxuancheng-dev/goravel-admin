@@ -69,7 +69,6 @@ export default function ImportList() {
       start_time: '',
       end_time: '',
     },
-    normalizeRows: false,
     transformData: (row) => transformImportRow(row as unknown as Record<string, unknown>),
   })
 

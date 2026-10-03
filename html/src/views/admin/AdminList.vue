@@ -160,7 +160,6 @@ const {
   initialSearchForm: adminInitialSearchForm,
   defaultSort: 'id:desc',
   deleteApi: deleteAdmin,
-  normalizeRows: false,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),
   beforeDelete: (row) => {
     if (isProtectedAdmin(row.id)) {

@@ -62,7 +62,6 @@ export default function PaymentList() {
     fetchApi: getPaymentList,
     initialSearchForm,
     defaultSort: 'created_at:desc',
-    normalizeRows: true,
     transformData: (row) => {
       const record = row
       return {

@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { getSevenDaysAgo } from '@/utils/dateUtils'
 import { entityField } from '@/utils/normalize'
 
 export interface OrderSearchForm {
@@ -10,10 +11,6 @@ export interface OrderSearchForm {
   start_time: string
   end_time: string
   [key: string]: unknown
-}
-
-export function getSevenDaysAgo(): string {
-  return dayjs().subtract(7, 'day').startOf('day').format('YYYY-MM-DD HH:mm:ss')
 }
 
 export function createOrderInitialSearchForm(): OrderSearchForm {
@@ -34,9 +31,6 @@ export function formatOrderAmount(amount: unknown): string {
   if (Number.isNaN(n)) return '-'
   return `¥${n.toFixed(2)}`
 }
-
-/** Alias used by create form total display. */
-export const formatAmount = formatOrderAmount
 
 export function formatOrderTime(time: unknown): string {
   if (!time) return '-'

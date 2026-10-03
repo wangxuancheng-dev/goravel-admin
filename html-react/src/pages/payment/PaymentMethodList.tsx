@@ -57,7 +57,6 @@ export default function PaymentMethodList() {
     fetchApi: getPaymentMethodList,
     initialSearchForm: paymentMethodInitialSearchForm,
     defaultSort: 'sort:asc,id:desc',
-    normalizeRows: true,
     transformData: (row) => {
       const record = row
       return {

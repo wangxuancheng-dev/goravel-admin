@@ -65,7 +65,6 @@ export default function OnlineAdminList() {
     initialSearchForm: { username: '', ip: '', browser: '', os: '' },
     fieldMapping: { last_active: 'last_used_at' },
     defaultSort: 'last_used_at:desc',
-    normalizeRows: false,
     transformData: (row) => {
       const record = row
       return {

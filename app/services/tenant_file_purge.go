@@ -76,11 +76,3 @@ func PurgeTenantLocalBackups(code string) error {
 	}
 	return nil
 }
-
-// PurgeTenantFiles clears object-storage prefix and local SQL backup dumps for the tenant code.
-func PurgeTenantFiles(code string) error {
-	if err := PurgeTenantObjectStorage(code); err != nil {
-		return err
-	}
-	return PurgeTenantLocalBackups(code)
-}

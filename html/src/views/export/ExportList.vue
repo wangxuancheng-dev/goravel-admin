@@ -117,7 +117,6 @@ const {
   defaultSort: 'id:desc',
   deleteApi: deleteExport,
   batchDeleteApi: batchDeleteExports,
-  normalizeRows: false,
   transformData: transformExportRow,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })

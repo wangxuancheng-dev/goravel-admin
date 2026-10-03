@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 )
@@ -150,16 +149,6 @@ func convertFromUint64[T any](v uint64) (T, bool) {
 	default:
 		return zero, false
 	}
-}
-
-// MustGetValue 从 map[string]any 中获取值，如果不存在或类型不匹配则 panic
-// 仅在确定值存在且类型正确时使用
-func MustGetValue[T any](m map[string]any, key string) T {
-	val, ok := GetValue[T](m, key)
-	if !ok {
-		panic(fmt.Sprintf("key %s not found or type mismatch in map", key))
-	}
-	return val
 }
 
 // FillFiltersFromMap 从 map[string]any 填充 Filters 结构体

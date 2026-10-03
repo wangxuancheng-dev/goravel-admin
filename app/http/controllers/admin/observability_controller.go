@@ -149,8 +149,8 @@ func (r *ObservabilityController) AuditTimeline(ctx ghttp.Context) ghttp.Respons
 		pageSize = 100
 	}
 
-	startTime := getTimeQueryUTC(ctx, "start_time")
-	endTime := getTimeQueryUTC(ctx, "end_time")
+	startTime := helpers.GetTimeInputOrQueryParam(ctx, "start_time")
+	endTime := helpers.GetTimeInputOrQueryParam(ctx, "end_time")
 
 	events, err := r.observabilityService(ctx).CollectAuditEvents(traceID, keyword, adminID, startTime, endTime)
 	if err != nil {

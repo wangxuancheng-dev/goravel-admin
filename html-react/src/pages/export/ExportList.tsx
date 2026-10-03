@@ -88,7 +88,6 @@ export default function ExportList({ embedded = false }: { embedded?: boolean } 
       start_time: '',
       end_time: '',
     },
-    normalizeRows: false,
     transformData: (row) => transformExportRow(row as unknown as Record<string, unknown>),
   })
 

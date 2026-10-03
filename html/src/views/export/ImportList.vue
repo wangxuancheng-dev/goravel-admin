@@ -94,7 +94,6 @@ const {
   initialSearchForm,
   defaultSort: 'id:desc',
   deleteApi: deleteImport,
-  normalizeRows: false,
   transformData: (row) => ({
     id: row.id,
     type: row.type || '',

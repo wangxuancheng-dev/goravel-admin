@@ -53,7 +53,6 @@ export default function PlatformOperationLogList() {
     fetchApi: getPlatformOperationLogList,
     initialSearchForm: { username: '', method: '', path: '', status: '' },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => ({
       id: entityField(row, 'id', '')!,
       username: String(entityField(row, 'username', '') ?? ''),

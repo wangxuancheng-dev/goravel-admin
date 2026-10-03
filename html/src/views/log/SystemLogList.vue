@@ -151,7 +151,6 @@ const {
   defaultSort: 'id:desc',
   deleteApi: deleteSystemLog,
   batchDeleteApi: batchDeleteSystemLogs,
-  normalizeRows: false,
   transformData: transformSystemLogRow,
   tableRef: computed(() => getTable()),
   onSearch: () => {

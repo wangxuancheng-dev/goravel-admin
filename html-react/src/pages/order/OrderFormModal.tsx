@@ -4,7 +4,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { createOrder } from '@/api/order'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
-import { formatAmount } from './order.config'
+import { formatOrderAmount } from './order.config'
 
 interface ProductLine {
   key: string
@@ -207,7 +207,7 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
                   width: 120,
                   align: 'right',
                   render: (_, row) => (
-                    <span style={{ fontWeight: 600 }}>{formatAmount((row.price || 0) * (row.quantity || 0))}</span>
+                    <span style={{ fontWeight: 600 }}>{formatOrderAmount((row.price || 0) * (row.quantity || 0))}</span>
                   ),
                 },
                 {
@@ -231,7 +231,7 @@ export default function OrderFormModal({ open, onClose, onSuccess }: OrderFormMo
         </Form.Item>
 
         <Form.Item label={t('order.amount')}>
-          <Input value={formatAmount(totalAmount)} disabled />
+          <Input value={formatOrderAmount(totalAmount)} disabled />
         </Form.Item>
 
         <Form.Item

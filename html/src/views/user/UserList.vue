@@ -147,7 +147,6 @@ const {
   initialSearchForm: userInitialSearchForm,
   defaultSort: 'id:desc',
   deleteApi: deleteUser,
-  normalizeRows: false,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })
 

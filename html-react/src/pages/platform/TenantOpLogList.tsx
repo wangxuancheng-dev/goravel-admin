@@ -60,7 +60,6 @@ export default function PlatformTenantOpLogList() {
     fetchApi: getPlatformTenantOpLogList,
     initialSearchForm: { code: initialCode, op: '', status: '', batch_id: '', operator: '' },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => ({
       id: entityField(row, 'id', '')!,
       code: String(entityField(row, 'code', '') ?? ''),

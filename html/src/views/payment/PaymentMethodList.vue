@@ -95,7 +95,6 @@ const {
   initialSearchForm: paymentMethodInitialSearchForm,
   defaultSort: 'sort:asc,id:desc',
   deleteApi: deletePaymentMethod,
-  normalizeRows: false,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef)
 })
 

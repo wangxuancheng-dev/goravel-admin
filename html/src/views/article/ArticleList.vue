@@ -145,7 +145,6 @@ const {
   defaultSort: "id:desc",
   deleteApi: deleteArticle,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),
-  normalizeRows: false,
 });
 
 const { fileInputRef, isImporting, handleImport, handleFileChange } =

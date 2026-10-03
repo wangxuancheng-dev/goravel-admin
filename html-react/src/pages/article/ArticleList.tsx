@@ -58,7 +58,6 @@ export default function ArticleList() {
   } = useListPage<ArticleRow>({
     fetchApi: getArticleList,
     initialSearchForm: articleInitialSearchForm,
-    normalizeRows: true,
     transformData: transformArticleRow,
     buildParams: buildArticleListParams,
   })

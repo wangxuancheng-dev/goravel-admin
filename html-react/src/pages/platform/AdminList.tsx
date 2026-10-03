@@ -47,7 +47,6 @@ export default function PlatformAdminList() {
     fetchApi: getPlatformAdminList,
     initialSearchForm: { username: '', role: '', status: '' },
     defaultSort: 'id:desc',
-    normalizeRows: false,
     transformData: (row) => ({
       id: entityField(row, 'id', '')!,
       username: String(entityField(row, 'username', '') ?? ''),

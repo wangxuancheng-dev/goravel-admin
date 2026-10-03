@@ -16,11 +16,6 @@ const (
 	ContextKeyTenantCode       = tenancyctx.KeyTenantCode
 )
 
-// TenancyEnabled is an alias of tenancy.Enabled (single source of truth).
-func TenancyEnabled() bool {
-	return tenancy.Enabled()
-}
-
 // SetTenantContext writes tenant id / connection / code onto the HTTP context.
 func SetTenantContext(ctx http.Context, tenantID uint, connectionName, code string) {
 	if ctx == nil {

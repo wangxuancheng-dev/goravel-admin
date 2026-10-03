@@ -37,7 +37,6 @@ export default function RoleList() {
   } = useListPage<RoleRow, typeof roleInitialSearchForm>({
     fetchApi: getRoleList,
     initialSearchForm: roleInitialSearchForm,
-    normalizeRows: true,
     transformData: transformRoleRow,
   })
 

@@ -579,7 +579,6 @@ const {
   fetchApi: getAttachmentList,
   initialSearchForm: attachmentInitialSearchForm,
   defaultSort: 'id:desc',
-  normalizeRows: false,
   transformData: transformAttachmentRow,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),
   onLoadSuccess: (res) => {

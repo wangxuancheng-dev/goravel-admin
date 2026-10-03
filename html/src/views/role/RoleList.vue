@@ -113,7 +113,6 @@ const {
   defaultSort: 'id:desc',
   deleteApi: deleteRole,
   requireSensitiveConfirm: true,
-  normalizeRows: false,
   tableRef: computed(() => listPageRef.value?.tableRef?.tableRef),
   beforeDelete: (row) => {
     if (isProtectedRole(row)) {
