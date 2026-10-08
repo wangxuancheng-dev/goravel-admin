@@ -40,6 +40,9 @@ jobs:
       - name: Tenant ORM guard (no Orm().Query in business dirs)
         run: bash scripts/check-tenant-orm.sh
 
+      - name: Tenant Cache guard (CacheKey or allowlisted global)
+        run: bash scripts/check-tenant-cache.sh
+
       - name: Unit tests (no external services)
         run: |
           set -euo pipefail

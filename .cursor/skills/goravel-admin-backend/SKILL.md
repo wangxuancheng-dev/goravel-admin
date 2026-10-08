@@ -150,7 +150,7 @@ When implementing changes, include:
 
 ## References
 - `website/docs/guide/getting-started.md` — local + Docker quick start
-- `website/docs/advanced/tenancy.md` — multi-tenant (off vs database-per-tenant); prefer `OrmQuery(ctx)` / `tenancy.CacheKey`
+- `website/docs/advanced/tenancy.md` — multi-tenant (off vs database-per-tenant); prefer `OrmQuery(ctx)` / `tenancy.CacheKey`; CI: `scripts/check-tenant-orm.sh` + `scripts/check-tenant-cache.sh`
 - `website/docs/advanced/sharding.md` / `sharding-query.md` — sharding strategies and shared query service
 - `website/docs/reference/drivers.md` — optional DM / queue driver modules (remote; no vendored `driver/` tree)
 - `website/docs/advanced/ai-module.md` — AI codegen prompt notes

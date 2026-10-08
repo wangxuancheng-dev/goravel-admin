@@ -559,6 +559,7 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
 16. Vanity domains: edge Host rewrite (see above); do not add per-domain app env, CORS allowlist entries, or separate deploys.
 17. Business dirs (`app/services` / `http` / `jobs` / `console`) must not call `facades.Orm().Query()`; CI runs `bash scripts/check-tenant-orm.sh` (tenant-maintenance allowlist excepted).
+18. Tenant business cache/locks must use `tenancy.CacheKey` / `TenantCacheKey`; CI runs `bash scripts/check-tenant-cache.sh` (global/platform allowlist in script ALLOW).
 
 ## Platform ops: domain board / onboard / health
 

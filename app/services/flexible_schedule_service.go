@@ -383,7 +383,7 @@ func (s *FlexibleScheduleService) claimSlot(id uint, slot string) bool {
 }
 
 func (s *FlexibleScheduleService) executeRow(row *models.FlexibleSchedule, slot string) error {
-	lockKey := fmt.Sprintf("flexible_schedule:run:%d", row.ID)
+	lockKey := tenancy.CacheKey(s.ctx, fmt.Sprintf("flexible_schedule:run:%d", row.ID))
 	if !facades.Cache().Add(lockKey, "1", flexibleScheduleLockTTL) {
 		_ = s.persistResult(row, "skipped", "busy", "", 0, slot)
 		return apperrors.ErrScheduleBusy
