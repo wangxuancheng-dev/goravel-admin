@@ -1,12 +1,17 @@
 package config
 
 import (
+	"crypto/tls"
+	"strings"
+
 	dmfacades "github.com/wangxuancheng-dev/goravel-dm/facades"
 
+	"github.com/goravel/framework/contracts/config"
 	"github.com/goravel/framework/contracts/database/driver"
 	"github.com/goravel/framework/facades"
 	mysqlfacades "github.com/goravel/mysql/facades"
 	postgresfacades "github.com/goravel/postgres/facades"
+	"github.com/spf13/cast"
 )
 
 func init() {
@@ -126,12 +131,52 @@ func init() {
 			"table":  "migrations",
 		},
 		"redis": map[string]any{
-			"default": map[string]any{
-				"host":     config.Env("REDIS_HOST", ""),
-				"password": config.Env("REDIS_PASSWORD", ""),
-				"port":     config.Env("REDIS_PORT", 6379),
-				"database": config.Env("REDIS_DB", 0),
-			},
+			"default": redisDefaultConnection(config),
 		},
 	})
+}
+
+// redisDefaultConnection builds database.redis.default.
+// Plain Redis (local/Docker): leave REDIS_TLS unset/false — no tls field.
+// TLS hosts (e.g. AWS ElastiCache rediss): REDIS_TLS=true; optional REDIS_USERNAME / REDIS_CLUSTER.
+func redisDefaultConnection(c config.Config) map[string]any {
+	host := cast.ToString(c.Env("REDIS_HOST", ""))
+	conn := map[string]any{
+		"host":     host,
+		"username": cast.ToString(c.Env("REDIS_USERNAME", "")),
+		"password": cast.ToString(c.Env("REDIS_PASSWORD", "")),
+		"port":     c.Env("REDIS_PORT", 6379),
+		"database": c.Env("REDIS_DB", 0),
+		"cluster":  cast.ToBool(c.Env("REDIS_CLUSTER", false)),
+	}
+	if tlsCfg := redisTLSConfig(
+		cast.ToBool(c.Env("REDIS_TLS", false)),
+		host,
+		cast.ToString(c.Env("REDIS_TLS_SERVER_NAME", "")),
+		cast.ToBool(c.Env("REDIS_TLS_INSECURE_SKIP_VERIFY", false)),
+	); tlsCfg != nil {
+		conn["tls"] = tlsCfg
+	}
+	return conn
+}
+
+// redisTLSConfig returns nil when TLS is disabled so go-redis stays on plain TCP.
+func redisTLSConfig(enabled bool, host, serverName string, insecureSkipVerify bool) *tls.Config {
+	if !enabled {
+		return nil
+	}
+	cfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+	name := strings.TrimSpace(serverName)
+	if name == "" {
+		name = strings.TrimSpace(host)
+	}
+	if name != "" {
+		cfg.ServerName = name
+	}
+	if insecureSkipVerify {
+		cfg.InsecureSkipVerify = true
+	}
+	return cfg
 }
