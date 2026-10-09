@@ -26,6 +26,9 @@
         <el-tab-pane :label="$t('config.login_security_config')" name="login_security">
           <LoginSecurityConfig ref="loginSecurityConfigRef" />
         </el-tab-pane>
+        <el-tab-pane :label="$t('config.desensitize_config')" name="desensitize">
+          <DesensitizeConfig ref="desensitizeConfigRef" />
+        </el-tab-pane>
         <el-tab-pane :label="$t('config.oidc_config')" name="oidc">
           <OidcConfig ref="oidcConfigRef" />
         </el-tab-pane>
@@ -42,6 +45,7 @@ import EmailConfig from './components/EmailConfig.vue'
 import CaptchaConfig from './components/CaptchaConfig.vue'
 import StorageConfig from './components/StorageConfig.vue'
 import LoginSecurityConfig from './components/LoginSecurityConfig.vue'
+import DesensitizeConfig from './components/DesensitizeConfig.vue'
 import OidcConfig from './components/OidcConfig.vue'
 
 const activeTab = ref('website')
@@ -51,6 +55,7 @@ const emailConfigRef = ref(null)
 const captchaConfigRef = ref(null)
 const storageConfigRef = ref(null)
 const loginSecurityConfigRef = ref(null)
+const desensitizeConfigRef = ref(null)
 const oidcConfigRef = ref(null)
 
 const handleTabChange = (tabName) => {
@@ -67,6 +72,8 @@ const handleTabChange = (tabName) => {
     storageConfigRef.value.loadData()
   } else if (tabName === 'login_security' && loginSecurityConfigRef.value) {
     loginSecurityConfigRef.value.loadData()
+  } else if (tabName === 'desensitize' && desensitizeConfigRef.value) {
+    desensitizeConfigRef.value.loadData()
   } else if (tabName === 'oidc' && oidcConfigRef.value) {
     oidcConfigRef.value.loadData()
   }

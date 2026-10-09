@@ -4,6 +4,7 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/spf13/cast"
 
+	"goravel/app/desensitize"
 	apperrors "goravel/app/errors"
 	"goravel/app/http/helpers"
 	adminrequests "goravel/app/http/requests/admin"
@@ -37,6 +38,8 @@ func (c *UserController) Index(ctx http.Context) http.Response {
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "user", http.StatusInternalServerError, err, nil)
 	}
+
+	desensitize.ApplyUserList(ctx, list)
 
 	return response.Success(ctx, http.Json{
 		"list":      list,

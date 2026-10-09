@@ -91,6 +91,21 @@
 
 已接入列表：管理员（`department_id`）、文章 / 附件 / 导出记录（`admin_id`）。服务入口：`ApplyDataScope` / `ResolveAdminDataScope`。
 
+### 业务字段脱敏（列表 / 导出）
+
+对配置的敏感字段在**列表**与**导出**中掩码；**详情 Show 保持明文**，避免编辑表单把掩码写回库。绕过角色（默认 `super-admin`）看明文。
+
+**按租户 / 站点：**后台 → 系统管理 → 配置管理 → 字段脱敏，写入当前库 `configs`（group=`desensitize`）。`TENANCY_DRIVER=database` 时每个租户库独立——只有需要脱敏的租户打开即可；未配置时回退 `.env` 的 `DESENSITIZE_ENABLED`。
+
+| 配置 | 默认 | 说明 |
+|------|------|------|
+| `DESENSITIZE_ENABLED` | `true` | 进程默认（`config/desensitize.go`） |
+| `configs.desensitize.enabled` |（env）| 租户/单站覆盖 |
+| bypass slug（env 或 DB） | `super-admin` | 逗号分隔 |
+| modules | `user` / `admin` 的 `phone`、`email` | 策略：`phone` / `email` / `hide` / `keep_ends` |
+
+已接入：用户列表与用户导出、管理员列表与管理员同步导出。Update 会忽略已含 `*` 的掩码值。
+
 ---
 
 ## 3. 最小生产配置

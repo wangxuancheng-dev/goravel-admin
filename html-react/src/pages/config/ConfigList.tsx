@@ -311,6 +311,71 @@ function CaptchaConfigPanel() {
   )
 }
 
+function DesensitizeConfigPanel() {
+  const { t } = useTranslation()
+  const { message } = App.useApp()
+  const showError = useUnhandledError()
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await getConfigByGroup('desensitize')
+      const values = configsToForm(res.data?.configs, ['enabled', 'bypass_role_slugs'], {
+        enabled: (v) => (v === '' ? true : v === '1' || v === 'true'),
+      })
+      if (!values.bypass_role_slugs) values.bypass_role_slugs = 'super-admin'
+      form.setFieldsValue(values)
+    } catch (error) {
+      showError(error, t('common.query_failed'))
+    } finally {
+      setLoading(false)
+    }
+  }, [form, showError, t])
+
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
+
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields()
+      setSubmitting(true)
+      await saveConfig('desensitize', {
+        enabled: values.enabled ? '1' : '0',
+        bypass_role_slugs: String(values.bypass_role_slugs || 'super-admin'),
+      })
+      message.success(t('config.update_success'))
+    } catch (error) {
+      if ((error as { errorFields?: unknown })?.errorFields) return
+      showError(error, t('common.operation_failed'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Form form={form} layout="vertical" disabled={loading} initialValues={{ enabled: true, bypass_role_slugs: 'super-admin' }}>
+      <Alert type="info" showIcon style={{ marginBottom: 16 }} message={t('config.desensitize_tip')} />
+      <Form.Item name="enabled" label={t('config.desensitize_enabled')} valuePropName="checked">
+        <Switch checkedChildren={t('common.enabled')} unCheckedChildren={t('common.disabled')} />
+      </Form.Item>
+      <Form.Item
+        name="bypass_role_slugs"
+        label={t('config.desensitize_bypass_roles')}
+        extra={t('config.desensitize_bypass_roles_tip')}
+      >
+        <Input placeholder={t('config.desensitize_bypass_roles_placeholder')} />
+      </Form.Item>
+      <PermissionButton permission="config.save" type="primary" loading={submitting} onClick={() => void handleSubmit()}>
+        {t('common.save')}
+      </PermissionButton>
+    </Form>
+  )
+}
+
 function StorageConfigPanel() {
   const { t } = useTranslation()
   const { message } = App.useApp()
@@ -702,6 +767,7 @@ export default function ConfigList() {
             { key: 'captcha', label: t('config.captcha_config'), children: <CaptchaConfigPanel /> },
             { key: 'storage', label: t('config.storage_config'), children: <StorageConfigPanel /> },
             { key: 'login_security', label: t('config.login_security_config'), children: <LoginSecurityConfigPanel /> },
+            { key: 'desensitize', label: t('config.desensitize_config'), children: <DesensitizeConfigPanel /> },
             { key: 'oidc', label: t('config.oidc_config'), children: <OidcConfigPanel /> },
           ]}
         />

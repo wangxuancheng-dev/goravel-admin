@@ -63,6 +63,21 @@ Configured on **roles** (`roles.data_scope`); widest wins across roles; `super-a
 
 Wired lists: admins (`department_id`), articles / attachments / export jobs (`admin_id`).
 
+## Field desensitization (list / export)
+
+Masks configured PII on **list** and **export** responses. **Detail/show stays plain** so edit forms do not save masked values. Roles in bypass slugs (default `super-admin`) see plaintext.
+
+**Per tenant / site:** Admin → Config → Desensitize writes `configs` group `desensitize`. With `TENANCY_DRIVER=database`, each tenant DB is independent — only tenants that need masking turn it on. Missing DB rows fall back to env.
+
+| Env / config | Default | Notes |
+|--------------|---------|-------|
+| `DESENSITIZE_ENABLED` | `true` | Process default (`config/desensitize.go`) |
+| `configs.desensitize.enabled` | (env) | Per-tenant / single-site override |
+| `DESENSITIZE_BYPASS_ROLE_SLUGS` / DB `bypass_role_slugs` | `super-admin` | Comma-separated role slugs |
+| modules | `user` / `admin` → `phone`, `email` | Strategies: `phone`, `email`, `hide`, `keep_ends` |
+
+Wired: user list + user CSV export; admin list + admin sync export. Update ignores values that already look masked (`*`).
+
 ## Minimal production sketch
 
 ```ini

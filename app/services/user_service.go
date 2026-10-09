@@ -11,6 +11,7 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
+	"goravel/app/desensitize"
 	apperrors "goravel/app/errors"
 	"goravel/app/http/requests/admin"
 	"goravel/app/models"
@@ -231,11 +232,11 @@ func (s *UserServiceImpl) Update(id uint, req *admin.UserUpdate) (*models.User, 
 	}
 
 	email := user.Email
-	if req.Email != nil {
+	if req.Email != nil && !desensitize.LooksMasked(*req.Email) {
 		email = *req.Email
 	}
 	phone := user.Phone
-	if req.Phone != nil {
+	if req.Phone != nil && !desensitize.LooksMasked(*req.Phone) {
 		phone = *req.Phone
 	}
 	if err := s.validateUserExists("", email, phone, id); err != nil {
@@ -246,10 +247,10 @@ func (s *UserServiceImpl) Update(id uint, req *admin.UserUpdate) (*models.User, 
 	if req.Nickname != nil {
 		updateData["nickname"] = *req.Nickname
 	}
-	if req.Email != nil {
+	if req.Email != nil && !desensitize.LooksMasked(*req.Email) {
 		updateData["email"] = *req.Email
 	}
-	if req.Phone != nil {
+	if req.Phone != nil && !desensitize.LooksMasked(*req.Phone) {
 		updateData["phone"] = *req.Phone
 	}
 	if req.Status != nil {

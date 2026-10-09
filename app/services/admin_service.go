@@ -12,6 +12,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
 
+	"goravel/app/desensitize"
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
@@ -283,10 +284,10 @@ func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *a
 	if req.Nickname != nil {
 		adminModel.Nickname = *req.Nickname
 	}
-	if req.Email != nil {
+	if req.Email != nil && !desensitize.LooksMasked(*req.Email) {
 		adminModel.Email = *req.Email
 	}
-	if req.Phone != nil {
+	if req.Phone != nil && !desensitize.LooksMasked(*req.Phone) {
 		adminModel.Phone = *req.Phone
 	}
 	if req.DepartmentID != nil {

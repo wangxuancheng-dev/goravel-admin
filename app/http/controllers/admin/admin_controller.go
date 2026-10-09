@@ -6,6 +6,7 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/spf13/cast"
 
+	"goravel/app/desensitize"
 	apperrors "goravel/app/errors"
 	"goravel/app/http/apidoc"
 	"goravel/app/http/helpers"
@@ -129,9 +130,13 @@ func (c *AdminController) Index(ctx http.Context) http.Response {
 
 	svc := c.AdminService(ctx)
 	adminList := make([]http.Json, len(admins))
+	maps := make([]map[string]any, len(admins))
 	for i, admin := range admins {
-		adminList[i] = svc.ToListItem(admin)
+		item := svc.ToListItem(admin)
+		maps[i] = item
+		adminList[i] = item
 	}
+	desensitize.ApplyAdminListMaps(ctx, maps)
 
 	return response.Success(ctx, http.Json{
 		"list":      adminList,
@@ -476,6 +481,7 @@ func (c *AdminController) Export(ctx http.Context) http.Response {
 	}
 
 	timezone := helpers.GetCurrentTimezone(ctx)
+	exportCtx := desensitize.BindViewer(ctx)
 	var data [][]string
 	for _, admin := range admins {
 		statusText := trans.Get(ctx, "disabled")
@@ -506,8 +512,8 @@ func (c *AdminController) Export(ctx http.Context) http.Response {
 			cast.ToString(admin.ID),
 			admin.Username,
 			admin.Nickname,
-			admin.Email,
-			admin.Phone,
+			desensitize.Field(exportCtx, "admin", "email", desensitize.ModeExport, admin.Email),
+			desensitize.Field(exportCtx, "admin", "phone", desensitize.ModeExport, admin.Phone),
 			statusText,
 			departmentName,
 			positionName,

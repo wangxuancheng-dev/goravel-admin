@@ -17,6 +17,7 @@ import (
 	"github.com/goravel/framework/facades"
 	supportcarbon "github.com/goravel/framework/support/carbon"
 
+	"goravel/app/desensitize"
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
@@ -268,6 +269,7 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 	if err != nil {
 		return err
 	}
+	ctx = desensitize.BindViewer(desensitize.WithViewerAdminID(ctx, args.AdminID))
 
 	// 获取语言
 	lang := args.Language

@@ -9,6 +9,7 @@ import (
 	"github.com/goravel/framework/facades"
 	"github.com/spf13/cast"
 
+	"goravel/app/desensitize"
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/utils"
@@ -143,11 +144,11 @@ func (r *ExportUsers) writeUsersToCSV(ctx context.Context, w *csv.Writer, filter
 			break
 		}
 
-		// ?? CSV
-		for _, user := range users {
-			row := r.formatUserRow(user, lang, timezone)
+		for i := range users {
+			desensitize.ApplyUserExport(ctx, &users[i])
+			row := r.formatUserRow(users[i], lang, timezone)
 			if err := w.Write(row); err != nil {
-				return fmt.Errorf("??CSV??: %v", err)
+				return fmt.Errorf("write csv row failed: %v", err)
 			}
 		}
 
