@@ -8,7 +8,7 @@ import (
 )
 
 func isSimpleReactModule(fields []FieldConfig, options map[string]bool) bool {
-	if options != nil && options["is_tree_list"] {
+	if options != nil && (options["is_tree_list"] || options["is_master_detail"]) {
 		return false
 	}
 
@@ -46,6 +46,9 @@ func (s *CodeGeneratorServiceImpl) getReactListPageConfigTemplateName(options ma
 }
 
 func (s *CodeGeneratorServiceImpl) getReactFormModalTemplateName(options map[string]bool) string {
+	if options != nil && options["is_master_detail"] {
+		return "templates/react_master_detail_form_modal.tsx.tpl"
+	}
 	if options != nil && options["is_tree_list"] {
 		return "templates/react_tree_form_modal.tsx.tpl"
 	}
@@ -165,10 +168,45 @@ func (s *CodeGeneratorServiceImpl) generateReactFormModal(moduleName, tableName 
 	}
 
 	hasCreate, hasEdit, _, _, _ := frontendCrudOptions(options)
-	enableBatchActions, showToolbar := frontendListOptions(options)
 	templateFields := s.convertFieldsToTemplateFields(fields)
-	isTreeList := options != nil && options["is_tree_list"]
-	data := s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, false, false, false, false, false, enableBatchActions, showToolbar, isTreeList)
+	md := s.buildMasterDetailMeta(moduleName, options)
+	data := struct {
+		ModelName         string
+		ModuleName        string
+		ModuleNameCamel   string
+		ModuleNameK       string
+		FormFields        []TemplateFieldConfig
+		HasCreate         bool
+		HasEdit           bool
+		HasEditor         bool
+		HasMarkdown       bool
+		HasFormSwitch     bool
+		HasFormSelect     bool
+		HasFormRadio      bool
+		HasFormCheckbox   bool
+		HasFormNumber     bool
+		HasFormDatePicker bool
+		IsMasterDetail    bool
+		DetailFormFields  []TemplateFieldConfig
+	}{
+		ModelName:         toPascalCase(moduleName),
+		ModuleName:        moduleName,
+		ModuleNameCamel:   toCamelCase(moduleName),
+		ModuleNameK:       toKebabCase(moduleName),
+		FormFields:        templateFields,
+		HasCreate:         hasCreate,
+		HasEdit:           hasEdit,
+		HasEditor:         hasFieldFormType(templateFields, "editor"),
+		HasMarkdown:       hasFieldFormType(templateFields, "markdown"),
+		HasFormSwitch:     hasFieldFormType(templateFields, "switch"),
+		HasFormSelect:     hasFieldFormType(templateFields, "select"),
+		HasFormRadio:      hasFieldFormType(templateFields, "radio"),
+		HasFormCheckbox:   hasFieldFormType(templateFields, "checkbox"),
+		HasFormNumber:     hasFieldFormType(templateFields, "number"),
+		HasFormDatePicker: hasFieldFormType(templateFields, "date-picker") || hasFieldFormType(templateFields, "datetime-picker"),
+		IsMasterDetail:    md.IsMasterDetail,
+		DetailFormFields:  md.DetailFormFields,
+	}
 
 	content, err := s.executeTemplate(string(templateContent), data)
 	if err != nil {

@@ -376,3 +376,17 @@ if err != nil {
 - [ ] 错误处理使用 `apperrors`
 - [ ] 时间字段使用 `helpers.ConvertTimeToUTC`
 - [ ] 排序使用 `helpers.ApplySort`
+
+## AI JSON config (code generator)
+
+Dev Tools → Code Generator → AI assist returns JSON to fill the form (not full source).
+
+Required: module_name, 	able_name, ields.
+
+Optional master-detail when the user describes header + line items:
+
+- is_master_detail: true
+- detail_table_name: child table (plural)
+- detail_fields: child fields (same shape as ields; omit {module}_id)
+
+Apply config enables master-detail and loads detail fields.

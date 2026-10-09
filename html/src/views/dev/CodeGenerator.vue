@@ -106,6 +106,7 @@
                 <el-checkbox label="enable_batch_actions">{{ $t('code_generator.enable_batch_actions') }}</el-checkbox>
                 <el-checkbox label="show_toolbar">{{ $t('code_generator.show_toolbar') }}</el-checkbox>
                 <el-checkbox label="is_tree_list">{{ $t('code_generator.is_tree_list') }}</el-checkbox>
+                <el-checkbox label="is_master_detail">{{ $t('code_generator.is_master_detail') }}</el-checkbox>
               </el-checkbox-group>
             </el-form-item>
 
@@ -118,11 +119,14 @@
             </el-form-item>
 
             <el-form-item :label="$t('code_generator.import_mode')">
-              <el-radio-group v-model="form.import_mode">
+              <el-radio-group v-model="form.import_mode" :disabled="form.options.includes('is_master_detail')">
                 <el-radio label="none">{{ $t('code_generator.import_mode_none') }}</el-radio>
                 <el-radio label="sync">{{ $t('code_generator.import_mode_sync') }}</el-radio>
                 <el-radio label="async">{{ $t('code_generator.import_mode_async') }}</el-radio>
               </el-radio-group>
+              <div v-if="form.options.includes('is_master_detail')" style="margin-top: 8px; color: #909399; font-size: 12px">
+                {{ $t('code_generator.master_detail_no_import') }}
+              </div>
             </el-form-item>
 
             <el-button type="primary" @click="handleAddField">
@@ -228,6 +232,87 @@
               </el-table-column>
             </el-table>
 
+            <template v-if="form.options.includes('is_master_detail')">
+              <el-divider>{{ $t('code_generator.detail_fields_config') }}</el-divider>
+              <el-alert :title="$t('code_generator.master_detail_hint')" type="info" show-icon :closable="false" style="margin-bottom: 16px" />
+              <el-form-item :label="$t('code_generator.detail_table_name')">
+                <el-row :gutter="12" style="width: 100%">
+                  <el-col :span="10">
+                    <el-select
+                      v-model="selectedDetailTable"
+                      filterable
+                      clearable
+                      style="width: 100%"
+                      :placeholder="$t('code_generator.select_table_placeholder')"
+                      @change="handleDetailTableChange"
+                    >
+                      <el-option v-for="table in tables" :key="table" :label="table" :value="table" />
+                    </el-select>
+                  </el-col>
+                  <el-col :span="14">
+                    <el-input
+                      v-model="form.detail_table_name"
+                      :placeholder="$t('code_generator.detail_table_placeholder')"
+                    />
+                  </el-col>
+                </el-row>
+              </el-form-item>
+              <el-button type="primary" @click="handleAddDetailField">
+                <el-icon><Plus /></el-icon>
+                {{ $t('code_generator.add_detail_field') }}
+              </el-button>
+              <el-table :data="form.detail_fields" border style="margin-top: 20px">
+                <el-table-column type="index" :label="$t('table.index')" width="60" />
+                <el-table-column prop="name" :label="$t('code_generator.field_name')" width="150">
+                  <template #default="{ row }">
+                    <el-input v-model="row.name" :placeholder="$t('code_generator.field_name_placeholder')" />
+                  </template>
+                </el-table-column>
+                <el-table-column prop="type" :label="$t('code_generator.field_type')" width="150">
+                  <template #default="{ row }">
+                    <el-select v-model="row.type" :placeholder="$t('common.select')" @change="applyDetailFieldTypeChange(row)">
+                      <el-option
+                        v-for="type in fieldTypes"
+                        :key="type.value"
+                        :label="type.label"
+                        :value="type.value"
+                      />
+                    </el-select>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="label" :label="$t('code_generator.field_label')" width="150">
+                  <template #default="{ row }">
+                    <el-input v-model="row.label" :placeholder="$t('code_generator.field_label_placeholder')" />
+                  </template>
+                </el-table-column>
+                <el-table-column prop="form_type" :label="$t('code_generator.form_type')" width="150">
+                  <template #default="{ row }">
+                    <el-select v-model="row.form_type" :placeholder="$t('common.select')">
+                      <el-option
+                        v-for="type in formTypesForField(row.type)"
+                        :key="type.value"
+                        :label="type.label"
+                        :value="type.value"
+                      />
+                    </el-select>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="$t('code_generator.field_options')" width="220">
+                  <template #default="{ row }">
+                    <el-checkbox v-model="row.required">{{ $t('code_generator.required') }}</el-checkbox>
+                    <el-checkbox v-model="row.show_in_form">{{ $t('code_generator.show_in_form') }}</el-checkbox>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="$t('table.operation')" width="100" fixed="right">
+                  <template #default="{ $index }">
+                    <el-button type="danger" size="small" @click="handleRemoveDetailField($index)">
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </template>
+
             <el-divider>{{ $t('code_generator.code_preview') }}</el-divider>
 
             <el-tabs v-model="activeTab" type="border-card">
@@ -327,8 +412,17 @@
                 <el-descriptions-item :label="$t('code_generator.table_name')">
                   {{ aiGeneratedConfig.table_name }}
                 </el-descriptions-item>
-                <el-descriptions-item :label="$t('code_generator.fields_count')" :span="2">
+                <el-descriptions-item :label="$t('code_generator.fields_count')">
                   {{ aiGeneratedConfig.fields?.length || 0 }}
+                </el-descriptions-item>
+                <el-descriptions-item :label="$t('code_generator.is_master_detail')">
+                  {{ aiGeneratedConfig.is_master_detail ? $t('common.yes') : $t('common.no') }}
+                </el-descriptions-item>
+                <el-descriptions-item v-if="aiGeneratedConfig.is_master_detail" :label="$t('code_generator.detail_table_name')">
+                  {{ aiGeneratedConfig.detail_table_name || '-' }}
+                </el-descriptions-item>
+                <el-descriptions-item v-if="aiGeneratedConfig.is_master_detail" :label="$t('code_generator.detail_fields_config')">
+                  {{ aiGeneratedConfig.detail_fields?.length || 0 }}
                 </el-descriptions-item>
               </el-descriptions>
 
@@ -356,6 +450,20 @@
                     <el-tag v-else type="info">{{ $t('common.no') }}</el-tag>
                   </template>
                 </el-table-column>
+              </el-table>
+
+              <el-table
+                v-if="aiGeneratedConfig.is_master_detail && aiGeneratedConfig.detail_fields?.length"
+                :data="aiGeneratedConfig.detail_fields"
+                border
+                style="margin-top: 20px"
+                max-height="300"
+              >
+                <el-table-column type="index" :label="$t('table.index')" width="60" />
+                <el-table-column prop="name" :label="$t('code_generator.field_name')" width="120" />
+                <el-table-column prop="label" :label="$t('code_generator.field_label')" width="120" />
+                <el-table-column prop="db_type" :label="$t('code_generator.field_type')" width="100" />
+                <el-table-column prop="form_type" :label="$t('code_generator.form_type')" width="120" />
               </el-table>
             </div>
             </template>
@@ -479,6 +587,7 @@ const {
   dictionaryTypes,
   tables,
   selectedTable,
+  selectedDetailTable,
   aiDescription,
   aiGenerating,
   aiGeneratedConfig,
@@ -500,8 +609,12 @@ const {
   searchUiTypesForField,
   applyFieldTypeChange,
   handleTableChange,
+  handleDetailTableChange,
   handleAddField,
   handleRemoveField,
+  handleAddDetailField,
+  handleRemoveDetailField,
+  applyDetailFieldTypeChange,
   handleEditRelation,
   handleSaveRelation,
   handleEditFieldConfig,

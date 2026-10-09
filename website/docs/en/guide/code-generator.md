@@ -135,6 +135,19 @@ Async import needs a queue worker and seeded/assigned `import.*` Task Center per
 | Queue register | Async jobs injected into `QueueServiceProvider` (same pattern as export) |
 | Frontend | React / Vue list import button + `import*` API; **React (`html-react/`) is the primary UI**; Vue (`html/`) is the peer implementation. `CODE_GENERATOR_FRONTEND` (recommend `react,vue`) selects targets |
 
+## 主子表(Master-Detail)
+
+对标若依 / Jeecg 等开源后台：勾选 `is_master_detail`，配置子表名与子表字段后生成。
+
+| 要点 | 说明 |
+|------|------|
+| 外键 | `{module}_id` (如 `order_id`)，生成时自动补全 |
+| 后端 | 主 Model `Details` 关联；Service `With("Details")` + `sync*Details`；Create/Update Request 接收 `details` |
+| 前端 | Vue 表单 `el-table` 明细行；React `Form.List` 主子表弹窗 |
+| 额外产物 | 子表 Model + Migration |
+| 互斥 | 不与树形列表同时开启；不生成导入 |
+| AI assist | Natural-language prompts may return is_master_detail / detail_table_name / detail_fields; Apply fills the form |
+
 ## 实现位置（维护参考）
 
 | 文件 | 说明 |

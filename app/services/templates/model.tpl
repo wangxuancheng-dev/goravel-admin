@@ -21,6 +21,9 @@ type <<.ModelName>> struct {
 <<if .IsTreeList>>
 	Children []<<.ModelName>> `gorm:"-" json:"children,omitempty"`
 <<end>>
+<<if .IsMasterDetail>>
+	Details []<<.DetailModelName>> `gorm:"foreignKey:<<.DetailFKFieldName>>" json:"details"`
+<<end>>
 	orm.SoftDeletes
 }
 

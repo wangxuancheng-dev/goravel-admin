@@ -16,8 +16,11 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/goravel/framework/facades"
+	"github.com/spf13/cast"
 	"gorm.io/gorm"
 
+	"goravel/app/codegenerator"
 	appfacades "goravel/app/facades"
 )
 
@@ -83,12 +86,16 @@ type CodeGeneratorService interface {
 	Generate(moduleName, tableName string, fields []FieldConfig, selectedFiles []string, options map[string]bool) ([]GeneratedFile, error)
 	GenerateWithAI(ctx context.Context, userDescription string) (*AIGeneratedConfig, error)
 	InstallModule(moduleName, tableName string, options map[string]bool, install *ModuleInstallConfig) (*ModuleInstallResult, error)
+	WithMasterDetail(detailTable string, detailFields []FieldConfig) CodeGeneratorService
 }
 
 type AIGeneratedConfig struct {
-	ModuleName string        `json:"module_name"`
-	TableName  string        `json:"table_name"`
-	Fields     []FieldConfig `json:"fields"`
+	ModuleName      string        `json:"module_name"`
+	TableName       string        `json:"table_name"`
+	Fields          []FieldConfig `json:"fields"`
+	IsMasterDetail  bool          `json:"is_master_detail"`
+	DetailTableName string        `json:"detail_table_name"`
+	DetailFields    []FieldConfig `json:"detail_fields"`
 }
 
 func buildAISystemTimestampField(name, label string) FieldConfig {
@@ -132,7 +139,8 @@ func ensureAISystemFields(fields []FieldConfig) []FieldConfig {
 }
 
 type CodeGeneratorServiceImpl struct {
-	ctx context.Context
+	ctx          context.Context
+	masterDetail MasterDetailConfig
 }
 
 //go:embed templates/*
@@ -313,6 +321,7 @@ func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields
 			selectedMap["list_page_config"] = true
 		}
 		expandSelectedReactFiles(selectedMap, fields, options)
+		expandSelectedMasterDetailFiles(selectedMap, options)
 	}
 
 	for _, gen := range generators {
@@ -344,6 +353,44 @@ func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields
 		file.Content = formatFrontendContentWithPrettier(file.Path, file.Content)
 
 		files = append(files, file)
+	}
+
+	if s.masterDetailActive(options) {
+		needDetailModel := !hasSelection ||
+			selectedMap["model"] ||
+			selectedMap["service"] ||
+			selectedMap["controller"] ||
+			selectedMap["request_create"] ||
+			selectedMap["request_update"]
+		needDetailMigration := !hasSelection || selectedMap["migration"] || selectedMap["model"]
+
+		if needDetailModel {
+			detailModel, err := s.generateDetailModel(moduleName, options)
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate detail model: %w", err)
+			}
+			if strings.HasSuffix(detailModel.Path, ".go") {
+				if formatted, ferr := format.Source([]byte(detailModel.Content)); ferr == nil {
+					detailModel.Content = normalizeGeneratedContent(string(formatted))
+				} else {
+					detailModel.Content = normalizeGeneratedContent(detailModel.Content)
+				}
+			}
+			files = append(files, detailModel)
+		}
+
+		if needDetailMigration {
+			detailMigration, err := s.generateDetailMigration(moduleName, options)
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate detail migration: %w", err)
+			}
+			if formatted, ferr := format.Source([]byte(detailMigration.Content)); ferr == nil {
+				detailMigration.Content = normalizeGeneratedContent(string(formatted))
+			} else {
+				detailMigration.Content = normalizeGeneratedContent(detailMigration.Content)
+			}
+			files = append(files, detailMigration)
+		}
 	}
 
 	return files, nil
@@ -780,6 +827,26 @@ func (s *CodeGeneratorServiceImpl) getGormDB() (*gorm.DB, error) {
 	return nil, fmt.Errorf("failed to get *gorm.DB from ORM")
 }
 
+// IsCodeGeneratorReservedTable reports whether tableName is a built-in/system table.
+// Default list: app/codegenerator/reserved.go (edit there). Runtime: config code_generator.*.
+func IsCodeGeneratorReservedTable(tableName string) bool {
+	return isCodeGeneratorReservedTable(tableName)
+}
+
+func isCodeGeneratorReservedTable(tableName string) bool {
+	tables := codegenerator.ReservedTables
+	prefixes := codegenerator.ReservedTablePrefixes
+	if cfg := facades.Config(); cfg != nil {
+		if v := cast.ToStringSlice(cfg.Get("code_generator.reserved_tables")); len(v) > 0 {
+			tables = v
+		}
+		if v := cast.ToStringSlice(cfg.Get("code_generator.reserved_table_prefixes")); len(v) > 0 {
+			prefixes = v
+		}
+	}
+	return codegenerator.IsReservedTableWith(tableName, tables, prefixes)
+}
+
 func (s *CodeGeneratorServiceImpl) GetTables() ([]string, error) {
 	db, err := s.getGormDB()
 	if err != nil {
@@ -791,80 +858,26 @@ func (s *CodeGeneratorServiceImpl) GetTables() ([]string, error) {
 		return nil, err
 	}
 
-	// 过滤掉系统默认表
-	ignoreTables := map[string]bool{
-		"users":                  true,
-		"roles":                  true,
-		"permissions":            true,
-		"menus":                  true,
-		"role_users":             true,
-		"role_permissions":       true,
-		"admin_role":             true,
-		"role_menu":              true,
-		"role_permission":        true,
-		"migrations":             true,
-		"personal_access_tokens": true,
-		"settings":               true,
-		"dict_types":             true,
-		"dict_data":              true,
-		"admins":                 true,
-		"failed_jobs":            true,
-		"jobs":                   true,
-		"attachments":            true,
-		"blacklists":             true,
-		"configs":                true,
-		"currencies":             true,
-		"departments":            true,
-		"positions":              true,
-		"dictionaries":           true,
-		"exports":                true,
-		"login_logs":             true,
-		"notifications":          true,
-		"operation_logs":         true,
-		"system_logs":            true,
-		"slow_query_logs":        true,
-		// "payment_methods":        true,
-		// "payments":               true,
-	}
-
 	var filteredTables []string
 	for _, table := range tables {
-		if ignoreTables[table] {
+		if isCodeGeneratorReservedTable(table) {
 			continue
 		}
-		// 过滤分表逻辑：
-		// 1. 过滤掉包含年份月份后缀的表 (例如 _202512, _202601)
-		// 2. 过滤掉 Hash 分表 (例如 _1, _2, _100)
-		isShardedTable := false
-
-		// 查找最后一个下划线
-		lastUnderscoreIndex := strings.LastIndex(table, "_")
-		if lastUnderscoreIndex != -1 && lastUnderscoreIndex < len(table)-1 {
-			suffix := table[lastUnderscoreIndex+1:]
-
-			// 检查后缀是否纯数字
-			isNumeric := true
-			for _, ch := range suffix {
-				if ch < '0' || ch > '9' {
-					isNumeric = false
-					break
-				}
-			}
-
-			if isNumeric {
-				isShardedTable = true
-			}
-		}
-
-		if !isShardedTable {
-			filteredTables = append(filteredTables, table)
-		}
+		filteredTables = append(filteredTables, table)
 	}
 
 	return filteredTables, nil
 }
 
 func (s *CodeGeneratorServiceImpl) GetTableColumns(tableName string) ([]FieldConfig, error) {
+	tableName = strings.TrimSpace(tableName)
+	if tableName == "" {
+		return nil, fmt.Errorf("table_name_required")
+	}
+	if isCodeGeneratorReservedTable(tableName) {
+		return nil, fmt.Errorf("system_table_not_allowed")
+	}
+
 	db, err := s.getGormDB()
 	if err != nil {
 		return nil, err
@@ -1187,18 +1200,26 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 		}
 	}
 
+	md := s.buildMasterDetailMeta(moduleName, options)
+
 	switch fileType {
 	case "model":
 		return struct {
-			ModelName string
-			TableName string
-			Fields    []TemplateFieldConfig
-			IsTreeList bool
+			ModelName         string
+			TableName         string
+			Fields            []TemplateFieldConfig
+			IsTreeList        bool
+			IsMasterDetail    bool
+			DetailModelName   string
+			DetailFKFieldName string
 		}{
-			ModelName:  toPascalCase(moduleName),
-			TableName:  tableName,
-			Fields:     templateFields,
-			IsTreeList: optionEnabled(options, "is_tree_list", false),
+			ModelName:         toPascalCase(moduleName),
+			TableName:         tableName,
+			Fields:            templateFields,
+			IsTreeList:        optionEnabled(options, "is_tree_list", false),
+			IsMasterDetail:    md.IsMasterDetail,
+			DetailModelName:   md.DetailModelName,
+			DetailFKFieldName: md.DetailFKFieldName,
 		}
 	case "controller":
 		var searchableFields []TemplateFieldConfig
@@ -1266,6 +1287,11 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			ImportAsync       bool
 			IsTreeList        bool
 			ParentIDFieldName string
+			IsMasterDetail    bool
+			DetailModelName   string
+			DetailFKName      string
+			DetailFKFieldName string
+			DetailFormFields  []TemplateFieldConfig
 		}{
 			ServiceName:       toPascalCase(moduleName) + "Service",
 			ModelName:         toPascalCase(moduleName),
@@ -1279,10 +1305,15 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasDelete:         hasDelete,
 			HasExport:         hasExport,
 			ExportAsync:       exportAsync,
-			HasImport:         hasImport,
-			ImportAsync:       importAsync,
+			HasImport:         hasImport && !md.IsMasterDetail,
+			ImportAsync:       importAsync && !md.IsMasterDetail,
 			IsTreeList:        optionEnabled(options, "is_tree_list", false),
 			ParentIDFieldName: resolveParentIDFieldName(templateFields),
+			IsMasterDetail:    md.IsMasterDetail,
+			DetailModelName:   md.DetailModelName,
+			DetailFKName:      md.DetailFKName,
+			DetailFKFieldName: md.DetailFKFieldName,
+			DetailFormFields:  md.DetailFormFields,
 		}
 	case "request_create":
 		return struct {
@@ -1290,11 +1321,17 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			TableName         string
 			FormFields        []TemplateFieldConfig
 			RequestCreateName string
+			IsMasterDetail    bool
+			DetailModelName   string
+			DetailFormFields  []TemplateFieldConfig
 		}{
 			ModuleName:        moduleName,
 			TableName:         tableName,
 			FormFields:        templateFields,
 			RequestCreateName: toPascalCase(moduleName) + "Create",
+			IsMasterDetail:    md.IsMasterDetail,
+			DetailModelName:   md.DetailModelName,
+			DetailFormFields:  md.DetailFormFields,
 		}
 	case "request_update":
 		return struct {
@@ -1302,11 +1339,15 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			TableName         string
 			FormFields        []TemplateFieldConfig
 			RequestUpdateName string
+			IsMasterDetail    bool
+			DetailModelName   string
 		}{
 			ModuleName:        moduleName,
 			TableName:         tableName,
 			FormFields:        templateFields,
 			RequestUpdateName: toPascalCase(moduleName) + "Update",
+			IsMasterDetail:    md.IsMasterDetail,
+			DetailModelName:   md.DetailModelName,
 		}
 	case "migration":
 		for i := range templateFields {
@@ -1381,7 +1422,48 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 			HasImport:   hasImport,
 			ImportAsync: importAsync,
 		}
-	case "react_list_page", "react_list_page_config", "react_form_modal":
+	case "react_list_page", "react_list_page_config":
+		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
+	case "react_form_modal":
+		if md.IsMasterDetail {
+			return struct {
+				ModelName         string
+				ModuleName        string
+				ModuleNameCamel   string
+				ModuleNameK       string
+				FormFields        []TemplateFieldConfig
+				HasCreate         bool
+				HasEdit           bool
+				HasEditor         bool
+				HasMarkdown       bool
+				HasFormSwitch     bool
+				HasFormSelect     bool
+				HasFormRadio      bool
+				HasFormCheckbox   bool
+				HasFormNumber     bool
+				HasFormDatePicker bool
+				IsMasterDetail    bool
+				DetailFormFields  []TemplateFieldConfig
+			}{
+				ModelName:         toPascalCase(moduleName),
+				ModuleName:        moduleName,
+				ModuleNameCamel:   toCamelCase(moduleName),
+				ModuleNameK:       toKebabCase(moduleName),
+				FormFields:        templateFields,
+				HasCreate:         hasCreate,
+				HasEdit:           hasEdit,
+				HasEditor:         hasFieldFormType(templateFields, "editor"),
+				HasMarkdown:       hasFieldFormType(templateFields, "markdown"),
+				HasFormSwitch:     hasFieldFormType(templateFields, "switch"),
+				HasFormSelect:     hasFieldFormType(templateFields, "select"),
+				HasFormRadio:      hasFieldFormType(templateFields, "radio"),
+				HasFormCheckbox:   hasFieldFormType(templateFields, "checkbox"),
+				HasFormNumber:     hasFieldFormType(templateFields, "number"),
+				HasFormDatePicker: hasFieldFormType(templateFields, "date-picker") || hasFieldFormType(templateFields, "datetime-picker"),
+				IsMasterDetail:    true,
+				DetailFormFields:  md.DetailFormFields,
+			}
+		}
 		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
 	case "form_page":
 		formFields := applyTreeListFieldFlags(templateFields, optionEnabled(options, "is_tree_list", false))
@@ -1413,25 +1495,29 @@ func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName strin
 		}
 
 		return struct {
-			ModelName      string
-			ModuleName     string
-			ModuleNameK    string
-			FormFields     []TemplateFieldConfig
-			HasCreate      bool
-			HasEdit        bool
-			HasEditor      bool
-			HasMarkdown    bool
-			HasImageUpload bool
+			ModelName        string
+			ModuleName       string
+			ModuleNameK      string
+			FormFields       []TemplateFieldConfig
+			HasCreate        bool
+			HasEdit          bool
+			HasEditor        bool
+			HasMarkdown      bool
+			HasImageUpload   bool
+			IsMasterDetail   bool
+			DetailFormFields []TemplateFieldConfig
 		}{
-			ModelName:      toPascalCase(moduleName),
-			ModuleName:     moduleName,
-			ModuleNameK:    toKebabCase(moduleName),
-			FormFields:     formFields,
-			HasCreate:      hasCreate,
-			HasEdit:        hasEdit,
-			HasEditor:      hasEditor,
-			HasMarkdown:    hasMarkdown,
-			HasImageUpload: hasImageUpload,
+			ModelName:        toPascalCase(moduleName),
+			ModuleName:       moduleName,
+			ModuleNameK:      toKebabCase(moduleName),
+			FormFields:       formFields,
+			HasCreate:        hasCreate,
+			HasEdit:          hasEdit,
+			HasEditor:        hasEditor,
+			HasMarkdown:      hasMarkdown,
+			HasImageUpload:   hasImageUpload,
+			IsMasterDetail:   md.IsMasterDetail,
+			DetailFormFields: md.DetailFormFields,
 		}
 	default:
 		return struct {
@@ -1581,16 +1667,23 @@ func (s *CodeGeneratorServiceImpl) generateModel(moduleName, tableName string, f
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
+	md := s.buildMasterDetailMeta(moduleName, options)
 	data := struct {
-		ModelName  string
-		TableName  string
-		Fields     []TemplateFieldConfig
-		IsTreeList bool
+		ModelName         string
+		TableName         string
+		Fields            []TemplateFieldConfig
+		IsTreeList        bool
+		IsMasterDetail    bool
+		DetailModelName   string
+		DetailFKFieldName string
 	}{
-		ModelName:  toPascalCase(moduleName),
-		TableName:  tableName,
-		Fields:     templateFields,
-		IsTreeList: optionEnabled(options, "is_tree_list", false),
+		ModelName:         toPascalCase(moduleName),
+		TableName:         tableName,
+		Fields:            templateFields,
+		IsTreeList:        optionEnabled(options, "is_tree_list", false),
+		IsMasterDetail:    md.IsMasterDetail,
+		DetailModelName:   md.DetailModelName,
+		DetailFKFieldName: md.DetailFKFieldName,
 	}
 
 	content, err := s.executeTemplate(string(templateContent), data)
@@ -1745,23 +1838,29 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 			searchableFields = append(searchableFields, field)
 		}
 	}
+	md := s.buildMasterDetailMeta(moduleName, options)
 	data := struct {
-		ServiceName       string
-		ModelName         string
-		ModuleName        string
-		SearchableFields  []TemplateFieldConfig
-		RequestCreateName string
-		RequestUpdateName string
-		FormFields        []TemplateFieldConfig
-		HasCreate         bool
-		HasEdit           bool
-		HasDelete         bool
-		HasExport         bool
-		ExportAsync       bool
-		HasImport         bool
-		ImportAsync       bool
-		IsTreeList        bool
-		ParentIDFieldName string
+		ServiceName         string
+		ModelName           string
+		ModuleName          string
+		SearchableFields    []TemplateFieldConfig
+		RequestCreateName   string
+		RequestUpdateName   string
+		FormFields          []TemplateFieldConfig
+		HasCreate           bool
+		HasEdit             bool
+		HasDelete           bool
+		HasExport           bool
+		ExportAsync         bool
+		HasImport           bool
+		ImportAsync         bool
+		IsTreeList          bool
+		ParentIDFieldName   string
+		IsMasterDetail      bool
+		DetailModelName     string
+		DetailFKName        string
+		DetailFKFieldName   string
+		DetailFormFields    []TemplateFieldConfig
 	}{
 		ServiceName:       toPascalCase(moduleName) + "Service",
 		ModelName:         toPascalCase(moduleName),
@@ -1775,10 +1874,15 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 		HasDelete:         hasDelete,
 		HasExport:         hasExport,
 		ExportAsync:       exportAsync,
-		HasImport:         hasImport,
-		ImportAsync:       importAsync,
+		HasImport:         hasImport && !md.IsMasterDetail,
+		ImportAsync:       importAsync && !md.IsMasterDetail,
 		IsTreeList:        optionEnabled(options, "is_tree_list", false),
 		ParentIDFieldName: resolveParentIDFieldName(templateFields),
+		IsMasterDetail:    md.IsMasterDetail,
+		DetailModelName:   md.DetailModelName,
+		DetailFKName:      md.DetailFKName,
+		DetailFKFieldName: md.DetailFKFieldName,
+		DetailFormFields:  md.DetailFormFields,
 	}
 
 	content, err := s.executeTemplate(string(templateContent), data)
@@ -1852,16 +1956,23 @@ func (s *CodeGeneratorServiceImpl) generateRequestCreate(moduleName, tableName s
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
+	md := s.buildMasterDetailMeta(moduleName, options)
 	data := struct {
 		ModuleName        string
 		TableName         string
 		FormFields        []TemplateFieldConfig
 		RequestCreateName string
+		IsMasterDetail    bool
+		DetailModelName   string
+		DetailFormFields  []TemplateFieldConfig
 	}{
 		ModuleName:        moduleName,
 		TableName:         tableName,
 		FormFields:        templateFields,
 		RequestCreateName: toPascalCase(moduleName) + "Create",
+		IsMasterDetail:    md.IsMasterDetail,
+		DetailModelName:   md.DetailModelName,
+		DetailFormFields:  md.DetailFormFields,
 	}
 
 	content, err := s.executeTemplate(string(templateContent), data)
@@ -1882,16 +1993,21 @@ func (s *CodeGeneratorServiceImpl) generateRequestUpdate(moduleName, tableName s
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
+	md := s.buildMasterDetailMeta(moduleName, options)
 	data := struct {
 		ModuleName        string
 		TableName         string
 		FormFields        []TemplateFieldConfig
 		RequestUpdateName string
+		IsMasterDetail    bool
+		DetailModelName   string
 	}{
 		ModuleName:        moduleName,
 		TableName:         tableName,
 		FormFields:        templateFields,
 		RequestUpdateName: toPascalCase(moduleName) + "Update",
+		IsMasterDetail:    md.IsMasterDetail,
+		DetailModelName:   md.DetailModelName,
 	}
 
 	content, err := s.executeTemplate(string(templateContent), data)
@@ -2344,26 +2460,31 @@ func (s *CodeGeneratorServiceImpl) generateFrontendFormPage(moduleName, tableNam
 		}
 	}
 
+	md := s.buildMasterDetailMeta(moduleName, options)
 	data := struct {
-		ModelName      string
-		ModuleName     string
-		ModuleNameK    string
-		FormFields     []TemplateFieldConfig
-		HasCreate      bool
-		HasEdit        bool
-		HasEditor      bool
-		HasMarkdown    bool
-		HasImageUpload bool
+		ModelName        string
+		ModuleName       string
+		ModuleNameK      string
+		FormFields       []TemplateFieldConfig
+		HasCreate        bool
+		HasEdit          bool
+		HasEditor        bool
+		HasMarkdown      bool
+		HasImageUpload   bool
+		IsMasterDetail   bool
+		DetailFormFields []TemplateFieldConfig
 	}{
-		ModelName:      toPascalCase(moduleName),
-		ModuleName:     moduleName,
-		ModuleNameK:    toKebabCase(moduleName),
-		FormFields:     templateFields,
-		HasCreate:      hasCreate,
-		HasEdit:        hasEdit,
-		HasEditor:      hasEditor,
-		HasMarkdown:    hasMarkdown,
-		HasImageUpload: hasImageUpload,
+		ModelName:        toPascalCase(moduleName),
+		ModuleName:       moduleName,
+		ModuleNameK:      toKebabCase(moduleName),
+		FormFields:       templateFields,
+		HasCreate:        hasCreate,
+		HasEdit:          hasEdit,
+		HasEditor:        hasEditor,
+		HasMarkdown:      hasMarkdown,
+		HasImageUpload:   hasImageUpload,
+		IsMasterDetail:   md.IsMasterDetail,
+		DetailFormFields: md.DetailFormFields,
 	}
 
 	content, err := s.executeTemplate(string(templateContent), data)
@@ -2584,6 +2705,17 @@ func (s *CodeGeneratorServiceImpl) GenerateWithAI(ctx context.Context, userDescr
 - 如果提到"时间"、"日期"，db_type 应为 "datetime" 或 "date"，form_type 为 "date-picker" 或 "datetime-picker"
 - 如果提到"金额"、"价格"，db_type 应为 "decimal"，go_type 为 "float64"
 
+## Master-Detail (optional)
+
+When the user describes a header + line-items pattern (order+items, quote+lines, invoice+details):
+- Set is_master_detail to true
+- detail_table_name: plural child table name (e.g. "quote_items")
+- detail_fields: child field array (same shape as fields)
+- fields: master table fields only
+- Omit the master foreign-key column in detail_fields (generator adds {module}_id automatically)
+- Do not combine with tree list; master-detail does not support import
+- If the request is a single flat table, set is_master_detail to false and omit detail_* fields
+
 请只返回 JSON 配置，不要包含其他说明文字。`, string(promptFile), userDescription)
 
 	// 调用 AI Service（失败时自动重试一次）
@@ -2643,29 +2775,61 @@ func (s *CodeGeneratorServiceImpl) GenerateWithAI(ctx context.Context, userDescr
 		return nil, fmt.Errorf("AI 返回的配置格式不正确，无法解析 JSON。请检查 AI 响应格式或重试。错误详情: %v", err)
 	}
 
-	// 验证配置
+	if err := s.finalizeAIGeneratedConfig(&config); err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func (s *CodeGeneratorServiceImpl) finalizeAIGeneratedConfig(config *AIGeneratedConfig) error {
+	if config == nil {
+		return fmt.Errorf("config is required")
+	}
 	if config.ModuleName == "" {
-		return nil, fmt.Errorf("module_name is required")
+		return fmt.Errorf("module_name is required")
 	}
 	if config.TableName == "" {
-		return nil, fmt.Errorf("table_name is required")
+		return fmt.Errorf("table_name is required")
 	}
 	if len(config.Fields) == 0 {
-		return nil, fmt.Errorf("fields cannot be empty")
+		return fmt.Errorf("fields cannot be empty")
 	}
-	config.Fields = ensureAISystemFields(config.Fields)
 
-	// 为字段设置默认值
+	// Infer master-detail when detail payload is present.
+	if !config.IsMasterDetail && strings.TrimSpace(config.DetailTableName) != "" && len(config.DetailFields) > 0 {
+		config.IsMasterDetail = true
+	}
+
+	config.Fields = s.normalizeAIFields(config.Fields)
+
+	if config.IsMasterDetail {
+		if strings.TrimSpace(config.DetailTableName) == "" {
+			return fmt.Errorf("detail_table_name_required")
+		}
+		if len(config.DetailFields) == 0 {
+			return fmt.Errorf("detail_fields_required")
+		}
+		config.DetailTableName = strings.TrimSpace(config.DetailTableName)
+		config.DetailFields = s.normalizeAIFields(config.DetailFields)
+	} else {
+		config.DetailTableName = ""
+		config.DetailFields = nil
+	}
+	return nil
+}
+
+func (s *CodeGeneratorServiceImpl) normalizeAIFields(fields []FieldConfig) []FieldConfig {
+	fields = ensureAISystemFields(fields)
+
 	fieldTypes := s.GetFieldTypes()
 	fieldTypeMap := make(map[string]FieldType)
 	for _, ft := range fieldTypes {
 		fieldTypeMap[ft.Value] = ft
 	}
 
-	for i := range config.Fields {
-		field := &config.Fields[i]
+	for i := range fields {
+		field := &fields[i]
 
-		// 设置默认值
 		if field.Label == "" {
 			field.Label = field.Name
 		}
@@ -2676,10 +2840,8 @@ func (s *CodeGeneratorServiceImpl) GenerateWithAI(ctx context.Context, userDescr
 			if field.GoType == "" {
 				field.GoType = fieldType.GoType
 			}
-		} else {
-			if field.GoType == "" {
-				field.GoType = "string"
-			}
+		} else if field.GoType == "" {
+			field.GoType = "string"
 		}
 		if field.SearchType == "" {
 			if field.DBType == "string" || field.DBType == "text" {
@@ -2694,13 +2856,12 @@ func (s *CodeGeneratorServiceImpl) GenerateWithAI(ctx context.Context, userDescr
 		if field.FormType == "" {
 			field.FormType = getFormType(field.DBType)
 		}
-		// 为 decimal 类型设置默认精度和标度
 		if field.DBType == "decimal" {
 			if field.Precision == 0 {
-				field.Precision = 8 // 默认精度
+				field.Precision = 8
 			}
 			if field.Scale == 0 {
-				field.Scale = 2 // 默认标度
+				field.Scale = 2
 			}
 		}
 		if !field.Searchable {
@@ -2715,25 +2876,22 @@ func (s *CodeGeneratorServiceImpl) GenerateWithAI(ctx context.Context, userDescr
 		if !field.ShowInDetail {
 			field.ShowInDetail = true
 		}
-		// 系统时间字段在表单中默认不可编辑。
 		if field.Name == "created_at" || field.Name == "updated_at" {
 			field.ShowInForm = false
 			if field.SearchUIType == "" {
 				field.SearchUIType = "datetimerange"
 			}
 		}
-		// 确保关联表对象结构完整
 		if field.Relation != nil {
 			if field.Relation.RelationType == "" {
 				field.Relation.RelationType = "belongsTo"
 			}
 			if field.Relation.Table == "" {
-				field.Relation = nil // 如果关联表为空，则清除关联
+				field.Relation = nil
 			}
 		}
 	}
-
-	return &config, nil
+	return fields
 }
 
 // readAIModulePromptFile loads the AI codegen system prompt from the VitePress docs tree.

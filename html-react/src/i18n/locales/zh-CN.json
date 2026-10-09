@@ -104,7 +104,9 @@
     "platform_last_owner": "不能移除最后一个启用的管理员(owner)",
     "platform_cannot_modify_self": "不能修改自己的角色或状态",
     "admin_cannot_delete_self": "不能删除自己",
-    "confirm_delete": "确认删除？"
+    "confirm_delete": "确认删除？",
+    "detail_rows": "明细行",
+    "actions": "操作"
   },
   "admin_id": "管理员ID",
   "title": "标题",
@@ -2037,7 +2039,17 @@
       "datetime": "日期时间",
       "timestamp": "时间戳",
       "json": "JSON"
-    }
+    },
+    "is_master_detail": "主子表（明细行）",
+    "detail_table_name": "子表名",
+    "detail_table_placeholder": "子表表名，如 order_items",
+    "detail_fields_config": "子表字段",
+    "master_detail_hint": "参考若依/积木：一条主表记录对应可编辑明细行（外键 {module}_id）。与树形列表互斥；不生成导入。",
+    "master_detail_no_import": "主子表模块不生成导入。",
+    "add_detail_field": "添加子表字段",
+    "detail_table_name_required": "请填写子表名",
+    "detail_fields_required": "请至少配置一个子表字段",
+    "ai_example_master_detail": "创建报价主子表：主表含报价单号、客户名、总金额、状态；子表 quote_items 含商品SKU、数量、单价、小计"
   },
   "ai_lab": {
     "title": "AI 实验室",

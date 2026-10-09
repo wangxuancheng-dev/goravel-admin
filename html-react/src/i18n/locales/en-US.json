@@ -5,6 +5,7 @@
     "search": "Search",
     "reset": "Reset",
     "add": "Add",
+    "detail_rows": "Detail rows",
     "edit": "Edit",
     "delete": "Delete",
     "view": "View",
@@ -104,7 +105,8 @@
     "platform_last_owner": "Cannot remove the last active owner",
     "platform_cannot_modify_self": "Cannot change your own role or status",
     "admin_cannot_delete_self": "Cannot delete yourself",
-    "confirm_delete": "Confirm delete?"
+    "confirm_delete": "Confirm delete?",
+    "actions": "Actions"
   },
   "admin_id": "Admin ID",
   "title": "Title",
@@ -1971,6 +1973,15 @@
     "enable_batch_actions": "Enable Batch Actions",
     "show_toolbar": "Show Toolbar",
     "is_tree_list": "Tree List (no pagination)",
+    "is_master_detail": "Master-Detail (sub-table)",
+    "detail_table_name": "Detail Table",
+    "detail_table_placeholder": "Detail table name, e.g. order_items",
+    "detail_fields_config": "Detail Fields",
+    "master_detail_hint": "Like RuoYi/Jeecg: one master row with editable detail lines (FK {module}_id). Mutually exclusive with tree list; import is disabled.",
+    "master_detail_no_import": "Master-detail modules do not generate import.",
+    "add_detail_field": "Add Detail Field",
+    "detail_table_name_required": "Please set the detail table name",
+    "detail_fields_required": "Please configure at least one detail field",
     "form_type": "Form Component",
     "form_types": {
       "input": "Input",
@@ -2033,7 +2044,8 @@
       "datetime": "Date Time",
       "timestamp": "Timestamp",
       "json": "JSON"
-    }
+    },
+    "ai_example_master_detail": "Create a quote master-detail module: master has quote no, customer, total amount, status; detail table quote_items has SKU, qty, unit price, line amount"
   },
   "ai_lab": {
     "title": "AI Lab",

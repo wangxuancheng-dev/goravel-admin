@@ -131,6 +131,19 @@ API 路径前缀：`/api/admin/{table_name}`（如 `/api/admin/articles`）。�
 | Queue 注册 | 异步时注入 `QueueServiceProvider`（与导出 job 同类） |
 | 前端 | React / Vue 列表页导入按钮 + API `import*`；**默认前端为 React（`html-react/`）**，Vue（`html/`）为对等实现。环境变量 `CODE_GENERATOR_FRONTEND`（建议 `react,vue`）控制生成目标 |
 
+## 主子表(Master-Detail)
+
+对标若依 / Jeecg 等开源后台：勾选 `is_master_detail`，配置子表名与子表字段后生成。
+
+| 要点 | 说明 |
+|------|------|
+| 外键 | `{module}_id` (如 `order_id`)，生成时自动补全 |
+| 后端 | 主 Model `Details` 关联；Service `With("Details")` + `sync*Details`；Create/Update Request 接收 `details` |
+| 前端 | Vue 表单 `el-table` 明细行；React `Form.List` 主子表弹窗 |
+| 额外产物 | 子表 Model + Migration |
+| 互斥 | 不与树形列表同时开启；不生成导入 |
+| AI 辅助 | 描述主从表时可返回 is_master_detail / detail_table_name / detail_fields，应用配置后写入表单 |
+
 ## 实现位置（维护参考）
 
 | 文件 | 说明 |

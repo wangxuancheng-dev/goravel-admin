@@ -117,6 +117,9 @@ export function useCodeGenerator() {
   const [tables, setTables] = useState<string[]>([])
   const [selectedTable, setSelectedTable] = useState('')
   const [fields, setFields] = useState<CodeGeneratorField[]>(createDefaultFields)
+  const [detailTableName, setDetailTableName] = useState('')
+  const [detailFields, setDetailFields] = useState<CodeGeneratorField[]>([])
+  const [selectedDetailTable, setSelectedDetailTable] = useState('')
   const [files, setFiles] = useState<string[]>(buildDefaultFiles(['vue', 'react']))
   const [options, setOptions] = useState<string[]>(['has_create', 'has_edit', 'has_delete', 'show_toolbar'])
   const [exportMode, setExportMode] = useState<'none' | 'sync' | 'async'>('none')
@@ -197,6 +200,7 @@ export function useCodeGenerator() {
       t('code_generator.ai_example_product'),
       t('code_generator.ai_example_article'),
       t('code_generator.ai_example_guestbook'),
+      t('code_generator.ai_example_master_detail'),
     ],
     [t],
   )
@@ -237,17 +241,108 @@ export function useCodeGenerator() {
     (): CodeGeneratorOptions => ({
       has_export: exportMode !== 'none',
       export_async: exportMode === 'async',
-      has_import: importMode !== 'none',
-      import_async: importMode === 'async',
+      has_import: importMode !== 'none' && !options.includes('is_master_detail'),
+      import_async: importMode === 'async' && !options.includes('is_master_detail'),
       has_create: options.includes('has_create'),
       has_edit: options.includes('has_edit'),
       has_delete: options.includes('has_delete'),
       enable_batch_actions: options.includes('enable_batch_actions'),
       show_toolbar: options.includes('show_toolbar'),
-      is_tree_list: options.includes('is_tree_list'),
+      is_tree_list: options.includes('is_tree_list') && !options.includes('is_master_detail'),
+      is_master_detail: options.includes('is_master_detail'),
     }),
     [exportMode, importMode, options],
   )
+
+  const handleOptionsChange = useCallback((values: string[]) => {
+    let next = values
+    if (values.includes('is_master_detail') && values.includes('is_tree_list')) {
+      next = values.filter((v) => v !== 'is_tree_list')
+    }
+    if (next.includes('is_master_detail')) {
+      setImportMode('none')
+    }
+    setOptions(next)
+  }, [])
+
+  const handleDetailTableChange = useCallback(
+    async (tableName: string) => {
+      setSelectedDetailTable(tableName)
+      setDetailTableName(tableName)
+      if (!tableName) {
+        setDetailFields([])
+        return
+      }
+      try {
+        const response = await getTableColumns(tableName)
+        const nextFields = (response.data?.fields || []).map((field: CodeGeneratorField) => {
+          const dbType = field.db_type || field.type || 'string'
+          return normalizeFieldControls({
+            ...field,
+            type: dbType,
+            db_type: dbType,
+            show_in_form: field.name !== 'id' && !String(field.name).endsWith('_id'),
+            show_in_list: true,
+          })
+        })
+        setDetailFields(
+          nextFields.filter(
+            (f) => f.name !== 'id' && f.name !== 'created_at' && f.name !== 'updated_at' && f.name !== 'deleted_at',
+          ),
+        )
+      } catch (error) {
+        logger.error('Failed to load detail table columns:', error)
+        message.error(t('code_generator.load_columns_failed'))
+      }
+    },
+    [message, t],
+  )
+
+  const handleAddDetailField = useCallback(() => {
+    setDetailFields((prev) => [
+      ...prev,
+      normalizeFieldControls({
+        name: '',
+        type: 'string',
+        db_type: 'string',
+        label: '',
+        required: false,
+        searchable: false,
+        sortable: false,
+        show_in_list: true,
+        show_in_form: true,
+        show_in_detail: true,
+        is_primary_key: false,
+        search_type: 'like',
+        search_ui_type: 'input',
+        form_type: 'input',
+        relation: null,
+        dictionary: '',
+        api_url: '',
+      }),
+    ])
+  }, [])
+
+  const handleRemoveDetailField = useCallback((index: number) => {
+    setDetailFields((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const updateDetailField = useCallback((index: number, patch: Partial<CodeGeneratorField>) => {
+    setDetailFields((prev) =>
+      prev.map((field, i) => {
+        if (i !== index) return field
+        const merged = { ...field, ...patch }
+        if (patch.type !== undefined) {
+          merged.db_type = patch.type
+          return normalizeFieldControls(merged)
+        }
+        if (patch.form_type || patch.search_ui_type || patch.search_type) {
+          return normalizeFieldControls(merged)
+        }
+        return merged
+      }),
+    )
+  }, [])
 
   const buildInstallConfig = useCallback((): ModuleInstallConfig => {
     const values = form.getFieldsValue(['module_name', 'menu_title'])
@@ -542,18 +637,53 @@ export function useCodeGenerator() {
     message.success(t('code_generator.field_config_saved'))
   }
 
-  const getNormalizedFields = useCallback(() => fields.map((field) => normalizeFieldControls(field)), [fields])
+  const toPayloadFields = useCallback((list: CodeGeneratorField[]) => {
+    return list.map((field) => {
+      const normalized = normalizeFieldControls(field)
+      const dbType = normalized.db_type || normalized.type || 'string'
+      return { ...normalized, type: dbType, db_type: dbType }
+    })
+  }, [])
+
+  const getNormalizedFields = useCallback(() => toPayloadFields(fields), [fields, toPayloadFields])
+
+  const buildMasterDetailPayload = useCallback(() => {
+    if (!options.includes('is_master_detail')) {
+      return {}
+    }
+    return {
+      detail_table_name: detailTableName.trim(),
+      detail_fields: toPayloadFields(detailFields),
+    }
+  }, [detailFields, detailTableName, options, toPayloadFields])
+
+  const validateMasterDetail = useCallback(() => {
+    if (!options.includes('is_master_detail')) {
+      return true
+    }
+    if (!detailTableName.trim()) {
+      message.warning(t('code_generator.detail_table_name_required'))
+      return false
+    }
+    if (detailFields.length === 0) {
+      message.warning(t('code_generator.detail_fields_required'))
+      return false
+    }
+    return true
+  }, [detailFields.length, detailTableName, message, options, t])
 
   const handlePreview = async (fileType: string) => {
     setPreviewing(fileType)
     try {
       const values = await form.validateFields()
+      if (!validateMasterDetail()) return
       const response = await previewCode({
         module_name: values.module_name,
         table_name: values.table_name,
         fields: getNormalizedFields(),
         file_type: fileType,
         options: buildGeneratorOptions(),
+        ...buildMasterDetailPayload(),
       })
       setPreviewCodeMap((prev) => ({ ...prev, [fileType]: String(response.data?.code || '') }))
     } catch (error) {
@@ -566,6 +696,9 @@ export function useCodeGenerator() {
 
   const saveGeneratedCode = async (force: boolean) => {
     const values = await form.validateFields()
+    if (!validateMasterDetail()) {
+      throw new Error('master_detail_invalid')
+    }
     const response = await saveCode({
       module_name: values.module_name,
       table_name: values.table_name,
@@ -574,6 +707,7 @@ export function useCodeGenerator() {
       force,
       options: buildGeneratorOptions(),
       install: buildInstallConfig(),
+      ...buildMasterDetailPayload(),
     })
     const savedFiles = response.data?.saved_files || []
     if (response.data?.install) {
@@ -619,6 +753,9 @@ export function useCodeGenerator() {
     try {
       await form.validateFields()
     } catch {
+      return
+    }
+    if (!validateMasterDetail()) {
       return
     }
 
@@ -692,6 +829,46 @@ export function useCodeGenerator() {
     }
   }
 
+  const mapAIFields = useCallback(
+    (list: CodeGeneratorField[] = []) =>
+      list.map((field) => {
+        const dbType = field.db_type || field.type || 'string'
+        let type = dbType
+        const typeExists = fieldTypes.some((ft) => ft.value === type)
+        if (!typeExists) {
+          if (dbType.includes('bigint')) type = 'bigInteger'
+          else if (dbType.includes('int')) type = 'integer'
+          else if (dbType.includes('char') || dbType.includes('text')) type = 'string'
+          else if (dbType.includes('date') || dbType.includes('time')) type = 'datetime'
+          else if (dbType.includes('decimal') || dbType.includes('float') || dbType.includes('double')) type = 'decimal'
+          else if (dbType.includes('bool')) type = 'boolean'
+          else if (dbType.includes('json')) type = 'json'
+          else type = 'string'
+        }
+
+        let formType = field.form_type
+        if (!formType) {
+          if (dbType === 'text' || field.name?.includes('content') || field.name?.includes('description')) {
+            formType = 'textarea'
+          } else if (dbType === 'date') formType = 'date-picker'
+          else if (dbType === 'datetime' || dbType === 'timestamp') formType = 'datetime-picker'
+          else if (dbType === 'boolean') formType = 'switch'
+          else if (dbType === 'json') formType = 'textarea'
+          else formType = 'input'
+        }
+
+        return normalizeFieldControls({
+          ...field,
+          type,
+          label: field.label || field.name || '',
+          form_type: formType,
+          dictionary: field.dictionary || '',
+          api_url: field.api_url || '',
+        } as CodeGeneratorField)
+      }),
+    [fieldTypes],
+  )
+
   const handleApplyAIConfig = () => {
     if (!aiGeneratedConfig) return
 
@@ -700,43 +877,32 @@ export function useCodeGenerator() {
       table_name: aiGeneratedConfig.table_name || '',
     })
 
-    const mappedFields = (aiGeneratedConfig.fields || []).map((field) => {
-      const dbType = field.db_type || field.type || 'string'
-      let type = dbType
-      const typeExists = fieldTypes.some((ft) => ft.value === type)
-      if (!typeExists) {
-        if (dbType.includes('bigint')) type = 'bigInteger'
-        else if (dbType.includes('int')) type = 'integer'
-        else if (dbType.includes('char') || dbType.includes('text')) type = 'string'
-        else if (dbType.includes('date') || dbType.includes('time')) type = 'datetime'
-        else if (dbType.includes('decimal') || dbType.includes('float') || dbType.includes('double')) type = 'decimal'
-        else if (dbType.includes('bool')) type = 'boolean'
-        else if (dbType.includes('json')) type = 'json'
-        else type = 'string'
-      }
+    setFields(mapAIFields(aiGeneratedConfig.fields || []))
 
-      let formType = field.form_type
-      if (!formType) {
-        if (dbType === 'text' || field.name?.includes('content') || field.name?.includes('description')) {
-          formType = 'textarea'
-        } else if (dbType === 'date') formType = 'date-picker'
-        else if (dbType === 'datetime' || dbType === 'timestamp') formType = 'datetime-picker'
-        else if (dbType === 'boolean') formType = 'switch'
-        else if (dbType === 'json') formType = 'textarea'
-        else formType = 'input'
-      }
+    const detailTable = (aiGeneratedConfig.detail_table_name || '').trim()
+    const detailList = aiGeneratedConfig.detail_fields || []
+    const enableMD = Boolean(aiGeneratedConfig.is_master_detail && detailTable && detailList.length > 0)
+    if (enableMD) {
+      handleOptionsChange([
+        ...options.filter((v) => v !== 'is_tree_list' && v !== 'is_master_detail'),
+        'is_master_detail',
+      ])
+      setSelectedDetailTable(detailTable)
+      setDetailTableName(detailTable)
+      setDetailFields(
+        mapAIFields(detailList).filter(
+          (f) => f.name !== 'id' && f.name !== 'created_at' && f.name !== 'updated_at' && f.name !== 'deleted_at',
+        ),
+      )
+      setImportMode('none')
+    } else {
+      // Clear leftover master-detail state from a previous AI apply.
+      handleOptionsChange(options.filter((v) => v !== 'is_master_detail'))
+      setSelectedDetailTable('')
+      setDetailTableName('')
+      setDetailFields([])
+    }
 
-      return normalizeFieldControls({
-        ...field,
-        type,
-        label: field.label || field.name || '',
-        form_type: formType,
-        dictionary: field.dictionary || '',
-        api_url: field.api_url || '',
-      } as CodeGeneratorField)
-    })
-
-    setFields(mappedFields)
     setActiveMode('manual')
     message.success(t('code_generator.ai_config_applied'))
   }
@@ -772,10 +938,18 @@ export function useCodeGenerator() {
     fieldConfigForm,
     setFieldConfigForm,
     fields,
+    detailTableName,
+    setDetailTableName,
+    selectedDetailTable,
+    detailFields,
     files,
     setFiles,
     options,
-    setOptions,
+    setOptions: handleOptionsChange,
+    handleDetailTableChange,
+    handleAddDetailField,
+    handleRemoveDetailField,
+    updateDetailField,
     exportMode,
     setExportMode,
     importMode,

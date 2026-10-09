@@ -56,6 +56,30 @@
           :field="f"
           :model="formData"
         />
+<<if .IsMasterDetail>>
+        <el-divider content-position="left">{{ $t('common.detail_rows') }}</el-divider>
+        <div style="margin-bottom: 12px">
+          <el-button type="primary" link @click="addDetailRow">{{ $t('common.add') }}</el-button>
+        </div>
+        <el-table :data="formData.details" border size="small">
+<<- range .DetailFormFields>>
+          <el-table-column :label="$t('<<.Name>>')" min-width="120">
+            <template #default="{ row }">
+              <<if eq .FormType "number">>
+              <el-input-number v-model="row.<<.Name>>" :controls="false" style="width: 100%" />
+              <<else>>
+              <el-input v-model="row.<<.Name>>" />
+              <<end>>
+            </template>
+          </el-table-column>
+<<- end>>
+          <el-table-column :label="$t('common.operation')" width="80" fixed="right">
+            <template #default="{ $index }">
+              <el-button type="danger" link @click="removeDetailRow($index)">{{ $t('common.delete') }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+<<end>>
       </el-form>
     </div>
     <template #footer>
@@ -119,6 +143,9 @@ const getFormInitialValue = () => ({
   <<.Name>>: <<if eq .FormType "switch">>0<<else if eq .FormType "number">>0<<else if eq .FormType "date-picker">>null<<else if eq .FormType "datetime-picker">>null<<else if .Relation>>null<<else if or (eq .FormType "select") (eq .FormType "radio")>>null<<else if eq .FormType "checkbox">>[]<<else>>''<<end>>,
 <<- end>>
 <<- end>>
+<<if .IsMasterDetail>>
+  details: [{}],
+<<end>>
 })
 
 const dialogVisible = computed({
@@ -131,6 +158,17 @@ const dialogTitle = computed(() => {
 })
 
 const formData = reactive(getFormInitialValue())
+
+<<if .IsMasterDetail>>
+const addDetailRow = () => {
+  if (!Array.isArray(formData.details)) formData.details = []
+  formData.details.push({})
+}
+const removeDetailRow = (index) => {
+  formData.details.splice(index, 1)
+  if (formData.details.length === 0) formData.details.push({})
+}
+<<end>>
 
 const formRules = computed(() => {
   const rules = {}
@@ -250,6 +288,9 @@ const loadData = async () => {
 <<- end>>
       const normalized = normalizeFormData(mapped, normalizeRules)
       Object.assign(formData, normalized)
+<<if .IsMasterDetail>>
+      formData.details = Array.isArray(data.details) && data.details.length ? data.details.map((row) => ({ ...row })) : [{}]
+<<end>>
     }
   } catch (error) {
     ErrorHandler.handle(error)
@@ -271,16 +312,55 @@ const handleCancel = () => {
   dialogVisible.value = false
 }
 
+<<if .IsMasterDetail>>
+const isBlankDetailRow = (row) => {
+  if (!row || typeof row !== 'object') return true
+<<- range .DetailFormFields>>
+  {
+    const v = row['<<.Name>>']
+    if (v !== undefined && v !== null && String(v).trim() !== '') return false
+  }
+<<- end>>
+  return true
+}
+
+const validateDetailRows = () => {
+  const rows = Array.isArray(formData.details) ? formData.details : []
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    if (isBlankDetailRow(row)) continue
+<<- range .DetailFormFields>>
+<<- if .Required>>
+    {
+      const v = row['<<.Name>>']
+      if (v === undefined || v === null || String(v).trim() === '') {
+        ElMessage.warning(t('common.required') + ': <<.Label>>')
+        return false
+      }
+    }
+<<- end>>
+<<- end>>
+  }
+  return true
+}
+<<end>>
+
 const handleSubmit = async () => {
   if (!formRef.value) return
 
   await formRef.value.validate(async (valid) => {
     if (!valid) return
+<<if .IsMasterDetail>>
+    if (!validateDetailRows()) return
+<<end>>
 
     submitting.value = true
     try {
       const data = { ...formData }
       delete data.id
+<<if .IsMasterDetail>>
+      data.details = (Array.isArray(formData.details) ? formData.details : []).filter((row) => !isBlankDetailRow(row))
+<<end>>
       <<if .HasEdit>>
       if (props.editId) {
         await update<<.ModelName>>(props.editId, data)

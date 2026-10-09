@@ -80,6 +80,9 @@ func (s *<<.ServiceName>>Impl) withRelations(query orm.Query) orm.Query {
 	query = query.With("<<.Relation.Name>>")
 <<- end>>
 <<- end>>
+<<if .IsMasterDetail>>
+	query = query.With("Details")
+<<end>>
 	return query
 }
 
@@ -270,11 +273,24 @@ func (s *<<.ServiceName>>Impl) Create(req *admin.<<.RequestCreateName>>) (*model
 <<- end>>
 	}
 
+<<if .IsMasterDetail>>
+	err := appfacades.OrmTransaction(s.ctx, func(tx orm.Query) error {
+		if err := tx.Create(item); err != nil {
+			return err
+		}
+		return s.sync<<.ModelName>>Details(tx, item.ID, req.Details)
+	})
+	if err != nil {
+		return nil, apperrors.ErrCreateFailed.WithError(err)
+	}
+	return s.GetByID(item.ID)
+<<else>>
 	if err := appfacades.OrmQuery(s.ctx).Create(item); err != nil {
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
 
 	return item, nil
+<<end>>
 }
 <<end>>
 
@@ -297,11 +313,27 @@ func (s *<<.ServiceName>>Impl) Update(id uint, req *admin.<<.RequestUpdateName>>
 <<- end>>
 <<- end>>
 
+<<if .IsMasterDetail>>
+	err = appfacades.OrmTransaction(s.ctx, func(tx orm.Query) error {
+		if err := tx.Save(item); err != nil {
+			return err
+		}
+		if req.Details != nil {
+			return s.sync<<.ModelName>>Details(tx, item.ID, *req.Details)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, apperrors.ErrUpdateFailed.WithError(err)
+	}
+	return s.GetByID(item.ID)
+<<else>>
 	if err := appfacades.OrmQuery(s.ctx).Save(item); err != nil {
 		return nil, apperrors.ErrUpdateFailed.WithError(err)
 	}
 
 	return item, nil
+<<end>>
 }
 <<end>>
 
@@ -311,8 +343,59 @@ func (s *<<.ServiceName>>Impl) Delete(id uint) error {
 		return err
 	}
 
+<<if .IsMasterDetail>>
+	err := appfacades.OrmTransaction(s.ctx, func(tx orm.Query) error {
+		if _, err := tx.Where("<<.DetailFKName>>", id).Delete(&models.<<.DetailModelName>>{}); err != nil {
+			return err
+		}
+		if _, err := tx.Where("id", id).Delete(&models.<<.ModelName>>{}); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return apperrors.ErrDeleteFailed.WithError(err)
+	}
+	return nil
+<<else>>
 	if _, err := appfacades.OrmQuery(s.ctx).Where("id", id).Delete(&models.<<.ModelName>>{}); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
+	}
+	return nil
+<<end>>
+}
+<<end>>
+
+<<if .IsMasterDetail>>
+func isEmpty<<.DetailModelName>>Input(d admin.<<.DetailModelName>>Input) bool {
+<<- range .DetailFormFields>>
+	{
+		var zero <<.GoType>>
+		if d.<<.FieldName>> != zero {
+			return false
+		}
+	}
+<<- end>>
+	return true
+}
+
+func (s *<<.ServiceName>>Impl) sync<<.ModelName>>Details(tx orm.Query, masterID uint, details []admin.<<.DetailModelName>>Input) error {
+	if _, err := tx.Where("<<.DetailFKName>>", masterID).Delete(&models.<<.DetailModelName>>{}); err != nil {
+		return err
+	}
+	for i := range details {
+		if isEmpty<<.DetailModelName>>Input(details[i]) {
+			continue
+		}
+		row := &models.<<.DetailModelName>>{
+			<<.DetailFKFieldName>>: masterID,
+<<- range .DetailFormFields>>
+			<<.FieldName>>: details[i].<<.FieldName>>,
+<<- end>>
+		}
+		if err := tx.Create(row); err != nil {
+			return err
+		}
 	}
 	return nil
 }

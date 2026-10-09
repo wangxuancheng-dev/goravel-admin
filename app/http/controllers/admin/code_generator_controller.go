@@ -16,29 +16,35 @@ type CodeGeneratorController struct {}
 
 
 type GenerateRequest struct {
-	ModuleName string                 `json:"module_name"`
-	TableName  string                 `json:"table_name"`
-	Fields     []services.FieldConfig `json:"fields"`
-	Files      []string               `json:"files"`
-	Options    map[string]bool        `json:"options"`
+	ModuleName      string                 `json:"module_name"`
+	TableName       string                 `json:"table_name"`
+	Fields          []services.FieldConfig `json:"fields"`
+	Files           []string               `json:"files"`
+	Options         map[string]bool        `json:"options"`
+	DetailTableName string                 `json:"detail_table_name"`
+	DetailFields    []services.FieldConfig `json:"detail_fields"`
 }
 
 type PreviewRequest struct {
-	ModuleName string                 `json:"module_name"`
-	TableName  string                 `json:"table_name"`
-	Fields     []services.FieldConfig `json:"fields"`
-	FileType   string                 `json:"file_type"`
-	Options    map[string]bool        `json:"options"`
+	ModuleName      string                 `json:"module_name"`
+	TableName       string                 `json:"table_name"`
+	Fields          []services.FieldConfig `json:"fields"`
+	FileType        string                 `json:"file_type"`
+	Options         map[string]bool        `json:"options"`
+	DetailTableName string                 `json:"detail_table_name"`
+	DetailFields    []services.FieldConfig `json:"detail_fields"`
 }
 
 type SaveRequest struct {
-	ModuleName string                 `json:"module_name"`
-	TableName  string                 `json:"table_name"`
-	Fields     []services.FieldConfig `json:"fields"`
-	Force      bool                   `json:"force"`
-	Files      []string               `json:"files"`
-	Options    map[string]bool        `json:"options"`
-	Install    *services.ModuleInstallConfig `json:"install"`
+	ModuleName      string                        `json:"module_name"`
+	TableName       string                        `json:"table_name"`
+	Fields          []services.FieldConfig        `json:"fields"`
+	Force           bool                          `json:"force"`
+	Files           []string                      `json:"files"`
+	Options         map[string]bool               `json:"options"`
+	Install         *services.ModuleInstallConfig `json:"install"`
+	DetailTableName string                        `json:"detail_table_name"`
+	DetailFields    []services.FieldConfig        `json:"detail_fields"`
 }
 
 type InstallModuleRequest struct {
@@ -60,6 +66,15 @@ func (c *CodeGeneratorController) codeGeneratorService(ctx http.Context) service
 	return services.NewCodeGeneratorService(ctx)
 }
 
+func (c *CodeGeneratorController) applyMasterDetail(svc services.CodeGeneratorService, options map[string]bool, detailTable string, detailFields []services.FieldConfig) (services.CodeGeneratorService, string) {
+	if err := services.ValidateMasterDetailRequest(options, detailTable, detailFields); err != nil {
+		return svc, err.Error()
+	}
+	if options != nil && options["is_master_detail"] {
+		return svc.WithMasterDetail(detailTable, detailFields), ""
+	}
+	return svc, ""
+}
 
 // Generate 生成CRUD代码
 func (c *CodeGeneratorController) Generate(ctx http.Context) http.Response {
@@ -74,8 +89,16 @@ func (c *CodeGeneratorController) Generate(ctx http.Context) http.Response {
 	if req.TableName == "" {
 		return response.Error(ctx, http.StatusBadRequest, "table_name_required")
 	}
+	if services.IsCodeGeneratorReservedTable(req.TableName) {
+		return response.Error(ctx, http.StatusBadRequest, "system_table_not_allowed")
+	}
 
-	files, err := c.codeGeneratorService(ctx).Generate(req.ModuleName, req.TableName, req.Fields, req.Files, req.Options)
+	svc, errCode := c.applyMasterDetail(c.codeGeneratorService(ctx), req.Options, req.DetailTableName, req.DetailFields)
+	if errCode != "" {
+		return response.Error(ctx, http.StatusBadRequest, errCode)
+	}
+
+	files, err := svc.Generate(req.ModuleName, req.TableName, req.Fields, req.Files, req.Options)
 	if err != nil {
 		if businessErr, ok := apperrors.GetBusinessError(err); ok {
 			return response.Error(ctx, http.StatusInternalServerError, businessErr.Code)
@@ -101,11 +124,19 @@ func (c *CodeGeneratorController) Preview(ctx http.Context) http.Response {
 	if req.TableName == "" {
 		return response.Error(ctx, http.StatusBadRequest, "table_name_required")
 	}
+	if services.IsCodeGeneratorReservedTable(req.TableName) {
+		return response.Error(ctx, http.StatusBadRequest, "system_table_not_allowed")
+	}
 	if req.FileType == "" {
 		return response.Error(ctx, http.StatusBadRequest, "file_type_required")
 	}
 
-	code, err := c.codeGeneratorService(ctx).Preview(req.ModuleName, req.TableName, req.Fields, req.FileType, req.Options)
+	svc, errCode := c.applyMasterDetail(c.codeGeneratorService(ctx), req.Options, req.DetailTableName, req.DetailFields)
+	if errCode != "" {
+		return response.Error(ctx, http.StatusBadRequest, errCode)
+	}
+
+	code, err := svc.Preview(req.ModuleName, req.TableName, req.Fields, req.FileType, req.Options)
 	if err != nil {
 		if businessErr, ok := apperrors.GetBusinessError(err); ok {
 			return response.Error(ctx, http.StatusInternalServerError, businessErr.Code)
@@ -131,14 +162,22 @@ func (c *CodeGeneratorController) Save(ctx http.Context) http.Response {
 	if req.TableName == "" {
 		return response.Error(ctx, http.StatusBadRequest, "table_name_required")
 	}
+	if services.IsCodeGeneratorReservedTable(req.TableName) {
+		return response.Error(ctx, http.StatusBadRequest, "system_table_not_allowed")
+	}
+
+	svc, errCode := c.applyMasterDetail(c.codeGeneratorService(ctx), req.Options, req.DetailTableName, req.DetailFields)
+	if errCode != "" {
+		return response.Error(ctx, http.StatusBadRequest, errCode)
+	}
 
 	var savedFiles []string
 	var err error
 
 	if req.Force {
-		savedFiles, err = c.codeGeneratorService(ctx).ForceSave(req.ModuleName, req.TableName, req.Fields, req.Files, req.Options)
+		savedFiles, err = svc.ForceSave(req.ModuleName, req.TableName, req.Fields, req.Files, req.Options)
 	} else {
-		savedFiles, err = c.codeGeneratorService(ctx).Save(req.ModuleName, req.TableName, req.Fields, req.Files, req.Options)
+		savedFiles, err = svc.Save(req.ModuleName, req.TableName, req.Fields, req.Files, req.Options)
 	}
 
 	if err != nil {
@@ -236,6 +275,9 @@ func (c *CodeGeneratorController) GetTableColumns(ctx http.Context) http.Respons
 
 	fields, err := c.codeGeneratorService(ctx).GetTableColumns(tableName)
 	if err != nil {
+		if err.Error() == "system_table_not_allowed" || err.Error() == "table_name_required" {
+			return response.Error(ctx, http.StatusBadRequest, err.Error())
+		}
 		return response.Error(ctx, http.StatusInternalServerError, err.Error())
 	}
 	return response.Success(ctx, http.Json{

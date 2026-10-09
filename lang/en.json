@@ -119,6 +119,9 @@
         "generate_success": "Generate successful",
         "generate_failed": "Generate failed",
         "files_exist": "Files already exist",
+        "master_detail_conflicts_tree_list": "Master-detail cannot be combined with tree list",
+        "detail_table_name_required": "Detail table name is required",
+        "detail_fields_required": "Detail fields are required",
         "ai_not_configured": "AI is not configured. Set AI_API_KEY in .env and restart the server",
         "ai_lab_rate_limited": "AI Lab rate limit exceeded. Please try again later",
         "prompt_required": "Prompt is required",
@@ -405,6 +408,7 @@
         "ip_not_allowed": "Your IP address is not on the allowlist",
         "revoke_others_success": "Other sessions revoked",
         "allowlist_locks_self": "This change would lock out your current IP ({ip}); add it to the allowlist first",
-        "blacklist_locks_self": "Cannot blacklist your current IP ({ip})"
+        "blacklist_locks_self": "Cannot blacklist your current IP ({ip})",
+        "system_table_not_allowed": "System / built-in tables cannot be used in the code generator"
     }
 }

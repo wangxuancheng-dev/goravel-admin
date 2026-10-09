@@ -1,4 +1,4 @@
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Document, Delete, Setting } from '@element-plus/icons-vue'
@@ -32,6 +32,7 @@ export function useCodeGenerator() {
   const dictionaryTypes = ref([])
   const tables = ref([])
   const selectedTable = ref('')
+  const selectedDetailTable = ref('')
   const aiDescription = ref('')
   const aiGenerating = ref(false)
   const aiGeneratedConfig = ref(null)
@@ -80,6 +81,7 @@ export function useCodeGenerator() {
     t('code_generator.ai_example_product'),
     t('code_generator.ai_example_article'),
     t('code_generator.ai_example_guestbook'),
+    t('code_generator.ai_example_master_detail'),
   ])
 
   const fieldTypes = computed(() => {
@@ -120,6 +122,8 @@ export function useCodeGenerator() {
     options: ['has_create', 'has_edit', 'has_delete', 'show_toolbar'],
     export_mode: 'none',
     import_mode: 'none',
+    detail_table_name: '',
+    detail_fields: [],
     fields: [
       {
         name: 'name',
@@ -208,14 +212,47 @@ export function useCodeGenerator() {
     }
   }
 
+  const toPayloadFields = (list) =>
+    (list || []).map((field) => {
+      const normalized = normalizeFieldControls(field)
+      const dbType = normalized.db_type || normalized.type || 'string'
+      return { ...normalized, type: dbType, db_type: dbType }
+    })
+
+  const buildMasterDetailPayload = () => {
+    if (!form.options.includes('is_master_detail')) {
+      return {}
+    }
+    return {
+      detail_table_name: (form.detail_table_name || '').trim(),
+      detail_fields: toPayloadFields(form.detail_fields),
+    }
+  }
+
+  const validateMasterDetail = () => {
+    if (!form.options.includes('is_master_detail')) {
+      return true
+    }
+    if (!(form.detail_table_name || '').trim()) {
+      ElMessage.warning(t('code_generator.detail_table_name_required'))
+      return false
+    }
+    if (!form.detail_fields || form.detail_fields.length === 0) {
+      ElMessage.warning(t('code_generator.detail_fields_required'))
+      return false
+    }
+    return true
+  }
+
   const buildSavePayload = (force = false) => ({
     module_name: form.module_name,
     table_name: form.table_name,
-    fields: form.fields.map((field) => normalizeFieldControls(field)),
+    fields: toPayloadFields(form.fields),
     files: form.files,
     force,
     options: buildGeneratorOptions(),
     install: buildInstallConfig(),
+    ...buildMasterDetailPayload(),
   })
 
   const saveGeneratedCode = async (force = false) => {
@@ -256,15 +293,28 @@ export function useCodeGenerator() {
   const buildGeneratorOptions = () => ({
     has_export: form.export_mode !== 'none',
     export_async: form.export_mode === 'async',
-    has_import: form.import_mode !== 'none',
-    import_async: form.import_mode === 'async',
+    has_import: form.import_mode !== 'none' && !form.options.includes('is_master_detail'),
+    import_async: form.import_mode === 'async' && !form.options.includes('is_master_detail'),
     has_create: form.options.includes('has_create'),
     has_edit: form.options.includes('has_edit'),
     has_delete: form.options.includes('has_delete'),
     enable_batch_actions: form.options.includes('enable_batch_actions'),
     show_toolbar: form.options.includes('show_toolbar'),
-    is_tree_list: form.options.includes('is_tree_list')
+    is_tree_list: form.options.includes('is_tree_list') && !form.options.includes('is_master_detail'),
+    is_master_detail: form.options.includes('is_master_detail'),
   })
+
+  watch(
+    () => [...form.options],
+    (values) => {
+      if (values.includes('is_master_detail') && values.includes('is_tree_list')) {
+        form.options = values.filter((v) => v !== 'is_tree_list')
+      }
+      if (values.includes('is_master_detail') && form.import_mode !== 'none') {
+        form.import_mode = 'none'
+      }
+    },
+  )
 
   const fileTypes = computed(() => {
     const types = backendFileTypes.map((item) => ({
@@ -407,6 +457,78 @@ export function useCodeGenerator() {
     form.fields.splice(index, 1)
   }
 
+  const handleDetailTableChange = async (val) => {
+    selectedDetailTable.value = val || ''
+    form.detail_table_name = val || ''
+    if (!val) {
+      form.detail_fields = []
+      return
+    }
+    try {
+      const response = await getTableColumns(val)
+      form.detail_fields = (response.data.fields || [])
+        .filter((field) => !['id', 'created_at', 'updated_at', 'deleted_at'].includes(field.name))
+        .map((field) => {
+          const dbType = field.db_type || field.type || 'string'
+          let type = dbType
+          const fieldType = fieldTypesRaw.value.find((ft) => ft.value === dbType)
+          if (fieldType) {
+            type = fieldType.value
+          } else if (dbType.includes('int')) type = 'integer'
+          else if (dbType.includes('char') || dbType.includes('text')) type = 'string'
+          else if (dbType.includes('date') || dbType.includes('time')) type = 'datetime'
+          else if (dbType.includes('decimal') || dbType.includes('float') || dbType.includes('double')) type = 'decimal'
+          else if (dbType.includes('bool')) type = 'boolean'
+          else if (dbType.includes('json')) type = 'json'
+          else type = 'string'
+          return normalizeFieldControls({
+            ...field,
+            type,
+            db_type: type,
+            show_in_form: field.name !== 'id' && !String(field.name).endsWith('_id'),
+            show_in_list: true,
+          })
+        })
+      ElMessage.success(t('code_generator.fields_loaded'))
+    } catch (error) {
+      logger.error('Failed to load detail columns:', error)
+      ElMessage.error(t('code_generator.load_columns_failed'))
+    }
+  }
+
+  const handleAddDetailField = () => {
+    form.detail_fields.push(
+      normalizeFieldControls({
+        name: '',
+        type: 'string',
+        db_type: 'string',
+        label: '',
+        required: false,
+        searchable: false,
+        sortable: false,
+        show_in_list: true,
+        show_in_form: true,
+        show_in_detail: true,
+        is_primary_key: false,
+        search_type: 'like',
+        search_ui_type: 'input',
+        form_type: 'input',
+        relation: null,
+        dictionary: '',
+        api_url: '',
+      }),
+    )
+  }
+
+  const handleRemoveDetailField = (index) => {
+    form.detail_fields.splice(index, 1)
+  }
+
+  const applyDetailFieldTypeChange = (row) => {
+    row.db_type = row.type
+    Object.assign(row, normalizeFieldControls(row))
+  }
+
   const handleEditRelation = (row) => {
     currentField.value = row
     if (row.relation) {
@@ -503,12 +625,14 @@ export function useCodeGenerator() {
   const handlePreview = async (fileType) => {
     previewing.value = fileType
     try {
+      if (!validateMasterDetail()) return
       const response = await previewCodeApi({
         module_name: form.module_name,
         table_name: form.table_name,
-        fields: form.fields.map((field) => normalizeFieldControls(field)),
+        fields: toPayloadFields(form.fields),
         file_type: fileType,
-        options: buildGeneratorOptions()
+        options: buildGeneratorOptions(),
+        ...buildMasterDetailPayload(),
       })
       previewCode[fileType] = response.data.code || ''
     } catch (error) {
@@ -525,6 +649,9 @@ export function useCodeGenerator() {
     try {
       await formRef.value.validate()
     } catch (error) {
+      return
+    }
+    if (!validateMasterDetail()) {
       return
     }
 
@@ -612,18 +739,7 @@ export function useCodeGenerator() {
     }
   }
 
-  const handleApplyAIConfig = () => {
-    if (!aiGeneratedConfig.value) {
-      return
-    }
-
-    form.module_name = aiGeneratedConfig.value.module_name || ''
-    form.table_name = aiGeneratedConfig.value.table_name || ''
-    if (!form.menu_title) {
-      form.menu_title = form.module_name
-    }
-
-    const fields = (aiGeneratedConfig.value.fields || []).map(field => {
+  const mapAIFields = (list) => (list || []).map(field => {
       const dbType = field.db_type || field.type || 'string'
 
       let type = dbType
@@ -730,9 +846,43 @@ export function useCodeGenerator() {
       }
 
       return normalizeFieldControls(mappedField)
-    })
+  })
 
-    form.fields = fields
+  const handleApplyAIConfig = () => {
+    if (!aiGeneratedConfig.value) {
+      return
+    }
+
+    form.module_name = aiGeneratedConfig.value.module_name || ''
+    form.table_name = aiGeneratedConfig.value.table_name || ''
+    if (!form.menu_title) {
+      form.menu_title = form.module_name
+    }
+
+    form.fields = mapAIFields(aiGeneratedConfig.value.fields || [])
+
+    const detailTable = (aiGeneratedConfig.value.detail_table_name || '').trim()
+    const detailList = aiGeneratedConfig.value.detail_fields || []
+    const enableMD = Boolean(aiGeneratedConfig.value.is_master_detail && detailTable && detailList.length > 0)
+    if (enableMD) {
+      form.options = [
+        ...form.options.filter((v) => v !== 'is_tree_list' && v !== 'is_master_detail'),
+        'is_master_detail',
+      ]
+      form.detail_table_name = detailTable
+      selectedDetailTable.value = detailTable
+      form.detail_fields = mapAIFields(detailList).filter(
+        (f) => f.name !== 'id' && f.name !== 'created_at' && f.name !== 'updated_at' && f.name !== 'deleted_at',
+      )
+      form.import_mode = 'none'
+    } else {
+      // Clear leftover master-detail state from a previous AI apply.
+      form.options = form.options.filter((v) => v !== 'is_master_detail')
+      form.detail_table_name = ''
+      selectedDetailTable.value = ''
+      form.detail_fields = []
+    }
+
     activeMode.value = 'manual'
     ElMessage.success(t('code_generator.ai_config_applied'))
   }
@@ -756,6 +906,7 @@ export function useCodeGenerator() {
     dictionaryTypes,
     tables,
     selectedTable,
+    selectedDetailTable,
     aiDescription,
     aiGenerating,
     aiGeneratedConfig,
@@ -777,8 +928,12 @@ export function useCodeGenerator() {
     searchUiTypesForField,
     applyFieldTypeChange,
     handleTableChange,
+    handleDetailTableChange,
     handleAddField,
     handleRemoveField,
+    handleAddDetailField,
+    handleRemoveDetailField,
+    applyDetailFieldTypeChange,
     handleEditRelation,
     handleSaveRelation,
     handleEditFieldConfig,

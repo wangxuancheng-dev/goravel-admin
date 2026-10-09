@@ -18,12 +18,23 @@ import (
 <<- end>>
 )
 
+<<if .IsMasterDetail>>
+type <<.DetailModelName>>Input struct {
+<<- range .DetailFormFields>>
+	<<.FieldName>> <<.GoType>> `form:"<<.JsonName>>" json:"<<.JsonName>>"`
+<<- end>>
+}
+<<end>>
+
 type <<.RequestCreateName>> struct {
 <<- range .FormFields>>
 <<- if and (ne .Name "id") (ne .Name "created_at") (ne .Name "updated_at") (ne .Name "deleted_at")>>
 	<<.FieldName>> <<.GoType>> `form:"<<.JsonName>>" json:"<<.JsonName>>"`
 <<- end>>
 <<- end>>
+<<if .IsMasterDetail>>
+	Details []<<.DetailModelName>>Input `form:"details" json:"details"`
+<<end>>
 }
 
 func (r *<<.RequestCreateName>>) Authorize(ctx http.Context) error {

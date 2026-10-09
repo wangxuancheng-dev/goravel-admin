@@ -296,6 +296,7 @@ export default function CodeGenerator() {
                         { value: 'enable_batch_actions', label: t('code_generator.enable_batch_actions') },
                         { value: 'show_toolbar', label: t('code_generator.show_toolbar') },
                         { value: 'is_tree_list', label: t('code_generator.is_tree_list') },
+                        { value: 'is_master_detail', label: t('code_generator.is_master_detail') },
                       ]}
                     />
                   </Form.Item>
@@ -309,11 +310,20 @@ export default function CodeGenerator() {
                   </Form.Item>
 
                   <Form.Item label={t('code_generator.import_mode')}>
-                    <Radio.Group value={cg.importMode} onChange={(e) => cg.setImportMode(e.target.value)}>
+                    <Radio.Group
+                      value={cg.importMode}
+                      onChange={(e) => cg.setImportMode(e.target.value)}
+                      disabled={cg.options.includes('is_master_detail')}
+                    >
                       <Radio value="none">{t('code_generator.import_mode_none')}</Radio>
                       <Radio value="sync">{t('code_generator.import_mode_sync')}</Radio>
                       <Radio value="async">{t('code_generator.import_mode_async')}</Radio>
                     </Radio.Group>
+                    {cg.options.includes('is_master_detail') ? (
+                      <div style={{ marginTop: 8, color: 'rgba(0,0,0,0.45)', fontSize: 12 }}>
+                        {t('code_generator.master_detail_no_import')}
+                      </div>
+                    ) : null}
                   </Form.Item>
 
                   <Button type="primary" icon={<PlusOutlined />} onClick={cg.handleAddField}>
@@ -330,6 +340,135 @@ export default function CodeGenerator() {
                     pagination={false}
                     scroll={{ x: 1800 }}
                   />
+
+                  {cg.options.includes('is_master_detail') ? (
+                    <>
+                      <Divider>{t('code_generator.detail_fields_config')}</Divider>
+                      <Alert
+                        type="info"
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                        message={t('code_generator.master_detail_hint')}
+                      />
+                      <Form.Item label={t('code_generator.detail_table_name')}>
+                        <Space.Compact style={{ width: '100%' }}>
+                          <Select
+                            style={{ width: '45%' }}
+                            allowClear
+                            showSearch
+                            value={cg.selectedDetailTable || undefined}
+                            placeholder={t('code_generator.select_table_placeholder')}
+                            options={cg.tables.map((table) => ({ value: table, label: table }))}
+                            onChange={(value) => void cg.handleDetailTableChange(value || '')}
+                          />
+                          <Input
+                            style={{ width: '55%' }}
+                            value={cg.detailTableName}
+                            placeholder={t('code_generator.detail_table_placeholder')}
+                            onChange={(e) => cg.setDetailTableName(e.target.value)}
+                          />
+                        </Space.Compact>
+                      </Form.Item>
+                      <Button type="primary" icon={<PlusOutlined />} onClick={cg.handleAddDetailField}>
+                        {t('code_generator.add_detail_field')}
+                      </Button>
+                      <Table
+                        style={{ marginTop: 20 }}
+                        bordered
+                        size="small"
+                        rowKey={(_, index) => `detail-${index}`}
+                        dataSource={cg.detailFields}
+                        pagination={false}
+                        scroll={{ x: 1200 }}
+                        columns={[
+                          {
+                            title: t('table.index'),
+                            width: 60,
+                            render: (_: unknown, __: CodeGeneratorField, index: number) => index + 1,
+                          },
+                          {
+                            title: t('code_generator.field_name'),
+                            width: 150,
+                            render: (_: unknown, row: CodeGeneratorField, index: number) => (
+                              <Input
+                                value={row.name}
+                                placeholder={t('code_generator.field_name_placeholder')}
+                                onChange={(e) => cg.updateDetailField(index, { name: e.target.value })}
+                              />
+                            ),
+                          },
+                          {
+                            title: t('code_generator.field_type'),
+                            width: 150,
+                            render: (_: unknown, row: CodeGeneratorField, index: number) => (
+                              <Select
+                                style={{ width: '100%' }}
+                                value={row.type}
+                                options={cg.fieldTypes.map((type) => ({ value: type.value, label: type.label }))}
+                                onChange={(value) => cg.updateDetailField(index, { type: value })}
+                              />
+                            ),
+                          },
+                          {
+                            title: t('code_generator.field_label'),
+                            width: 150,
+                            render: (_: unknown, row: CodeGeneratorField, index: number) => (
+                              <Input
+                                value={row.label}
+                                placeholder={t('code_generator.field_label_placeholder')}
+                                onChange={(e) => cg.updateDetailField(index, { label: e.target.value })}
+                              />
+                            ),
+                          },
+                          {
+                            title: t('code_generator.form_type'),
+                            width: 150,
+                            render: (_: unknown, row: CodeGeneratorField, index: number) => (
+                              <Select
+                                style={{ width: '100%' }}
+                                value={row.form_type}
+                                options={cg.formTypesForField(row.type)}
+                                onChange={(value) => cg.updateDetailField(index, { form_type: value })}
+                              />
+                            ),
+                          },
+                          {
+                            title: t('code_generator.field_options'),
+                            width: 220,
+                            render: (_: unknown, row: CodeGeneratorField, index: number) => (
+                              <Space wrap size={[8, 4]}>
+                                <Checkbox
+                                  checked={row.required}
+                                  onChange={(e) => cg.updateDetailField(index, { required: e.target.checked })}
+                                >
+                                  {t('code_generator.required')}
+                                </Checkbox>
+                                <Checkbox
+                                  checked={row.show_in_form}
+                                  onChange={(e) => cg.updateDetailField(index, { show_in_form: e.target.checked })}
+                                >
+                                  {t('code_generator.show_in_form')}
+                                </Checkbox>
+                              </Space>
+                            ),
+                          },
+                          {
+                            title: t('table.operation'),
+                            width: 80,
+                            fixed: 'right' as const,
+                            render: (_: unknown, __: CodeGeneratorField, index: number) => (
+                              <Button
+                                type="link"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => cg.handleRemoveDetailField(index)}
+                              />
+                            ),
+                          },
+                        ]}
+                      />
+                    </>
+                  ) : null}
 
                   <Divider>{t('code_generator.code_preview')}</Divider>
 
@@ -421,9 +560,22 @@ export default function CodeGenerator() {
                             <Descriptions bordered column={2} size="small">
                               <Descriptions.Item label={t('code_generator.module_name')}>{cg.aiGeneratedConfig.module_name}</Descriptions.Item>
                               <Descriptions.Item label={t('code_generator.table_name')}>{cg.aiGeneratedConfig.table_name}</Descriptions.Item>
-                              <Descriptions.Item label={t('code_generator.fields_count')} span={2}>
+                              <Descriptions.Item label={t('code_generator.fields_count')}>
                                 {cg.aiGeneratedConfig.fields?.length || 0}
                               </Descriptions.Item>
+                              <Descriptions.Item label={t('code_generator.is_master_detail')}>
+                                {cg.aiGeneratedConfig.is_master_detail ? t('common.yes') : t('common.no')}
+                              </Descriptions.Item>
+                              {cg.aiGeneratedConfig.is_master_detail ? (
+                                <>
+                                  <Descriptions.Item label={t('code_generator.detail_table_name')}>
+                                    {cg.aiGeneratedConfig.detail_table_name || '-'}
+                                  </Descriptions.Item>
+                                  <Descriptions.Item label={t('code_generator.detail_fields_config')}>
+                                    {cg.aiGeneratedConfig.detail_fields?.length || 0}
+                                  </Descriptions.Item>
+                                </>
+                              ) : null}
                             </Descriptions>
                             <Table
                               style={{ marginTop: 20 }}
@@ -453,6 +605,24 @@ export default function CodeGenerator() {
                                 },
                               ]}
                             />
+                            {cg.aiGeneratedConfig.is_master_detail && (cg.aiGeneratedConfig.detail_fields?.length || 0) > 0 ? (
+                              <Table
+                                style={{ marginTop: 20 }}
+                                bordered
+                                size="small"
+                                rowKey="name"
+                                dataSource={cg.aiGeneratedConfig.detail_fields || []}
+                                pagination={false}
+                                scroll={{ y: 300 }}
+                                columns={[
+                                  { title: t('table.index'), width: 60, render: (_v, _r, i) => i + 1 },
+                                  { title: t('code_generator.field_name'), dataIndex: 'name', width: 120 },
+                                  { title: t('code_generator.field_label'), dataIndex: 'label', width: 120 },
+                                  { title: t('code_generator.field_type'), dataIndex: 'db_type', width: 100 },
+                                  { title: t('code_generator.form_type'), dataIndex: 'form_type', width: 120 },
+                                ]}
+                              />
+                            ) : null}
                           </>
                         ) : null}
                     </>

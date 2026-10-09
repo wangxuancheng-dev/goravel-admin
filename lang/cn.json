@@ -402,7 +402,11 @@
         "ip_not_allowed": "当前 IP 不在白名单中",
         "revoke_others_success": "已踢出其他会话",
         "allowlist_locks_self": "变更后当前 IP（{ip}）将无法访问，请先加入白名单",
-        "blacklist_locks_self": "不能将当前 IP（{ip}）加入黑名单"
+        "blacklist_locks_self": "不能将当前 IP（{ip}）加入黑名单",
+        "master_detail_conflicts_tree_list": "主子表与树形列表不能同时开启",
+        "detail_table_name_required": "子表名不能为空",
+        "detail_fields_required": "子表字段不能为空",
+        "system_table_not_allowed": "系统自带表不允许用于代码生成器"
     },
     "tenant_storage_not_configured": "租户自定义对象存储未配置完整",
     "tenant_storage_secret_corrupt": "租户对象存储密钥密文无效，请重新设置",

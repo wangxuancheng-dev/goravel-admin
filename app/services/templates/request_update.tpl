@@ -24,6 +24,9 @@ type <<.RequestUpdateName>> struct {
 	<<.FieldName>> *<<.GoType>> `form:"<<.JsonName>>" json:"<<.JsonName>>"`
 <<- end>>
 <<- end>>
+<<if .IsMasterDetail>>
+	Details *[]<<.DetailModelName>>Input `form:"details" json:"details"`
+<<end>>
 }
 
 func (r *<<.RequestUpdateName>>) Authorize(ctx http.Context) error {

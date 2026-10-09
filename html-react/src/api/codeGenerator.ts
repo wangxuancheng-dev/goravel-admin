@@ -41,6 +41,7 @@ export interface CodeGeneratorOptions {
   enable_batch_actions?: boolean
   show_toolbar?: boolean
   is_tree_list?: boolean
+  is_master_detail?: boolean
 }
 
 export interface ModuleInstallConfig {
@@ -67,6 +68,8 @@ export interface CodeGeneratorPayload {
   force?: boolean
   options?: CodeGeneratorOptions
   install?: ModuleInstallConfig
+  detail_table_name?: string
+  detail_fields?: CodeGeneratorField[]
 }
 
 export function getFieldTypes() {
@@ -125,6 +128,9 @@ export function generateWithAI(data: { description: string }) {
       module_name: string
       table_name: string
       fields: CodeGeneratorField[]
+      is_master_detail?: boolean
+      detail_table_name?: string
+      detail_fields?: CodeGeneratorField[]
     }
   }>({
     url: '/code-generator/generate-with-ai',
