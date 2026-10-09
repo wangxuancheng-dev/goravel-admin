@@ -33,7 +33,6 @@ import (
 	"github.com/goravel/postgres"
 	"github.com/goravel/redis"
 	"github.com/goravel/s3"
-	"github.com/wangxuancheng-dev/goravel-dm"
 	"goravel/app/providers"
 )
 
@@ -69,7 +68,6 @@ func Providers() []foundation.ServiceProvider {
 		&providers.QueueServiceProvider{},
 		&providers.EventServiceProvider{},
 		&providers.DatabaseServiceProvider{},
-		&dm.ServiceProvider{},
 		&postgres.ServiceProvider{},
 		&mysql.ServiceProvider{},
 		&s3.ServiceProvider{},

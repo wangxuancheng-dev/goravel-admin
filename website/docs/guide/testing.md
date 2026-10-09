@@ -47,7 +47,7 @@ html/ / html-react/
 └── src/utils/*.test.*                   # vitest：tenant、buildSearchParams、apiFactory、normalize、timeRange、storage（Vue 另含 xss）
 ```
 
-达梦等可选驱动源码已迁出本仓库，见 [可选驱动仓库](/reference/drivers)。生产队列请使用 `QUEUE_CONNECTION=redis`。
+生产队列请使用 `QUEUE_CONNECTION=redis`。达梦（DM）驱动当前未接入，见 [可选驱动仓库](/reference/drivers)。
 
 ### 运行测试
 
@@ -69,12 +69,8 @@ go test -v -timeout=30s ./app/http/helpers ./app/utils/...
 
 ### 集成测试（按需运行）
 
-达梦驱动源码不在本仓库默认 `go test ./...` 覆盖范围内。集成测试需要本地官方驱动、`dm` build tag 和可访问的达梦实例：
+当前无需额外的第三方数据库驱动集成测试。
 
-```bash
-set DM_TEST_DSN=dm://SYSDBA:SYSDBA@127.0.0.1:5236
-go test -tags dm github.com/wangxuancheng-dev/goravel-dm -run TestDMCrudAndTransaction -v
-```
 
 ### 卡住问题排查顺序
 

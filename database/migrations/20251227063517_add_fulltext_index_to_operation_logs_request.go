@@ -1,9 +1,5 @@
 package migrations
 
-import (
-	"github.com/goravel/framework/facades"
-)
-
 type M20251227063517AddFulltextIndexToOperationLogsRequest struct{}
 
 // Signature The unique signature for the migration.
@@ -11,43 +7,15 @@ func (r *M20251227063517AddFulltextIndexToOperationLogsRequest) Signature() stri
 	return "20251227063517_add_fulltext_index_to_operation_logs_request"
 }
 
-// Up Run the migrations.
+// Up is a no-op: operation log request search uses LIKE by default and does not require a fulltext index.
 func (r *M20251227063517AddFulltextIndexToOperationLogsRequest) Up() error {
-	const tableName = "operation_logs"
-	const indexName = "ft_request"
-	const columnName = "request"
-
-	if !facades.Schema().HasTable(tableName) {
-		return nil
-	}
-
-	hasIndex, err := hasIndex(tableName, indexName)
-	if err != nil {
-		return err
-	}
-	if hasIndex {
-		return nil
-	}
-
-	return createCompatibleTextIndex(tableName, columnName, indexName)
+	return nil
 }
 
-// Down Reverse the migrations.
+// Down Reverse the migrations (drop leftover ft_request if present from older builds).
 func (r *M20251227063517AddFulltextIndexToOperationLogsRequest) Down() error {
 	const tableName = "operation_logs"
 	const indexName = "ft_request"
 
-	if !facades.Schema().HasTable(tableName) {
-		return nil
-	}
-
-	hasIndex, err := hasIndex(tableName, indexName)
-	if err != nil {
-		return err
-	}
-	if !hasIndex {
-		return nil
-	}
-
-	return dropIndexCompatible(tableName, indexName)
+	return dropTextIndexIfExists(tableName, indexName)
 }

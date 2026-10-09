@@ -4,8 +4,6 @@ import (
 	"crypto/tls"
 	"strings"
 
-	dmfacades "github.com/wangxuancheng-dev/goravel-dm/facades"
-
 	"github.com/goravel/framework/contracts/config"
 	"github.com/goravel/framework/contracts/database/driver"
 	"github.com/goravel/framework/facades"
@@ -68,22 +66,6 @@ func init() {
 				"singular":  false,
 				"via": func() (driver.Driver, error) {
 					return mysqlfacades.Mysql("mysql")
-				},
-			},
-			"dm": map[string]any{
-				"host":     config.Env("DB_HOST", "127.0.0.1"),
-				"port":     config.Env("DB_PORT", 5236),
-				"database": config.Env("DB_DATABASE", "SYSDBA"),
-				"username": config.Env("DB_USERNAME", "SYSDBA"),
-				"password": config.Env("DB_PASSWORD", "SYSDBA"),
-				// 仅当需要把模式名写进自动 DSN（dm://...@host:port/模式）时设置；留空则不拼路径，用登录用户默认模式。勿填服务/实例名。
-				"schema": config.Env("DB_SCHEMA", ""),
-				// DM 会话时区，默认跟随框架 app.timezone
-				"session_timezone": config.Env("DB_SESSION_TIMEZONE", config.GetString("app.timezone", "UTC")),
-				"prefix":           "",
-				"singular":         false,
-				"via": func() (driver.Driver, error) {
-					return dmfacades.Dm("dm")
 				},
 			},
 		},

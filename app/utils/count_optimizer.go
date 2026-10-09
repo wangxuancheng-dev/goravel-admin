@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	appfacades "goravel/app/facades"
 )
@@ -75,58 +74,28 @@ func (co *CountOptimizer) extractRowsFromPostgreSQLExplainText(result []map[stri
 func (co *CountOptimizer) OptimizedCountWithTable(tableName, whereClause string, args ...any) (int64, bool, error) {
 	driver := strings.ToLower(appfacades.OrmQuery(co.ctx).Driver())
 
-	// 构建 COUNT SQL
+	// COUNT SQL is the same on MySQL and PostgreSQL for plain table identifiers.
 	var countSQL string
 	if whereClause != "" {
-		switch driver {
-		case "mysql":
-			countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM `%s` WHERE %s", tableName, whereClause)
-		case "dm":
-			countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s WHERE %s", tableName, whereClause)
-		case "postgresql":
-			countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s WHERE %s", tableName, whereClause)
-		default:
-			// 其他数据库不支持估算，直接使用实际 count
-			countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s WHERE %s", tableName, whereClause)
-			var result struct {
-				Cnt int64
-			}
-			if err := appfacades.OrmQuery(co.ctx).Raw(countSQL, args...).Scan(&result); err != nil {
-				return 0, false, err
-			}
-			return result.Cnt, false, nil
-		}
+		countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s WHERE %s", tableName, whereClause)
 	} else {
-		switch driver {
-		case "mysql":
-			countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM `%s`", tableName)
-		case "dm":
-			countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s", tableName)
-		case "postgresql":
-			countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s", tableName)
-		default:
-			// 其他数据库不支持估算，直接使用实际 count
-			countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s", tableName)
-			var result struct {
-				Cnt int64
-			}
-			if err := appfacades.OrmQuery(co.ctx).Raw(countSQL).Scan(&result); err != nil {
-				return 0, false, err
-			}
-			return result.Cnt, false, nil
-		}
+		countSQL = fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s", tableName)
 	}
 
-	// 构建 EXPLAIN SQL
+	exactCount := func() (int64, bool, error) {
+		var result struct {
+			Cnt int64
+		}
+		if err := appfacades.OrmQuery(co.ctx).Raw(countSQL, args...).Scan(&result); err != nil {
+			return 0, false, err
+		}
+		return result.Cnt, false, nil
+	}
+
+	// EXPLAIN syntax and result shapes differ by driver; estimate only for mysql/postgresql.
 	var explainSQL string
 	switch driver {
 	case "mysql":
-		if whereClause != "" {
-			explainSQL = fmt.Sprintf("EXPLAIN SELECT COUNT(*) FROM `%s` WHERE %s", tableName, whereClause)
-		} else {
-			explainSQL = fmt.Sprintf("EXPLAIN SELECT COUNT(*) FROM `%s`", tableName)
-		}
-	case "dm":
 		if whereClause != "" {
 			explainSQL = fmt.Sprintf("EXPLAIN SELECT COUNT(*) FROM %s WHERE %s", tableName, whereClause)
 		} else {
@@ -139,42 +108,17 @@ func (co *CountOptimizer) OptimizedCountWithTable(tableName, whereClause string,
 			explainSQL = fmt.Sprintf("EXPLAIN (FORMAT JSON) SELECT COUNT(*) FROM %s", tableName)
 		}
 	default:
-		// 其他数据库不支持估算，直接使用实际 count
-		var result struct {
-			Cnt int64
-		}
-		if err := appfacades.OrmQuery(co.ctx).Raw(countSQL, args...).Scan(&result); err != nil {
-			return 0, false, err
-		}
-		return result.Cnt, false, nil
+		return exactCount()
 	}
 
-	// 先执行 EXPLAIN 查询获取估算值（快速，不需要特别精准）
 	estimatedCount, err := co.executeExplain(explainSQL, args...)
 	if err != nil {
-		// 如果估算失败，使用实际 count
-		var result struct {
-			Cnt int64
-		}
-		if err := appfacades.OrmQuery(co.ctx).Raw(countSQL, args...).Scan(&result); err != nil {
-			return 0, false, err
-		}
-		return result.Cnt, false, nil
+		return exactCount()
 	}
-
-	// 如果估算值超过阈值，直接返回估算值（不需要执行实际 count，更快）
 	if estimatedCount >= co.Threshold {
 		return estimatedCount, true, nil
 	}
-
-	// 估算值小于阈值，执行实际的 count 获取精确值
-	var result struct {
-		Cnt int64
-	}
-	if err := appfacades.OrmQuery(co.ctx).Raw(countSQL, args...).Scan(&result); err != nil {
-		return 0, false, err
-	}
-	return result.Cnt, false, nil
+	return exactCount()
 }
 
 // executeExplain 执行 EXPLAIN 查询并提取估算行数
@@ -242,35 +186,6 @@ func (co *CountOptimizer) executeExplain(explainSQL string, args ...any) (int64,
 		}
 
 		return 0, fmt.Errorf("cannot extract rows from explain result")
-	case "dm":
-		// DM 使用 EXPLAIN SELECT 执行计划（通过 Exec 执行更稳定）
-		resolvedSQL := renderSQLWithArgs(explainSQL, args...)
-		if _, execErr := appfacades.OrmQuery(co.ctx).Exec(resolvedSQL); execErr != nil {
-			return 0, execErr
-		}
-
-		// 执行 EXPLAIN 后，从当前 schema 统计信息读取估算行数（NUM_ROWS）
-		// 注：这不是精确过滤后行数，但作为大数据量阈值判定已足够。
-		var planRows []map[string]any
-		if scanErr := appfacades.OrmQuery(co.ctx).
-			Raw("SELECT NUM_ROWS AS CARDINALITY FROM ALL_TABLES WHERE OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') AND TABLE_NAME = UPPER(?)", extractMainTableNameFromSQL(resolvedSQL)).
-			Get(&planRows); scanErr != nil {
-			return 0, scanErr
-		}
-		if len(planRows) == 0 {
-			return 0, fmt.Errorf("table stats result is empty")
-		}
-		if raw, ok := planRows[0]["CARDINALITY"]; ok {
-			if parsed, ok := parseExplainRowsValue(raw); ok {
-				return parsed, nil
-			}
-		}
-		if raw, ok := planRows[0]["cardinality"]; ok {
-			if parsed, ok := parseExplainRowsValue(raw); ok {
-				return parsed, nil
-			}
-		}
-		return 0, fmt.Errorf("cannot extract cardinality from table stats")
 	}
 
 	return 0, fmt.Errorf("unsupported database driver: %v", driver)
@@ -300,57 +215,4 @@ func parseExplainRowsValue(v any) (int64, bool) {
 		}
 	}
 	return 0, false
-}
-
-func renderSQLWithArgs(sql string, args ...any) string {
-	if len(args) == 0 || !strings.Contains(sql, "?") {
-		return sql
-	}
-	var b strings.Builder
-	argIdx := 0
-	for i := 0; i < len(sql); i++ {
-		if sql[i] == '?' && argIdx < len(args) {
-			b.WriteString(sqlLiteral(args[argIdx]))
-			argIdx++
-			continue
-		}
-		b.WriteByte(sql[i])
-	}
-	return b.String()
-}
-
-func sqlLiteral(v any) string {
-	switch x := v.(type) {
-	case nil:
-		return "NULL"
-	case string:
-		return "'" + strings.ReplaceAll(x, "'", "''") + "'"
-	case time.Time:
-		return "'" + x.Format("2006-01-02 15:04:05") + "'"
-	case *time.Time:
-		if x == nil {
-			return "NULL"
-		}
-		return "'" + x.Format("2006-01-02 15:04:05") + "'"
-	default:
-		return fmt.Sprintf("%v", x)
-	}
-}
-
-func extractMainTableNameFromSQL(sql string) string {
-	lower := strings.ToLower(sql)
-	fromIdx := strings.Index(lower, " from ")
-	if fromIdx < 0 {
-		return ""
-	}
-	rest := strings.TrimSpace(sql[fromIdx+6:])
-	if rest == "" {
-		return ""
-	}
-	parts := strings.Fields(rest)
-	if len(parts) == 0 {
-		return ""
-	}
-	table := strings.Trim(parts[0], "`\"")
-	return table
 }

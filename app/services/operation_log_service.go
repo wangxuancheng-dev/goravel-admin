@@ -128,7 +128,7 @@ func (s *OperationLogServiceImpl) GetList(filters OperationLogFilters, page, pag
 		query = query.Where("status = ?", filters.Status)
 	}
 	if filters.Request != "" {
-		query = utils.ApplyFulltextSearch(query, "request", filters.Request)
+		query = query.Where("request LIKE ?", "%"+filters.Request+"%")
 	}
 	if filters.StartTime != "" {
 		query = query.Where("created_at >= ?", filters.StartTime)

@@ -165,18 +165,9 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTables(tableNames []string, filt
 			total += tableTotal
 		}
 	} else {
-		// 没有配置阈值，直接使用传统的 count 统计
-		// 根据数据库类型决定表名引号（MySQL 用反引号，PostgreSQL 不用）
-		driver := strings.ToLower(appfacades.OrmQuery(s.ctx).Driver())
-
-		tableQuote := ""
-		if driver == "mysql" {
-			tableQuote = "`"
-		}
-
+		// No threshold: plain COUNT (same SQL shape on MySQL and PostgreSQL).
 		for _, tableName := range existingTableNames {
-			// 每个分表使用相同的 WHERE 条件
-			countSQL := fmt.Sprintf("SELECT COUNT(*) as total FROM %s%s%s WHERE %s", tableQuote, tableName, tableQuote, whereClause)
+			countSQL := fmt.Sprintf("SELECT COUNT(*) as total FROM %s WHERE %s", tableName, whereClause)
 			var countResult struct {
 				Total int64
 			}

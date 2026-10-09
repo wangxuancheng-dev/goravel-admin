@@ -38,6 +38,7 @@ func All() []schema.Migration {
 		&M20250101000025AddLinkTypeToMenus{},
 		&M20250101000026ModifyMenusPathLength{},
 		&M20251227063517AddFulltextIndexToOperationLogsRequest{},
+		&M20261009000001DropFulltextIndexFromOperationLogsRequest{},
 		&M20250128000001CreateOrdersTable{},
 		&M20251228004525AddPaymentMethodToOrdersShardingTables{},
 		&M20250105000001AddCompositeIndexesToOrders{},

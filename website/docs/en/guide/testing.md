@@ -51,7 +51,7 @@ html/ / html-react/
 └── src/utils/*.test.*                   # vitest：tenant、buildSearchParams、apiFactory、normalize、timeRange、storage（Vue 另含 xss）
 ```
 
-Optional Dameng driver lives in a separate repo — see [Optional drivers](/en/reference/drivers). Production queue: `QUEUE_CONNECTION=redis`.
+Production queue: `QUEUE_CONNECTION=redis`. Dameng (DM) is not currently wired; see [Optional drivers](/en/reference/drivers).
 
 ### 运行测试
 
@@ -73,12 +73,8 @@ go test -v -timeout=30s ./app/http/helpers ./app/utils/...
 
 ### Integration tests (optional)
 
-Dameng driver sources are not covered by default `go test ./...` in this repo. Integration needs the official driver, `dm` build tag, and a reachable instance:
+No third-party database driver integration tests are required at the moment.
 
-```bash
-set DM_TEST_DSN=dm://SYSDBA:SYSDBA@127.0.0.1:5236
-go test -tags dm github.com/wangxuancheng-dev/goravel-dm -run TestDMCrudAndTransaction -v
-```
 
 ### 卡住问题排查顺序
 

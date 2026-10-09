@@ -280,16 +280,6 @@ func GetAllExistingShardingTablesByPattern(ctx context.Context, pattern string) 
 }
 
 func buildShardingTableQuery(pattern string) (string, []any) {
-	if facades.Config().GetString("database.default") == "dm" {
-		return `
-		SELECT TABLE_NAME AS name
-		FROM ALL_TABLES
-		WHERE OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
-		AND TABLE_NAME LIKE UPPER(?)
-		ORDER BY TABLE_NAME
-	`, []any{pattern}
-	}
-
 	// Prefer the live Schema/Orm database (tenant bind), not the platform mysql config.
 	dbName := ""
 	if s := facades.Schema(); s != nil && s.Orm() != nil {
