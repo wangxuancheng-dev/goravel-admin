@@ -16,6 +16,7 @@ import (
 	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
 
@@ -88,6 +89,10 @@ func MarkImportFailed(ctx context.Context, importID uint, msg string) {
 	}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if tenancy.Enabled() && !tenancy.Bound(ctx) {
+		facades.Log().Errorf("MarkImportFailed skipped: tenancy on but ctx unbound import_id=%d", importID)
+		return
 	}
 	var record models.Import
 	if err := appfacades.OrmQuery(ctx).Where("id", importID).First(&record); err != nil {

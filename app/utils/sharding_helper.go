@@ -183,7 +183,7 @@ func GetAllExistingShardingTables(ctx context.Context, baseTableName string) ([]
 	// 构建表名匹配模式：orders_YYYYMM 或 order_details_YYYYMM
 	pattern := fmt.Sprintf("%s_%%", baseTableName)
 
-	query, args := buildShardingTableQuery(pattern)
+	query, args := buildShardingTableQuery(ctx, pattern)
 
 	// 执行查询，使用 Scan 获取结果
 	var rows []map[string]any
@@ -246,7 +246,7 @@ func GetAllExistingShardingTablesByPattern(ctx context.Context, pattern string) 
 		ctx = context.Background()
 	}
 	var tableNames []string
-	query, args := buildShardingTableQuery(pattern)
+	query, args := buildShardingTableQuery(ctx, pattern)
 
 	// 执行查询，使用 Scan 获取结果
 	var rows []map[string]any
@@ -279,18 +279,35 @@ func GetAllExistingShardingTablesByPattern(ctx context.Context, pattern string) 
 	return tableNames, nil
 }
 
-func buildShardingTableQuery(pattern string) (string, []any) {
-	// Prefer the live Schema/Orm database (tenant bind), not the platform mysql config.
-	dbName := ""
+func resolveShardingDatabaseName(ctx context.Context) string {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// Prefer goroutine-bound tenant Schema (BindBackground / HTTP middleware).
+	if s := appfacades.BoundTenantSchema(); s != nil && s.Orm() != nil {
+		if n := s.Orm().DatabaseName(); n != "" {
+			return n
+		}
+	}
+	// Prefer connection name from ctx, then that connection's configured database.
+	if connKey := appfacades.SchemaConnectionKeyFrom(ctx); connKey != "" {
+		if n := facades.Config().GetString("database.connections." + connKey + ".database"); n != "" {
+			return n
+		}
+	}
 	if s := facades.Schema(); s != nil && s.Orm() != nil {
-		dbName = s.Orm().DatabaseName()
+		if n := s.Orm().DatabaseName(); n != "" {
+			return n
+		}
 	}
-	if dbName == "" {
-		dbName = facades.Config().GetString("database.connections.mysql.database")
+	if n := facades.Config().GetString("database.connections.mysql.database"); n != "" {
+		return n
 	}
-	if dbName == "" {
-		dbName = facades.Config().GetString("database.connections.postgresql.database")
-	}
+	return facades.Config().GetString("database.connections.postgresql.database")
+}
+
+func buildShardingTableQuery(ctx context.Context, pattern string) (string, []any) {
+	dbName := resolveShardingDatabaseName(ctx)
 
 	return `
 		SELECT table_name

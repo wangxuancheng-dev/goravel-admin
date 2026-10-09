@@ -7,10 +7,12 @@ import (
 	"github.com/goravel/framework/contracts/queue"
 	"github.com/goravel/framework/facades"
 
+	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/jobs"
 	"goravel/app/models"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
 
@@ -42,6 +44,16 @@ func EnqueueAsyncImport(ctx http.Context, in EnqueueAsyncImportInput) EnqueueAsy
 		return EnqueueAsyncImportResult{Blocked: true}
 	}
 
+	var tenantID uint
+	if tenancy.Enabled() {
+		tid, err := helpers.RequireTenant(ctx)
+		if err != nil {
+			lock.Release()
+			return EnqueueAsyncImportResult{Err: apperrors.ErrTenantRequired}
+		}
+		tenantID = tid
+	}
+
 	disk := in.Disk
 	if disk == "" {
 		disk = helpers.ResolveExportDisk(ctx)
@@ -63,12 +75,10 @@ func EnqueueAsyncImport(ctx http.Context, in EnqueueAsyncImportInput) EnqueueAsy
 	args := jobs.ImportArgs{
 		ImportID: importRecord.ID,
 		AdminID:  lock.AdminID,
+		TenantID: tenantID,
 		Type:     in.ImportType,
 		Language: utils.GetCurrentLanguage(ctx),
 		Timezone: helpers.GetCurrentTimezone(ctx),
-	}
-	if tid, ok := helpers.GetTenantIDFromContext(ctx); ok {
-		args.TenantID = tid
 	}
 	if conn, ok := helpers.GetTenantConnectionFromContext(ctx); ok {
 		args.TenantConnection = conn

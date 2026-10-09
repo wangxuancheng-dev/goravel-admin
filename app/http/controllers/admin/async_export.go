@@ -10,6 +10,7 @@ import (
 	"github.com/goravel/framework/facades"
 	"github.com/goravel/framework/support/carbon"
 
+	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/http/response"
@@ -17,6 +18,7 @@ import (
 	"goravel/app/jobs"
 	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
 
@@ -51,6 +53,16 @@ func EnqueueAsyncExport(ctx http.Context, in EnqueueAsyncExportInput) EnqueueAsy
 		return EnqueueAsyncExportResult{Blocked: true}
 	}
 
+	var tenantID uint
+	if tenancy.Enabled() {
+		tid, err := helpers.RequireTenant(ctx)
+		if err != nil {
+			lock.Release()
+			return EnqueueAsyncExportResult{Err: apperrors.ErrTenantRequired}
+		}
+		tenantID = tid
+	}
+
 	exportRecord := models.Export{
 		AdminID: lock.AdminID,
 		Type:    in.ExportType,
@@ -65,13 +77,11 @@ func EnqueueAsyncExport(ctx http.Context, in EnqueueAsyncExportInput) EnqueueAsy
 	args := jobs.ExportArgs{
 		ExportID: exportRecord.ID,
 		AdminID:  lock.AdminID,
+		TenantID: tenantID,
 		Filters:  in.Filters,
 		Type:     in.ExportType,
 		Language: utils.GetCurrentLanguage(ctx),
 		Timezone: helpers.GetCurrentTimezone(ctx),
-	}
-	if tid, ok := helpers.GetTenantIDFromContext(ctx); ok {
-		args.TenantID = tid
 	}
 	if conn, ok := helpers.GetTenantConnectionFromContext(ctx); ok {
 		args.TenantConnection = conn

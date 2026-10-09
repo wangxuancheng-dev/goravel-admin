@@ -207,6 +207,10 @@ func MarkExportFailed(ctx context.Context, exportID uint, errorMsg string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if tenancy.Enabled() && !tenancy.Bound(ctx) {
+		facades.Log().Errorf("MarkExportFailed skipped: tenancy on but ctx unbound export_id=%d", exportID)
+		return
+	}
 	var failedRecord models.Export
 	if queryErr := appfacades.OrmQuery(ctx).Where("id", exportID).First(&failedRecord); queryErr == nil {
 		failedRecord.Status = models.ExportStatusFailed

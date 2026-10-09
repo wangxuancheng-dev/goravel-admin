@@ -8,6 +8,7 @@ import (
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/facades"
 
+	apperrors "goravel/app/errors"
 	"goravel/app/tenancy"
 	"goravel/app/tenancyctx"
 )
@@ -43,6 +44,7 @@ func OrmQuery(ctx context.Context) orm.Query {
 }
 
 // OrmTransaction runs fn inside a DB transaction on the same connection OrmQuery(ctx) would use.
+// When ctx carries a tenant connection, never falls back to the platform DB (fail-closed).
 func OrmTransaction(ctx context.Context, fn func(tx orm.Query) error) error {
 	if ctx == nil {
 		return Orm().Transaction(fn)
@@ -51,7 +53,8 @@ func OrmTransaction(ctx context.Context, fn func(tx orm.Query) error) error {
 		if conn, ok := tenancyctx.ConnectionFrom(ctx); ok {
 			to := BuildOrmConnection(conn)
 			if to == nil {
-				return Orm().Transaction(fn)
+				// Match OrmQuery: do not write to landlord DB when tenant bind failed.
+				return apperrors.ErrTenantConnectionFailed
 			}
 			return to.WithContext(ctx).Transaction(fn)
 		}
