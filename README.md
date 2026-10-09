@@ -5,7 +5,7 @@
 <h1 align="center">Goravel Admin</h1>
 
 <p align="center">
-  <b>Open-box admin starter</b> — Golang Goravel · Vue 3 / React · RBAC · Code generator · Multi-tenant · Docker in 3 minutes
+  <b>SaaS ops + admin starter</b> — Goravel · DB-per-tenant platform · Vue 3 / React · RBAC · Docker in 3 minutes
 </p>
 
 <p align="center">
@@ -29,11 +29,11 @@
 
 ### Why this repo
 
+- **SaaS ops path** — database-per-tenant, platform console, provision → migrate → ready gate, `/health` `/ready` (`TENANCY_DRIVER=database`)
 - **Dual frontend** — Vue 3 + Element Plus or React + Ant Design 6, same `/api/admin`
 - **Batteries included** — JWT / RBAC, menus, logs, export, WebSocket notices, code generator, AI Lab
-- **Optional SaaS path** — database-per-tenant + platform console (`TENANCY_DRIVER=database`)
 
-**Good fit:** internal admin panels, ops backends, Goravel secondary development.  
+**Good fit:** mid-size multi-tenant SaaS ops, internal admin panels, Goravel secondary development.  
 **Not a drop-in:** financial trading cores or large commercial SaaS without extra ops. Module tiers: [Open-source scope](https://docs.xuancheng888.top/en/guide/opensource).
 
 ### Three-minute Docker
@@ -45,6 +45,8 @@ cp .env.docker.example .env
 docker compose up -d --build
 # http://localhost:3000  —  admin / admin123 (change ASAP)
 ```
+
+Multi-tenant demo (optional): [Platform ops](https://admin.xuancheng888.top/platform/login) → provision tenant → [Tenant login](https://acme.xuancheng888.top/login?tenant_code=acme).
 
 UI dev (optional): Vite Vue `html/` → `:3007`, React `html-react/` → `:3008`, API at `http://127.0.0.1:3000`.
 

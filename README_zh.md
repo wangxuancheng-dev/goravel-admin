@@ -5,7 +5,7 @@
 <h1 align="center">Goravel Admin</h1>
 
 <p align="center">
-  <b>开箱可跑的后台管理系统</b> — Golang Goravel · Vue 3 / React · RBAC · 代码生成 · 多租户 · Docker 三分钟
+  <b>中小 SaaS 运维 + 后台脚手架</b> — Goravel · 一户一库 · 平台控制台 · Vue 3 / React · RBAC · Docker 三分钟
 </p>
 
 <p align="center">
@@ -29,11 +29,11 @@
 
 ### 为什么选这个仓库
 
+- **SaaS 运维路径** — 一户一库、平台控制台、开户迁移门禁（provision → migrate → ready）、`/health` `/ready`（`TENANCY_DRIVER=database`）
 - **双前端** — Vue 3 + Element Plus 或 React + Ant Design 6，共用同一套 `/api/admin`
 - **开箱能力** — JWT / RBAC、菜单、日志、导出、WebSocket 通知、代码生成器、AI 实验室
-- **可选 SaaS** — 一户一库多租户 + 平台控制台（`TENANCY_DRIVER=database`）
 
-**适合：** 企业内部后台、运营管理端、Goravel 二次开发底座。  
+**适合：** 中小多租户 SaaS 运维、企业内部后台、Goravel 二次开发底座。  
 **不适合：** 金融交易核心，或未做运维就直接当超大规模商业 SaaS。模块分层见：[开源定位](https://docs.xuancheng888.top/guide/opensource)。
 
 ### 三分钟 Docker
@@ -45,6 +45,8 @@ cp .env.docker.example .env
 docker compose up -d --build
 # http://localhost:3000  —  admin / admin123（请尽快修改）
 ```
+
+多租户体验（可选）：[平台运维](https://admin.xuancheng888.top/platform/login) → 开户迁移 → [租户登录](https://acme.xuancheng888.top/login?tenant_code=acme)。
 
 前端本地开发（可选）：Vite Vue `html/` → `:3007`，React `html-react/` → `:3008`，API 指向 `http://127.0.0.1:3000`。
 

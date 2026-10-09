@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Goravel Admin
-  text: Ready-to-run admin starter
-  tagline: Golang Goravel · Vue3 + Element Plus / React + Ant Design · RBAC · codegen · Docker
+  text: Mid-size SaaS ops + admin starter
+  tagline: Goravel · DB-per-tenant platform · Vue / React · RBAC · Docker
   actions:
     - theme: brand
       text: Quick start
@@ -18,7 +18,9 @@ hero:
 
 features:
   - title: Suggested reading order
-    details: Quick start → open-source scope → architecture → development → production. Tenancy / payments / search / sharding on demand.
+    details: Quick start → open-source scope → architecture → development → production / SaaS checklist. Tenancy / payments / search / sharding on demand.
+  - title: Platform ops
+    details: Database-per-tenant, platform console, provision → migrate → ready gate, health/ready and queue alerts.
   - title: Dual frontend
     details: Vue and React share the same Admin API; ship new features on both sides.
   - title: Core and advanced
@@ -33,7 +35,7 @@ features:
 | [Open-source scope](/en/guide/opensource) | Module boundaries and production config |
 | [Architecture](/en/guide/architecture) | Before secondary development |
 | [Development](/en/guide/development) / [Code generator](/en/guide/code-generator) | Adding CRUD (generator-first) |
-| [Production](/en/deploy/production) | Before go-live |
+| [Production](/en/deploy/production) / [SaaS checklist](/en/advanced/saas) | Before go-live |
 | [Advanced](/en/advanced/tenancy) / [Reference](/en/reference/api) | Tenancy, payments, sharding, DB notes |
 
 Tenant demo: https://acme.xuancheng888.top/login?tenant_code=acme

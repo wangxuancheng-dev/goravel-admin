@@ -6,6 +6,7 @@ Chinese full version: [开源定位与模块](/guide/opensource).
 
 **Good fit**
 
+- Mid-size multi-tenant SaaS ops (DB-per-tenant, platform console, provision/migrate gate)
 - Internal admin panels, ops backends, management mid-tier
 - Goravel + Vue / React starter
 - RBAC, menus, logs, export, code generator
