@@ -43,7 +43,8 @@ Otherwise keep the Redis defaults from `.env.example`.
 go run . artisan migrate
 go run . artisan db:seed
 
-go run . --no-ansi
+go run .
+# or: go run . --no-ansi
 # hot reload: air
 ```
 

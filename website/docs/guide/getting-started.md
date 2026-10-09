@@ -43,7 +43,8 @@ QUEUE_CONNECTION=sync
 go run . artisan migrate
 go run . artisan db:seed
 
-go run . --no-ansi
+go run .
+# 或: go run . --no-ansi
 # 热重载：air
 ```
 

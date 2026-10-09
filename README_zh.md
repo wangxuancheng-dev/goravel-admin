@@ -177,7 +177,8 @@ docker compose up -d --build
    go run . artisan db:seed
    
    # 启动服务
-   go run . --no-ansi
+   go run .
+   # 或: go run . --no-ansi
    # 或使用 air 进行热重载
    air
    ```
@@ -308,7 +309,7 @@ swag init
 
 ### 启动服务
 
-`go run . --no-ansi` 或 `air`
+`go run .` 或 `go run . --no-ansi` 或 `air`
 
 [关于 air]：https://www.goravel.dev/getting-started/installation.html#live-reload
 

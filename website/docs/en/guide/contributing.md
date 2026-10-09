@@ -71,7 +71,8 @@ go run . artisan migrate
 go run . artisan db:seed
 
 # 6. 启动后端服务
-go run . --no-ansi
+go run .
+# or: go run . --no-ansi
 # 或使用 air 热重载
 air
 

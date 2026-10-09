@@ -176,7 +176,8 @@ Both frontends talk to `/api/admin` and **must ship new admin features together*
    go run . artisan db:seed
    
    # Start server
-   go run . --no-ansi
+   go run .
+   # or: go run . --no-ansi
    # or use air for live reload
    air
    ```
@@ -307,7 +308,7 @@ See [sharding migration](./website/docs/advanced/sharding-migration.md) and [ope
 
 ### Start Service
 
-`go run . --no-ansi` or `air`
+`go run .` or `go run . --no-ansi` or `air`
 
 [About air]: https://www.goravel.dev/getting-started/installation.html#live-reload
 
