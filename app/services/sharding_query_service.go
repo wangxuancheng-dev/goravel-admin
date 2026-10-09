@@ -38,9 +38,6 @@ type ShardingQueryConfig struct {
 	DefaultOrderBy string
 	// ModuleName 模块名称，用于日志记录，如 "order"
 	ModuleName string
-	// CountThreshold count 查询优化阈值，超过此值使用执行计划估算（默认 10000）
-	// 不同模块可以设置不同的阈值
-	CountThreshold int64
 }
 
 // ShardingQueryService 分表查询服务接口
@@ -141,48 +138,18 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTables(tableNames []string, filt
 	// 合并所有查询
 	unionSQL := strings.Join(unionQueries, " UNION ALL ")
 
-	// 优化：分别对每个分表执行 COUNT，然后相加（性能更好，可以利用索引）
-	// 而不是对 UNION ALL 结果进行 COUNT（需要先合并所有数据）
+	// Exact COUNT per shard table, then sum (avoids COUNT over the full UNION).
 	var total int64
-	threshold := s.config.CountThreshold
-
-	// 如果配置了阈值，使用执行计划优化；否则直接使用 count
-	if threshold > 0 {
-		// 使用优化的 count 查询（先估算，超过阈值用估算值，否则用实际 count）
-		countOptimizer := utils.NewCountOptimizer(s.ctx, threshold, s.config.ModuleName)
-		for _, tableName := range existingTableNames {
-			// 使用对应的参数（每个分表使用相同的参数）
-			args := whereConditions
-			tableTotal, _, err := countOptimizer.OptimizedCountWithTable(tableName, whereClause, args...)
-			if err != nil {
-				errorlog.Record(s.ctx, s.config.ModuleName, "查询分表总数失败", map[string]any{
-					"table_name": tableName,
-					"error":      err.Error(),
-				}, "查询分表 %s 总数失败: %v", tableName, err)
-				// 如果某个分表查询失败，继续查询其他分表，但记录错误
-				continue
-			}
-			total += tableTotal
+	for _, tableName := range existingTableNames {
+		tableTotal, err := utils.CountWithTable(s.ctx, tableName, whereClause, whereConditions...)
+		if err != nil {
+			errorlog.Record(s.ctx, s.config.ModuleName, "count sharding table failed", map[string]any{
+				"table_name": tableName,
+				"error":      err.Error(),
+			}, "count sharding table %s failed: %v", tableName, err)
+			continue
 		}
-	} else {
-		// No threshold: plain COUNT (same SQL shape on MySQL and PostgreSQL).
-		for _, tableName := range existingTableNames {
-			countSQL := fmt.Sprintf("SELECT COUNT(*) as total FROM %s WHERE %s", tableName, whereClause)
-			var countResult struct {
-				Total int64
-			}
-			// 使用对应的参数（每个分表使用相同的参数）
-			args := whereConditions
-			if err := appfacades.OrmQuery(s.ctx).Raw(countSQL, args...).Scan(&countResult); err != nil {
-				errorlog.Record(s.ctx, s.config.ModuleName, "查询分表总数失败", map[string]any{
-					"table_name": tableName,
-					"error":      err.Error(),
-				}, "查询分表 %s 总数失败: %v", tableName, err)
-				// 如果某个分表查询失败，继续查询其他分表，但记录错误
-				continue
-			}
-			total += countResult.Total
-		}
+		total += tableTotal
 	}
 
 	// 如果没有数据，直接返回

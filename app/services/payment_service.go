@@ -117,9 +117,6 @@ func BuildPaymentFiltersFromHTTP(ctx http.Context) (PaymentFilters, error) {
 	}, nil
 }
 
-// PaymentCountThreshold 支付记录分页统计优化阈值（超过此值使用执行计划估算）
-const PaymentCountThreshold int64 = 100000
-
 // BuildPaymentQuery 构建支付记录分表查询（包含时间范围 + 通用筛选），供列表查询/导出复用
 func BuildPaymentQuery(ctx context.Context, tableName string, filters PaymentFilters) orm.Query {
 	query := appfacades.OrmQuery(ctx).Table(tableName).Where("deleted_at IS NULL")
@@ -193,7 +190,6 @@ func NewPaymentService(ctx context.Context) PaymentService {
 		},
 		DefaultOrderBy: "created_at:desc",
 		ModuleName:     "payment",
-		CountThreshold: PaymentCountThreshold,
 	})
 
 	return service
@@ -714,10 +710,8 @@ func (s *PaymentServiceImpl) querySinglePaymentTable(tableName string, filters P
 	query := s.buildPaymentShardingQuery(tableName, filters)
 	query = s.applyOrderBy(query, orderBy)
 
-	// 获取总数（使用 CountOptimizer 优化，超过阈值使用 EXPLAIN 估算）
 	whereClause, whereArgs := s.buildPaymentShardingWhereClause(filters)
-	countOptimizer := utils.NewCountOptimizer(s.ctx, PaymentCountThreshold, "payment")
-	total, _, err := countOptimizer.OptimizedCountWithTable(tableName, whereClause, whereArgs...)
+	total, err := utils.CountWithTable(s.ctx, tableName, whereClause, whereArgs...)
 	if err != nil {
 		return nil, 0, err
 	}

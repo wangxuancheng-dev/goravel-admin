@@ -24,8 +24,6 @@ import (
 	"goravel/app/utils/errorlog"
 )
 
-const OrderCountThreshold int64 = 100000
-
 func orderTenantID(ctx context.Context) uint {
 	id, _ := tenancyctx.IDFrom(ctx)
 	return id
@@ -110,7 +108,6 @@ func NewOrderService(ctx context.Context) *OrderServiceImpl {
 		},
 		DefaultOrderBy: "created_at:desc",
 		ModuleName:     "order",
-		CountThreshold: OrderCountThreshold, // 订单数据量大，超过此值使用估算值，不设置或者0直接使用count
 	})
 
 	return service
@@ -454,10 +451,8 @@ func (s *OrderServiceImpl) querySingleTable(tableName string, filters OrderFilte
 
 	query = s.applyOrderBy(query, orderBy)
 
-	// 获取总数（使用 CountOptimizer 优化，超过阈值使用 EXPLAIN 估算）
 	whereClause, whereArgs := s.buildOrderWhereClause(filters)
-	countOptimizer := utils.NewCountOptimizer(s.ctx, OrderCountThreshold, "order")
-	total, _, err := countOptimizer.OptimizedCountWithTable(tableName, whereClause, whereArgs...)
+	total, err := utils.CountWithTable(s.ctx, tableName, whereClause, whereArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -851,46 +846,35 @@ func (s *OrderServiceImpl) findOrderByOrderNo(orderNo string) (*models.Order, er
 	return FindOrderByOrderNo(s.ctx, orderNo)
 }
 
-// GetOrdersCountInYear 获取最近一年的订单总数（用于仪表盘统计）
-// 使用 EXPLAIN 获取预估行数，性能更好（牺牲精确度换速度）
+// GetOrdersCountInYear returns the order count for the last year (dashboard).
 func (s *OrderServiceImpl) GetOrdersCountInYear() (int64, error) {
-	// 计算最近一年的时间范围
 	now := time.Now().UTC()
-	startTime := now.AddDate(-1, 0, 0) // 一年前
+	startTime := now.AddDate(-1, 0, 0)
 	endTime := now
 
-	// 获取需要查询的所有分表
 	tableNames := utils.GetShardingTableNames("orders", startTime, endTime)
 	if len(tableNames) == 0 {
 		return 0, nil
 	}
 
 	var total int64
-
-	// 使用 EXPLAIN 获取预估行数（比 COUNT 快很多）
 	for _, tableName := range tableNames {
-		// 检查表是否存在
 		if !utils.ShardingTableExistsCtx(s.ctx, tableName) {
 			continue
 		}
 
-		// 使用 EXPLAIN 获取预估行数
-		var explainResult []struct {
-			Rows int64 `gorm:"column:rows"`
-		}
-		sql := fmt.Sprintf("EXPLAIN SELECT * FROM `%s` WHERE created_at >= ? AND created_at <= ?", tableName)
-		err := appfacades.OrmQuery(s.ctx).Raw(sql, startTime, endTime).Scan(&explainResult)
+		count, err := appfacades.OrmQuery(s.ctx).Table(tableName).
+			Where("created_at >= ?", startTime).
+			Where("created_at <= ?", endTime).
+			Count()
 		if err != nil {
-			errorlog.Record(s.ctx, "order", "查询分表预估行数失败", map[string]any{
+			errorlog.Record(s.ctx, "order", "count sharding table failed", map[string]any{
 				"table_name": tableName,
 				"error":      err.Error(),
-			}, "查询分表 %s 预估行数失败: %v", tableName, err)
+			}, "count sharding table %s failed: %v", tableName, err)
 			continue
 		}
-
-		if len(explainResult) > 0 {
-			total += explainResult[0].Rows
-		}
+		total += count
 	}
 
 	return total, nil
