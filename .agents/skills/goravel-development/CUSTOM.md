@@ -95,7 +95,7 @@ Do **not** invent docs under repo-root `docs/` (Swagger only). Edit VitePress:
 ## Custom drivers & packages
 
 - DM database: `github.com/wangxuancheng-dev/goravel-dm` (see `website/docs/reference/drivers.md`).
-- Queue drivers: `goravel-kafka`, `goravel-nsq`, `goravel-rabbitmq`, `goravel-redis-stream` (see `website/docs/reference/drivers.md`).
+- Queue: production use `QUEUE_CONNECTION=redis` (official Goravel Redis queue). Docs do not maintain other queue drivers.
 - Prefer existing driver patterns when adding new integrations.
 
 ## Commands (this project)

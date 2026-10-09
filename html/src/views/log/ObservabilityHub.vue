@@ -50,12 +50,9 @@
               </div>
             </template>
 
-            <el-descriptions :column="4" border size="small" class="queue-panel-desc">
+            <el-descriptions :column="3" border size="small" class="queue-panel-desc">
               <el-descriptions-item :label="$t('observability.queue_driver')">{{ currentQueuePanel.driver_raw || '-' }}</el-descriptions-item>
               <el-descriptions-item :label="$t('observability.queue_redis_client')">{{ currentQueuePanel.redis_client || '-' }}</el-descriptions-item>
-              <el-descriptions-item :label="$t('observability.queue_consumer_group')">
-                {{ currentQueuePanel.kind === 'redis_stream' ? (currentQueuePanel.consumer_group || '-') : '-' }}
-              </el-descriptions-item>
               <el-descriptions-item :label="$t('observability.queue_default_queue')">{{ currentQueuePanel.default_queue || '-' }}</el-descriptions-item>
             </el-descriptions>
 
@@ -70,16 +67,6 @@
               <el-table-column prop="delayed" :label="$t('observability.metric_delayed')" width="100" />
               <el-table-column prop="failed" :label="$t('observability.metric_failed')" width="100" />
               <el-table-column prop="total" :label="$t('observability.metric_total')" width="100" />
-              <el-table-column
-                v-if="currentQueuePanel.kind === 'redis_stream'"
-                prop="stream_total"
-                :label="$t('observability.metric_stream_total')"
-                width="150"
-              >
-                <template #default="{ row: q }">
-                  <span>{{ q.stream_total == null ? '—' : q.stream_total }}</span>
-                </template>
-              </el-table-column>
             </el-table>
             <el-empty v-else :description="$t('observability.queue_no_data')" />
             <el-text v-if="currentQueuePanel.fetch_error" type="danger" class="queue-fetch-err">{{ currentQueuePanel.fetch_error }}</el-text>
@@ -457,8 +444,7 @@ const queuesToRows = (queues) => {
       reserved: s.reserved ?? 0,
       delayed: s.delayed != null ? s.delayed : 0,
       failed: s.failed ?? 0,
-      total: s.total ?? 0,
-      stream_total: s.stream_total ?? null
+      total: s.total ?? 0
     }
   })
 }
@@ -469,7 +455,7 @@ const currentQueueRows = computed(() => {
 })
 
 const queueKindTag = (kind) => {
-  const m = { database: 'success', redis_list: 'primary', redis_stream: 'warning', sync: 'info', other: 'danger' }
+  const m = { database: 'success', redis_list: 'primary', sync: 'info', other: 'danger' }
   return m[kind] || 'info'
 }
 

@@ -17,8 +17,6 @@ import (
 	"goravel/app/clients"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type QueuePeek struct{}
@@ -29,7 +27,7 @@ func (r *QueuePeek) Signature() string {
 }
 
 // ./main artisan queue:peek --connection=redis --queue=long-running --state=all --limit=5 --full
-// go run . artisan queue:peek --connection=redis_stream --state=all --limit=5 --full
+// go run . artisan queue:peek --connection=redis --state=all --limit=5 --full
 func (r *QueuePeek) Description() string {
 	return "查看队列中前 N 条任务内容（支持 Redis/database），用于排查“导出”等任务到底投递了什么"
 }
@@ -129,76 +127,6 @@ func (r *QueuePeek) Handle(ctx console.Context) error {
 			ctx.Info(prefix)
 			ctx.Info(r.renderPayload(payload, raw, full))
 			ctx.Info("")
-		}
-
-		if r.isRedisStreamDriver(connectionName) {
-			streamKey := r.redisStreamKey(connectionName, queueName)
-			group := facades.Config().GetString(fmt.Sprintf("queue.connections.%s.group", connectionName), "goravel")
-
-			if state == "pending" || state == "all" {
-				msgs, err := redisClient.XRangeN(c, streamKey, "-", "+", int64(limit)).Result()
-				if err != nil {
-					return fmt.Errorf("读取 stream 队列失败: %v", err)
-				}
-				ctx.Info("═══════════════════════════════════════")
-				ctx.Info(fmt.Sprintf("Redis stream: key=%s, count(shown)=%d", streamKey, len(msgs)))
-				ctx.Info("═══════════════════════════════════════")
-				if len(msgs) == 0 {
-					ctx.Info("（空）")
-					ctx.Info("")
-				}
-				for i, m := range msgs {
-					payload := r.extractStreamPayload(m)
-					printPayload(fmt.Sprintf("[%d] stream id=%s", i+1, m.ID), payload)
-				}
-			}
-
-			if state == "reserved" || state == "all" {
-				pending, err := redisClient.XPendingExt(c, &redis.XPendingExtArgs{
-					Stream: streamKey,
-					Group:  group,
-					Start:  "-",
-					End:    "+",
-					Count:  int64(limit),
-				}).Result()
-				if err != nil {
-					return fmt.Errorf("读取 stream pending 失败: %v", err)
-				}
-				ctx.Info("═══════════════════════════════════════")
-				ctx.Info(fmt.Sprintf("Redis stream pending: key=%s, group=%s, count(shown)=%d", streamKey, group, len(pending)))
-				ctx.Info("═══════════════════════════════════════")
-				if len(pending) == 0 {
-					ctx.Info("（空）")
-					ctx.Info("")
-				}
-				for i, p := range pending {
-					printPayload(fmt.Sprintf("[%d] pending id=%s consumer=%s idle=%s retry=%d",
-						i+1, p.ID, p.Consumer, p.Idle, p.RetryCount), fmt.Sprintf(`{"stream_id":"%s","consumer":"%s","idle":"%s","retry_count":%d}`,
-						p.ID, p.Consumer, p.Idle.String(), p.RetryCount))
-				}
-			}
-
-			if state == "delayed" || state == "all" {
-				key := r.redisDelayedKey(connectionName, queueName)
-				zs, err := redisClient.ZRangeWithScores(c, key, 0, int64(limit-1)).Result()
-				if err != nil {
-					return fmt.Errorf("读取 delayed 队列失败: %v", err)
-				}
-				ctx.Info("═══════════════════════════════════════")
-				ctx.Info(fmt.Sprintf("Redis delayed(ZSET): key=%s, count(shown)=%d", key, len(zs)))
-				ctx.Info("═══════════════════════════════════════")
-				if len(zs) == 0 {
-					ctx.Info("（空）")
-					ctx.Info("")
-				}
-				for i, z := range zs {
-					member, _ := z.Member.(string)
-					scoreInfo := r.formatScoreAsTime(z.Score)
-					printPayload(fmt.Sprintf("[%d] delayed score=%v%s", i+1, z.Score, scoreInfo), member)
-				}
-			}
-
-			return nil
 		}
 
 		if state == "pending" || state == "all" {
@@ -351,28 +279,6 @@ func (r *QueuePeek) redisReservedKey(queueConnectionName, queueName string) stri
 
 func (r *QueuePeek) redisDelayedKey(queueConnectionName, queueName string) string {
 	return fmt.Sprintf("%s:delayed", r.redisQueueKey(queueConnectionName, queueName))
-}
-
-func (r *QueuePeek) redisStreamKey(queueConnectionName, queueName string) string {
-	return fmt.Sprintf("%s:stream", r.redisQueueKey(queueConnectionName, queueName))
-}
-
-func (r *QueuePeek) isRedisStreamDriver(connectionName string) bool {
-	if strings.Contains(strings.ToLower(connectionName), "stream") {
-		return true
-	}
-	return facades.Config().Get(fmt.Sprintf("queue.connections.%s.stream_max_len", connectionName)) != nil
-}
-
-func (r *QueuePeek) extractStreamPayload(m redis.XMessage) string {
-	if payload, ok := m.Values["payload"]; ok {
-		if s, ok := payload.(string); ok {
-			return s
-		}
-		return fmt.Sprintf("%v", payload)
-	}
-	raw, _ := json.Marshal(m.Values)
-	return string(raw)
 }
 
 func (r *QueuePeek) renderPayload(payload string, raw, full bool) string {

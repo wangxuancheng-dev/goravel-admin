@@ -53,7 +53,6 @@ interface QueueRow {
   delayed: number
   failed: number
   total: number
-  stream_total: number | null
 }
 
 interface QueueConnection {
@@ -61,7 +60,6 @@ interface QueueConnection {
   kind?: string
   driver_raw?: string
   redis_client?: string
-  consumer_group?: string
   default_queue?: string
   fetch_error?: string
   is_default?: boolean
@@ -89,7 +87,6 @@ interface HotspotRow {
 const QUEUE_KIND_COLORS: Record<string, string> = {
   database: 'success',
   redis_list: 'processing',
-  redis_stream: 'warning',
   sync: 'default',
   other: 'error',
 }
@@ -105,7 +102,6 @@ function queuesToRows(queues: Record<string, Record<string, unknown>> | undefine
       delayed: s.delayed != null ? Number(s.delayed) : 0,
       failed: Number(s.failed ?? 0),
       total: Number(s.total ?? 0),
-      stream_total: s.stream_total != null ? Number(s.stream_total) : null,
     }
   })
 }
@@ -728,15 +724,12 @@ export default function ObservabilityHub() {
                 </Space>
               }
             >
-              <Descriptions bordered size="small" column={4} style={{ marginBottom: 12 }}>
+              <Descriptions bordered size="small" column={3} style={{ marginBottom: 12 }}>
                 <Descriptions.Item label={t('observability.queue_driver')}>
                   {currentQueuePanel.driver_raw || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label={t('observability.queue_redis_client')}>
                   {currentQueuePanel.redis_client || '-'}
-                </Descriptions.Item>
-                <Descriptions.Item label={t('observability.queue_consumer_group')}>
-                  {currentQueuePanel.kind === 'redis_stream' ? currentQueuePanel.consumer_group || '-' : '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label={t('observability.queue_default_queue')}>
                   {currentQueuePanel.default_queue || '-'}
@@ -761,16 +754,6 @@ export default function ObservabilityHub() {
                     { title: t('observability.metric_delayed'), dataIndex: 'delayed', width: 100 },
                     { title: t('observability.metric_failed'), dataIndex: 'failed', width: 100 },
                     { title: t('observability.metric_total'), dataIndex: 'total', width: 100 },
-                    ...(currentQueuePanel.kind === 'redis_stream'
-                      ? [
-                          {
-                            title: t('observability.metric_stream_total'),
-                            dataIndex: 'stream_total',
-                            width: 150,
-                            render: (v: number | null) => (v == null ? '—' : v),
-                          },
-                        ]
-                      : []),
                   ]}
                 />
               ) : (

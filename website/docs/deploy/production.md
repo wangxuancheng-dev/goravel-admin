@@ -51,7 +51,7 @@ go run . artisan db:seed --seeder=PermissionSeeder
 就绪检查：
 
 - **database**：默认库 `Ping`（始终）
-- **redis**：当 `CACHE_STORE=redis` 或队列驱动为 redis/redisstream 时 Ping；否则 `skipped`
+- **redis**：当 `CACHE_STORE=redis` 或 `QUEUE_CONNECTION=redis` 时 Ping；否则 `skipped`
 - **search**：当 `SEARCH_ENABLED=true` 时对当前驱动 `Ping`；否则 `skipped`
 
 Kubernetes 示例：

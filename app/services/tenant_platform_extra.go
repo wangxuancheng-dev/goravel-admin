@@ -448,33 +448,15 @@ func BuildPlatformQueueStatus() PlatformQueueStatus {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	// Goravel redis queue often uses stream or list; try common keys.
-	keys := []string{
-		"goravel_queues:long-running",
-		"queues:long-running",
-		facades.Config().GetString("queue.connections.redis.queue", "default") + ":long-running",
-	}
-	var pending int64
-	found := false
-	for _, key := range keys {
-		n, err := rdb.LLen(ctx, key).Result()
-		if err == nil {
-			pending = n
-			found = true
-			break
-		}
-		n, err = rdb.XLen(ctx, key).Result()
-		if err == nil {
-			pending = n
-			found = true
-			break
-		}
-	}
+	reader := NewQueueStatsReader(ctx)
+	key := reader.RedisQueueKey("redis", "long-running")
+	pending, err := rdb.LLen(ctx, key).Result()
 	out.Available = true
-	out.Pending = pending
-	if !found {
+	if err != nil {
+		out.Pending = 0
 		out.Message = "redis ok; queue depth key not found (worker may still consume long-running)"
 	} else {
+		out.Pending = pending
 		out.Message = "long-running pending jobs (approx)"
 	}
 	_ = tenancy.Enabled()

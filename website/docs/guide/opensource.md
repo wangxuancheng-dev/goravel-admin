@@ -14,7 +14,7 @@
 
 - 金融级交易核心、强一致支付中台（支付模块为管理端 + 网关示例）
 - 超大规模、多区域、强 SLA 的商业 SaaS 产品中台
-- 未做运维规划就开启「分表 + ES + 多队列」当生产核心
+- 未做运维规划就开启「分表 + ES」当生产核心
 
 演示站账号仅用于体验；生产请改默认管理员密码，并配置独立密钥。
 
@@ -59,7 +59,6 @@
 | 订单 / 支付分表 | 数据量大、按月归档 | [分表迁移](/advanced/sharding-migration)、`SHARDING_*` |
 | 调度演示（活动窗口 / 订单超时） | 二次开发样板；非生产营销中台 | [调度演示](/advanced/scheduled-demos)、`/api/schedule-demo` |
 | Elasticsearch | 订单检索、全文检索 | `ELASTICSEARCH_*`、ES Worker |
-| 多队列驱动 | Kafka / RabbitMQ / NSQ / Redis Stream | `.env.example` 队列段 |
 | OpenTelemetry | Jaeger / Grafana 等统一观测 | `OTEL_*`、[Telemetry 文档](https://www.goravel.dev/zh_CN/digging-deeper/telemetry.html) |
 | AI / pprof / Swagger | 开发与排障 | 生产默认关闭或限权 |
 | 一户一库多租户 | 大商户隔离（默认关闭） | `TENANCY_DRIVER=database`、平台 `/api/platform`、见 [多租户](/advanced/tenancy) |

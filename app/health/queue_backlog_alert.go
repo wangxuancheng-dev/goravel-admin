@@ -77,9 +77,6 @@ func CollectRedisQueueBacklog(ctx context.Context) (*QueueBacklogSnapshot, error
 		Threshold:  QueueAlertBacklogThreshold(),
 		ByQueue:    make(map[string]int64, len(byQueue)),
 	}
-	if reader.IsRedisStreamDriver(connection) {
-		snap.Kind = "redis_stream"
-	}
 	for name, st := range byQueue {
 		if st == nil {
 			continue

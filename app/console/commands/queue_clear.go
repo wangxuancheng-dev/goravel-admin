@@ -22,7 +22,7 @@ func (r *QueueClear) Signature() string {
 }
 
 // Description The console command description.
-// go run . artisan queue:clear --connection=redis_stream --queue=default --force
+// go run . artisan queue:clear --connection=redis --queue=default --force
 func (r *QueueClear) Description() string {
 	return "清理队列中的任务（仅支持 Redis 驱动）"
 }
@@ -136,35 +136,7 @@ func (r *QueueClear) Handle(ctx console.Context) error {
 	ctxRedis := context.Background()
 	clearedCount := int64(0)
 
-	// Redis Stream 驱动：pending 在 stream，delayed 在 zset
-	if reader.IsRedisStreamDriver(connectionName) {
-		streamKey := reader.RedisStreamKey(connectionName, queueName)
-		streamLen, _ := redisClient.XLen(ctxRedis, streamKey).Result()
-		if streamLen > 0 {
-			if err := redisClient.Del(ctxRedis, streamKey).Err(); err != nil {
-				ctx.Error(fmt.Sprintf("清理 Stream 队列失败: %v", err))
-			} else {
-				clearedCount += streamLen
-				ctx.Info(fmt.Sprintf("已清理 Stream 队列: %d 条消息", streamLen))
-			}
-		}
-
-		delayedKey := reader.RedisDelayedKey(connectionName, queueName)
-		delayedLen, _ := redisClient.ZCard(ctxRedis, delayedKey).Result()
-		if delayedLen > 0 {
-			if err := redisClient.Del(ctxRedis, delayedKey).Err(); err != nil {
-				ctx.Error(fmt.Sprintf("清理延迟队列失败: %v", err))
-			} else {
-				clearedCount += delayedLen
-				ctx.Info(fmt.Sprintf("已清理延迟队列: %d 个任务", delayedLen))
-			}
-		}
-
-		ctx.Info(fmt.Sprintf("队列清理完成！共清理 %d 个任务/消息", clearedCount))
-		return nil
-	}
-
-	// 清理待执行队列
+	// Clear pending list
 	pendingKey := reader.RedisQueueKey(connectionName, queueName)
 	pendingLen, _ := redisClient.LLen(ctxRedis, pendingKey).Result()
 	if pendingLen > 0 {

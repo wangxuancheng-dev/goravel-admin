@@ -139,7 +139,7 @@ docker compose up -d --build
 
 - 订单 / 支付按月分表、用户余额哈希分表
 - Elasticsearch 订单同步与检索
-- Redis 异步队列、导出长任务、多队列驱动（Kafka / RabbitMQ / NSQ 等）
+- Redis 异步队列与导出长任务（`QUEUE_CONNECTION=redis`）
 - OpenTelemetry 导出到 Jaeger / Grafana
 - 支付管理示例（**非完整收单**：无可用回调 / 退款，见 [开源定位](./website/docs/guide/opensource.md)）
 

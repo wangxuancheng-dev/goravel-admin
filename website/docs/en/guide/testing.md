@@ -51,7 +51,7 @@ html/ / html-react/
 └── src/utils/*.test.*                   # vitest：tenant、buildSearchParams、apiFactory、normalize、timeRange、storage（Vue 另含 xss）
 ```
 
-Optional drivers live in separate repos — see [Optional drivers](/en/reference/drivers).
+Optional Dameng driver lives in a separate repo — see [Optional drivers](/en/reference/drivers). Production queue: `QUEUE_CONNECTION=redis`.
 
 ### 运行测试
 
@@ -71,18 +71,9 @@ go test -v -timeout=30s ./app/http/helpers ./app/utils/...
 (cd html-react && npm test)
 ```
 
-### 集成测试（按需运行）
+### Integration tests (optional)
 
-Kafka / NSQ / RabbitMQ / Redis Stream / Dameng drivers are separate repositories. Default `go test ./...` in this repo does not test their sources. When needed:
-
-```bash
-go test -v github.com/wangxuancheng-dev/goravel-redis-stream/...
-go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-kafka/...     # needs 127.0.0.1:9092
-go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-nsq/...       # needs 127.0.0.1:4150
-go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-rabbitmq/...  # needs 127.0.0.1:5672
-```
-
-Dameng integration needs the official driver, `dm` build tag, and a reachable instance:
+Dameng driver sources are not covered by default `go test ./...` in this repo. Integration needs the official driver, `dm` build tag, and a reachable instance:
 
 ```bash
 set DM_TEST_DSN=dm://SYSDBA:SYSDBA@127.0.0.1:5236

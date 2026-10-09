@@ -47,7 +47,7 @@ html/ / html-react/
 └── src/utils/*.test.*                   # vitest：tenant、buildSearchParams、apiFactory、normalize、timeRange、storage（Vue 另含 xss）
 ```
 
-可选驱动源码已迁出本仓库，见 [可选驱动仓库](/reference/drivers)。
+达梦等可选驱动源码已迁出本仓库，见 [可选驱动仓库](/reference/drivers)。生产队列请使用 `QUEUE_CONNECTION=redis`。
 
 ### 运行测试
 
@@ -69,16 +69,7 @@ go test -v -timeout=30s ./app/http/helpers ./app/utils/...
 
 ### 集成测试（按需运行）
 
-Kafka / NSQ / RabbitMQ / Redis Stream / 达梦驱动为独立仓库。本仓库默认 `go test ./...` 不会测试它们的源码。验证队列或达梦时，在对应仓库内运行，或：
-
-```bash
-go test -v github.com/wangxuancheng-dev/goravel-redis-stream/...
-go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-kafka/...     # 需要 127.0.0.1:9092
-go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-nsq/...       # 需要 127.0.0.1:4150
-go test -v -timeout=2m github.com/wangxuancheng-dev/goravel-rabbitmq/...  # 需要 127.0.0.1:5672
-```
-
-达梦驱动集成测试需要本地官方驱动、`dm` build tag 和可访问的达梦实例：
+达梦驱动源码不在本仓库默认 `go test ./...` 覆盖范围内。集成测试需要本地官方驱动、`dm` build tag 和可访问的达梦实例：
 
 ```bash
 set DM_TEST_DSN=dm://SYSDBA:SYSDBA@127.0.0.1:5236

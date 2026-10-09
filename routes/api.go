@@ -59,7 +59,7 @@ func Api() {
 		// router.Post("reclaim", queueTestController.Reclaim)
 		// 默认队列立即投递。
 		router.Post("dispatch", queueTestController.Dispatch)
-		// 默认队列延迟投递（rabbitmq 需 delayed-message 插件才能严格延迟）。
+		// Delayed dispatch on the default queue.
 		router.Post("delay", queueTestController.Delay)
 		// 投递到 long-running 逻辑队列。
 		router.Post("long-running", queueTestController.LongRunning)

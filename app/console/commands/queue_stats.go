@@ -113,12 +113,8 @@ func (r *QueueStats) Handle(ctx console.Context) error {
 			appName := facades.Config().GetString("app.name", "goravel")
 			baseKey := reader.RedisQueueKey(connectionName, queueNameForStats)
 			ctx.Info(fmt.Sprintf("    # app.name=%s, queue.connection=%s, queue=%s", appName, connectionName, queueNameForStats))
-			if reader.IsRedisStreamDriver(connectionName) {
-				ctx.Info(fmt.Sprintf("    redis-cli DEL %s:stream", baseKey))
-			} else {
-				ctx.Info(fmt.Sprintf("    redis-cli DEL %s", baseKey))
-				ctx.Info(fmt.Sprintf("    redis-cli DEL %s:reserved", baseKey))
-			}
+			ctx.Info(fmt.Sprintf("    redis-cli DEL %s", baseKey))
+			ctx.Info(fmt.Sprintf("    redis-cli DEL %s:reserved", baseKey))
 			ctx.Info(fmt.Sprintf("    redis-cli DEL %s:delayed", baseKey))
 			ctx.Info("  或者使用命令：go run . artisan queue:clear --queue=" + queueNameForStats)
 		}

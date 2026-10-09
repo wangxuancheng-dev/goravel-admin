@@ -84,7 +84,7 @@ func needsRedis() bool {
 	}
 	queue := strings.ToLower(strings.TrimSpace(facades.Config().GetString("queue.default", "sync")))
 	switch queue {
-	case "redis", "redisstream", "redis_stream":
+	case "redis":
 		return true
 	default:
 		return false

@@ -16,7 +16,7 @@ Chinese full version: [开源定位与模块](/guide/opensource).
 
 - Financial trading cores or strong-consistency payment hubs (payments here are admin + gateway sample)
 - Huge multi-region commercial SaaS platforms with hard SLAs
-- Turning on sharding + ES + multi-queue without ops planning
+- Turning on sharding + ES without ops planning
 
 Demo accounts are for exploration only. Change default admin password and secrets for production.
 
@@ -38,7 +38,7 @@ Enabled by default; set `MODULE_PAYMENTS_ENABLED=false` on public production unl
 
 **Core:** JWT + RBAC, system management, operation/login/system logs, list export, code generator (dev). Minimal dependency: MySQL-compatible DB + Go process.
 
-**Advanced (opt-in):** Redis cache/queue, order/payment sharding, Elasticsearch/Meilisearch, multi-queue drivers, OpenTelemetry, AI / pprof / Swagger, database-per-tenant (`TENANCY_DRIVER=database`).
+**Advanced (opt-in):** Redis cache/queue (`QUEUE_CONNECTION=redis`), order/payment sharding, Elasticsearch/Meilisearch, OpenTelemetry, AI / pprof / Swagger, database-per-tenant (`TENANCY_DRIVER=database`).
 
 **Module switches**
 

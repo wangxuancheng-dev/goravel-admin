@@ -139,7 +139,7 @@ Enable only when needed (see [opensource](./website/docs/guide/opensource.md)):
 
 - Monthly order/payment sharding and balance-log hash sharding
 - Elasticsearch order sync / search
-- Redis async queues, long-running export jobs, extra queue drivers
+- Redis async queues and long-running export jobs (`QUEUE_CONNECTION=redis`)
 - OpenTelemetry export to Jaeger / Grafana
 - Payment admin sample (**not a full acquiring stack**: no production notify/refund — see [opensource](./website/docs/guide/opensource.md))
 
