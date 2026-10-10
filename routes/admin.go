@@ -46,7 +46,6 @@ func Admin() {
 	paymentController := admin.NewPaymentController()
 	codeGeneratorController := admin.NewCodeGeneratorController()
 	articleController := admin.NewArticleController()
-	quoteController := admin.NewQuoteController()
 	formDemoController := admin.NewFormDemoController()
 	aiLabController := admin.NewAiLabController()
 
@@ -328,9 +327,6 @@ func Admin() {
 			router.Resource("articles", articleController)
 			router.Post("articles/export", articleController.Export)
 			router.Post("articles/import", articleController.Import)
-
-			router.Resource("quotes", quoteController)
-			router.Post("quotes/export", quoteController.Export)
 
 			// 代码生成器（local/development，或 APP_ENABLE_DEV_TOOL=true；test 默认关闭）
 			router.Middleware(middleware.CodeGeneratorOnly()).Group(func(router route.Router) {
