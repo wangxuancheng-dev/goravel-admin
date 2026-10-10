@@ -9,6 +9,7 @@ import {
   installGeneratedModule,
   previewCode,
   saveCode,
+  type CodeGeneratorAIConfig,
   type CodeGeneratorField,
   type CodeGeneratorOptions,
   type ModuleInstallConfig,
@@ -135,11 +136,7 @@ export function useCodeGenerator() {
   const [previewCodeMap, setPreviewCodeMap] = useState<Record<string, string>>({})
   const [aiDescription, setAiDescription] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiGeneratedConfig, setAiGeneratedConfig] = useState<{
-    module_name: string
-    table_name: string
-    fields: CodeGeneratorField[]
-  } | null>(null)
+  const [aiGeneratedConfig, setAiGeneratedConfig] = useState<CodeGeneratorAIConfig | null>(null)
   const [aiLastError, setAiLastError] = useState<string | null>(null)
   const [aiEnabled, setAiEnabled] = useState(false)
   const [enabledFrontends, setEnabledFrontends] = useState<string[]>(['vue', 'react'])

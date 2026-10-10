@@ -122,16 +122,18 @@ export function installGeneratedModule(data: Pick<CodeGeneratorPayload, 'module_
   })
 }
 
+export interface CodeGeneratorAIConfig {
+  module_name: string
+  table_name: string
+  fields: CodeGeneratorField[]
+  is_master_detail?: boolean
+  detail_table_name?: string
+  detail_fields?: CodeGeneratorField[]
+}
+
 export function generateWithAI(data: { description: string }) {
   return request<{
-    config: {
-      module_name: string
-      table_name: string
-      fields: CodeGeneratorField[]
-      is_master_detail?: boolean
-      detail_table_name?: string
-      detail_fields?: CodeGeneratorField[]
-    }
+    config: CodeGeneratorAIConfig
   }>({
     url: '/code-generator/generate-with-ai',
     method: 'post',
