@@ -26,6 +26,7 @@ func TestGenerateMasterDetailModule(t *testing.T) {
 	s := (&CodeGeneratorServiceImpl{}).WithMasterDetail("order_items", []FieldConfig{
 		{Name: "sku", GoType: "string", DBType: "string", Label: "SKU", ShowInForm: true, FormType: "input"},
 		{Name: "qty", GoType: "int", DBType: "integer", Label: "Qty", ShowInForm: true, FormType: "number"},
+		{Name: "unit_price", GoType: "float64", DBType: "decimal", Label: "Price", ShowInForm: true, FormType: "number", Precision: 10, Scale: 2},
 	}).(*CodeGeneratorServiceImpl)
 
 	fields := []FieldConfig{
@@ -119,6 +120,12 @@ func TestGenerateMasterDetailModule(t *testing.T) {
 		}
 		if strings.Contains(f.Path, "create_order_items_table.go") {
 			hasDetailMigration = true
+			if !strings.Contains(f.Content, `table.Decimal("unit_price").Total(10).Places(2)`) {
+				t.Fatalf("detail migration must use Decimal().Total().Places(), got:\n%s", f.Content)
+			}
+			if strings.Contains(f.Content, `Decimal("unit_price",`) {
+				t.Fatal("detail migration must not use Decimal(name, precision, scale)")
+			}
 		}
 	}
 	if !hasDetailModel {

@@ -2288,7 +2288,7 @@
     "detail_table_name": "Detail Table",
     "detail_table_placeholder": "Detail table name, e.g. order_items",
     "detail_fields_config": "Detail Fields",
-    "master_detail_hint": "Like RuoYi/Jeecg: one master row with editable detail lines (FK {module}_id). Mutually exclusive with tree list; import is disabled.",
+    "master_detail_hint": "One master row with editable detail lines (FK {module}_id). Mutually exclusive with tree list; import is disabled.",
     "master_detail_no_import": "Master-detail modules do not generate import.",
     "add_detail_field": "Add Detail Field",
     "detail_table_name_required": "Please set the detail table name",

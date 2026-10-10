@@ -629,20 +629,29 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 
 	updated := false
 
+	// Insert controller decl before the admin Host allowlist comment (stable anchor).
+	controllerMarker := "\n\n\t// Admin: Host allowlist"
+	if !strings.Contains(routeContent, controllerMarker) {
+		controllerMarker = "\n\n\t// Admin 路由组"
+	}
+	// Insert CRUD routes before the code-generator block (stable anchor).
+	routeMarker := "\n\t\t\t// 代码生成器（local/development"
+	if !strings.Contains(routeContent, routeMarker) {
+		routeMarker = "\n\t\t\t// 代码生成器（仅在开发环境可用）"
+	}
+
 	// 注入控制器实例声明
 	if !strings.Contains(routeContent, controllerDecl) {
-		marker := "\n\n\t// Admin 路由组"
-		if strings.Contains(routeContent, marker) {
-			routeContent = strings.Replace(routeContent, marker, "\n"+controllerDecl+marker, 1)
+		if strings.Contains(routeContent, controllerMarker) {
+			routeContent = strings.Replace(routeContent, controllerMarker, "\n"+controllerDecl+controllerMarker, 1)
+			updated = true
 		} else {
-			routeContent += "\n" + controllerDecl + "\n"
+			return false, fmt.Errorf("failed to locate controller insert marker in %s", adminRoutePath)
 		}
-		updated = true
 	}
 
 	// 注入 Resource 路由
 	if !strings.Contains(routeContent, resourceRoute) {
-		marker := "\n\t\t\t// 代码生成器（仅在开发环境可用）"
 		insertBlock := "\n" + resourceRoute
 		if hasExport {
 			insertBlock += "\n" + exportRoute
@@ -651,12 +660,12 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 			insertBlock += "\n" + importRoute
 		}
 
-		if strings.Contains(routeContent, marker) {
-			routeContent = strings.Replace(routeContent, marker, insertBlock+marker, 1)
+		if strings.Contains(routeContent, routeMarker) {
+			routeContent = strings.Replace(routeContent, routeMarker, insertBlock+routeMarker, 1)
+			updated = true
 		} else {
-			routeContent += insertBlock + "\n"
+			return false, fmt.Errorf("failed to locate route insert marker in %s", adminRoutePath)
 		}
-		updated = true
 	} else {
 		if hasExport && !strings.Contains(routeContent, exportRoute) {
 			routeContent = strings.Replace(routeContent, resourceRoute, resourceRoute+"\n"+exportRoute, 1)
@@ -675,26 +684,24 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 	// Ensure shared import status / error-file routes exist (mirrors orders wiring).
 	if hasImport {
 		if !strings.Contains(routeContent, "importController := admin.NewImportController()") {
-			marker := "\n\n\t// Admin 路由组"
 			decl := "\n\timportController := admin.NewImportController()"
-			if strings.Contains(routeContent, marker) {
-				routeContent = strings.Replace(routeContent, marker, decl+marker, 1)
+			if strings.Contains(routeContent, controllerMarker) {
+				routeContent = strings.Replace(routeContent, controllerMarker, decl+controllerMarker, 1)
+				updated = true
 			} else {
-				routeContent += decl + "\n"
+				return false, fmt.Errorf("failed to locate controller insert marker in %s", adminRoutePath)
 			}
-			updated = true
 		}
 		importShowRoute := "\t\t\trouter.Get(\"imports/{id}\", importController.Show)"
 		importErrorRoute := "\t\t\trouter.Get(\"imports/{id}/error-file\", importController.DownloadErrorFile)"
 		if !strings.Contains(routeContent, importShowRoute) {
-			marker := "\n\t\t\t// 代码生成器（仅在开发环境可用）"
 			block := "\n" + importShowRoute + "\n" + importErrorRoute
-			if strings.Contains(routeContent, marker) {
-				routeContent = strings.Replace(routeContent, marker, block+marker, 1)
+			if strings.Contains(routeContent, routeMarker) {
+				routeContent = strings.Replace(routeContent, routeMarker, block+routeMarker, 1)
+				updated = true
 			} else {
-				routeContent += block + "\n"
+				return false, fmt.Errorf("failed to locate route insert marker in %s", adminRoutePath)
 			}
-			updated = true
 		} else if !strings.Contains(routeContent, importErrorRoute) {
 			routeContent = strings.Replace(routeContent, importShowRoute, importShowRoute+"\n"+importErrorRoute, 1)
 			updated = true
@@ -705,7 +712,7 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 		return false, nil
 	}
 
-	if err := os.WriteFile(adminRoutePath, []byte(routeContent), 0644); err != nil {
+	if err := writeCodegenFile(adminRoutePath, []byte(routeContent)); err != nil {
 		return false, fmt.Errorf("failed to write %s: %w", adminRoutePath, err)
 	}
 

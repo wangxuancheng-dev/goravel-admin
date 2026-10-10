@@ -2044,7 +2044,7 @@
     "detail_table_name": "子表名",
     "detail_table_placeholder": "子表表名，如 order_items",
     "detail_fields_config": "子表字段",
-    "master_detail_hint": "参考若依/积木：一条主表记录对应可编辑明细行（外键 {module}_id）。与树形列表互斥；不生成导入。",
+    "master_detail_hint": "一条主表记录对应可编辑明细行（外键 {module}_id）。与树形列表互斥；不生成导入。",
     "master_detail_no_import": "主子表模块不生成导入。",
     "add_detail_field": "添加子表字段",
     "detail_table_name_required": "请填写子表名",

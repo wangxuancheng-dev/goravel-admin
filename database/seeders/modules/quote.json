@@ -1,0 +1,66 @@
+{
+  "module_name": "quote",
+  "table_name": "quotes",
+  "menu_title": "quote",
+  "menu_slug": "quote",
+  "parent_menu_slug": "",
+  "path": "/quotes",
+  "component": "quote/QuoteList",
+  "icon": "Document",
+  "menu_sort": 0,
+  "has_create": true,
+  "has_edit": true,
+  "has_delete": true,
+  "has_export": true,
+  "has_import": false,
+  "permissions": [
+    {
+      "name": "quote列表",
+      "slug": "quote.index",
+      "method": "GET",
+      "path": "/api/admin/quotes",
+      "description": "查看quote列表",
+      "sort": 1
+    },
+    {
+      "name": "quote详情",
+      "slug": "quote.show",
+      "method": "GET",
+      "path": "/api/admin/quotes/*",
+      "description": "查看quote详情",
+      "sort": 2
+    },
+    {
+      "name": "quote创建",
+      "slug": "quote.store",
+      "method": "POST",
+      "path": "/api/admin/quotes",
+      "description": "创建quote",
+      "sort": 3
+    },
+    {
+      "name": "quote更新",
+      "slug": "quote.update",
+      "method": "PUT",
+      "path": "/api/admin/quotes/*",
+      "description": "更新quote",
+      "sort": 4
+    },
+    {
+      "name": "quote删除",
+      "slug": "quote.destroy",
+      "method": "DELETE",
+      "path": "/api/admin/quotes/*",
+      "description": "删除quote",
+      "sort": 5
+    },
+    {
+      "name": "quote导出",
+      "slug": "quote.export",
+      "method": "POST",
+      "path": "/api/admin/quotes/export",
+      "description": "导出quote列表",
+      "sort": 6
+    }
+  ]
+}
