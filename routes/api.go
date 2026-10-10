@@ -81,7 +81,6 @@ func Api() {
 		middleware.Lang(),
 		middleware.Tenant(),
 		middleware.Blacklist(),
-		middleware.ScheduleDemoModule(),
 	).Group(func(router route.Router) {
 		router.Post("orders/expire", queueTestController.OrderExpireDemo)
 	})

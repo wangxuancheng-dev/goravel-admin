@@ -2356,7 +2356,10 @@
       "timestamp": "Timestamp",
       "json": "JSON"
     },
-    "ai_example_master_detail": "Create a quote master-detail module: master has quote no, customer, total amount, status; detail table quote_items has SKU, qty, unit price, line amount"
+    "ai_example_master_detail": "Create a quote master-detail module: master has quote no, customer, total amount, status; detail table quote_items has SKU, qty, unit price, line amount",
+    "entitlement_managed": "Entitlement managed (plan/open)",
+    "entitlement_always_on": "Always on (skip plan)",
+    "entitlement_row_quota": "Row quota (plan limit)"
   },
   "vxe": {
     "toolbar": {

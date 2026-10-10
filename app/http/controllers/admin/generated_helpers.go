@@ -97,6 +97,10 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusForbidden
 	case code == "tenant_storage_quota_exceeded" || code == "tenant_storage_disk_locked":
 		return http.StatusForbidden
+	case code == "entitlement_limit_exceeded":
+		return http.StatusUnprocessableEntity
+	case code == "tenant_feature_disabled":
+		return http.StatusForbidden
 	case code == "tenant_storage_not_configured" || code == "tenant_storage_invalid_driver" || code == "tenant_storage_secret_corrupt":
 		return http.StatusBadRequest
 	case code == "tenant_not_trashed" || code == "tenant_code_in_recycle":

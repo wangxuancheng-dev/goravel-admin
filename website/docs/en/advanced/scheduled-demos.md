@@ -9,7 +9,7 @@
 
 Full request examples: see the [Chinese version](/advanced/scheduled-demos).
 
-Admin UI: System → Demo Activities. Toggle with `MODULE_SCHEDULE_DEMO_ENABLED` (default true). API: `/api/admin/demo-activities`.
+Admin UI: System → Demo Activities. API: `/api/admin/demo-activities`.
 
 ## Configurable cron (whitelist)
 

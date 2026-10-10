@@ -20,6 +20,7 @@ func Platform() {
 	adminController := platform.NewAdminController()
 	systemLogController := platform.NewSystemLogController()
 	alertDeliveryController := platform.NewAlertDeliveryController()
+	entitlementController := platform.NewEntitlementController()
 
 	facades.Route().Prefix("api/platform").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy()).Group(func(router route.Router) {
@@ -72,6 +73,12 @@ func Platform() {
 			router.Get("tenants/{id}/backups", tenantController.ListBackups)
 			router.Get("tenants/{id}/backups/download", tenantController.DownloadBackup)
 
+			// Entitlements
+			router.Get("features", entitlementController.FeatureIndex)
+			router.Get("plans", entitlementController.PlanIndex)
+			router.Get("plans/{code}/entitlements", entitlementController.PlanEntitlements)
+			router.Get("tenants/{id}/entitlements", entitlementController.TenantIndex)
+
 			// Mutations require owner
 			router.Middleware(middleware.PlatformOwner()).Group(func(router route.Router) {
 				router.Post("admins", adminController.Store)
@@ -107,6 +114,16 @@ func Platform() {
 				router.Put("tenants/{id}/domains/{domainId}/primary", tenantController.SetPrimaryDomain)
 				router.Put("tenants/{id}/domains/{domainId}/disable", tenantController.DisableDomain)
 				router.Delete("tenants/{id}/domains/{domainId}", tenantController.DestroyDomain)
+
+				router.Post("features", entitlementController.FeatureStore)
+				router.Post("features/register-module", entitlementController.RegisterModule)
+				router.Put("features/{key}", entitlementController.FeatureUpdate)
+				router.Post("plans", entitlementController.PlanStore)
+				router.Put("plans/{code}", entitlementController.PlanUpdate)
+				router.Post("tenants/{id}/subscription", entitlementController.TenantAssignPlan)
+				router.Put("tenants/{id}/entitlements/{key}", entitlementController.TenantSetOverride)
+				router.Delete("tenants/{id}/entitlements/{key}", entitlementController.TenantDeleteOverride)
+				router.Post("tenants/{id}/entitlements/recompute", entitlementController.TenantRecompute)
 			})
 		})
 	})

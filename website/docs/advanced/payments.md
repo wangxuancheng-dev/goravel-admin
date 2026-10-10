@@ -49,7 +49,7 @@ CreatePayment (订单 pending)
 
 1. 后台创建支付方式：`type=mock`，必须配置 `shared_secret`
 2. 创建待支付订单（管理端订单）
-3. `POST /api/admin/payments`（需 `MODULE_PAYMENTS_ENABLED=true` + `payment.store`）：
+3. `POST /api/admin/payments`（需 `payment.store` 权限）：
 
 ```json
 {
@@ -176,7 +176,6 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 
 | 变量 / 开关 | 说明 |
 |-------------|------|
-| `MODULE_PAYMENTS_ENABLED` | 管理端支付菜单与 API；**不影响**公开 notify |
 | `PAYMENT_GATEWAYS_ENABLED` | 启用的网关类型（逗号分隔），如 `wechat,alipay`。空 / `*` / `all` = 全部已注册驱动。未列入的类型：不可创建支付方式、不可下单/查询/回调。**生产建议显式白名单** |
 | `APP_URL` | 拼默认 `notify_url` |
 | 多租户 | 回调必须带 `{tenant}`；见 `tenancy.PaymentNotifyPath` |

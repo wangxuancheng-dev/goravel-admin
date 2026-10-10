@@ -119,7 +119,7 @@ export function useCodeGenerator() {
     menu_sort: 0,
     install_enabled: true,
     files: buildDefaultFiles(['vue', 'react']),
-    options: ['has_create', 'has_edit', 'has_delete', 'show_toolbar'],
+    options: ['has_create', 'has_edit', 'has_delete', 'show_toolbar', 'entitlement_managed'],
     export_mode: 'none',
     import_mode: 'none',
     detail_table_name: '',
@@ -302,6 +302,10 @@ export function useCodeGenerator() {
     show_toolbar: form.options.includes('show_toolbar'),
     is_tree_list: form.options.includes('is_tree_list') && !form.options.includes('is_master_detail'),
     is_master_detail: form.options.includes('is_master_detail'),
+    entitlement_managed: form.options.includes('entitlement_managed'),
+    entitlement_always_on: form.options.includes('entitlement_always_on'),
+    entitlement_row_quota:
+      form.options.includes('entitlement_managed') && form.options.includes('entitlement_row_quota'),
   })
 
   watch(

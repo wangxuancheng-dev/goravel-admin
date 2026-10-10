@@ -32,6 +32,7 @@ import PlatformLoginLogListPage from '../pages/platform/LoginLogList'
 import PlatformOperationLogListPage from '../pages/platform/OperationLogList'
 import PlatformSystemLogListPage from '../pages/platform/SystemLogList'
 import PlatformOverviewPage from '../pages/platform/Overview'
+import PlatformEntitlementsPage from '../pages/platform/Entitlements'
 import { getPlatformToken } from '@/utils/platformRequest'
 import { buildAdminLoginPath } from '@/utils/tenant'
 
@@ -185,6 +186,11 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
               path: 'tenants',
               element: <PlatformTenantListPage />,
               handle: { titleKey: 'menu.tenant', platform: true },
+            },
+            {
+              path: 'entitlements',
+              element: <PlatformEntitlementsPage />,
+              handle: { titleKey: 'menu.entitlement', platform: true },
             },
             {
               path: 'admins',

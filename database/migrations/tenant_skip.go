@@ -32,7 +32,9 @@ func IsLandlordOnlyMigration(signature string) bool {
 		"20260920220000_platform_ops_extensions",
 		"20260921120000_create_flexible_schedules_table",
 		"20260922160000_flexible_schedules_payload_unique",
-		"20260922230000_add_flexible_schedule_next_run_at":
+		"20260922230000_add_flexible_schedule_next_run_at",
+		"20261010180000_create_entitlement_tables",
+		"20261010190000_add_platform_feature_always_on":
 		return true
 	default:
 		return false

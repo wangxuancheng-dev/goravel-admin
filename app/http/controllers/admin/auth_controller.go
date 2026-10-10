@@ -469,8 +469,9 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 		menuTree = filterMenuTree(menuTree)
 	}
 
-	// 按模块开关再过滤（避免权限 MenuID 把已关闭模块菜单加回来）
+	// Hide menus for optional toggles (dev tools / AI lab) and entitlement-disabled features.
 	menuTree = utils.FilterTreeMenusByModule(menuTree)
+	menuTree = services.FilterTreeMenusByEntitlement(ctx, menuTree)
 
 	// 转换为前端格式
 	menuTreeData := utils.ConvertMenuTree(menuTree)
@@ -500,9 +501,6 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 			"pprof_enabled":                   pprofEnabled,
 			"pprof_token_required":            pprofTokenRequired,
 			"ai_enabled":                      utils.AIEnabled(),
-			"orders_enabled":                  utils.OrdersEnabled(),
-			"payments_enabled":                utils.PaymentsEnabled(),
-			"schedule_demo_enabled":           utils.ScheduleDemoEnabled(),
 			"payment_gateways":                services.EnabledPaymentGateways(),
 			"dev_tools_enabled":               utils.DevToolsEnabled(),
 			"code_generator_enabled":          utils.CodeGeneratorEnabled(),
@@ -516,6 +514,11 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 	if tenancy.Enabled() {
 		if tenantInfo := currentTenantInfoForAdmin(ctx); tenantInfo != nil {
 			payload["tenant"] = tenantInfo
+		}
+		if tenantID, ok := helpers.GetTenantIDFromContext(ctx); ok && tenantID > 0 {
+			if view, err := services.NewEntitlementServiceFromHTTP(ctx).ClientViewForTenant(tenantID, "admin"); err == nil {
+				payload["entitlements"] = view
+			}
 		}
 	}
 

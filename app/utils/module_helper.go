@@ -9,21 +9,6 @@ import (
 	"goravel/app/search"
 )
 
-// OrdersEnabled reports whether the orders example module is enabled.
-func OrdersEnabled() bool {
-	return facades.Config().GetBool("module.orders_enabled", true)
-}
-
-// PaymentsEnabled reports whether the payments example module is enabled.
-func PaymentsEnabled() bool {
-	return facades.Config().GetBool("module.payments_enabled", true)
-}
-
-// ScheduleDemoEnabled reports whether the schedule demo (demo activities) module is enabled.
-func ScheduleDemoEnabled() bool {
-	return facades.Config().GetBool("module.schedule_demo_enabled", true)
-}
-
 // DevToolsEnabled reports whether general dev tools (e.g. form demo) are available.
 // Enabled in local/development/test, or when APP_ENABLE_DEV_TOOL=true.
 func DevToolsEnabled() bool {
@@ -117,20 +102,10 @@ func OTELEnabled() bool {
 	return strings.TrimSpace(cfg.GetString("OTEL_METRICS_EXPORTER", "")) != ""
 }
 
-// DisabledModuleMenuSlugs returns menu slugs that should be hidden when modules are off.
+// DisabledModuleMenuSlugs returns menu slugs hidden by optional feature toggles
+// (dev tools, code generator, AI lab, etc.).
 func DisabledModuleMenuSlugs() map[string]bool {
 	disabled := make(map[string]bool)
-	if !OrdersEnabled() {
-		disabled["order"] = true
-	}
-	if !PaymentsEnabled() {
-		disabled["payment"] = true
-		disabled["payment-method"] = true
-		disabled["payment-record"] = true
-	}
-	if !ScheduleDemoEnabled() {
-		disabled["demo-activity"] = true
-	}
 	codeGenOn := CodeGeneratorEnabled()
 	formDemoOn := DevToolsEnabled()
 	if !codeGenOn {

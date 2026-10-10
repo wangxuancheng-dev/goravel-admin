@@ -261,6 +261,12 @@ func (s *<<.ServiceName>>Impl) ImportFromCSV(csvContent string) (*ImportResult, 
 
 <<if .HasCreate>>
 func (s *<<.ServiceName>>Impl) Create(req *admin.<<.RequestCreateName>>) (*models.<<.ModelName>>, error) {
+<<if .EntitlementRowQuota>>
+	entSvc := NewEntitlementService(s.ctx)
+	if err := entSvc.CheckAndConsumeModuleRows("<<.ModuleName>>", 1); err != nil {
+		return nil, err
+	}
+<<end>>
 	item := &models.<<.ModelName>>{
 <<- range .FormFields>>
 <<- if and (ne .Name "id") (ne .Name "created_at") (ne .Name "updated_at") (ne .Name "deleted_at")>>
@@ -281,11 +287,17 @@ func (s *<<.ServiceName>>Impl) Create(req *admin.<<.RequestCreateName>>) (*model
 		return s.sync<<.ModelName>>Details(tx, item.ID, req.Details)
 	})
 	if err != nil {
+<<if .EntitlementRowQuota>>
+		_ = entSvc.ReleaseModuleRows("<<.ModuleName>>", 1)
+<<end>>
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
 	return s.GetByID(item.ID)
 <<else>>
 	if err := appfacades.OrmQuery(s.ctx).Create(item); err != nil {
+<<if .EntitlementRowQuota>>
+		_ = entSvc.ReleaseModuleRows("<<.ModuleName>>", 1)
+<<end>>
 		return nil, apperrors.ErrCreateFailed.WithError(err)
 	}
 
@@ -356,13 +368,15 @@ func (s *<<.ServiceName>>Impl) Delete(id uint) error {
 	if err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
-	return nil
 <<else>>
 	if _, err := appfacades.OrmQuery(s.ctx).Where("id", id).Delete(&models.<<.ModelName>>{}); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
-	return nil
 <<end>>
+<<if .EntitlementRowQuota>>
+	_ = NewEntitlementService(s.ctx).ReleaseModuleRows("<<.ModuleName>>", 1)
+<<end>>
+	return nil
 }
 <<end>>
 

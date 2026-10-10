@@ -61,14 +61,10 @@ func TestRegisteredPaymentGatewaysIncludeBuiltin(t *testing.T) {
 }
 
 func TestPaymentGatewayAllowlist(t *testing.T) {
-	prevOrders := facades.Config().GetBool("module.orders_enabled", true)
-	prevPayments := facades.Config().GetBool("module.payments_enabled", true)
 	prevGateways := facades.Config().GetString("module.payment_gateways_enabled", "")
 	prevFrontend := facades.Config().GetString("module.code_generator_frontend", "vue,react")
 	restore := func(gateways string) {
 		facades.Config().Add("module", map[string]any{
-			"orders_enabled":           prevOrders,
-			"payments_enabled":         prevPayments,
 			"payment_gateways_enabled": gateways,
 			"code_generator_frontend":  prevFrontend,
 		})

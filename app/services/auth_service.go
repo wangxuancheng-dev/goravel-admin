@@ -341,6 +341,7 @@ func (s *AuthServiceImpl) GetAdminInfo(ctx http.Context) (*models.Admin, []model
 	}
 
 	menus = utils.FilterFlatMenusByModule(menus)
+	menus = FilterMenusByEntitlement(ctx, menus)
 
 	return &admin, permissions, menus, nil
 }

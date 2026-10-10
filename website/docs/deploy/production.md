@@ -8,7 +8,7 @@
 2. `go run . artisan key:generate`，填写强随机 `JWT_SECRET`
 3. `CACHE_STORE=redis`、`QUEUE_CONNECTION=redis`（勿用 `memory` / `sync` 上公网多实例）
 4. `APP_DEBUG=false`，关闭 Swagger / 代码生成器 / pprof
-5. `MODULE_PAYMENTS_ENABLED=false`
+5. Set `PAYMENT_GATEWAYS_ENABLED` explicitly (e.g. `wechat,alipay`); omit `mock` in production
 6. 一户一库时：`TENANCY_RESOLVER=subdomain`，`TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`
 7. `migrate`（平台库）；租户库用平台 UI 异步迁移或 `tenant:migrate` / `tenant:migrate-all [--concurrency=N]`（默认 `TENANCY_MIGRATE_CONCURRENCY`，见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)）；异步运维需 `long-running` worker
 8. 修改默认管理员密码；平台管理员用 `platform:install`

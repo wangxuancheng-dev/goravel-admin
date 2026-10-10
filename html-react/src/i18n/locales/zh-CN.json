@@ -239,7 +239,8 @@
     "platform_admin": "平台管理员",
     "demo_activity": "活动调度演示",
     "platform_alert": "告警投递",
-    "allowlist": "IP白名单"
+    "allowlist": "IP白名单",
+    "entitlement": "权益套餐"
   },
   "table": {
     "id": "ID",
@@ -1330,7 +1331,10 @@
     "op_rollback_batch": "批次 (migrations.batch；0/0=上一批)",
     "op_rollback_hint": "建议 step=1。首次 migrate 常把全部文件记为 batch 1；step=0 且 batch=0 会回滚整个上一批次。",
     "batch_rollback": "批量回滚",
-    "batch_rollback_confirm": "确认为选中的 {{n}} 个租户入队回滚（默认 step=1）？建议先备份。"
+    "batch_rollback_confirm": "确认为选中的 {{n}} 个租户入队回滚（默认 step=1）？建议先备份。",
+    "op_progress": "进度说明",
+    "migrate_queued_hint": "任务已进 long-running 队列。请确认本机进程已启用队列 worker（不要设置 APP_DISABLED_RUNNERS=queue-*）。界面没有 DDL 实时日志，请看运维时间线与 last_op。",
+    "migrate_running_hint": "worker 正在执行迁移。界面只显示简短状态；步骤看运维时间线，详细错误看服务端日志。"
   },
   "platform": {
     "title": "租户运维",
@@ -2049,7 +2053,10 @@
     "add_detail_field": "添加子表字段",
     "detail_table_name_required": "请填写子表名",
     "detail_fields_required": "请至少配置一个子表字段",
-    "ai_example_master_detail": "创建报价主子表：主表含报价单号、客户名、总金额、状态；子表 quote_items 含商品SKU、数量、单价、小计"
+    "ai_example_master_detail": "创建报价主子表：主表含报价单号、客户名、总金额、状态；子表 quote_items 含商品SKU、数量、单价、小计",
+    "entitlement_managed": "纳入权益（套餐开通）",
+    "entitlement_always_on": "始终开通（不走套餐）",
+    "entitlement_row_quota": "行数配额（套餐额度）"
   },
   "ai_lab": {
     "title": "AI 实验室",
@@ -2216,5 +2223,42 @@
     "ip_required": "请输入IP地址",
     "ip_format_error": "IP地址格式错误",
     "client_ip_tip": "当前访问 IP：{{ip}}（启用白名单时请确保包含此地址）"
+  },
+  "entitlement": {
+    "catalog_title": "功能目录",
+    "catalog_hint": "此处列出已纳入套餐权益管理的模块。",
+    "plans_title": "套餐",
+    "add_plan": "新增套餐",
+    "feature": "功能",
+    "plan": "套餐",
+    "type": "类型",
+    "menu_slugs": "菜单标识",
+    "default": "默认",
+    "price_monthly": "月价",
+    "tenant_section": "模块权益",
+    "tenant_hint": "开关会为该租户写入特批覆盖；套餐提供默认权益。",
+    "select_plan": "选择套餐",
+    "assign_plan": "分配套餐",
+    "recompute": "重算快照",
+    "version": "版本",
+    "enabled": "开通",
+    "override": "特批",
+    "clear_override": "清除特批",
+    "empty_catalog": "暂无权益功能。请在此登记模块，或用代码生成器生成模块。",
+    "plan_assigned": "套餐已分配",
+    "override_saved": "权益已更新",
+    "override_cleared": "特批已清除",
+    "recomputed": "快照已重算",
+    "always_on": "始终开通",
+    "row_quota": "行数配额",
+    "register_module": "登记模块",
+    "module_name": "模块名",
+    "module_registered": "模块已登记",
+    "handwritten_hint": "手写模块：先在此登记，路由使用 middleware.EntitlementModule(name)；若开启行数配额，在 Create 中调用 CheckAndConsumeModuleRows。",
+    "description": "说明",
+    "edit_plan_entitlements": "套餐权益",
+    "plan_entitlements": "权益配置",
+    "plan_entitlements_hint": "每行一个 key=value。例如 module.guestbook=true，quota.module.guestbook.rows=1000（-1 表示不限）。",
+    "plan_entitlements_saved": "套餐权益已保存"
   }
 }

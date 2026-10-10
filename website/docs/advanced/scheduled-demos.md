@@ -19,9 +19,9 @@
 
 ## 2. 活动窗口 API
 
-管理端前缀：`/api/admin/demo-activities`（需登录；模块开关 `MODULE_SCHEDULE_DEMO_ENABLED`，默认 true）。
+管理端前缀：`/api/admin/demo-activities`（需登录）。
 
-菜单：系统管理 → 活动调度演示。关闭模块后菜单与 API 均不可用。
+菜单：系统管理 → 活动调度演示。
 
 开发态订单超时演示仍可用：`/api/schedule-demo/orders/expire`。
 

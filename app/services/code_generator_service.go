@@ -650,14 +650,30 @@ func (s *CodeGeneratorServiceImpl) syncAdminRoute(moduleName string, options map
 		}
 	}
 
-	// 注入 Resource 路由
+	// Wrap with EntitlementModule when entitlement_managed (default true).
+	managed := true
+	if options != nil {
+		if v, ok := options["entitlement_managed"]; ok {
+			managed = v
+		}
+	}
+	entitlementGroupOpen := fmt.Sprintf("\t\t\trouter.Middleware(middleware.EntitlementModule(%q)).Group(func(router route.Router) {", moduleName)
+	entitlementGroupClose := "\t\t\t})"
 	if !strings.Contains(routeContent, resourceRoute) {
-		insertBlock := "\n" + resourceRoute
+		insertBlock := "\n"
+		if managed {
+			insertBlock += entitlementGroupOpen + "\n" + resourceRoute
+		} else {
+			insertBlock += resourceRoute
+		}
 		if hasExport {
 			insertBlock += "\n" + exportRoute
 		}
 		if hasImport {
 			insertBlock += "\n" + importRoute
+		}
+		if managed {
+			insertBlock += "\n" + entitlementGroupClose
 		}
 
 		if strings.Contains(routeContent, routeMarker) {
@@ -798,7 +814,25 @@ func (s *CodeGeneratorServiceImpl) InstallModule(moduleName, tableName string, o
 		return nil, err
 	}
 
-	return NewModuleInstaller(s.ctx).Install(manifest)
+	result, err := NewModuleInstaller(s.ctx).Install(manifest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Entitlement catalog (landlord). Skip when entitlement_managed=false.
+	if optionEnabled(options, "entitlement_managed", true) {
+		if _, regErr := NewEntitlementService(s.ctx).RegisterModule(RegisterModuleSpec{
+			ModuleName:  moduleName,
+			DisplayName: manifest.MenuTitle,
+			MenuSlug:    manifest.MenuSlug,
+			AlwaysOn:    optionEnabled(options, "entitlement_always_on", false),
+			RowQuota:    optionEnabled(options, "entitlement_row_quota", false),
+		}); regErr != nil {
+			facades.Log().Warningf("entitlement register skipped: module=%s err=%v", moduleName, regErr)
+		}
+	}
+
+	return result, nil
 }
 
 func (s *CodeGeneratorServiceImpl) getGormDB() (*gorm.DB, error) {
@@ -1812,6 +1846,7 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 	exportAsync := false
 	hasImport := false
 	importAsync := false
+	entitlementRowQuota := false
 
 	if options != nil {
 		if val, ok := options["has_create"]; ok {
@@ -1835,6 +1870,13 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 		if val, ok := options["import_async"]; ok {
 			importAsync = val
 		}
+		if val, ok := options["entitlement_row_quota"]; ok {
+			entitlementRowQuota = val
+		}
+	}
+	// Row quota only applies when the module is entitlement-managed.
+	if !optionEnabled(options, "entitlement_managed", true) {
+		entitlementRowQuota = false
 	}
 
 	templateFields := s.convertFieldsToTemplateFields(fields)
@@ -1867,28 +1909,30 @@ func (s *CodeGeneratorServiceImpl) generateService(moduleName, tableName string,
 		DetailFKName        string
 		DetailFKFieldName   string
 		DetailFormFields    []TemplateFieldConfig
+		EntitlementRowQuota bool
 	}{
-		ServiceName:       toPascalCase(moduleName) + "Service",
-		ModelName:         toPascalCase(moduleName),
-		ModuleName:        moduleName,
-		SearchableFields:  searchableFields,
-		RequestCreateName: toPascalCase(moduleName) + "Create",
-		RequestUpdateName: toPascalCase(moduleName) + "Update",
-		FormFields:        templateFields,
-		HasCreate:         hasCreate,
-		HasEdit:           hasEdit,
-		HasDelete:         hasDelete,
-		HasExport:         hasExport,
-		ExportAsync:       exportAsync,
-		HasImport:         hasImport && !md.IsMasterDetail,
-		ImportAsync:       importAsync && !md.IsMasterDetail,
-		IsTreeList:        optionEnabled(options, "is_tree_list", false),
-		ParentIDFieldName: resolveParentIDFieldName(templateFields),
-		IsMasterDetail:    md.IsMasterDetail,
-		DetailModelName:   md.DetailModelName,
-		DetailFKName:      md.DetailFKName,
-		DetailFKFieldName: md.DetailFKFieldName,
-		DetailFormFields:  md.DetailFormFields,
+		ServiceName:         toPascalCase(moduleName) + "Service",
+		ModelName:           toPascalCase(moduleName),
+		ModuleName:          moduleName,
+		SearchableFields:    searchableFields,
+		RequestCreateName:   toPascalCase(moduleName) + "Create",
+		RequestUpdateName:   toPascalCase(moduleName) + "Update",
+		FormFields:          templateFields,
+		HasCreate:           hasCreate,
+		HasEdit:             hasEdit,
+		HasDelete:           hasDelete,
+		HasExport:           hasExport,
+		ExportAsync:         exportAsync,
+		HasImport:           hasImport && !md.IsMasterDetail,
+		ImportAsync:         importAsync && !md.IsMasterDetail,
+		IsTreeList:          optionEnabled(options, "is_tree_list", false),
+		ParentIDFieldName:   resolveParentIDFieldName(templateFields),
+		IsMasterDetail:      md.IsMasterDetail,
+		DetailModelName:     md.DetailModelName,
+		DetailFKName:        md.DetailFKName,
+		DetailFKFieldName:   md.DetailFKFieldName,
+		DetailFormFields:    md.DetailFormFields,
+		EntitlementRowQuota: entitlementRowQuota,
 	}
 
 	content, err := s.executeTemplate(string(templateContent), data)

@@ -107,6 +107,9 @@
                 <el-checkbox label="show_toolbar">{{ $t('code_generator.show_toolbar') }}</el-checkbox>
                 <el-checkbox label="is_tree_list">{{ $t('code_generator.is_tree_list') }}</el-checkbox>
                 <el-checkbox label="is_master_detail">{{ $t('code_generator.is_master_detail') }}</el-checkbox>
+                <el-checkbox label="entitlement_managed">{{ $t('code_generator.entitlement_managed') }}</el-checkbox>
+                <el-checkbox label="entitlement_always_on">{{ $t('code_generator.entitlement_always_on') }}</el-checkbox>
+                <el-checkbox label="entitlement_row_quota">{{ $t('code_generator.entitlement_row_quota') }}</el-checkbox>
               </el-checkbox-group>
             </el-form-item>
 

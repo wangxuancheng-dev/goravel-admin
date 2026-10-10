@@ -239,7 +239,8 @@
     "platform_admin": "Platform admins",
     "demo_activity": "Demo Activities",
     "platform_alert": "Alert deliveries",
-    "allowlist": "IP Allowlist"
+    "allowlist": "IP Allowlist",
+    "entitlement": "Entitlements"
   },
   "table": {
     "id": "ID",
@@ -1326,7 +1327,10 @@
     "op_rollback_batch": "Batch (migrations.batch; 0/0 = last batch)",
     "op_rollback_hint": "Prefer --step=1. First migrate often puts all files in batch 1; step=0 batch=0 rolls back the entire last batch.",
     "batch_rollback": "Batch rollback",
-    "batch_rollback_confirm": "Enqueue rollback (step=1) for {{n}} selected tenant(s)? Prefer backup first."
+    "batch_rollback_confirm": "Enqueue rollback (step=1) for {{n}} selected tenant(s)? Prefer backup first.",
+    "op_progress": "Progress",
+    "migrate_queued_hint": "Job is queued on long-running. Ensure the app process is running with queue workers enabled (do not set APP_DISABLED_RUNNERS=queue-*). No DDL stream in UI — check Ops timeline and last_op.",
+    "migrate_running_hint": "Migration is running on the worker. UI only shows short status; open Ops timeline for steps, or check server logs."
   },
   "platform": {
     "title": "Tenant Ops",
@@ -2045,7 +2049,10 @@
       "timestamp": "Timestamp",
       "json": "JSON"
     },
-    "ai_example_master_detail": "Create a quote master-detail module: master has quote no, customer, total amount, status; detail table quote_items has SKU, qty, unit price, line amount"
+    "ai_example_master_detail": "Create a quote master-detail module: master has quote no, customer, total amount, status; detail table quote_items has SKU, qty, unit price, line amount",
+    "entitlement_managed": "Entitlement managed (plan/open)",
+    "entitlement_always_on": "Always on (skip plan)",
+    "entitlement_row_quota": "Row quota (plan limit)"
   },
   "ai_lab": {
     "title": "AI Lab",
@@ -2212,5 +2219,42 @@
     "ip_required": "Please enter IP address",
     "ip_format_error": "Invalid IP address format",
     "client_ip_tip": "Your current IP: {{ip}} (include it when enabling the allowlist)"
+  },
+  "entitlement": {
+    "catalog_title": "Feature catalog",
+    "catalog_hint": "Modules registered for plan entitlements are listed here.",
+    "plans_title": "Plans",
+    "add_plan": "Add plan",
+    "feature": "Feature",
+    "plan": "Plan",
+    "type": "Type",
+    "menu_slugs": "Menu slugs",
+    "default": "Default",
+    "price_monthly": "Monthly price",
+    "tenant_section": "Module entitlements",
+    "tenant_hint": "Toggle opens a pinned override for this tenant. Assign a plan for defaults.",
+    "select_plan": "Select plan",
+    "assign_plan": "Assign plan",
+    "recompute": "Recompute",
+    "version": "Version",
+    "enabled": "Enabled",
+    "override": "Override",
+    "clear_override": "Clear",
+    "empty_catalog": "No entitlement features yet. Register a module here or generate one with the code generator.",
+    "plan_assigned": "Plan assigned",
+    "override_saved": "Entitlement updated",
+    "override_cleared": "Override cleared",
+    "recomputed": "Snapshot recomputed",
+    "always_on": "Always on",
+    "row_quota": "Row quota",
+    "register_module": "Register module",
+    "module_name": "Module name",
+    "module_registered": "Module registered",
+    "handwritten_hint": "Hand-written modules: register here, wrap routes with middleware.EntitlementModule(name), and call CheckAndConsumeModuleRows in Create when using row quota.",
+    "description": "Description",
+    "edit_plan_entitlements": "Plan grants",
+    "plan_entitlements": "Entitlements",
+    "plan_entitlements_hint": "One key=value per line. Example: module.guestbook=true and quota.module.guestbook.rows=1000 (-1=unlimited).",
+    "plan_entitlements_saved": "Plan entitlements saved"
   }
 }

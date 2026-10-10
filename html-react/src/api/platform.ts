@@ -372,3 +372,61 @@ export async function logoutPlatform() {
   }
   clearPlatformSession()
 }
+
+// --- Entitlements ---
+
+export async function getPlatformFeatures() {
+  return normalizeListResponse(await platformRequest.get('/features'))
+}
+
+export function registerPlatformModuleFeature(data: {
+  module_name: string
+  display_name?: string
+  menu_slug?: string
+  always_on?: boolean
+  row_quota?: boolean
+}) {
+  return platformRequest.post('/features/register-module', data)
+}
+
+export async function getPlatformPlans() {
+  return normalizeListResponse(await platformRequest.get('/plans'))
+}
+
+export async function getPlatformPlanEntitlements(code: string) {
+  return normalizeListResponse(
+    await platformRequest.get(`/plans/${encodeURIComponent(code)}/entitlements`),
+  )
+}
+
+export function upsertPlatformPlan(data: Record<string, unknown>) {
+  return platformRequest.post('/plans', data)
+}
+
+export function updatePlatformPlan(code: string, data: Record<string, unknown>) {
+  return platformRequest.put(`/plans/${encodeURIComponent(code)}`, data)
+}
+
+export function getPlatformTenantEntitlements(id: string | number) {
+  return platformRequest.get(`/tenants/${id}/entitlements`)
+}
+
+export function assignPlatformTenantPlan(id: string | number, data: { plan_code: string; note?: string }) {
+  return platformRequest.post(`/tenants/${id}/subscription`, data)
+}
+
+export function setPlatformTenantEntitlement(
+  id: string | number,
+  key: string,
+  data: { enabled?: boolean; value?: string; reason?: string },
+) {
+  return platformRequest.put(`/tenants/${id}/entitlements/${encodeURIComponent(key)}`, data)
+}
+
+export function deletePlatformTenantEntitlement(id: string | number, key: string) {
+  return platformRequest.delete(`/tenants/${id}/entitlements/${encodeURIComponent(key)}`)
+}
+
+export function recomputePlatformTenantEntitlements(id: string | number) {
+  return platformRequest.post(`/tenants/${id}/entitlements/recompute`)
+}

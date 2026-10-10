@@ -53,7 +53,7 @@ CreatePayment (订单 pending)
 
 1. 后台创建支付方式：`type=mock`，可选 `shared_secret`
 2. 创建待支付订单（管理端订单）
-3. `POST /api/admin/payments`（需 `MODULE_PAYMENTS_ENABLED=true` + `payment.store`）：
+3. `POST /api/admin/payments`（需 `payment.store` 权限）：
 
 ```json
 {
@@ -178,7 +178,6 @@ Shared rules:
 
 | Variable | Notes |
 |----------|-------|
-| `MODULE_PAYMENTS_ENABLED` | Admin payment menu/API; does **not** affect public notify |
 | `PAYMENT_GATEWAYS_ENABLED` | Comma-separated enabled types, e.g. `wechat,alipay`. Empty / `*` / `all` = all registered. Unlisted types cannot create methods or create/query/notify. **Prefer an explicit production allowlist** |
 | `APP_URL` | Default `notify_url` base |
 | Multi-tenant | Notify must include `{tenant}`; see `tenancy.PaymentNotifyPath` |

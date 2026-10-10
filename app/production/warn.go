@@ -44,8 +44,9 @@ func WarnInsecureDefaults() {
 	if facades.Config().GetBool("app.enable_dev_tool", false) {
 		warn("APP_ENABLE_DEV_TOOL=true — code generator / form demo exposed")
 	}
-	if facades.Config().GetBool("module.payments_enabled", true) {
-		warn("MODULE_PAYMENTS_ENABLED=true — mock gateway is runnable; configure shared_secret on mock methods; wechat/alipay notify/query still stub until you wire gopay verify")
+	gateways := strings.ToLower(strings.TrimSpace(facades.Config().GetString("module.payment_gateways_enabled", "")))
+	if gateways == "" || strings.Contains(gateways, "mock") || gateways == "*" || gateways == "all" {
+		warn("payment gateways include mock (or allowlist empty) — configure shared_secret on mock methods; wechat/alipay notify/query still stub until you wire gopay verify; restrict via PAYMENT_GATEWAYS_ENABLED")
 	}
 	if facades.Config().GetBool("pprof.enabled", false) || facades.Config().GetBool("app.debug", false) {
 		token := strings.TrimSpace(facades.Config().GetString("pprof.token", ""))

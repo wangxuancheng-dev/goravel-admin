@@ -2365,7 +2365,10 @@
     "add_detail_field": "添加子表字段",
     "detail_table_name_required": "请填写子表名",
     "detail_fields_required": "请至少配置一个子表字段",
-    "ai_example_master_detail": "创建报价主子表：主表含报价单号、客户名、总金额、状态；子表 quote_items 含商品SKU、数量、单价、小计"
+    "ai_example_master_detail": "创建报价主子表：主表含报价单号、客户名、总金额、状态；子表 quote_items 含商品SKU、数量、单价、小计",
+    "entitlement_managed": "纳入权益（套餐开通）",
+    "entitlement_always_on": "始终开通（不走套餐）",
+    "entitlement_row_quota": "行数配额（套餐额度）"
   },
   "vxe": {
     "toolbar": {

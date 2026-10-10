@@ -72,6 +72,7 @@ import { useColumnSetting } from '@/hooks/useColumnSetting'
 import PageContainer from '@/components/PageContainer'
 import ColumnSettingDialog from '@/components/ColumnSettingDialog'
 import SearchForm from '@/components/SearchForm'
+import TenantEntitlementsPanel from '@/pages/platform/TenantEntitlementsPanel'
 import { entityField } from '@/utils/normalize'
 import { isPlatformOwner } from '@/utils/platformRequest'
 
@@ -1993,6 +1994,27 @@ export default function PlatformTenantList() {
               <Descriptions.Item label={t('tenant.op_message')}>
                 {detailRow.last_op_message || detailRow.last_migrate_error || '—'}
               </Descriptions.Item>
+              {detailRow.provision_status === 'migrating' ||
+              detailRow.last_op_status === 'queued' ||
+              detailRow.last_op_status === 'running' ? (
+                <Descriptions.Item label={t('tenant.op_progress')}>
+                  <Alert
+                    type={detailRow.last_op_status === 'queued' ? 'warning' : 'info'}
+                    showIcon
+                    style={{ marginBottom: 0 }}
+                    message={
+                      detailRow.last_op_status === 'queued'
+                        ? t('tenant.migrate_queued_hint')
+                        : t('tenant.migrate_running_hint')
+                    }
+                    action={
+                      <Button size="small" onClick={() => void openTimeline(detailRow)}>
+                        {t('tenant.op_timeline')}
+                      </Button>
+                    }
+                  />
+                </Descriptions.Item>
+              ) : null}
               <Descriptions.Item label={t('tenant.migrated_at')}>{detailRow.migrated_at || '—'}</Descriptions.Item>
               <Descriptions.Item label={t('tenant.backup_dir')}>
                 <Space>
@@ -2058,6 +2080,8 @@ export default function PlatformTenantList() {
             ) : (
               <Typography.Text type="secondary">—</Typography.Text>
             )}
+            <Divider>{t('entitlement.tenant_section')}</Divider>
+            {detailRow?.id ? <TenantEntitlementsPanel tenantId={detailRow.id} /> : null}
             <Divider>{t('tenant.login_links')}</Divider>
             {detailLoginLinks ? (
               <Space direction="vertical" style={{ width: '100%' }}>

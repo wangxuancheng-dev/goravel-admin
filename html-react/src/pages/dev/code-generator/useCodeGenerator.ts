@@ -122,7 +122,13 @@ export function useCodeGenerator() {
   const [detailFields, setDetailFields] = useState<CodeGeneratorField[]>([])
   const [selectedDetailTable, setSelectedDetailTable] = useState('')
   const [files, setFiles] = useState<string[]>(buildDefaultFiles(['vue', 'react']))
-  const [options, setOptions] = useState<string[]>(['has_create', 'has_edit', 'has_delete', 'show_toolbar'])
+  const [options, setOptions] = useState<string[]>([
+    'has_create',
+    'has_edit',
+    'has_delete',
+    'show_toolbar',
+    'entitlement_managed',
+  ])
   const [exportMode, setExportMode] = useState<'none' | 'sync' | 'async'>('none')
   const [importMode, setImportMode] = useState<'none' | 'sync' | 'async'>('none')
   const [installEnabled, setInstallEnabled] = useState(true)
@@ -247,6 +253,10 @@ export function useCodeGenerator() {
       show_toolbar: options.includes('show_toolbar'),
       is_tree_list: options.includes('is_tree_list') && !options.includes('is_master_detail'),
       is_master_detail: options.includes('is_master_detail'),
+      entitlement_managed: options.includes('entitlement_managed'),
+      entitlement_always_on: options.includes('entitlement_always_on'),
+      entitlement_row_quota:
+        options.includes('entitlement_managed') && options.includes('entitlement_row_quota'),
     }),
     [exportMode, importMode, options],
   )

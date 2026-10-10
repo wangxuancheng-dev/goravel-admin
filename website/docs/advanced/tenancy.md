@@ -25,6 +25,74 @@ TENANCY_DRIVER=database
 | 开户 migrate | — | 平台 UI 异步入队 / CLI；HTTP 开户仍禁止同步 migrate |
 | 开户状态 | — | `provision_status`: `pending` → `migrating` → `ready`/`failed` |
 
+## 租户权益 / 模块套餐
+
+> 仅登记到 platform_features 的模块走本页权益套餐；其余业务模块用角色菜单与权限控制。
+
+### 在哪配置（平台控制台）
+
+前提：`TENANCY_DRIVER=database`，用 **平台账号** 登录 `/platform/login`（不是租户后台）。
+
+| 你要做的事 | 页面入口 | 说明 |
+|------------|----------|------|
+| 登记模块 / 手写模块 | **权益套餐** `/platform/entitlements` | 「登记模块」 |
+| 新建套餐、改套餐里开哪些模块/额度 | 同上页下方 **套餐** → **套餐权益** | 每行 `key=value` |
+| 给某租户订套餐 / 特批开关 | **租户** `/platform/tenants` → 打开详情 → **模块权益** | 分配套餐或 Switch 特批 |
+| 代码生成时选是否纳入权益 | 租户后台 Dev → 代码生成器 | 勾选「纳入权益 / 始终开通 / 行数配额」 |
+
+Landlord 迁移（只需跑平台库）：
+
+```bash
+go run . artisan migrate
+```
+
+### 手动配置模块套餐（推荐步骤）
+
+1. **登记模块**（生成器 Install 过可跳过；手写模块必做）  
+   - 打开 `/platform/entitlements` → **登记模块**（写入 `module.{name}`，可选行配额）  
+   - 填 `module_name`（如 `guestbook`）、菜单 slug  
+   - 可选：**始终开通**（不走套餐）、**行数配额**（套餐里再写额度）  
+   - 手写模块还需：路由包 `middleware.EntitlementModule("guestbook")`；有行数配额则在 Create 调 `CheckAndConsumeModuleRows`
+
+2. **配套餐权益**  
+   - 同页新建套餐（如 `free` / `pro`）  
+   - 点 **套餐权益**，按行填写，例如：
+
+```text
+module.guestbook=true
+quota.module.guestbook.rows=1000
+```
+
+   - `false` = 该套餐不开此模块  
+   - 行数 `-1` 或 `unlimited` = 不限；`0` = 不允许新建  
+
+3. **订给租户**  
+   - `/platform/tenants` → 详情 → **模块权益** → 选择套餐 → **分配套餐**  
+   - 或对单个功能 Switch：**特批**（优先级高于套餐；「始终开通」的功能不可关）
+
+4. **验证**  
+   - 用该租户登录后台：未开通应无菜单，接口 403 `tenant_feature_disabled`  
+   - 行数超限：创建 422 `entitlement_limit_exceeded`
+
+### 关键 key 约定
+
+| Key | 含义 |
+|-----|------|
+| `module.{name}` | 模块是否开通（boolean） |
+| `quota.module.{name}.rows` | 行数上限（limit，可选） |
+
+解析优先级：`套餐默认 < 特批覆盖`；`always_on` 功能忽略套餐关闭。
+
+### API（可选，等同于上面 UI）
+
+- `GET /api/platform/features`、`POST /api/platform/features/register-module`
+- `GET/POST /api/platform/plans`、`PUT /api/platform/plans/{code}`（body 可带 `entitlements`）
+- `GET /api/platform/tenants/{id}/entitlements`
+- `POST /api/platform/tenants/{id}/subscription`
+- `PUT/DELETE /api/platform/tenants/{id}/entitlements/{key}`
+
+权益开关全局生效（管理端 / 用户端同一套 snapshot）。
+
 ## 配置
 
 ```ini

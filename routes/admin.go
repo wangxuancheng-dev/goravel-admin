@@ -192,16 +192,14 @@ func Admin() {
 			router.Post("flexible-schedules/{id}/run", flexibleScheduleController.Run).
 				WithoutMiddleware(middleware.RequestTimeout())
 
-			// Schedule demo activities (module switch MODULE_SCHEDULE_DEMO_ENABLED)
-			router.Middleware(middleware.ScheduleDemoModule()).Group(func(router route.Router) {
-				router.Get("demo-activities", demoActivityController.Index)
-				router.Post("demo-activities", demoActivityController.Store)
-				router.Get("demo-activities/{id}", demoActivityController.Show)
-				router.Put("demo-activities/{id}", demoActivityController.Update)
-				router.Delete("demo-activities/{id}", demoActivityController.Destroy)
-				router.Get("demo-activities/{id}/active-check", demoActivityController.CheckActive)
-				router.Post("demo-activities/sync", demoActivityController.SyncNow)
-			})
+			// Demo activities
+			router.Get("demo-activities", demoActivityController.Index)
+			router.Post("demo-activities", demoActivityController.Store)
+			router.Get("demo-activities/{id}", demoActivityController.Show)
+			router.Put("demo-activities/{id}", demoActivityController.Update)
+			router.Delete("demo-activities/{id}", demoActivityController.Destroy)
+			router.Get("demo-activities/{id}/active-check", demoActivityController.CheckActive)
+			router.Post("demo-activities/sync", demoActivityController.SyncNow)
 
 			// 操作日志
 			router.Get("operation-logs", operationLogController.Index)
@@ -292,37 +290,31 @@ func Admin() {
 			router.Post("attachments/batch-delete", attachmentController.BatchDestroy)
 			router.Resource("attachment-categories", attachmentCategoryController)
 
-			// 订单管理
-			router.Middleware(middleware.OrdersModule()).Group(func(router route.Router) {
-				router.Resource("orders", orderController)
-				router.Post("orders/export", orderController.Export)
-				router.Post("orders/import", orderController.Import)
-				router.Get("orders/export/status/{id}", orderController.GetExportStatus)
-			})
+			// Orders
+			router.Resource("orders", orderController)
+			router.Post("orders/export", orderController.Export)
+			router.Post("orders/import", orderController.Import)
+			router.Get("orders/export/status/{id}", orderController.GetExportStatus)
 
-			// 用户管理
+			// Users
 			router.Resource("users", userController)
 			router.Post("users/{id}/update-balance", userController.UpdateBalance)
 			router.Put("users/{id}/password", userController.ResetPassword)
 			router.Post("users/export", userController.Export)
 
-			// 用户余额变动记录
+			// User balance logs
 			router.Get("user-balance-logs", userBalanceLogController.Index)
 			router.Post("user-balance-logs", userBalanceLogController.Store)
 			router.Get("user-balance-logs/statistics", userBalanceLogController.Statistics)
 
-			// 支付方式管理
-			router.Middleware(middleware.PaymentsModule()).Group(func(router route.Router) {
-				router.Resource("payment-methods", paymentMethodController)
-
-				// 支付记录管理
-				router.Get("payments", paymentController.Index)
-				router.Post("payments", paymentController.Store)
-				router.Get("payments/{id}", paymentController.Show)
-				router.Post("payments/{id}/query", paymentController.Query)
-				router.Post("payments/export", paymentController.Export)
-				router.Get("payments/export/status/{id}", paymentController.GetExportStatus)
-			})
+			// Payments
+			router.Resource("payment-methods", paymentMethodController)
+			router.Get("payments", paymentController.Index)
+			router.Post("payments", paymentController.Store)
+			router.Get("payments/{id}", paymentController.Show)
+			router.Post("payments/{id}/query", paymentController.Query)
+			router.Post("payments/export", paymentController.Export)
+			router.Get("payments/export/status/{id}", paymentController.GetExportStatus)
 
 			router.Resource("articles", articleController)
 			router.Post("articles/export", articleController.Export)

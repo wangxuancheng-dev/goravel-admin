@@ -32,7 +32,7 @@
 | 新渠道扩展 | ✅ `app/payment/gateways` + `RegisterGateway` + 通用 `notify/{type}`，见 [支付参考](/advanced/payments) §6 |
 | 退款 API / 原路退 | ❌ 未提供（余额日志里的 refund 类型仅统计用） |
 
-默认开启；公网未自研网关时请设 `MODULE_PAYMENTS_ENABLED=false` 或仅用 mock。
+公网请用 `PAYMENT_GATEWAYS_ENABLED` 限制网关，并勿给无关角色支付权限。
 
 ---
 
@@ -69,13 +69,10 @@
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `MODULE_ORDERS_ENABLED` | `true` | 关闭后隐藏订单菜单并拒绝订单 API |
-| `MODULE_SCHEDULE_DEMO_ENABLED` | `true` | 关闭后隐藏活动调度演示菜单并拒绝相关 API |
-| `MODULE_PAYMENTS_ENABLED` | `true` | 管理端支付菜单与 API；公网请在 .env 设为 false 或仅用 mock |
 | `PAYMENT_GATEWAYS_ENABLED` | （空） | 启用渠道白名单，如 `wechat,alipay`；空 / `*` / `all` = 全部已注册。**生产建议显式白名单**；新渠道见 [支付参考](/advanced/payments) §6 |
 | `APP_ENABLE_DEV_TOOL` | `false` | 生产需显式 `true` 才开放开发工具。表单演示：`local/development/test` 默认可见；代码生成器：仅 `local/development` 默认可见（`test` 默认隐藏） |
 
-登录 `Info` 与 `menus/tree` 会按开关过滤菜单；前端 `userStore.config` 同步 `orders_enabled` / `payments_enabled` / `payment_gateways`。菜单可见性以服务端为准；前端模块布尔字段目前为信息字段（非路由守卫），支付类型下拉以 `payment_gateways` 为准。
+登录 `Info` 下发 `payment_gateways`（网关白名单）；业务菜单可见性由角色菜单与权限控制。
 
 ### 数据权限（租户内行级）
 

@@ -297,6 +297,9 @@ export default function CodeGenerator() {
                         { value: 'show_toolbar', label: t('code_generator.show_toolbar') },
                         { value: 'is_tree_list', label: t('code_generator.is_tree_list') },
                         { value: 'is_master_detail', label: t('code_generator.is_master_detail') },
+                        { value: 'entitlement_managed', label: t('code_generator.entitlement_managed') },
+                        { value: 'entitlement_always_on', label: t('code_generator.entitlement_always_on') },
+                        { value: 'entitlement_row_quota', label: t('code_generator.entitlement_row_quota') },
                       ]}
                     />
                   </Form.Item>

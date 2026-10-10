@@ -82,7 +82,6 @@ func (i *ModuleInstallerImpl) Install(manifest *ModuleManifest) (*ModuleInstallR
 		return nil, err
 	}
 	result.ManifestPath = manifestPath
-
 	return result, nil
 }
 

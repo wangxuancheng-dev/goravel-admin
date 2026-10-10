@@ -92,6 +92,8 @@ func All() []schema.Migration {
 		&M20260922160000FlexibleSchedulesPayloadUnique{},
 		&M20260922230000AddFlexibleScheduleNextRunAt{},
 		&M20260926120000AddIsSystemToDictionaries{},
+		&M20261010180000CreateEntitlementTables{},
+		&M20261010190000AddPlatformFeatureAlwaysOn{},
 	}
 }
 
