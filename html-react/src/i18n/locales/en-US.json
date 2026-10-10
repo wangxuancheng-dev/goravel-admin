@@ -240,7 +240,8 @@
     "demo_activity": "Demo Activities",
     "platform_alert": "Alert deliveries",
     "allowlist": "IP Allowlist",
-    "entitlement": "Entitlements"
+    "entitlement": "Entitlements",
+    "subscription": "My Plan"
   },
   "table": {
     "id": "ID",
@@ -2266,5 +2267,32 @@
     "kind_capability": "Capability",
     "kind_quota": "Quota",
     "capability_name_invalid": "Use letters/numbers/_/- ; max 24 chars; no dots"
+  },
+  "subscription": {
+    "current_plan": "Current plan",
+    "plan_name": "Plan",
+    "status": "Status",
+    "starts_at": "Starts at",
+    "ends_at": "Ends at",
+    "no_expiry": "No expiry",
+    "trial_ends_at": "Trial ends",
+    "description": "Description",
+    "upgrade_hint": "To unlock more features or raise quotas, please contact your administrator to upgrade the plan.",
+    "quota_title": "Quota usage",
+    "quota_usage": "Used {{used}} / {{limit}}",
+    "quota_unlimited": "Used {{used}} (unlimited)",
+    "features_title": "Features",
+    "features_empty": "No feature information",
+    "feature": "Feature",
+    "kind": "Type",
+    "kind_module": "Module",
+    "kind_capability": "Capability",
+    "kind_other": "Other",
+    "availability": "Availability",
+    "enabled": "Enabled",
+    "locked": "Upgrade to unlock",
+    "not_available": "Plan management is not enabled in this environment",
+    "expiring_hint": "Your plan expires in {{days}} day(s). Please contact your administrator to renew.",
+    "expired_hint": "Your plan has expired. Please contact your administrator to renew."
   }
 }

@@ -172,6 +172,12 @@ const staticRoutes = [
         meta: { titleKey: 'menu.profile' }
       },
       {
+        path: 'subscription',
+        name: 'MySubscription',
+        component: () => lazyLoad(() => import('../views/subscription/MySubscription.vue')),
+        meta: { titleKey: 'menu.subscription' }
+      },
+      {
         path: 'iframe',
         name: 'Iframe',
         component: () => lazyLoad(() => import('../views/iframe/IframeView.vue')),

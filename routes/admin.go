@@ -11,6 +11,7 @@ import (
 
 func Admin() {
 	adminAuthController := admin.NewAuthController()
+	entitlementController := admin.NewEntitlementController()
 	oidcController := admin.NewOIDCController()
 	adminController := admin.NewAdminController()
 	roleController := admin.NewRoleController()
@@ -73,6 +74,7 @@ func Admin() {
 		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Allowlist(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange()).Group(func(router route.Router) {
 			// 认证相关
 			router.Get("info", adminAuthController.Info)
+			router.Get("entitlements/me", entitlementController.Me)
 
 			router.Post("logout", adminAuthController.Logout)
 			router.Get("heartbeat", adminAuthController.Heartbeat)

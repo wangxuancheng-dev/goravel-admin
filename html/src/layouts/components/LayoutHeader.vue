@@ -273,6 +273,18 @@
                   <el-icon class="user-account-item-chevron"><ArrowRight /></el-icon>
                 </span>
               </el-dropdown-item>
+              <el-dropdown-item v-if="userStore.config.tenancyEnabled" command="subscription" class="user-account-item">
+                <span class="user-account-item-inner">
+                  <span class="user-account-item-left">
+                    <el-icon class="user-account-item-icon"><Medal /></el-icon>
+                    <span class="user-account-item-text">
+                      <span class="user-account-item-title">{{ $t('menu.subscription') }}</span>
+                      <span class="user-account-item-desc">{{ $t('subscription.header_desc') }}</span>
+                    </span>
+                  </span>
+                  <el-icon class="user-account-item-chevron"><ArrowRight /></el-icon>
+                </span>
+              </el-dropdown-item>
               <el-dropdown-item command="logout" class="user-account-item user-account-item--logout">
                 <span class="user-account-item-inner">
                   <span class="user-account-item-left">
@@ -311,7 +323,8 @@ import {
   OfficeBuilding,
   SwitchButton,
   Check,
-  Lock
+  Lock,
+  Medal
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 import { useTabsStore } from '@/store/tabs'
@@ -367,6 +380,8 @@ const handleLayoutSizeChange = (size) => {
 const handleCommand = async (command) => {
   if (command === 'profile') {
     router.push('/profile')
+  } else if (command === 'subscription') {
+    router.push('/subscription')
   } else if (command === 'logout') {
     try {
       await ElMessageBox.confirm(t('header.logout_confirm'), t('common.confirm'), {

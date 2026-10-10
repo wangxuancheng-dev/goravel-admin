@@ -13,6 +13,7 @@ import {
   SettingOutlined,
   UnorderedListOutlined,
   UserOutlined,
+  CrownOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -74,6 +75,8 @@ export default function LayoutHeader({
     return name || code
   }, [tenant?.code, tenant?.name, isXs])
 
+  const tenancyEnabled = useUserStore((s) => s.config.tenancyEnabled)
+
   const userMenu: MenuProps['items'] = [
     {
       key: 'profile',
@@ -81,6 +84,16 @@ export default function LayoutHeader({
       label: t('common.profile'),
       onClick: () => navigate('/profile'),
     },
+    ...(tenancyEnabled
+      ? [
+          {
+            key: 'subscription',
+            icon: <CrownOutlined />,
+            label: t('menu.subscription'),
+            onClick: () => navigate('/subscription'),
+          },
+        ]
+      : []),
     { type: 'divider' },
     {
       key: 'logout',

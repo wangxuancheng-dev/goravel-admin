@@ -21,6 +21,7 @@ import OidcCallbackPage from '../pages/OidcCallback'
 import MainLayout from '../layouts/MainLayout'
 import DashboardPage from '../pages/Dashboard'
 import ProfilePage from '../pages/profile/Profile'
+import MySubscriptionPage from '../pages/subscription/MySubscription'
 import NotFoundPage from '../pages/NotFound'
 import PlatformLoginPage from '../pages/platform/Login'
 import PlatformLayout from '../pages/platform/Layout'
@@ -245,6 +246,11 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
               path: 'profile',
               element: <ProfilePage />,
               handle: { titleKey: 'menu.profile' },
+            },
+            {
+              path: 'subscription',
+              element: <MySubscriptionPage />,
+              handle: { titleKey: 'menu.subscription' },
             },
             ...dynamicChildren.map((route) => ({
               ...route,

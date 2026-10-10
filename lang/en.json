@@ -154,6 +154,8 @@
         "tenant_storage_invalid_driver": "Invalid tenant storage driver; only s3/oss/cos/minio are supported",
         "tenant_code_in_recycle": "Tenant code is still in the recycle bin; restore or force-delete it before creating again",
         "tenant_not_trashed": "This action is only allowed for soft-deleted tenants in the recycle bin",
+        "tenant_feature_disabled": "Your current plan does not include this feature. Please contact your administrator to upgrade.",
+        "entitlement_limit_exceeded": "You have reached the quota of your current plan. Please contact your administrator to upgrade.",
         "token_expired": "Token has expired, please login again",
         "token_required": "Token is required",
         "invalid_token": "Invalid token",

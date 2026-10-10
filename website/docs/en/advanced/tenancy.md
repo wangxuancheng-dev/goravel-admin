@@ -110,6 +110,14 @@ services.ConsumeModuleRowsFromHTTP(ctx, "guestbook", 1)
 
 When tenancy is off, `hasEntitlement` returns `true`. Capability keys have no menu — hide buttons in the UI yourself.
 
+### Tenant-side: My Plan
+
+Avatar menu in the tenant admin -> **My Plan** (`/subscription`, shown only when `TENANCY_DRIVER=database`). Read-only: current plan, start/expiry (warning within 7 days), quota usage (`quota.*`), and the feature list (enabled / "upgrade to unlock").
+
+API: `GET /api/admin/entitlements/me` (any logged-in admin; no platform-only override reasons).
+
+Blocked features return 403 `tenant_feature_disabled`; quota overruns return 422 `entitlement_limit_exceeded`. Both show a localized "contact your administrator to upgrade" message.
+
 ## 配置
 
 ```ini

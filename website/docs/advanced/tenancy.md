@@ -100,6 +100,18 @@ quota.module.guestbook.rows=1000
 
 权益开关全局生效（管理端 / 用户端同一套 snapshot）。
 
+### 商户侧：我的套餐
+
+租户后台右上角头像菜单 → **我的套餐**（`/subscription`，仅 `TENANCY_DRIVER=database` 时显示），只读展示：
+
+- 当前套餐、生效/到期时间（7 天内到期会有提醒）
+- 额度使用情况（`quota.*` 的已用 / 上限）
+- 功能清单：已开通 / 「升级后可用」
+
+接口：`GET /api/admin/entitlements/me`（登录即可，不含特批原因等平台内部信息）。
+
+未开通功能或额度超限时，接口返回 403 `tenant_feature_disabled` / 422 `entitlement_limit_exceeded`，前端统一弹出「请联系管理员升级套餐」的本地化提示。
+
 ### 开发接入（接口 + 页面）
 
 权益与 RBAC 权限是两套：菜单/按钮权限用 `hasPermission`；套餐开关用 `hasEntitlement`。**超级管理员不会绕过权益**。

@@ -234,7 +234,8 @@
     "article": "文章",
     "platform_alert": "告警投递",
     "allowlist": "IP白名单",
-    "entitlement": "权益套餐"
+    "entitlement": "权益套餐",
+    "subscription": "我的套餐"
   },
   "monitor_runtime": {
     "title": "运行观测",
@@ -2606,5 +2607,33 @@
     "kind_capability": "小功能",
     "kind_quota": "配额",
     "capability_name_invalid": "仅字母数字下划线或连字符，最多24字符，不能含点号"
+  },
+  "subscription": {
+    "current_plan": "当前套餐",
+    "plan_name": "套餐",
+    "status": "状态",
+    "starts_at": "生效时间",
+    "ends_at": "到期时间",
+    "no_expiry": "长期有效",
+    "trial_ends_at": "试用截止",
+    "description": "说明",
+    "upgrade_hint": "如需开通更多功能或提升额度，请联系您的管理员升级套餐。",
+    "quota_title": "额度使用",
+    "quota_usage": "已用 {used} / {limit}",
+    "quota_unlimited": "已用 {used}（不限）",
+    "features_title": "功能清单",
+    "features_empty": "暂无功能信息",
+    "feature": "功能",
+    "kind": "类型",
+    "kind_module": "模块",
+    "kind_capability": "小功能",
+    "kind_other": "其他",
+    "availability": "可用状态",
+    "enabled": "已开通",
+    "locked": "升级后可用",
+    "not_available": "当前环境未启用套餐管理",
+    "expiring_hint": "套餐将在 {days} 天后到期，请及时联系管理员续期。",
+    "expired_hint": "套餐已到期，请联系管理员续期。",
+    "header_desc": "查看套餐、到期时间与额度"
   }
 }
