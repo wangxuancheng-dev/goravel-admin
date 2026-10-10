@@ -378,12 +378,12 @@ if err != nil {
 
 开发工具 → 代码生成器 → AI 辅助返回的是**填表 JSON**（不是完整源码）。
 
-必填：module_name、	able_name、ields。
+必填：module_name、table_name、fields。
 
 当用户描述主表+明细行时，可额外返回：
 
 - is_master_detail: true
 - detail_table_name: 子表名（复数）
-- detail_fields: 子表字段（结构同 ields；不要带 {module}_id，生成器会自动补）
+- detail_fields: 子表字段（结构同 fields；不要带 {module}_id，生成器会自动补）
 
 前端「应用配置」会勾选主子表并写入子表字段。

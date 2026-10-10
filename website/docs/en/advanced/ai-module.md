@@ -381,12 +381,12 @@ if err != nil {
 
 Dev Tools → Code Generator → AI assist returns JSON to fill the form (not full source).
 
-Required: module_name, 	able_name, ields.
+Required: module_name, table_name, fields.
 
 Optional master-detail when the user describes header + line items:
 
 - is_master_detail: true
 - detail_table_name: child table (plural)
-- detail_fields: child fields (same shape as ields; omit {module}_id)
+- detail_fields: child fields (same shape as fields; omit {module}_id)
 
 Apply config enables master-detail and loads detail fields.
