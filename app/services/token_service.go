@@ -24,6 +24,7 @@ type TokenService interface {
 	FindToken(token string) (*models.PersonalAccessToken, error)
 	DeleteToken(token string) error
 	DeleteTokensByUser(tokenableType string, tokenableID uint) error
+	DeleteTokensByUserExcept(tokenableType string, tokenableID uint, exceptTokenID uint) error
 	GetTokensByUser(tokenableType string, tokenableID uint) ([]models.PersonalAccessToken, error)
 	UpdateLastUsedAt(token string) error
 }
@@ -174,6 +175,19 @@ func (s *TokenServiceImpl) DeleteTokensByUser(tokenableType string, tokenableID 
 	_, err := s.query().
 		Where("tokenable_type", tokenableType).
 		Where("tokenable_id", tokenableID).
+		Delete(&models.PersonalAccessToken{})
+	return err
+}
+
+// DeleteTokensByUserExcept revokes all sessions for a user except one token id (0 = delete all).
+func (s *TokenServiceImpl) DeleteTokensByUserExcept(tokenableType string, tokenableID uint, exceptTokenID uint) error {
+	if exceptTokenID == 0 {
+		return s.DeleteTokensByUser(tokenableType, tokenableID)
+	}
+	_, err := s.query().
+		Where("tokenable_type", tokenableType).
+		Where("tokenable_id", tokenableID).
+		Where("id != ?", exceptTokenID).
 		Delete(&models.PersonalAccessToken{})
 	return err
 }

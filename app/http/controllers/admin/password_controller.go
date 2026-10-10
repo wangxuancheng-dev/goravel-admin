@@ -46,13 +46,28 @@ func (c *PasswordController) UpdatePassword(ctx http.Context) http.Response {
 		return resp
 	}
 
-	if err := c.AdminService(ctx).UpdateOwnPassword(adminID, req.OldPassword, req.NewPassword); err != nil {
+	keepTokenID := currentTokenIDFromContext(ctx)
+	if err := c.AdminService(ctx).UpdateOwnPassword(adminID, req.OldPassword, req.NewPassword, keepTokenID); err != nil {
 		return HandleGeneratedServiceError(ctx, "password", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": adminID,
 		})
 	}
 
 	return response.Success(ctx, "password_update_success")
+}
+
+func currentTokenIDFromContext(ctx http.Context) uint {
+	currentTokenValue := ctx.Value("token")
+	if currentTokenValue == nil {
+		return 0
+	}
+	if currentToken, ok := currentTokenValue.(models.PersonalAccessToken); ok {
+		return currentToken.ID
+	}
+	if currentTokenPtr, ok := currentTokenValue.(*models.PersonalAccessToken); ok && currentTokenPtr != nil {
+		return currentTokenPtr.ID
+	}
+	return 0
 }
 
 // ResetPassword 重置密码（管理员操作）

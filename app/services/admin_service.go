@@ -47,9 +47,9 @@ type AdminService interface {
 	UpdateByRequest(httpCtx http.Context, id uint, req *admin.AdminUpdate) (*models.Admin, error)
 	// Delete 删除管理员（受保护/自删校验）
 	Delete(id uint, actorAdminID uint) error
-	// UpdateOwnPassword 当前管理员修改自己的密码
-	UpdateOwnPassword(adminID uint, oldPassword, newPassword string) error
-	// ResetPassword 管理员重置指定账号密码
+	// UpdateOwnPassword updates the caller's password and revokes other sessions (keeps keepTokenID).
+	UpdateOwnPassword(adminID uint, oldPassword, newPassword string, keepTokenID uint) error
+	// ResetPassword resets a target admin password and revokes all of their sessions.
 	ResetPassword(adminID uint, newPassword string) error
 	// NormalizeRoleIDs 去重并保持顺序
 	NormalizeRoleIDs(roleIDs []uint) []uint
@@ -307,6 +307,7 @@ func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *a
 		statusDisabled = *req.Status == 0 && adminModel.Status != 0
 		adminModel.Status = *req.Status
 	}
+	passwordChanged := false
 	if req.Password != nil && *req.Password != "" {
 		if err := ValidatePasswordPolicyCtx(s.ctx, *req.Password); err != nil {
 			return nil, err
@@ -316,6 +317,7 @@ func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *a
 			return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
 		}
 		adminModel.Password = hashedPassword
+		passwordChanged = true
 	}
 
 	roleIDsProvided := false
@@ -336,7 +338,7 @@ func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *a
 		return nil, err
 	}
 
-	if statusDisabled {
+	if statusDisabled || passwordChanged {
 		_ = NewTokenServiceImpl(s.ctx).DeleteTokensByUser("admin", adminModel.ID)
 	}
 
@@ -369,8 +371,8 @@ func (s *AdminServiceImpl) Delete(id uint, actorAdminID uint) error {
 	return nil
 }
 
-// UpdateOwnPassword 当前管理员修改自己的密码
-func (s *AdminServiceImpl) UpdateOwnPassword(adminID uint, oldPassword, newPassword string) error {
+// UpdateOwnPassword updates the caller's password and revokes other login sessions.
+func (s *AdminServiceImpl) UpdateOwnPassword(adminID uint, oldPassword, newPassword string, keepTokenID uint) error {
 	adminModel, err := s.GetByID(adminID, false, false)
 	if err != nil {
 		return err
@@ -390,10 +392,11 @@ func (s *AdminServiceImpl) UpdateOwnPassword(adminID uint, oldPassword, newPassw
 	if err := s.Update(adminModel); err != nil {
 		return err
 	}
+	_ = NewTokenServiceImpl(s.ctx).DeleteTokensByUserExcept("admin", adminID, keepTokenID)
 	return nil
 }
 
-// ResetPassword 管理员重置指定账号密码
+// ResetPassword resets a target admin password and revokes all of their sessions.
 func (s *AdminServiceImpl) ResetPassword(adminID uint, newPassword string) error {
 	adminModel, err := s.GetByID(adminID, false, false)
 	if err != nil {
@@ -411,6 +414,7 @@ func (s *AdminServiceImpl) ResetPassword(adminID uint, newPassword string) error
 	if err := s.Update(adminModel); err != nil {
 		return err
 	}
+	_ = NewTokenServiceImpl(s.ctx).DeleteTokensByUser("admin", adminID)
 	return nil
 }
 
