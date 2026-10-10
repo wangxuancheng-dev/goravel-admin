@@ -59,7 +59,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   assignPlatformTenantPlan,
   deletePlatformTenantEntitlement,
@@ -105,8 +105,26 @@ const load = async () => {
   }
 }
 
+const planLabel = (code) => {
+  if (!code) return t('entitlement.assign_none')
+  const p = plans.value.find((x) => x.code === code)
+  return p ? `${p.name} (${p.code})` : code
+}
+
+// Assigning cancels the active subscription and applies the new plan immediately: confirm first.
 const onAssignPlan = async () => {
   if (!planCode.value) return
+  const currentCode = data.value?.plan?.code || data.value?.effective?.plan_code || undefined
+  const to = planLabel(planCode.value)
+  const message =
+    currentCode && currentCode === planCode.value
+      ? t('entitlement.assign_confirm_same', { to })
+      : t('entitlement.assign_confirm_change', { from: planLabel(currentCode), to })
+  try {
+    await ElMessageBox.confirm(message, t('entitlement.assign_confirm_title'), { type: 'warning' })
+  } catch {
+    return
+  }
   loading.value = true
   try {
     await assignPlatformTenantPlan(props.tenantId, { plan_code: planCode.value })

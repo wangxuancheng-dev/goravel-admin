@@ -1,4 +1,4 @@
-import { Button, Select, Space, Switch, Table, Tag, Typography, message } from 'antd'
+import { App, Button, Select, Space, Switch, Table, Tag, Typography } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -31,6 +31,7 @@ type EntitlementsData = {
 export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number }) {
   const { t } = useTranslation()
   const showError = useUnhandledError()
+  const { message, modal } = App.useApp()
   const isViewer = getPlatformAdmin()?.role === 'viewer'
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<EntitlementsData | null>(null)
@@ -63,7 +64,31 @@ export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number
     void load()
   }, [load])
 
-  const onAssignPlan = async () => {
+  const planLabel = (code?: string) => {
+    if (!code) return t('entitlement.assign_none')
+    const p = plans.find((x) => x.code === code)
+    return p ? `${p.name} (${p.code})` : code
+  }
+
+  // Assigning cancels the active subscription and applies the new plan immediately: confirm first.
+  const onAssignPlan = () => {
+    if (!planCode) return
+    const currentCode = data?.plan?.code || data?.effective?.plan_code || undefined
+    const to = planLabel(planCode)
+    modal.confirm({
+      title: t('entitlement.assign_confirm_title'),
+      content:
+        currentCode && currentCode === planCode
+          ? t('entitlement.assign_confirm_same', { to })
+          : t('entitlement.assign_confirm_change', { from: planLabel(currentCode), to }),
+      okType: 'danger',
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      onOk: () => doAssignPlan(),
+    })
+  }
+
+  const doAssignPlan = async () => {
     if (!planCode) return
     try {
       setLoading(true)
@@ -131,7 +156,7 @@ export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number
           options={plans.map((p) => ({ value: p.code, label: `${p.name} (${p.code})` }))}
           onChange={setPlanCode}
         />
-        <Button type="primary" disabled={isViewer || !planCode} loading={loading} onClick={() => void onAssignPlan()}>
+        <Button type="primary" disabled={isViewer || !planCode} loading={loading} onClick={onAssignPlan}>
           {t('entitlement.assign_plan')}
         </Button>
         <Button disabled={isViewer} loading={loading} onClick={() => void onRecompute()}>

@@ -355,6 +355,17 @@ func (s *EntitlementService) AssignSubscription(tenantID uint, in AssignSubscrip
 		return nil, apperrors.ErrEntitlementPlanNotFound
 	}
 
+	// remember the previous plan for the audit trail
+	prevPlan := "none"
+	var prevSub models.TenantSubscription
+	if err := s.q().Where("tenant_id", tenantID).Where("status", entitlement.SubActive).
+		Order("id desc").First(&prevSub); err == nil && prevSub.ID > 0 {
+		var pp models.PlatformPlan
+		if err := s.q().Where("id", prevSub.PlanID).First(&pp); err == nil && pp.ID > 0 {
+			prevPlan = pp.Code
+		}
+	}
+
 	// cancel previous active
 	_, _ = s.q().Model(&models.TenantSubscription{}).
 		Where("tenant_id", tenantID).
@@ -379,7 +390,7 @@ func (s *EntitlementService) AssignSubscription(tenantID uint, in AssignSubscrip
 	if err := s.q().Create(&sub); err != nil {
 		return nil, err
 	}
-	_ = s.audit(in.AdminID, tenantID, "subscription.assign", fmt.Sprintf("plan=%s sub=%d", plan.Code, sub.ID))
+	_ = s.audit(in.AdminID, tenantID, "subscription.assign", fmt.Sprintf("plan=%s from=%s sub=%d", plan.Code, prevPlan, sub.ID))
 	if _, err := s.Recompute(tenantID); err != nil {
 		return nil, err
 	}
