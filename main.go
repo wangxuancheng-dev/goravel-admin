@@ -64,6 +64,9 @@ func shutdownApplication(app interface{ Shutdown() error }) {
 		notifications.Hub().Stop()
 		facades.Log().Info("NotificationHub stopped")
 
+		// Stop the WS Redis bridge before closing Redis clients to avoid a spurious warning.
+		notifications.StopRedisBridge()
+
 		// 关闭所有 Redis 客户端
 		if err := clients.CloseAllRedisClients(); err != nil {
 			facades.Log().Errorf("Close Redis clients error: %v", err)
