@@ -37,7 +37,7 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		// Tenant health: ping / schema / quota / migrate fail → webhook/email
 		ScheduleTracked("tenant:health-inspect").Hourly().OnOneServer(),
 		// Open-source demos: activity windows + unpaid order expire safety net
-		ScheduleTracked("activity:sync-status").EveryTenSeconds().OnOneServer(),
+		ScheduleTracked("activity:sync-status").EveryMinute().OnOneServer(),
 		ScheduleTracked("order:cancel-expired").EveryMinute().OnOneServer(),
 		// Whitelist handler + DB cron rows (see flexible_schedules)
 		ScheduleTracked("flexible-schedule:tick").EveryMinute().OnOneServer().SkipIfStillRunning(),

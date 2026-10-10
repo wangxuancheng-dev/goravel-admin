@@ -6,7 +6,7 @@
 
 | 场景 | 做法 | 精度 |
 |------|------|------|
-| 活动 once / 每天时点 | 表 `demo_activities` + `activity:sync-status`（每 10 秒）+ 读路径 `IsActive` 现算 | 门禁约等于服务器时钟；`status` 字段最多约 10 秒滞后 |
+| 活动 once / 每天时点 | 表 `demo_activities` + `activity:sync-status`（每分钟）+ 读路径 `IsActive` 现算 | 门禁约等于服务器时钟；`status` 字段最多约 1 分钟滞后 |
 | 订单到期取消 | `orders.expire_at` + Delay Job `cancel_expired_order` + `order:cancel-expired` 每分钟兜底 | 通常秒级；支付前会再按 `expire_at` 校验 |
 
 ## 1. 前置
@@ -65,7 +65,7 @@
 
 `daily_*` 按活动 `timezone` 的本地 `HH:MM`；支持跨天（如 `22:00`–`02:00`）。
 
-定时：`activity:sync-status` → `EveryTenSeconds` + `OnOneServer`（见管理端「定时任务」列表）。
+定时：`activity:sync-status` → `EveryMinute` + `OnOneServer`（见管理端「定时任务」列表）。
 
 **业务门禁请用现算**（`DemoActivityIsActive` / `active-check` 的 `is_active_live`），不要只信扫库写的 `status`。
 
