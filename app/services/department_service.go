@@ -84,7 +84,8 @@ func (s *DepartmentServiceImpl) GetList(filters DepartmentFilters, page, pageSiz
 	if orderBy == "" {
 		orderBy = "sort:asc,id:asc"
 	}
-	query = helpers.ApplySort(query, orderBy, "sort:asc,id:asc")
+	query = helpers.ApplySort(query, orderBy, "sort:asc,id:asc",
+		"id", "name", "parent_id", "status", "sort", "created_at", "updated_at")
 
 	var departments []models.Department
 	var total int64

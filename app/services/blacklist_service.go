@@ -88,7 +88,8 @@ func (s *BlacklistServiceImpl) GetList(filters BlacklistFilters, page, pageSize 
 	if orderBy == "" {
 		orderBy = "id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "id:desc")
+	query = helpers.ApplySort(query, orderBy, "id:desc",
+		"id", "ip", "reason", "status", "created_at", "updated_at")
 
 	var blacklists []models.Blacklist
 	var total int64

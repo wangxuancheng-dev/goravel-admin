@@ -246,6 +246,9 @@ var (
 	ErrRoleProtectedCannotModifySlug = NewBusinessError("role_protected_cannot_modify_slug", "受保护的角色不能修改标识")
 	ErrRoleProtectedCannotDisable    = NewBusinessError("role_protected_cannot_disable", "受保护的角色不能禁用")
 	ErrRoleProtectedCannotDelete     = NewBusinessError("role_protected_cannot_delete", "受保护的角色不能删除")
+	ErrRoleProtectedCannotAssign     = NewBusinessError("role_protected_cannot_assign", "cannot assign a protected role")
+	ErrInvalidChunkID                = NewBusinessError("invalid_chunk_id", "invalid chunk id")
+	ErrInvalidCodegenIdentifier      = NewBusinessError("invalid_codegen_identifier", "module_name/table_name must be a safe identifier")
 )
 
 // BusinessError 业务错误类型

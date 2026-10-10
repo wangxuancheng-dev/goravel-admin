@@ -110,6 +110,7 @@ type CreateAdminInput struct {
 	PositionID   uint
 	Status       uint8
 	RoleIDs      []uint
+	ActorAdminID uint // caller admin id; used to block protected-role escalation
 }
 
 type AdminServiceImpl struct {
@@ -226,7 +227,8 @@ func (s *AdminServiceImpl) GetList(filters AdminFilters, page, pageSize int) ([]
 	if orderBy == "" {
 		orderBy = "created_at:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "created_at:desc")
+	query = helpers.ApplySort(query, orderBy, "created_at:desc",
+		"id", "username", "nickname", "status", "department_id", "position_id", "created_at", "updated_at")
 
 	// 分页查询
 	var admins []models.Admin
@@ -250,7 +252,8 @@ func (s *AdminServiceImpl) GetAllAdminsForExport(filters AdminFilters) ([]models
 	if orderBy == "" {
 		orderBy = "created_at:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "created_at:desc")
+	query = helpers.ApplySort(query, orderBy, "created_at:desc",
+		"id", "username", "nickname", "status", "department_id", "position_id", "created_at", "updated_at")
 
 	// 不分页，获取所有数据
 	var admins []models.Admin
@@ -296,10 +299,12 @@ func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *a
 	if req.PositionID != nil {
 		adminModel.PositionID = *req.PositionID
 	}
+	statusDisabled := false
 	if req.Status != nil {
 		if err := s.ValidateStatusChange(adminModel.ID, *req.Status); err != nil {
 			return nil, err
 		}
+		statusDisabled = *req.Status == 0 && adminModel.Status != 0
 		adminModel.Status = *req.Status
 	}
 	if req.Password != nil && *req.Password != "" {
@@ -313,16 +318,30 @@ func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *a
 		adminModel.Password = hashedPassword
 	}
 
+	roleIDsProvided := false
+	var syncRoleIDs []uint
+	if _, exists := allInputs["role_ids"]; exists {
+		roleIDsProvided = true
+		syncRoleIDs = s.NormalizeRoleIDs(req.RoleIDs)
+		if err := s.ValidateRoleChange(adminModel.ID, adminModel.Roles, syncRoleIDs); err != nil {
+			return nil, err
+		}
+		actorID, _ := helpers.GetAdminIDFromContext(httpCtx)
+		if err := s.ValidateProtectedRoleAssignment(actorID, syncRoleIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := s.Update(adminModel); err != nil {
 		return nil, err
 	}
 
-	if _, exists := allInputs["role_ids"]; exists {
-		deduplicatedRoleIDs := s.NormalizeRoleIDs(req.RoleIDs)
-		if err := s.ValidateRoleChange(adminModel.ID, adminModel.Roles, deduplicatedRoleIDs); err != nil {
-			return nil, err
-		}
-		if err := s.SyncRoles(adminModel, deduplicatedRoleIDs); err != nil {
+	if statusDisabled {
+		_ = NewTokenServiceImpl(s.ctx).DeleteTokensByUser("admin", adminModel.ID)
+	}
+
+	if roleIDsProvided {
+		if err := s.SyncRoles(adminModel, syncRoleIDs); err != nil {
 			return nil, apperrors.ErrUpdateFailed.WithError(err)
 		}
 	}
@@ -346,6 +365,7 @@ func (s *AdminServiceImpl) Delete(id uint, actorAdminID uint) error {
 	if _, err := appfacades.OrmQuery(s.ctx).Delete(adminModel); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
+	_ = NewTokenServiceImpl(s.ctx).DeleteTokensByUser("admin", id)
 	return nil
 }
 
@@ -507,6 +527,12 @@ func (s *AdminServiceImpl) CreateAdmin(input CreateAdminInput) (*models.Admin, e
 		return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
 	}
 
+	if len(input.RoleIDs) > 0 {
+		if err := s.ValidateProtectedRoleAssignment(input.ActorAdminID, input.RoleIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	admin := &models.Admin{
 		Username:     input.Username,
 		Password:     hashedPassword,
@@ -556,6 +582,62 @@ func (s *AdminServiceImpl) ValidateRoleChange(adminID uint, currentRoles []model
 		return apperrors.ErrAdminCannotModifyRoles
 	}
 	return nil
+}
+
+// ValidateProtectedRoleAssignment blocks assigning protected slugs (e.g. super-admin)
+// unless the actor is the configured super admin or already holds that slug.
+func (s *AdminServiceImpl) ValidateProtectedRoleAssignment(actorAdminID uint, roleIDs []uint) error {
+	roleIDs = s.NormalizeRoleIDs(roleIDs)
+	if len(roleIDs) == 0 {
+		return nil
+	}
+
+	var roles []models.Role
+	if err := appfacades.OrmQuery(s.ctx).Where("id IN ?", roleIDs).Find(&roles); err != nil {
+		return apperrors.ErrQueryFailed.WithError(err)
+	}
+
+	protectedSlugs := protectedRoleSlugSet()
+	var assigning []string
+	for _, role := range roles {
+		if protectedSlugs[role.Slug] {
+			assigning = append(assigning, role.Slug)
+		}
+	}
+	if len(assigning) == 0 {
+		return nil
+	}
+
+	if actorAdminID > 0 && s.IsSuperAdmin(actorAdminID) {
+		return nil
+	}
+
+	if actorAdminID == 0 {
+		return apperrors.ErrRoleProtectedCannotAssign
+	}
+
+	actor, err := s.GetByID(actorAdminID, false, true)
+	if err != nil {
+		return apperrors.ErrRoleProtectedCannotAssign
+	}
+	actorSlugs := make(map[string]bool, len(actor.Roles))
+	for _, role := range actor.Roles {
+		actorSlugs[role.Slug] = true
+	}
+	for _, slug := range assigning {
+		if !actorSlugs[slug] {
+			return apperrors.ErrRoleProtectedCannotAssign
+		}
+	}
+	return nil
+}
+
+func protectedRoleSlugSet() map[string]bool {
+	set := make(map[string]bool)
+	for _, slug := range parseProtectedRoleSlugs(facades.Config().GetString("role.protected_slugs", "super-admin")) {
+		set[slug] = true
+	}
+	return set
 }
 
 // GetProtectedAdminIDs 获取所有受保护的管理员ID

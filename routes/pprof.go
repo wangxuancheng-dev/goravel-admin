@@ -61,6 +61,12 @@ func Pprof() {
 	// 获取访问 token
 	pprofToken := facades.Config().GetString("pprof.token", "")
 
+	// Refuse to expose pprof without at least one control (token and/or IP allowlist).
+	if strings.TrimSpace(pprofToken) == "" && len(allowedIPs) == 0 {
+		facades.Log().Warning("pprof: enabled but PPROF_TOKEN and PPROF_ALLOWED_IPS are both empty — routes not registered")
+		return
+	}
+
 	// 获取速率限制配置
 	maxAttempts := facades.Config().GetInt("pprof.max_attempts", 5)       // 默认5次失败后封禁
 	blockDuration := facades.Config().GetInt("pprof.block_duration", 300) // 默认封禁5分钟

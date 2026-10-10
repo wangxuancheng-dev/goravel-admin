@@ -112,7 +112,8 @@ func (s *PermissionServiceImpl) GetList(filters PermissionFilters, page, pageSiz
 	if orderBy == "" {
 		orderBy = "sort:asc,id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "sort:asc,id:desc")
+	query = helpers.ApplySort(query, orderBy, "sort:asc,id:desc",
+		"id", "name", "slug", "method", "path", "status", "sort", "menu_id", "created_at", "updated_at")
 
 	var permissions []models.Permission
 	var total int64

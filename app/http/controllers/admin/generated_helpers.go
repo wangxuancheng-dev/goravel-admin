@@ -48,6 +48,8 @@ func businessErrorStatus(code string, fallback int) int {
 		return http.StatusBadRequest
 	case code == "params_error" || code == "invalid_argument" || code == "validation_failed":
 		return http.StatusBadRequest
+	case strings.HasPrefix(code, "invalid_"):
+		return http.StatusBadRequest
 	case strings.HasSuffix(code, "_required"):
 		return http.StatusBadRequest
 	case code == "record_not_found" || strings.HasSuffix(code, "_not_found"):

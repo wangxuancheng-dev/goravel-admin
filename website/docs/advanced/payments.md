@@ -47,7 +47,7 @@ CreatePayment (订单 pending)
 
 ## 4. Mock 快速跑通
 
-1. 后台创建支付方式：`type=mock`，可选 `shared_secret`
+1. 后台创建支付方式：`type=mock`，必须配置 `shared_secret`
 2. 创建待支付订单（管理端订单）
 3. `POST /api/admin/payments`（需 `MODULE_PAYMENTS_ENABLED=true` + `payment.store`）：
 
@@ -69,7 +69,7 @@ curl -X POST http://127.0.0.1:3000/api/payment/notify/mock \
 
 多租户：`POST /api/payment/notify/mock/{tenant_code}`。
 
-若配置了 `shared_secret`，需附带：
+回调必须附带（`shared_secret` 已为必填）：
 
 `sign = HMAC-SHA256(hex, out_trade_no + "|" + "SUCCESS" + "|" + amount(%.2f), secret)`
 

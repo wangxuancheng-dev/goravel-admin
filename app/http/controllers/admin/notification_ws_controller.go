@@ -187,6 +187,11 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 		logger.WarnfHTTP(ctx, "WebSocket connection rejected: user_not_found")
 		return response.Error(ctx, http.StatusUnauthorized, "user_not_found")
 	}
+	if admin.Status != 1 {
+		_ = r.tokenService(ctx).DeleteTokensByUser("admin", admin.ID)
+		logger.WarnfHTTP(ctx, "WebSocket connection rejected: account_disabled")
+		return response.Error(ctx, http.StatusForbidden, "account_disabled")
+	}
 	_ = r.tokenService(ctx).UpdateLastUsedAt(token)
 
 	req := ctx.Request().Origin()

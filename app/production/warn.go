@@ -45,7 +45,14 @@ func WarnInsecureDefaults() {
 		warn("APP_ENABLE_DEV_TOOL=true — code generator / form demo exposed")
 	}
 	if facades.Config().GetBool("module.payments_enabled", true) {
-		warn("MODULE_PAYMENTS_ENABLED=true — mock gateway is runnable; wechat/alipay notify/query still stub until you wire gopay verify")
+		warn("MODULE_PAYMENTS_ENABLED=true — mock gateway is runnable; configure shared_secret on mock methods; wechat/alipay notify/query still stub until you wire gopay verify")
+	}
+	if facades.Config().GetBool("pprof.enabled", false) || facades.Config().GetBool("app.debug", false) {
+		token := strings.TrimSpace(facades.Config().GetString("pprof.token", ""))
+		ips := strings.TrimSpace(facades.Config().GetString("pprof.allowed_ips", ""))
+		if token == "" && ips == "" {
+			warn("pprof may be requested via APP_DEBUG/PPROF_ENABLED but PPROF_TOKEN and PPROF_ALLOWED_IPS are empty — routes stay unregistered")
+		}
 	}
 	if strings.EqualFold(facades.Config().GetString("tenancy.driver", "off"), "database") {
 		if facades.Config().GetBool("tenancy.allow_platform_db_credentials", false) {

@@ -84,7 +84,8 @@ func (s *AttachmentCategoryServiceImpl) GetList(filters AttachmentCategoryFilter
 	if orderBy == "" {
 		orderBy = "is_system:desc,sort:asc,id:asc"
 	}
-	query = helpers.ApplySort(query, orderBy, "is_system:desc,sort:asc,id:asc")
+	query = helpers.ApplySort(query, orderBy, "is_system:desc,sort:asc,id:asc",
+		"id", "name", "parent_id", "status", "sort", "is_system", "created_at", "updated_at")
 	var list []models.AttachmentCategory
 	var total int64
 	if err := query.Paginate(page, pageSize, &list, &total); err != nil {

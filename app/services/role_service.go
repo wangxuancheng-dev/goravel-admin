@@ -90,7 +90,8 @@ func (s *RoleServiceImpl) GetList(filters RoleFilters, page, pageSize int) ([]mo
 	if orderBy == "" {
 		orderBy = "sort:asc,created_at:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "sort:asc,created_at:desc")
+	query = helpers.ApplySort(query, orderBy, "sort:asc,created_at:desc",
+		"id", "name", "slug", "status", "sort", "created_at", "updated_at")
 
 	var roles []models.Role
 	var total int64

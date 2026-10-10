@@ -122,7 +122,8 @@ func (s *ExportRecordServiceImpl) GetList(filters ExportRecordFilters, page, pag
 	if orderBy == "" {
 		orderBy = "id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "id:desc")
+	query = helpers.ApplySort(query, orderBy, "id:desc",
+		"id", "admin_id", "module", "status", "created_at", "updated_at")
 
 	var exports []models.Export
 	var total int64

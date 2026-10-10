@@ -88,7 +88,8 @@ func (s *ImportRecordServiceImpl) GetList(filters ImportRecordFilters, page, pag
 	if orderBy == "" {
 		orderBy = "id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "id:desc")
+	query = helpers.ApplySort(query, orderBy, "id:desc",
+		"id", "admin_id", "module", "status", "created_at", "updated_at")
 
 	var imports []models.Import
 	var total int64

@@ -21,6 +21,7 @@ import (
 	"gorm.io/gorm"
 
 	"goravel/app/codegenerator"
+	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 )
 
@@ -273,6 +274,10 @@ func formatFrontendContentWithPrettier(path, content string) string {
 }
 
 func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields []FieldConfig, selectedFiles []string, options map[string]bool) ([]GeneratedFile, error) {
+	if err := validateCodegenNames(moduleName, tableName); err != nil {
+		return nil, err
+	}
+
 	var files []GeneratedFile
 
 	generators := []struct {
@@ -411,6 +416,9 @@ func (s *CodeGeneratorServiceImpl) getListPageConfigTemplateName(options map[str
 }
 
 func (s *CodeGeneratorServiceImpl) Preview(moduleName, tableName string, fields []FieldConfig, fileType string, options map[string]bool) (string, error) {
+	if err := validateCodegenNames(moduleName, tableName); err != nil {
+		return "", err
+	}
 	templateName, err := s.getTemplateName(fileType, fields, options)
 	if err != nil {
 		return "", err
@@ -465,15 +473,9 @@ func (s *CodeGeneratorServiceImpl) Save(moduleName, tableName string, fields []F
 
 	var savedFiles []string
 	for _, file := range files {
-		dir := filepath.Dir(file.Path)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+		if err := writeCodegenFile(file.Path, []byte(file.Content)); err != nil {
+			return nil, err
 		}
-
-		if err := os.WriteFile(file.Path, []byte(file.Content), 0644); err != nil {
-			return nil, fmt.Errorf("failed to write file %s: %w", file.Path, err)
-		}
-
 		savedFiles = append(savedFiles, file.Path)
 	}
 
@@ -529,15 +531,9 @@ func (s *CodeGeneratorServiceImpl) ForceSave(moduleName, tableName string, field
 
 	var savedFiles []string
 	for _, file := range files {
-		dir := filepath.Dir(file.Path)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+		if err := writeCodegenFile(file.Path, []byte(file.Content)); err != nil {
+			return nil, err
 		}
-
-		if err := os.WriteFile(file.Path, []byte(file.Content), 0644); err != nil {
-			return nil, fmt.Errorf("failed to write file %s: %w", file.Path, err)
-		}
-
 		savedFiles = append(savedFiles, file.Path)
 	}
 
@@ -787,6 +783,9 @@ func injectQueueJobRegistration(content, jobLine string) (string, bool) {
 }
 
 func (s *CodeGeneratorServiceImpl) InstallModule(moduleName, tableName string, options map[string]bool, install *ModuleInstallConfig) (*ModuleInstallResult, error) {
+	if err := validateCodegenNames(moduleName, tableName); err != nil {
+		return nil, err
+	}
 	manifest, err := BuildModuleManifest(moduleName, tableName, options, install)
 	if err != nil {
 		return nil, err
@@ -2521,6 +2520,58 @@ func toSnakeCase(s string) string {
 		result += string(r)
 	}
 	return strings.ToLower(result)
+}
+
+// codegenIdentPattern restricts module/table names used in filesystem paths.
+var codegenIdentPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+func validateCodegenNames(moduleName, tableName string) error {
+	moduleName = strings.TrimSpace(moduleName)
+	tableName = strings.TrimSpace(tableName)
+	if moduleName == "" || strings.ContainsAny(moduleName, `/\.`) || strings.ContainsAny(tableName, `/\.`) {
+		return apperrors.ErrInvalidCodegenIdentifier
+	}
+	mod := toSnakeCase(strings.ReplaceAll(moduleName, "-", "_"))
+	if !codegenIdentPattern.MatchString(mod) {
+		return apperrors.ErrInvalidCodegenIdentifier
+	}
+	if tableName != "" {
+		tbl := toSnakeCase(strings.ReplaceAll(tableName, "-", "_"))
+		if !codegenIdentPattern.MatchString(tbl) {
+			return apperrors.ErrInvalidCodegenIdentifier
+		}
+	}
+	return nil
+}
+
+// writeCodegenFile writes only under the project working directory (blocks path escape).
+func writeCodegenFile(relPath string, content []byte) error {
+	clean := filepath.Clean(relPath)
+	if clean == "." || clean == "" || filepath.IsAbs(clean) {
+		return apperrors.ErrInvalidCodegenIdentifier.WithMessage("unsafe codegen path")
+	}
+	if strings.HasPrefix(clean, ".."+string(os.PathSeparator)) || clean == ".." {
+		return apperrors.ErrInvalidCodegenIdentifier.WithMessage("unsafe codegen path")
+	}
+	absPath, err := filepath.Abs(clean)
+	if err != nil {
+		return err
+	}
+	root, err := filepath.Abs(".")
+	if err != nil {
+		return err
+	}
+	sep := string(os.PathSeparator)
+	if absPath != root && !strings.HasPrefix(absPath, root+sep) {
+		return apperrors.ErrInvalidCodegenIdentifier.WithMessage("unsafe codegen path")
+	}
+	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", filepath.Dir(absPath), err)
+	}
+	if err := os.WriteFile(absPath, content, 0644); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", absPath, err)
+	}
+	return nil
 }
 
 func toPascalCase(s string) string {

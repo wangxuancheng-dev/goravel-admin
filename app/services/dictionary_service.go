@@ -81,7 +81,8 @@ func (s *DictionaryServiceImpl) GetList(filters DictionaryFilters, page, pageSiz
 	if orderBy == "" {
 		orderBy = "is_system:desc,sort:asc,id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "is_system:desc,sort:asc,id:desc")
+	query = helpers.ApplySort(query, orderBy, "is_system:desc,sort:asc,id:desc",
+		"id", "name", "code", "type", "status", "sort", "is_system", "created_at", "updated_at")
 
 	var dictionaries []models.Dictionary
 	var total int64

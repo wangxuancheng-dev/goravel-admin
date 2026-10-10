@@ -143,7 +143,8 @@ func (s *OperationLogServiceImpl) GetList(filters OperationLogFilters, page, pag
 	if orderBy == "" {
 		orderBy = "id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "id:desc")
+	query = helpers.ApplySort(query, orderBy, "id:desc",
+		"id", "admin_id", "username", "method", "path", "ip", "status", "created_at")
 
 	var logs []models.OperationLog
 	var total int64

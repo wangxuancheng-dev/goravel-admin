@@ -85,7 +85,8 @@ func (s *AllowlistServiceImpl) GetList(filters AllowlistFilters, page, pageSize 
 	if orderBy == "" {
 		orderBy = "id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "id:desc")
+	query = helpers.ApplySort(query, orderBy, "id:desc",
+		"id", "ip", "remark", "status", "created_at", "updated_at")
 	var list []models.Allowlist
 	var total int64
 	if err := query.Paginate(page, pageSize, &list, &total); err != nil {

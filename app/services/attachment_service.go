@@ -9,6 +9,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +23,16 @@ import (
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 )
+
+// chunkIDPattern matches InitChunkUpload output (md5 hex, 32 chars).
+var chunkIDPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
+
+func validateChunkID(chunkID string) error {
+	if !chunkIDPattern.MatchString(chunkID) {
+		return apperrors.ErrInvalidChunkID
+	}
+	return nil
+}
 
 type AttachmentService interface {
 	// GetByID 根据ID获取附件
@@ -104,6 +115,7 @@ type AttachmentServiceImpl struct {
 }
 
 func (s *AttachmentServiceImpl) chunkObjectPath(chunkID string, chunkIndex int) string {
+	// chunkID is validated before use; keep path under tenant chunks/ only.
 	return fmt.Sprintf("%schunks/%s/%d", helpers.TenantStoragePrefix(s.ctx), chunkID, chunkIndex)
 }
 
@@ -180,6 +192,9 @@ func (s *AttachmentServiceImpl) InitChunkUpload(filename string, totalSize int64
 // UploadChunk 上传分片
 // 注意：不再使用服务端缓存，直接保存分片文件
 func (s *AttachmentServiceImpl) UploadChunk(chunkID string, chunkIndex int, chunkData []byte) error {
+	if err := validateChunkID(chunkID); err != nil {
+		return err
+	}
 	if chunkIndex < 0 {
 		return apperrors.ErrInvalidChunkIndex
 	}
@@ -208,6 +223,9 @@ func (s *AttachmentServiceImpl) UploadChunk(chunkID string, chunkIndex int, chun
 // MergeChunks 合并分片
 // 注意：不再使用服务端缓存，通过检查实际文件系统来验证分片
 func (s *AttachmentServiceImpl) MergeChunks(chunkID string, filename string, mimeType string, totalChunks int, isPublicRaw string) (*models.Attachment, error) {
+	if err := validateChunkID(chunkID); err != nil {
+		return nil, err
+	}
 	storage, err := utils.StorageDisk(s.disk)
 	if err != nil {
 		return nil, err
@@ -459,6 +477,9 @@ func (s *AttachmentServiceImpl) MergeChunks(chunkID string, filename string, mim
 // 注意：不再使用服务端缓存，通过检查实际文件系统来获取进度
 // 优化：如果分片数量很大，可以考虑限制返回的索引数量或使用并发检查
 func (s *AttachmentServiceImpl) GetChunkProgress(chunkID string, totalChunks int) (map[string]any, error) {
+	if err := validateChunkID(chunkID); err != nil {
+		return nil, err
+	}
 	storage, err := utils.StorageDisk(s.disk)
 	if err != nil {
 		return nil, err
@@ -730,7 +751,8 @@ func (s *AttachmentServiceImpl) GetList(filters AttachmentFilters, page, pageSiz
 	if orderBy == "" {
 		orderBy = "id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "id:desc")
+	query = helpers.ApplySort(query, orderBy, "id:desc",
+		"id", "filename", "file_type", "size", "category_id", "is_public", "admin_id", "created_at", "updated_at")
 
 	// 分页查询
 	var attachments []models.Attachment

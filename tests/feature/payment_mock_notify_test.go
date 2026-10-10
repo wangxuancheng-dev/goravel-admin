@@ -2,6 +2,9 @@ package feature_test
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,14 +19,22 @@ import (
 	"goravel/tests"
 )
 
+func mockNotifyHMAC(paymentNo, tradeStatus string, amount float64, secret string) string {
+	payload := fmt.Sprintf("%s|%s|%.2f", paymentNo, tradeStatus, amount)
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(payload))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 func TestMockPaymentNotifyMarksOrderPaid(t *testing.T) {
 	withTenancyDriver(t, "off")
 	ctx := t.Context()
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000_000)
+	secret := "mock-feature-secret-" + suffix
 
 	pm, err := services.NewPaymentMethodService(ctx).CreatePaymentMethod(
 		"Mock Feature "+suffix, "mock_feat_"+suffix, "mock",
-		map[string]any{}, true, 0, "feature",
+		map[string]any{"shared_secret": secret}, true, 0, "feature",
 	)
 	require.NoError(t, err)
 	pmID := pm.ID
@@ -39,7 +50,11 @@ func TestMockPaymentNotifyMarksOrderPaid(t *testing.T) {
 	payment, err := services.NewPaymentService(ctx).CreatePayment(order.OrderNo, pm.ID, order.UserID, order.Amount, "")
 	require.NoError(t, err)
 
-	body := fmt.Sprintf(`{"out_trade_no":%q,"trade_status":"SUCCESS","transaction_id":"TX-%s"}`, payment.PaymentNo, suffix)
+	sign := mockNotifyHMAC(payment.PaymentNo, "SUCCESS", order.Amount, secret)
+	body := fmt.Sprintf(
+		`{"out_trade_no":%q,"trade_status":"SUCCESS","amount":%.2f,"sign":%q,"transaction_id":"TX-%s"}`,
+		payment.PaymentNo, order.Amount, sign, suffix,
+	)
 	testCase := tests.TestCase{}
 	resp, err := testCase.Http(t).
 		WithHeader("Content-Type", "application/json").

@@ -76,7 +76,8 @@ func (s *PositionServiceImpl) GetList(filters PositionFilters, page, pageSize in
 	if orderBy == "" {
 		orderBy = "sort:asc,id:asc"
 	}
-	query = helpers.ApplySort(query, orderBy, "sort:asc,id:asc")
+	query = helpers.ApplySort(query, orderBy, "sort:asc,id:asc",
+		"id", "name", "code", "status", "sort", "created_at", "updated_at")
 	var list []models.Position
 	var total int64
 	if err := query.Paginate(page, pageSize, &list, &total); err != nil {

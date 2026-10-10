@@ -125,7 +125,8 @@ func (s *SystemLogServiceImpl) GetList(filters SystemLogFilters, page, pageSize 
 	if orderBy == "" {
 		orderBy = "id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "id:desc")
+	query = helpers.ApplySort(query, orderBy, "id:desc",
+		"id", "level", "module", "message", "created_at")
 
 	// 分页查询
 	var logs []models.SystemLog

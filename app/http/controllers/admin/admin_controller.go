@@ -187,6 +187,7 @@ func (c *AdminController) Store(ctx http.Context) http.Response {
 		return resp
 	}
 
+	actorID, _ := helpers.GetAdminIDFromContext(ctx)
 	admin, err := c.AdminService(ctx).CreateAdmin(services.CreateAdminInput{
 		Username:     req.Username,
 		Password:     req.Password,
@@ -197,6 +198,7 @@ func (c *AdminController) Store(ctx http.Context) http.Response {
 		PositionID:   req.PositionID,
 		Status:       req.Status,
 		RoleIDs:      req.RoleIDs,
+		ActorAdminID: actorID,
 	})
 	if err != nil {
 		return HandleGeneratedServiceError(ctx, "admin", http.StatusInternalServerError, err, map[string]any{

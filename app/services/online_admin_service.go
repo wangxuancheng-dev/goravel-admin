@@ -68,7 +68,8 @@ func (s *OnlineAdminServiceImpl) buildTokenQuery(filters OnlineAdminFilters) orm
 		query = query.Where("os LIKE ?", "%"+filters.OS+"%")
 	}
 
-	query = helpers.ApplySort(query, filters.OrderBy, "last_used_at:desc")
+	query = helpers.ApplySort(query, filters.OrderBy, "last_used_at:desc",
+		"id", "tokenable_id", "name", "ip", "last_used_at", "expires_at", "created_at")
 	return query
 }
 

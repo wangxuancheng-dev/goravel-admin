@@ -100,7 +100,8 @@ func (s *LoginLogServiceImpl) GetList(filters LoginLogFilters, page, pageSize in
 	if orderBy == "" {
 		orderBy = "id:desc"
 	}
-	query = helpers.ApplySort(query, orderBy, "id:desc")
+	query = helpers.ApplySort(query, orderBy, "id:desc",
+		"id", "admin_id", "username", "ip", "status", "created_at")
 
 	var logs []models.LoginLog
 	var total int64

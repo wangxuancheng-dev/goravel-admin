@@ -78,6 +78,13 @@ func Jwt() http.Middleware {
 			return
 		}
 
+		// Reject disabled accounts and revoke lingering sessions (match platform/user JWT).
+		if admin.Status != 1 {
+			_ = tokenService.DeleteTokensByUser("admin", admin.ID)
+			response.Abort(ctx, http.StatusForbidden, "account_disabled")
+			return
+		}
+
 		// 更新最后使用时间
 		_ = tokenService.UpdateLastUsedAt(token)
 
