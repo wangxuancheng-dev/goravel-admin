@@ -15,6 +15,14 @@ export function getPlatformLoginCaptcha(params) {
   return platformRequest.get('/login/captcha', params?.check ? { params: { check: 1 } } : undefined)
 }
 
+export function getPlatformSettings() {
+  return platformRequest.get('/settings')
+}
+
+export function updatePlatformSettings(data) {
+  return platformRequest.put('/settings', data)
+}
+
 export function platformLogout() {
   return platformRequest.post('/logout')
 }

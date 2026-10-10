@@ -63,8 +63,6 @@ func init() {
 		"platform_admin_username": config.Env("PLATFORM_ADMIN_USERNAME", ""),
 		"platform_admin_password": config.Env("PLATFORM_ADMIN_PASSWORD", ""),
 		"platform_admin_name":     config.Env("PLATFORM_ADMIN_NAME", ""),
-		// Platform console login captcha type: image (text, default) | slide (puzzle slider)
-		"platform_captcha_type": config.Env("PLATFORM_CAPTCHA_TYPE", "image"),
 		// Public apex for subdomain URLs (acme.{base_domain}); empty disables subdomain URL helpers
 		"base_domain": config.Env("TENANCY_BASE_DOMAIN", ""),
 		// Unified ingress hostname customers CNAME to (edge SSL mode)

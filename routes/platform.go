@@ -21,6 +21,7 @@ func Platform() {
 	systemLogController := platform.NewSystemLogController()
 	alertDeliveryController := platform.NewAlertDeliveryController()
 	entitlementController := platform.NewEntitlementController()
+	settingController := platform.NewSettingController()
 
 	facades.Route().Prefix("api/platform").Middleware(middleware.Domain(facades.Config().Get("domains.admin"))).Group(func(router route.Router) {
 		router.Middleware(middleware.Lang(), middleware.RequireTenancy()).Group(func(router route.Router) {
@@ -42,6 +43,8 @@ func Platform() {
 			router.Post("security/2fa/bind", authController.BindGoogleAuthenticator)
 			router.Post("security/2fa/unbind", authController.UnbindGoogleAuthenticator)
 			router.Put("security/allowed-ips", authController.UpdateAllowedIPs)
+
+			router.Get("settings", settingController.Show)
 
 			router.Get("admins", adminController.Index)
 			router.Get("admins/{id}", adminController.Show)
@@ -81,6 +84,8 @@ func Platform() {
 
 			// Mutations require owner
 			router.Middleware(middleware.PlatformOwner()).Group(func(router route.Router) {
+				router.Put("settings", settingController.Update)
+
 				router.Post("admins", adminController.Store)
 				router.Put("admins/{id}", adminController.Update)
 				router.Delete("admins/{id}", adminController.Destroy)

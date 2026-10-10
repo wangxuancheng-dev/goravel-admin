@@ -230,7 +230,8 @@
     "platform_alert": "Alert deliveries",
     "allowlist": "IP Allowlist",
     "entitlement": "Entitlements",
-    "subscription": "My Plan"
+    "subscription": "My Plan",
+    "platform_settings": "Platform Settings"
   },
   "monitor_runtime": {
     "title": "Runtime Observability",
@@ -1455,7 +1456,10 @@
     "unbind_2fa_success": "2FA unbound",
     "allowed_ips": "Login IP allowlist",
     "allowed_ips_hint": "Comma-separated IPs/CIDRs; empty means any",
-    "allowed_ips_updated": "Allowlist updated"
+    "allowed_ips_updated": "Allowlist updated",
+    "settings_captcha_title": "Login captcha",
+    "settings_captcha_tip": "Applies to the platform console login page only; each tenant sets its own in the tenant admin. Takes effect immediately after saving.",
+    "settings_viewer_hint": "Viewer accounts are read-only. Owner permission is required to change settings."
   },
   "blacklist": {
     "add_blacklist": "Add Blacklist",

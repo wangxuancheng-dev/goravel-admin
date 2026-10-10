@@ -94,6 +94,7 @@ func All() []schema.Migration {
 		&M20260926120000AddIsSystemToDictionaries{},
 		&M20261010180000CreateEntitlementTables{},
 		&M20261010190000AddPlatformFeatureAlwaysOn{},
+		&M20261011000000CreatePlatformSettingsTable{},
 	}
 }
 

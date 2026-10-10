@@ -18,6 +18,7 @@
           <el-menu-item index="/platform/tenants">{{ $t('menu.tenant') }}</el-menu-item>
           <el-menu-item index="/platform/entitlements">{{ $t('menu.entitlement') }}</el-menu-item>
           <el-menu-item index="/platform/admins">{{ $t('menu.platform_admin') }}</el-menu-item>
+          <el-menu-item index="/platform/settings">{{ $t('menu.platform_settings') }}</el-menu-item>
           <el-menu-item index="/platform/tenant-op-logs">{{ $t('menu.tenant_op_log') }}</el-menu-item>
           <el-menu-item index="/platform/alert-deliveries">{{ $t('menu.platform_alert') }}</el-menu-item>
           <el-menu-item index="/platform/system-logs">{{ $t('menu.system_log') }}</el-menu-item>

@@ -27,6 +27,7 @@ import PlatformLoginPage from '../pages/platform/Login'
 import PlatformLayout from '../pages/platform/Layout'
 import PlatformTenantListPage from '../pages/platform/TenantList'
 import PlatformAdminListPage from '../pages/platform/AdminList'
+import PlatformSettingsPage from '../pages/platform/Settings'
 import PlatformTenantOpLogListPage from '../pages/platform/TenantOpLogList'
 import PlatformAlertDeliveryListPage from '../pages/platform/AlertDeliveryList'
 import PlatformLoginLogListPage from '../pages/platform/LoginLogList'
@@ -197,6 +198,11 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
               path: 'admins',
               element: <PlatformAdminListPage />,
               handle: { titleKey: 'menu.platform_admin', platform: true },
+            },
+            {
+              path: 'settings',
+              element: <PlatformSettingsPage />,
+              handle: { titleKey: 'menu.platform_settings', platform: true },
             },
             {
               path: 'tenant-op-logs',

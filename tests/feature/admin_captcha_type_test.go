@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 
-	"github.com/goravel/framework/facades"
 	"github.com/stretchr/testify/require"
 
 	apperrors "goravel/app/errors"
@@ -84,20 +84,67 @@ func TestAdminLoginCaptchaTypeFollowsConfig(t *testing.T) {
 	require.Empty(t, info["master_image"])
 }
 
-// Platform captcha: check=1 only reports the configured type and does not issue a challenge.
-func TestPlatformLoginCaptchaCheckOnlyReportsType(t *testing.T) {
+// Platform console captcha type is stored in landlord platform_settings and edited via /api/platform/settings.
+func TestPlatformSettingsCaptchaType(t *testing.T) {
 	withTenancyDriver(t, "database")
-	withTenancyDriver(t, "database")
+	token := loginPlatformSmoke(t)
 	testCase := tests.TestCase{}
-	resp, err := testCase.Http(t).Get("/api/platform/login/captcha?check=1")
-	require.NoError(t, err)
-	content, err := resp.Content()
-	require.NoError(t, err)
 
-	var payload adminCaptchaPayload
-	require.NoError(t, json.Unmarshal([]byte(content), &payload), content)
-	require.Equal(t, 200, payload.Code, content)
-	want := services.NormalizeCaptchaType(facades.Config().GetString("tenancy.platform_captcha_type", "image"))
-	require.Equal(t, want, payload.Data.Captcha["type"])
-	require.Empty(t, payload.Data.Captcha["captcha_id"])
+	t.Cleanup(func() {
+		_ = services.SetPlatformCaptchaType(context.Background(), "image")
+	})
+
+	put := func(body string) (int, map[string]any) {
+		resp, err := testCase.Http(t).
+			WithHeader("Authorization", "Bearer "+token).
+			WithHeader("Content-Type", "application/json").
+			Put("/api/platform/settings", strings.NewReader(body))
+		require.NoError(t, err)
+		content, err := resp.Content()
+		require.NoError(t, err)
+		var payload struct {
+			Code int `json:"code"`
+			Data struct {
+				Settings map[string]any `json:"settings"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(content), &payload), content)
+		return payload.Code, payload.Data.Settings
+	}
+	checkType := func() any {
+		resp, err := testCase.Http(t).Get("/api/platform/login/captcha?check=1")
+		require.NoError(t, err)
+		content, err := resp.Content()
+		require.NoError(t, err)
+		var payload adminCaptchaPayload
+		require.NoError(t, json.Unmarshal([]byte(content), &payload), content)
+		require.Equal(t, 200, payload.Code, content)
+		require.Empty(t, payload.Data.Captcha["captcha_id"]) // check=1 never issues a challenge
+		return payload.Data.Captcha["type"]
+	}
+
+	// Default is the classic text captcha.
+	require.NoError(t, services.SetPlatformCaptchaType(context.Background(), "image"))
+	require.Equal(t, "image", checkType())
+
+	// Invalid type is rejected and nothing changes.
+	code, _ := put(`{"captcha_type":"rotate"}`)
+	require.Equal(t, 400, code)
+	require.Equal(t, "image", checkType())
+
+	// Switch to slide: check endpoint and a real challenge both follow.
+	code, settings := put(`{"captcha_type":"slide"}`)
+	require.Equal(t, 200, code)
+	require.Equal(t, "slide", settings["captcha_type"])
+	require.Equal(t, "slide", checkType())
+	challenge, err := services.NewPlatformCaptchaService(context.Background()).GenerateChallenge()
+	require.NoError(t, err)
+	require.Equal(t, "slide", challenge.Type)
+	require.NotEmpty(t, challenge.MasterImage)
+
+	// Switch back.
+	code, settings = put(`{"captcha_type":"image"}`)
+	require.Equal(t, 200, code)
+	require.Equal(t, "image", settings["captcha_type"])
+	require.Equal(t, "image", checkType())
 }

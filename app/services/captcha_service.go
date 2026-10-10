@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goravel/framework/facades"
 	"github.com/mojocn/base64Captcha"
 
 	"goravel/app/tenancy"
@@ -30,6 +29,8 @@ type CaptchaServiceImpl struct {
 	driver      base64Captcha.Driver
 	initialized bool
 	kind        string
+	// platform: captcha type comes from landlord platform_settings instead of the tenant config.
+	platform bool
 }
 
 // Shared in-process store so Generate and Verify across HTTP requests see the same captcha.
@@ -58,12 +59,13 @@ func NewCaptchaServiceImpl(ctx context.Context) CaptchaService {
 }
 
 // NewPlatformCaptchaService builds the captcha service for the platform console.
-// The type comes from env PLATFORM_CAPTCHA_TYPE (image|slide), see config/tenancy.go.
+// The type (image|slide) is read from landlord platform_settings (key captcha_type),
+// editable on the platform console Settings page.
 func NewPlatformCaptchaService(ctx context.Context) CaptchaService {
 	return &CaptchaServiceImpl{
 		ctx:         ctx,
 		initialized: false,
-		kind:        NormalizeCaptchaType(facades.Config().GetString("tenancy.platform_captcha_type", CaptchaTypeImage)),
+		platform:    true,
 	}
 }
 
@@ -118,10 +120,14 @@ func (s *CaptchaServiceImpl) Generate() (string, string, error) {
 
 // Kind returns the active captcha type (image or slide).
 // Tenant/admin login: per-tenant DB config captcha.captcha_type.
-// Platform login: fixed from env at construction time.
+// Platform login: landlord platform_settings.captcha_type.
 func (s *CaptchaServiceImpl) Kind() string {
 	if s.kind == "" {
-		s.kind = NormalizeCaptchaType(utils.GetConfigValue(s.ctx, "captcha", "captcha_type", CaptchaTypeImage))
+		if s.platform {
+			s.kind = GetPlatformCaptchaType(s.ctx)
+		} else {
+			s.kind = NormalizeCaptchaType(utils.GetConfigValue(s.ctx, "captcha", "captcha_type", CaptchaTypeImage))
+		}
 	}
 	return s.kind
 }

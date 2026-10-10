@@ -243,7 +243,8 @@
     "platform_alert": "告警投递",
     "allowlist": "IP白名单",
     "entitlement": "权益套餐",
-    "subscription": "我的套餐"
+    "subscription": "我的套餐",
+    "platform_settings": "平台设置"
   },
   "table": {
     "id": "ID",
@@ -1389,7 +1390,10 @@
     "unbind_2fa_success": "2FA 已解绑",
     "allowed_ips": "登录 IP 白名单",
     "allowed_ips_hint": "逗号分隔 IP 或 CIDR，留空表示不限制",
-    "allowed_ips_updated": "IP 白名单已更新"
+    "allowed_ips_updated": "IP 白名单已更新",
+    "settings_captcha_title": "登录验证码",
+    "settings_captcha_tip": "仅影响平台运维后台的登录页，租户后台由各租户自行设置。保存后立即生效。",
+    "settings_viewer_hint": "只读账号仅可查看，修改需要负责人权限。"
   },
   "blacklist": {
     "add_blacklist": "添加黑名单",
