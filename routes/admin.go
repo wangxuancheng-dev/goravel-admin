@@ -309,16 +309,14 @@ func Admin() {
 			router.Post("user-balance-logs", userBalanceLogController.Store)
 			router.Get("user-balance-logs/statistics", userBalanceLogController.Statistics)
 
-			// Payments (gated by entitlement feature module.payment; notify callbacks in api.go stay open)
-			router.Middleware(middleware.EntitlementModule("payment")).Group(func(router route.Router) {
-				router.Resource("payment-methods", paymentMethodController)
-				router.Get("payments", paymentController.Index)
-				router.Post("payments", paymentController.Store)
-				router.Get("payments/{id}", paymentController.Show)
-				router.Post("payments/{id}/query", paymentController.Query)
-				router.Post("payments/export", paymentController.Export)
-				router.Get("payments/export/status/{id}", paymentController.GetExportStatus)
-			})
+			// Payments
+			router.Resource("payment-methods", paymentMethodController)
+			router.Get("payments", paymentController.Index)
+			router.Post("payments", paymentController.Store)
+			router.Get("payments/{id}", paymentController.Show)
+			router.Post("payments/{id}/query", paymentController.Query)
+			router.Post("payments/export", paymentController.Export)
+			router.Get("payments/export/status/{id}", paymentController.GetExportStatus)
 
 			router.Resource("articles", articleController)
 			router.Post("articles/export", articleController.Export)
