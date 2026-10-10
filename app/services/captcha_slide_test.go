@@ -87,3 +87,22 @@ func TestCaptchaTypesAreNotInterchangeable(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, "captcha_invalid", key)
 }
+
+func TestSlideCaptchaGeometry(t *testing.T) {
+	svc := newTestCaptchaService(CaptchaTypeSlide)
+	for i := 0; i < 40; i++ {
+		ch, err := svc.GenerateChallenge()
+		require.NoError(t, err)
+		require.Equal(t, slideImageWidth, ch.MasterWidth)
+		require.Equal(t, slideImageHeight, ch.MasterHeight)
+		require.GreaterOrEqual(t, ch.TileWidth, slideTileMin)
+		require.LessOrEqual(t, ch.TileWidth, slideTileMax)
+		require.GreaterOrEqual(t, ch.TileY, 0)
+		require.LessOrEqual(t, ch.TileY+ch.TileHeight, slideImageHeight)
+
+		x, err := strconv.Atoi(PeekCaptchaAnswer(ch.ID))
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, x, 0)
+		require.LessOrEqual(t, x+ch.TileWidth, slideImageWidth)
+	}
+}

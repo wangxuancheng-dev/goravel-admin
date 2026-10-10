@@ -10,6 +10,7 @@ import (
 
 	"github.com/wenlng/go-captcha-assets/resources/imagesv2"
 	"github.com/wenlng/go-captcha-assets/resources/tiles"
+	"github.com/wenlng/go-captcha/v2/base/option"
 	"github.com/wenlng/go-captcha/v2/slide"
 )
 
@@ -22,6 +23,14 @@ const (
 	// slideStorePrefix marks slide answers in the shared captcha store, so an
 	// image-mode verify can never accept a slide token and vice versa.
 	slideStorePrefix = "slide:"
+
+	// Puzzle background size in pixels. The API returns it so SPAs render at exactly this size
+	// (the slide answer is an x offset in these coordinates).
+	slideImageWidth  = 300
+	slideImageHeight = 150
+	// Puzzle piece size range in pixels.
+	slideTileMin = 50
+	slideTileMax = 60
 
 	// slideTolerancePx is the accepted horizontal error (pixels) for a slide answer.
 	slideTolerancePx = 5
@@ -46,10 +55,12 @@ type CaptchaChallenge struct {
 	// Slide mode fields.
 	MasterImage string
 	TileImage   string
-	TileWidth   int
-	TileHeight  int
-	TileX       int
-	TileY       int
+	MasterWidth  int
+	MasterHeight int
+	TileWidth    int
+	TileHeight   int
+	TileX        int
+	TileY        int
 }
 
 var (
@@ -86,6 +97,10 @@ func getSlideCaptcha() (slide.Captcha, error) {
 	}
 
 	builder := slide.NewBuilder()
+	builder.SetOptions(
+		slide.WithImageSize(option.Size{Width: slideImageWidth, Height: slideImageHeight}),
+		slide.WithRangeGraphSize(option.RangeVal{Min: slideTileMin, Max: slideTileMax}),
+	)
 	builder.SetResources(
 		slide.WithBackgrounds(append([]image.Image(nil), backgrounds...)),
 		slide.WithGraphImages(graphImages),
@@ -126,10 +141,12 @@ func generateSlide() (*CaptchaChallenge, int, error) {
 		Type:        CaptchaTypeSlide,
 		MasterImage: master,
 		TileImage:   tile,
-		TileWidth:   block.Width,
-		TileHeight:  block.Height,
-		TileX:       block.DX,
-		TileY:       block.DY,
+		MasterWidth:  slideImageWidth,
+		MasterHeight: slideImageHeight,
+		TileWidth:    block.Width,
+		TileHeight:   block.Height,
+		TileX:        block.DX,
+		TileY:        block.DY,
 	}, block.X, nil
 }
 
@@ -155,6 +172,8 @@ func (ch *CaptchaChallenge) ToMap() map[string]any {
 	if ch.Type == CaptchaTypeSlide {
 		out["master_image"] = ch.MasterImage
 		out["tile_image"] = ch.TileImage
+		out["master_width"] = ch.MasterWidth
+		out["master_height"] = ch.MasterHeight
 		out["tile_width"] = ch.TileWidth
 		out["tile_height"] = ch.TileHeight
 		out["tile_x"] = ch.TileX

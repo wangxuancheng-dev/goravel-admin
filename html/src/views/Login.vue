@@ -359,6 +359,8 @@ const fetchCaptcha = async () => {
           captcha_id: captcha.captcha_id || '',
           master_image: captcha.master_image || '',
           tile_image: captcha.tile_image || '',
+          master_width: captcha.master_width || 0,
+          master_height: captcha.master_height || 0,
           tile_width: captcha.tile_width || 0,
           tile_height: captcha.tile_height || 0,
           tile_x: captcha.tile_x || 0,

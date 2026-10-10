@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+﻿import { memo, useMemo } from 'react'
 import GoCaptcha from 'go-captcha-react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,6 +7,9 @@ export interface SlideCaptchaData {
   captcha_id: string
   master_image: string
   tile_image: string
+  /** Background size returned by the API; the slide answer uses these coordinates. */
+  master_width?: number
+  master_height?: number
   tile_width: number
   tile_height: number
   tile_x: number
@@ -30,12 +33,12 @@ function SlideCaptcha({ data, onConfirm, onRefresh }: SlideCaptchaProps) {
 
   const config = useMemo(
     () => ({
-      width: 300,
-      height: 220,
+      width: data.master_width || 300,
+      height: data.master_height || 220,
       title: t('login.slide_title'),
       showTheme: true,
     }),
-    [t],
+    [t, data.master_width, data.master_height],
   )
 
   const slideData = useMemo(

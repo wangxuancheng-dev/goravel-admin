@@ -85,6 +85,8 @@ export interface CaptchaInfo {
     type?: 'image' | 'slide'
     master_image?: string
     tile_image?: string
+    master_width?: number
+    master_height?: number
     tile_width?: number
     tile_height?: number
     tile_x?: number

@@ -181,6 +181,8 @@ export default function LoginPage() {
               captcha_id: info?.captcha_id || '',
               master_image: info?.master_image || '',
               tile_image: info?.tile_image || '',
+              master_width: info?.master_width,
+              master_height: info?.master_height,
               tile_width: info?.tile_width ?? 0,
               tile_height: info?.tile_height ?? 0,
               tile_x: info?.tile_x ?? 0,

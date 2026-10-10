@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="slide-captcha">
     <GoCaptchaSlide :config="config" :data="slideData" :events="events" />
   </div>
@@ -23,8 +23,9 @@ const emit = defineEmits(['confirm', 'refresh'])
 const { t } = useI18n()
 
 const config = computed(() => ({
-  width: 300,
-  height: 220,
+  // Background size returned by the API; the slide answer uses these coordinates.
+  width: props.data.master_width || 300,
+  height: props.data.master_height || 220,
   title: t('login.slide_title'),
   showTheme: true
 }))
