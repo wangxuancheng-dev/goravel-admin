@@ -2081,7 +2081,9 @@ export default function PlatformTenantList() {
               <Typography.Text type="secondary">—</Typography.Text>
             )}
             <Divider>{t('entitlement.tenant_section')}</Divider>
-            {detailRow?.id ? <TenantEntitlementsPanel tenantId={detailRow.id} /> : null}
+            {detailRow?.id != null && Number(detailRow.id) > 0 ? (
+              <TenantEntitlementsPanel tenantId={Number(detailRow.id)} />
+            ) : null}
             <Divider>{t('tenant.login_links')}</Divider>
             {detailLoginLinks ? (
               <Space direction="vertical" style={{ width: '100%' }}>

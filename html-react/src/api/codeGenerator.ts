@@ -42,6 +42,9 @@ export interface CodeGeneratorOptions {
   show_toolbar?: boolean
   is_tree_list?: boolean
   is_master_detail?: boolean
+  entitlement_managed?: boolean
+  entitlement_always_on?: boolean
+  entitlement_row_quota?: boolean
 }
 
 export interface ModuleInstallConfig {
