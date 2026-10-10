@@ -30,7 +30,15 @@
             @keyup.enter="submit"
           />
         </el-form-item>
-        <el-form-item v-if="showCaptcha && !needGoogleCode" prop="captcha_answer">
+        <el-form-item v-if="showCaptcha && !needGoogleCode && captcha.type === 'slide' && captcha.slide">
+          <SlideCaptcha
+            :key="captcha.id"
+            :data="captcha.slide"
+            @confirm="onSlideConfirm"
+            @refresh="fetchCaptcha"
+          />
+        </el-form-item>
+        <el-form-item v-if="showCaptcha && !needGoogleCode && captcha.type !== 'slide'" prop="captcha_answer">
           <div class="captcha-row">
             <img
               v-if="captcha.image"
@@ -63,7 +71,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -71,6 +79,7 @@ import { completePlatformLogin, getPlatformLoginCaptcha, platformLogin } from '@
 import { getTenantAdminLoginUrl } from '@/utils/tenant'
 import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
 import LanguageSwitch from '@/components/LanguageSwitch.vue'
+import SlideCaptcha from '@/components/SlideCaptcha.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -80,7 +89,10 @@ const needGoogleCode = ref(false)
 const showCaptcha = ref(false)
 const tenantLoginUrl = getTenantAdminLoginUrl()
 const form = reactive({ username: '', password: '', captcha_answer: '', google_code: '' })
-const captcha = reactive({ id: '', image: '' })
+// type (image | slide) is decided by the backend env PLATFORM_CAPTCHA_TYPE
+const captcha = reactive({ type: 'image', id: '', image: '', slide: null })
+// Slide mode: x offset recorded after the user releases the slider (verified on login)
+const slideAnswer = ref('')
 const rules = computed(() => ({
   username: [{ required: true, message: t('login.username'), trigger: 'blur' }],
   password: [{ required: true, message: t('login.password'), trigger: 'blur' }],
@@ -91,7 +103,7 @@ const rules = computed(() => ({
       ]
     : [],
   captcha_answer:
-    showCaptcha.value && !needGoogleCode.value
+    showCaptcha.value && !needGoogleCode.value && captcha.type !== 'slide'
       ? [{ required: true, message: t('login.captcha_required'), trigger: 'blur' }]
       : []
 }))
@@ -100,14 +112,31 @@ const fetchCaptcha = async () => {
   try {
     const res = await getPlatformLoginCaptcha()
     const info = res.data?.captcha || {}
+    const isSlide = info.type === 'slide'
+    captcha.type = isSlide ? 'slide' : 'image'
     captcha.id = info.captcha_id || ''
     captcha.image = info.captcha_image || ''
+    captcha.slide = isSlide
+      ? {
+          captcha_id: info.captcha_id || '',
+          master_image: info.master_image || '',
+          tile_image: info.tile_image || '',
+          tile_width: info.tile_width || 0,
+          tile_height: info.tile_height || 0,
+          tile_x: info.tile_x || 0,
+          tile_y: info.tile_y || 0
+        }
+      : null
+    slideAnswer.value = ''
     showCaptcha.value = true
     form.captcha_answer = ''
     formRef.value?.clearValidate?.(['captcha_answer'])
   } catch (error) {
+    captcha.type = 'image'
     captcha.id = ''
     captcha.image = ''
+    captcha.slide = null
+    slideAnswer.value = ''
     showCaptcha.value = true
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))
@@ -115,10 +144,31 @@ const fetchCaptcha = async () => {
   }
 }
 
+const onSlideConfirm = (answer) => {
+  slideAnswer.value = answer
+}
+
+// Image mode keeps the legacy flow (captcha appears after the first submit).
+// Slide mode shows the slider up front, so probe the configured type first.
+onMounted(async () => {
+  try {
+    const res = await getPlatformLoginCaptcha({ check: true })
+    if (res.data?.captcha?.type === 'slide') {
+      await fetchCaptcha()
+    }
+  } catch {
+    // ignore: the normal submit flow still requests a captcha when required
+  }
+})
+
 const submit = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (!valid) return
+    if (!needGoogleCode.value && showCaptcha.value && captcha.type === 'slide' && !slideAnswer.value) {
+      ElMessage.warning(t('login.slide_required'))
+      return
+    }
     loading.value = true
     try {
       const payload = {
@@ -129,7 +179,7 @@ const submit = async () => {
         payload.google_code = form.google_code
       } else if (showCaptcha.value) {
         payload.captcha_id = captcha.id
-        payload.captcha_answer = form.captcha_answer
+        payload.captcha_answer = captcha.type === 'slide' ? slideAnswer.value : form.captcha_answer
       }
       const res = await platformLogin(payload)
       await completePlatformLogin(res)
@@ -140,8 +190,11 @@ const submit = async () => {
       if (code === 'google_code_required') {
         needGoogleCode.value = true
         showCaptcha.value = false
+        captcha.type = 'image'
         captcha.id = ''
         captcha.image = ''
+        captcha.slide = null
+        slideAnswer.value = ''
         form.captcha_answer = ''
         form.google_code = ''
         ElMessage.warning(error?.translatedMessage || error?.message || t('login.google_code_required'))

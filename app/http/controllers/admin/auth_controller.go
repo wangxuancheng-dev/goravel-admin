@@ -371,15 +371,20 @@ func (r *AuthController) Captcha(ctx http.Context) http.Response {
 		"enabled":  enabled,
 		"required": required,
 	}
+	if required {
+		// Per-tenant type (DB config captcha.captcha_type); lets the SPA pick the widget.
+		captchaData["type"] = r.captchaService(ctx).Kind()
+	}
 
 	checkOnly := ctx.Request().Query("check", "") == "1"
 	if required && !checkOnly {
-		captchaID, image, err := r.captchaService(ctx).Generate()
+		challenge, err := r.captchaService(ctx).GenerateChallenge()
 		if err != nil {
 			return HandleGeneratedServiceError(ctx, "captcha", http.StatusInternalServerError, err, nil)
 		}
-		captchaData["captcha_id"] = captchaID
-		captchaData["captcha_image"] = image
+		for k, v := range challenge.ToMap() {
+			captchaData[k] = v
+		}
 	}
 
 	return response.Success(ctx, http.Json{

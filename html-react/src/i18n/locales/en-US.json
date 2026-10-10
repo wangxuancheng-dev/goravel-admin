@@ -137,7 +137,9 @@
     "brand_fallback": "Admin",
     "oidc_login": "Enterprise SSO",
     "oidc_processing": "Completing enterprise login…",
-    "oidc_failed": "Enterprise login failed"
+    "oidc_failed": "Enterprise login failed",
+    "slide_title": "Drag the slider to complete verification",
+    "slide_required": "Please complete the slider verification first"
   },
   "error": {
     "default": "Request failed",
@@ -1038,7 +1040,11 @@
     "oidc_scopes": "Scopes",
     "oidc_button_label": "Button label",
     "oidc_auto_provision": "Auto-provision disabled admins",
-    "keep_blank_to_preserve": "Leave blank to keep current value"
+    "keep_blank_to_preserve": "Leave blank to keep current value",
+    "captcha_type": "Captcha Type",
+    "captcha_type_image": "Text captcha",
+    "captcha_type_slide": "Slider puzzle",
+    "captcha_type_tip": "How the login captcha is presented; applies to this tenant admin login only"
   },
   "tenant": {
     "add": "Create tenant",

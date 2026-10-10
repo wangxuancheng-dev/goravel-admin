@@ -15,8 +15,9 @@ export function platformLogin(data: {
   return platformRequest.post('/login', data)
 }
 
-export function getPlatformLoginCaptcha() {
-  return platformRequest.get('/login/captcha')
+export function getPlatformLoginCaptcha(params?: { check?: boolean }) {
+  // check=1: only returns the configured captcha type, no challenge is generated
+  return platformRequest.get('/login/captcha', params?.check ? { params: { check: 1 } } : undefined)
 }
 
 export function platformLogout() {

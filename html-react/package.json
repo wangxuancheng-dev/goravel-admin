@@ -24,6 +24,7 @@
     "dompurify": "^3.4.13",
     "echarts": "^5.6.0",
     "echarts-for-react": "^3.0.2",
+    "go-captcha-react": "^1.0.5",
     "i18next": "^25.3.2",
     "lodash-es": "^4.17.21",
     "marked": "^18.0.9",

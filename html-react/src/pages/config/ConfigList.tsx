@@ -252,8 +252,9 @@ function CaptchaConfigPanel() {
     setLoading(true)
     try {
       const res = await getConfigByGroup('captcha')
-      const values = configsToForm(res.data?.configs, ['captcha_enabled', 'captcha_expire'], {
+      const values = configsToForm(res.data?.configs, ['captcha_enabled', 'captcha_type', 'captcha_expire'], {
         captcha_enabled: (v) => v === '1' || v === 'true',
+        captcha_type: (v) => (v === 'slide' ? 'slide' : 'image'),
         captcha_expire: (v) => (v ? Number(v) : 120),
       })
       form.setFieldsValue(values)
@@ -274,6 +275,7 @@ function CaptchaConfigPanel() {
       setSubmitting(true)
       await saveConfig('captcha', {
         captcha_enabled: values.captcha_enabled ? '1' : '0',
+        captcha_type: values.captcha_type === 'slide' ? 'slide' : 'image',
         captcha_expire: String(values.captcha_expire ?? 120),
       })
       message.success(t('config.update_success'))
@@ -289,6 +291,14 @@ function CaptchaConfigPanel() {
     <Form form={form} layout="vertical" disabled={loading}>
       <Form.Item name="captcha_enabled" label={t('config.captcha_enabled')} valuePropName="checked">
         <Switch checkedChildren={t('common.enabled')} unCheckedChildren={t('common.disabled')} />
+      </Form.Item>
+      <Form.Item name="captcha_type" label={t('config.captcha_type')} extra={t('config.captcha_type_tip')}>
+        <Select
+          options={[
+            { value: 'image', label: t('config.captcha_type_image') },
+            { value: 'slide', label: t('config.captcha_type_slide') },
+          ]}
+        />
       </Form.Item>
       <Form.Item
         name="captcha_expire"

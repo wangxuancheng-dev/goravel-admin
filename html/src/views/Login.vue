@@ -86,7 +86,20 @@
                 @keyup.enter="handleLogin"
               />
             </el-form-item>
-            <el-form-item v-if="captchaInfo.shouldShow && !needGoogleCode" prop="captcha_answer">
+            <el-form-item
+              v-if="captchaInfo.shouldShow && !needGoogleCode && captchaInfo.type === 'slide' && captchaInfo.slide"
+            >
+              <SlideCaptcha
+                :key="captchaInfo.captcha_id"
+                :data="captchaInfo.slide"
+                @confirm="onSlideConfirm"
+                @refresh="fetchCaptcha"
+              />
+            </el-form-item>
+            <el-form-item
+              v-if="captchaInfo.shouldShow && !needGoogleCode && captchaInfo.type !== 'slide'"
+              prop="captcha_answer"
+            >
               <div class="captcha-row">
                 <img
                   v-if="captchaInfo.image"
@@ -158,6 +171,7 @@ import { useAppStore, THEME_COLORS } from '../store/app'
 import { resolveImageDisplayUrl } from '../utils/publicImage'
 import LanguageSwitch from '../components/LanguageSwitch.vue'
 import DarkModeSwitch from '../components/DarkModeSwitch.vue'
+import SlideCaptcha from '../components/SlideCaptcha.vue'
 import { ERROR_CODES } from '../utils/request'
 import Storage from '../utils/storage'
 import {
@@ -195,12 +209,21 @@ const loginForm = reactive({
 
 const captchaInfo = reactive({
   enabled: false,
+  // image | slide, decided per tenant by config captcha.captcha_type
+  type: 'image',
   captcha_id: '',
   image: '',
+  slide: null,
   shouldShow: false // 是否应该显示图形验证码（需要先验证账号密码后才能确定）
 })
 
 const needGoogleCode = ref(false)
+// Slide mode: x offset recorded after the user releases the slider (verified on login)
+const slideAnswer = ref('')
+
+const onSlideConfirm = (answer) => {
+  slideAnswer.value = answer
+}
 
 const loginRules = computed(() => ({
   tenant_code: showTenantField
@@ -218,7 +241,7 @@ const loginRules = computed(() => ({
         { pattern: /^\d{6}$/, message: t('login.google_code_format'), trigger: 'blur' }
       ]
     : [],
-  captcha_answer: captchaInfo.shouldShow && !needGoogleCode.value
+  captcha_answer: captchaInfo.shouldShow && !needGoogleCode.value && captchaInfo.type !== 'slide'
     ? [{ required: true, message: t('login.captcha_required'), trigger: 'blur' }]
     : []
 }))
@@ -323,18 +346,36 @@ const fetchCaptcha = async () => {
     const username = String(loginForm.username || '').trim()
     const res = await getLoginCaptcha({ username: username || undefined })
     const captcha = res.data?.captcha || {}
-    const hasImage = !!(captcha.captcha_id && captcha.captcha_image)
-    captchaInfo.enabled = !!captcha.enabled || !!captcha.required || hasImage
+    const isSlide = captcha.type === 'slide'
+    const hasChallenge = isSlide
+      ? !!(captcha.captcha_id && captcha.master_image && captcha.tile_image)
+      : !!(captcha.captcha_id && captcha.captcha_image)
+    captchaInfo.enabled = !!captcha.enabled || !!captcha.required || hasChallenge
+    captchaInfo.type = isSlide ? 'slide' : 'image'
     captchaInfo.captcha_id = captcha.captcha_id || ''
     captchaInfo.image = captcha.captcha_image || ''
-    captchaInfo.shouldShow = hasImage
+    captchaInfo.slide = isSlide
+      ? {
+          captcha_id: captcha.captcha_id || '',
+          master_image: captcha.master_image || '',
+          tile_image: captcha.tile_image || '',
+          tile_width: captcha.tile_width || 0,
+          tile_height: captcha.tile_height || 0,
+          tile_x: captcha.tile_x || 0,
+          tile_y: captcha.tile_y || 0
+        }
+      : null
+    captchaInfo.shouldShow = hasChallenge
   } catch (error) {
     console.error('Fetch captcha error:', error)
     captchaInfo.enabled = false
+    captchaInfo.type = 'image'
     captchaInfo.captcha_id = ''
     captchaInfo.image = ''
+    captchaInfo.slide = null
     captchaInfo.shouldShow = false
   } finally {
+    slideAnswer.value = ''
     loginForm.captcha_answer = ''
     if (loginFormRef.value) {
       loginFormRef.value.clearValidate(['captcha_answer'])
@@ -363,6 +404,10 @@ const handleLogin = async () => {
   // 如果没有绑定 2FA 且图形验证码开启，后端会返回需要图形验证码的错误
   await loginFormRef.value.validate(async (valid) => {
     if (valid) {
+      if (!needGoogleCode.value && captchaInfo.shouldShow && captchaInfo.type === 'slide' && !slideAnswer.value) {
+        ElMessage.warning(t('login.slide_required'))
+        return
+      }
       loading.value = true
       try {
         // Prefer form, then URL/storage/host. Always persist + send when present so
@@ -395,7 +440,7 @@ const handleLogin = async () => {
         // 如果图形验证码应该显示，添加图形验证码
         else if (captchaInfo.shouldShow) {
           payload.captcha_id = captchaInfo.captcha_id
-          payload.captcha_answer = loginForm.captcha_answer
+          payload.captcha_answer = captchaInfo.type === 'slide' ? slideAnswer.value : loginForm.captcha_answer
         }
         // 否则，先只提交账号密码，让后端判断是否需要图形验证码或谷歌验证码
         
@@ -439,6 +484,8 @@ const handleLogin = async () => {
           // 绑定了 2FA，需要谷歌验证码，隐藏图形验证码
           needGoogleCode.value = true
           captchaInfo.shouldShow = false
+          captchaInfo.slide = null
+          slideAnswer.value = ''
           loginForm.google_code = ''
           loginForm.captcha_answer = ''
           if (loginFormRef.value) {

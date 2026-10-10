@@ -33,21 +33,28 @@ type platformLoginBody struct {
 }
 
 // Captcha always issues a login captcha for the platform console (forced).
+// The type (image | slide) is selected by env PLATFORM_CAPTCHA_TYPE.
+// Query check=1 returns only the configured type (no challenge is generated).
 func (c *AuthController) Captcha(ctx http.Context) http.Response {
-	captchaID, image, err := services.NewCaptchaServiceImpl(ctx).Generate()
+	svc := services.NewPlatformCaptchaService(ctx)
+	if ctx.Request().Query("check", "") == "1" {
+		return response.Success(ctx, map[string]any{
+			"captcha": map[string]any{
+				"enabled":  true,
+				"required": true,
+				"type":     svc.Kind(),
+			},
+		})
+	}
+	challenge, err := svc.GenerateChallenge()
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "platform_captcha", http.StatusInternalServerError, err, nil)
 	}
-	return response.Success(ctx, map[string]any{
-		"captcha": map[string]any{
-			"enabled":       true,
-			"required":      true,
-			"captcha_id":    captchaID,
-			"captcha_image": image,
-		},
-	})
+	data := challenge.ToMap()
+	data["enabled"] = true
+	data["required"] = true
+	return response.Success(ctx, map[string]any{"captcha": data})
 }
-
 // Login authenticates a platform admin on the platform DB.
 func (c *AuthController) Login(ctx http.Context) http.Response {
 	if !tenancy.Enabled() {
@@ -63,7 +70,7 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 	var adminUser models.PlatformAdmin
 	if err := appfacades.PlatformOrmQuery(ctx).Where("username", username).First(&adminUser); err != nil {
 		// Unknown user: still require captcha to slow enumeration / brute force.
-		if ok, messageKey := services.NewCaptchaServiceImpl(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
+		if ok, messageKey := services.NewPlatformCaptchaService(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
 			if messageKey == "" {
 				messageKey = "captcha_invalid"
 			}
@@ -101,7 +108,7 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeInvalid.Code)
 		}
 	} else {
-		if ok, messageKey := services.NewCaptchaServiceImpl(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
+		if ok, messageKey := services.NewPlatformCaptchaService(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
 			if messageKey == "" {
 				messageKey = "captcha_invalid"
 			}

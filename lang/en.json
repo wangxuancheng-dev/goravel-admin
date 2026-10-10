@@ -180,6 +180,7 @@
         "captcha_invalid": "Verification code is incorrect",
         "captcha_expired": "Verification code has expired, please refresh",
         "captcha_expire_min": "Captcha expiry cannot be less than {seconds} seconds",
+        "captcha_type_invalid": "Captcha type must be image or slide",
         "notification_not_found": "Notification not found",
         "blacklist_not_found": "Blacklist not found",
         "kick_out_success": "Kick out successful",

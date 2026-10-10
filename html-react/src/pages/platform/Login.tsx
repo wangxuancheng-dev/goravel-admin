@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { App, Button, Form, Input, Typography, theme } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -9,6 +9,7 @@ import { getTenantAdminLoginUrl } from '@/utils/tenant'
 import { ERROR_CODES, type ApiError } from '@/types'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import LanguageSwitch from '@/components/LanguageSwitch'
+import SlideCaptcha, { type SlideCaptchaData } from '@/components/SlideCaptcha'
 
 export default function PlatformLogin() {
   const { t } = useTranslation()
@@ -18,25 +19,79 @@ export default function PlatformLogin() {
   const showError = useUnhandledError()
   const [loading, setLoading] = useState(false)
   const [needGoogleCode, setNeedGoogleCode] = useState(false)
-  const [captcha, setCaptcha] = useState({ id: '', image: '', shouldShow: false })
+  const [captcha, setCaptcha] = useState<{
+    type: 'image' | 'slide'
+    id: string
+    image: string
+    slide: SlideCaptchaData | null
+    shouldShow: boolean
+  }>({ type: 'image', id: '', image: '', slide: null, shouldShow: false })
+  // Slide mode: x offset recorded after the user releases the slider (verified on login).
+  const [slideAnswer, setSlideAnswer] = useState('')
   const [form] = Form.useForm()
 
-  const fetchCaptcha = async () => {
+  // Captcha type (image | slide) is decided by the backend env PLATFORM_CAPTCHA_TYPE.
+  const fetchCaptcha = useCallback(async () => {
     try {
       const res = await getPlatformLoginCaptcha()
-      const info = (res as { data?: { captcha?: { captcha_id?: string; captcha_image?: string } } })?.data
-        ?.captcha
+      const info = (
+        res as {
+          data?: {
+            captcha?: {
+              type?: string
+              captcha_id?: string
+              captcha_image?: string
+              master_image?: string
+              tile_image?: string
+              tile_width?: number
+              tile_height?: number
+              tile_x?: number
+              tile_y?: number
+            }
+          }
+        }
+      )?.data?.captcha
+      const isSlide = info?.type === 'slide'
+      setSlideAnswer('')
       setCaptcha({
+        type: isSlide ? 'slide' : 'image',
         id: info?.captcha_id || '',
         image: info?.captcha_image || '',
+        slide: isSlide
+          ? {
+              captcha_id: info?.captcha_id || '',
+              master_image: info?.master_image || '',
+              tile_image: info?.tile_image || '',
+              tile_width: info?.tile_width ?? 0,
+              tile_height: info?.tile_height ?? 0,
+              tile_x: info?.tile_x ?? 0,
+              tile_y: info?.tile_y ?? 0,
+            }
+          : null,
         shouldShow: true,
       })
       form.setFieldValue('captcha_answer', undefined)
     } catch (error) {
-      setCaptcha({ id: '', image: '', shouldShow: true })
+      setSlideAnswer('')
+      setCaptcha({ type: 'image', id: '', image: '', slide: null, shouldShow: true })
       showError(error, t('common.operation_failed'))
     }
-  }
+  }, [form, showError, t])
+
+  // Image mode keeps the legacy flow (captcha appears after the first submit).
+  // Slide mode shows the slider up front, so probe the configured type first.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await getPlatformLoginCaptcha({ check: true })
+        const type = (res as { data?: { captcha?: { type?: string } } })?.data?.captcha?.type
+        if (type === 'slide') await fetchCaptcha()
+      } catch {
+        // ignore: the normal submit flow still requests a captcha when required
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const onFinish = async (values: {
     username: string
@@ -44,6 +99,10 @@ export default function PlatformLogin() {
     captcha_answer?: string
     google_code?: string
   }) => {
+    if (!needGoogleCode && captcha.shouldShow && captcha.type === 'slide' && !slideAnswer) {
+      message.warning(t('login.slide_required'))
+      return
+    }
     setLoading(true)
     try {
       const payload: {
@@ -60,7 +119,7 @@ export default function PlatformLogin() {
         payload.google_code = values.google_code
       } else if (captcha.shouldShow) {
         payload.captcha_id = captcha.id
-        payload.captcha_answer = values.captcha_answer
+        payload.captcha_answer = captcha.type === 'slide' ? slideAnswer : values.captcha_answer
       }
       const res = await platformLogin(payload)
       completePlatformLogin(res as { data?: { token?: string; admin?: unknown } })
@@ -72,7 +131,8 @@ export default function PlatformLogin() {
 
       if (code === ERROR_CODES.GOOGLE_CODE_REQUIRED) {
         setNeedGoogleCode(true)
-        setCaptcha({ id: '', image: '', shouldShow: false })
+        setCaptcha({ type: 'image', id: '', image: '', slide: null, shouldShow: false })
+        setSlideAnswer('')
         form.setFieldValue('captcha_answer', undefined)
         form.setFieldValue('google_code', undefined)
         message.warning(err.message || t('login.google_code_required'))
@@ -167,7 +227,15 @@ export default function PlatformLogin() {
               <Input size="large" placeholder={t('platform.google_code_placeholder')} maxLength={6} />
             </Form.Item>
           ) : null}
-          {captcha.shouldShow && !needGoogleCode ? (
+          {captcha.shouldShow && !needGoogleCode && captcha.type === 'slide' && captcha.slide ? (
+            <SlideCaptcha
+              key={captcha.id}
+              data={captcha.slide}
+              onConfirm={setSlideAnswer}
+              onRefresh={() => void fetchCaptcha()}
+            />
+          ) : null}
+          {captcha.shouldShow && !needGoogleCode && captcha.type === 'image' ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 {captcha.image ? (

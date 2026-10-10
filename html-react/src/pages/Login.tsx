@@ -18,7 +18,27 @@ import {
   setTenantCode,
 } from '@/utils/tenant'
 import { resolveImageDisplayUrl } from '@/utils/publicImage'
+import SlideCaptcha, { type SlideCaptchaData } from '@/components/SlideCaptcha'
 import './Login.scss'
+
+interface CaptchaState {
+  enabled: boolean
+  /** image | slide, decided per tenant by config captcha.captcha_type */
+  type: 'image' | 'slide'
+  id: string
+  image: string
+  slide: SlideCaptchaData | null
+  shouldShow: boolean
+}
+
+const EMPTY_CAPTCHA: CaptchaState = {
+  enabled: false,
+  type: 'image',
+  id: '',
+  image: '',
+  slide: null,
+  shouldShow: false,
+}
 
 interface LoginFormValues {
   tenant_code?: string
@@ -40,17 +60,9 @@ export default function LoginPage() {
   // Show tenant input when Vite tenancy is on, or URL already carries a code (local header mode).
   const showTenantField =
     !hostBoundTenant && (tenancyEnabled || !!resolveTenantCodeFromLocation() || !!getTenantCode())
-  const [captcha, setCaptcha] = useState<{
-    enabled: boolean
-    id: string
-    image: string
-    shouldShow: boolean
-  }>({
-    enabled: false,
-    id: '',
-    image: '',
-    shouldShow: false,
-  })
+  const [captcha, setCaptcha] = useState<CaptchaState>(EMPTY_CAPTCHA)
+  // Slide mode: x offset recorded after the user releases the slider (verified on login).
+  const [slideAnswer, setSlideAnswer] = useState('')
   const setToken = useUserStore((s) => s.setToken)
   const fetchUserInfo = useUserStore((s) => s.fetchUserInfo)
   const themeColor = useAppStore((s) => s.themeColor)
@@ -138,9 +150,10 @@ export default function LoginPage() {
         shouldShow: false,
         id: '',
         image: '',
+        slide: null,
       }))
     } catch {
-      setCaptcha({ enabled: false, id: '', image: '', shouldShow: false })
+      setCaptcha(EMPTY_CAPTCHA)
     }
   }
 
@@ -153,16 +166,33 @@ export default function LoginPage() {
       const username = String(form.getFieldValue('username') || '').trim()
       const res = await getLoginCaptcha({ username: username || undefined })
       const info = res.data?.captcha
-      const hasImage = !!(info?.captcha_id && info?.captcha_image)
+      const isSlide = info?.type === 'slide'
+      const hasChallenge = isSlide
+        ? !!(info?.captcha_id && info?.master_image && info?.tile_image)
+        : !!(info?.captcha_id && info?.captcha_image)
+      setSlideAnswer('')
       setCaptcha({
-        enabled: !!info?.enabled || !!info?.required || hasImage,
+        enabled: !!info?.enabled || !!info?.required || hasChallenge,
+        type: isSlide ? 'slide' : 'image',
         id: info?.captcha_id || '',
         image: info?.captcha_image || '',
-        shouldShow: hasImage,
+        slide: isSlide
+          ? {
+              captcha_id: info?.captcha_id || '',
+              master_image: info?.master_image || '',
+              tile_image: info?.tile_image || '',
+              tile_width: info?.tile_width ?? 0,
+              tile_height: info?.tile_height ?? 0,
+              tile_x: info?.tile_x ?? 0,
+              tile_y: info?.tile_y ?? 0,
+            }
+          : null,
+        shouldShow: hasChallenge,
       })
       form.setFieldValue('captcha_answer', undefined)
     } catch {
-      setCaptcha({ enabled: false, id: '', image: '', shouldShow: false })
+      setSlideAnswer('')
+      setCaptcha(EMPTY_CAPTCHA)
     }
   }
 
@@ -180,6 +210,10 @@ export default function LoginPage() {
   }, [])
 
   const handleSubmit = async (values: LoginFormValues) => {
+    if (!needGoogleCode && captcha.shouldShow && captcha.type === 'slide' && !slideAnswer) {
+      message.warning(t('login.slide_required'))
+      return
+    }
     setLoading(true)
     try {
       // Prefer form value, then URL/storage. Always persist + send when present so
@@ -202,7 +236,10 @@ export default function LoginPage() {
         ...(tenantCode ? { tenant_code: tenantCode } : {}),
         ...(needGoogleCode ? { google_code: values.google_code } : {}),
         ...(!needGoogleCode && captcha.shouldShow
-          ? { captcha_id: captcha.id, captcha_answer: values.captcha_answer }
+          ? {
+              captcha_id: captcha.id,
+              captcha_answer: captcha.type === 'slide' ? slideAnswer : values.captcha_answer,
+            }
           : {}),
       }
 
@@ -222,7 +259,8 @@ export default function LoginPage() {
 
       if (code === ERROR_CODES.GOOGLE_CODE_REQUIRED) {
         setNeedGoogleCode(true)
-        setCaptcha((prev) => ({ ...prev, shouldShow: false, id: '', image: '' }))
+        setCaptcha((prev) => ({ ...prev, shouldShow: false, id: '', image: '', slide: null }))
+        setSlideAnswer('')
         form.setFieldValue('captcha_answer', undefined)
         form.setFieldValue('google_code', undefined)
         message.warning(err.message || t('login.google_code_required'))
@@ -355,7 +393,16 @@ export default function LoginPage() {
                 </Form.Item>
               )}
 
-              {captcha.shouldShow && !needGoogleCode && (
+              {captcha.shouldShow && !needGoogleCode && captcha.type === 'slide' && captcha.slide && (
+                <SlideCaptcha
+                  key={captcha.id}
+                  data={captcha.slide}
+                  onConfirm={setSlideAnswer}
+                  onRefresh={() => void fetchCaptcha()}
+                />
+              )}
+
+              {captcha.shouldShow && !needGoogleCode && captcha.type === 'image' && (
                 <>
                   <div className="captcha-row">
                     {captcha.image ? (

@@ -134,7 +134,9 @@
     "brand_fallback": "管理后台",
     "oidc_login": "企业账号登录",
     "oidc_processing": "正在完成企业登录…",
-    "oidc_failed": "企业登录失败"
+    "oidc_failed": "企业登录失败",
+    "slide_title": "请拖动滑块完成验证",
+    "slide_required": "请先拖动滑块完成验证"
   },
   "error": {
     "default": "请求失败",
@@ -1140,7 +1142,11 @@
     "oidc_scopes": "Scopes",
     "oidc_button_label": "按钮文案",
     "oidc_auto_provision": "自动创建禁用账号",
-    "keep_blank_to_preserve": "留空则保留原值"
+    "keep_blank_to_preserve": "留空则保留原值",
+    "captcha_type": "验证码类型",
+    "captcha_type_image": "字符图形验证码",
+    "captcha_type_slide": "滑块拼图验证码",
+    "captcha_type_tip": "登录验证码的展示方式，仅影响本租户后台登录页"
   },
   "tenant": {
     "add": "新建租户",

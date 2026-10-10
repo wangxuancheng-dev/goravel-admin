@@ -16,6 +16,14 @@
         <span style="margin-left: 10px; color: var(--text-color-secondary);">{{ $t('config.captcha_enabled_tip') }}</span>
       </el-form-item>
 
+      <el-form-item :label="$t('config.captcha_type')" prop="captcha_type">
+        <el-select v-model="formData.captcha_type" style="width: 220px">
+          <el-option :label="$t('config.captcha_type_image')" value="image" />
+          <el-option :label="$t('config.captcha_type_slide')" value="slide" />
+        </el-select>
+        <span style="margin-left: 10px; color: var(--text-color-secondary);">{{ $t('config.captcha_type_tip') }}</span>
+      </el-form-item>
+
       <el-form-item :label="$t('config.captcha_expire')" prop="captcha_expire">
         <el-input-number
           v-model="formData.captcha_expire"
@@ -49,6 +57,7 @@ const submitting = ref(false)
 
 const formData = reactive({
   captcha_enabled: false,
+  captcha_type: 'image',
   captcha_expire: 120
 })
 
@@ -75,6 +84,8 @@ const loadData = async () => {
         
         if (key === 'captcha_enabled') {
           value = value === '1' || value === 'true' || value === true
+        } else if (key === 'captcha_type') {
+          value = value === 'slide' ? 'slide' : 'image'
         } else if (key === 'captcha_expire') {
           value = value ? parseInt(value) : 120
         }
@@ -98,6 +109,7 @@ const handleSubmit = async () => {
       try {
         const configs = {
           captcha_enabled: formData.captcha_enabled ? '1' : '0',
+          captcha_type: formData.captcha_type === 'slide' ? 'slide' : 'image',
           captcha_expire: formData.captcha_expire
         }
 

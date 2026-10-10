@@ -81,6 +81,14 @@ export interface CaptchaInfo {
     required?: boolean
     captcha_id?: string
     captcha_image?: string
+    /** image (default) | slide */
+    type?: 'image' | 'slide'
+    master_image?: string
+    tile_image?: string
+    tile_width?: number
+    tile_height?: number
+    tile_x?: number
+    tile_y?: number
   }
 }
 

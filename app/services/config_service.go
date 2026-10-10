@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -120,6 +121,13 @@ func (s *ConfigServiceImpl) Save(group string, configsMap map[string]any) error 
 	}
 
 	if group == "captcha" {
+		if raw, ok := configsMap["captcha_type"]; ok {
+			t := strings.ToLower(strings.TrimSpace(cast.ToString(raw)))
+			if t != CaptchaTypeImage && t != CaptchaTypeSlide {
+				return apperrors.ErrCaptchaTypeInvalid
+			}
+			configsMap["captcha_type"] = t
+		}
 		if raw, ok := configsMap["captcha_expire"]; ok {
 			expire := cast.ToInt(raw)
 			if expire < 30 {
