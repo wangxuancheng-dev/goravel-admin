@@ -9,6 +9,7 @@ import (
 func Seeders() []seeder.Seeder {
 	return []seeder.Seeder{
 		&seeders.DatabaseSeeder{},
+		&seeders.PlatformPlanSeeder{}, // landlord plans (free/pro); skipped on tenant databases
 		&seeders.MenuSeeder{},       // 菜单（需要先创建，因为权限依赖）
 		&seeders.PermissionSeeder{}, // 权限（依赖菜单）
 		&seeders.GeneratedModulesSeeder{}, // 代码生成器模块（依赖菜单）
