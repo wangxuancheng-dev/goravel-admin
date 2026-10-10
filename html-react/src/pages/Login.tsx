@@ -37,7 +37,9 @@ export default function LoginPage() {
   const [needGoogleCode, setNeedGoogleCode] = useState(false)
   const tenancyEnabled = useMemo(() => isTenancyEnabled(), [])
   const hostBoundTenant = useMemo(() => isHostBoundTenantContext(), [])
-  const showTenantField = tenancyEnabled && !hostBoundTenant
+  // Show tenant input when Vite tenancy is on, or URL already carries a code (local header mode).
+  const showTenantField =
+    !hostBoundTenant && (tenancyEnabled || !!resolveTenantCodeFromLocation() || !!getTenantCode())
   const [captcha, setCaptcha] = useState<{
     enabled: boolean
     id: string
@@ -180,15 +182,24 @@ export default function LoginPage() {
   const handleSubmit = async (values: LoginFormValues) => {
     setLoading(true)
     try {
-      if (tenancyEnabled) {
-        setTenantCode(values.tenant_code)
+      // Prefer form value, then URL/storage. Always persist + send when present so
+      // backend TENANCY_DRIVER=database works even if VITE_TENANCY_* is unset.
+      const tenantCode = String(
+        values.tenant_code ||
+          resolveTenantCodeFromLocation() ||
+          getTenantCode() ||
+          resolveTenantCodeFromHostname() ||
+          '',
+      )
+        .trim()
+        .toLowerCase()
+      if (tenantCode) {
+        setTenantCode(tenantCode)
       }
       const payload = {
         username: values.username,
         password: values.password,
-        ...(tenancyEnabled && values.tenant_code
-          ? { tenant_code: String(values.tenant_code).trim().toLowerCase() }
-          : {}),
+        ...(tenantCode ? { tenant_code: tenantCode } : {}),
         ...(needGoogleCode ? { google_code: values.google_code } : {}),
         ...(!needGoogleCode && captcha.shouldShow
           ? { captcha_id: captcha.id, captcha_answer: values.captcha_answer }

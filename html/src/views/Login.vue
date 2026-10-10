@@ -178,7 +178,10 @@ const { t } = useI18n()
 
 const tenancyEnabled = isTenancyEnabled()
 const hostBoundTenant = isHostBoundTenantContext()
-const showTenantField = tenancyEnabled && !hostBoundTenant
+// Show when Vite tenancy is on, or URL/storage already has a code (local header mode).
+const showTenantField =
+  !hostBoundTenant &&
+  (tenancyEnabled || !!resolveTenantCodeFromLocation() || !!getTenantCode())
 const loginFormRef = ref(null)
 const loading = ref(false)
 
@@ -362,17 +365,29 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
-        if (tenancyEnabled) {
-          setTenantCode(loginForm.tenant_code)
+        // Prefer form, then URL/storage/host. Always persist + send when present so
+        // backend TENANCY_DRIVER=database works even if VITE_TENANCY_* is unset.
+        const tenantCode = String(
+          loginForm.tenant_code ||
+            resolveTenantCodeFromLocation() ||
+            getTenantCode() ||
+            resolveTenantCodeFromHostname() ||
+            ''
+        )
+          .trim()
+          .toLowerCase()
+        if (tenantCode) {
+          setTenantCode(tenantCode)
+          loginForm.tenant_code = tenantCode
         }
         const payload = {
           username: loginForm.username,
           password: loginForm.password
         }
-        if (tenancyEnabled && loginForm.tenant_code) {
-          payload.tenant_code = String(loginForm.tenant_code).trim().toLowerCase()
+        if (tenantCode) {
+          payload.tenant_code = tenantCode
         }
-        
+
         // 如果已经需要谷歌验证码，添加谷歌验证码
         if (needGoogleCode.value) {
           payload.google_code = loginForm.google_code
