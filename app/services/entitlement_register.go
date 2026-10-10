@@ -36,11 +36,21 @@ type RegisterModuleResult struct {
 	LimitFeature *models.PlatformFeature `json:"limit_feature,omitempty"`
 }
 
+// RegisterCapabilitySpec registers a boolean capability under an existing module
+// (e.g. module.member.export). menu_slugs stay empty so menus are not affected.
+type RegisterCapabilitySpec struct {
+	ModuleName  string
+	Capability  string
+	DisplayName string
+	AlwaysOn    bool
+	AdminID     uint
+}
+
 // RegisterModule upserts catalog entries for hand-written or generated modules.
 // It does not enable the module for any tenant (unless AlwaysOn).
 func (s *EntitlementService) RegisterModule(spec RegisterModuleSpec) (*RegisterModuleResult, error) {
 	name := entitlement.NormalizeModuleName(spec.ModuleName)
-	if name == "" {
+	if !entitlement.ValidModuleSegment(name) {
 		return nil, apperrors.ErrInvalidArgument
 	}
 	display := strings.TrimSpace(spec.DisplayName)
@@ -93,6 +103,36 @@ func (s *EntitlementService) RegisterModule(spec RegisterModuleSpec) (*RegisterM
 
 	_ = s.audit(spec.AdminID, 0, "module.register", fmt.Sprintf("%s always_on=%v row_quota=%v", feat.Key, spec.AlwaysOn, spec.RowQuota))
 	return out, nil
+}
+
+// RegisterCapability upserts module.{module}.{capability} with no menu binding.
+func (s *EntitlementService) RegisterCapability(spec RegisterCapabilitySpec) (*models.PlatformFeature, error) {
+	key := entitlement.ModuleCapabilityKey(spec.ModuleName, spec.Capability)
+	if key == "" {
+		return nil, apperrors.ErrInvalidArgument
+	}
+	display := strings.TrimSpace(spec.DisplayName)
+	if display == "" {
+		display = entitlement.NormalizeModuleName(spec.ModuleName) + " / " + entitlement.NormalizeModuleName(spec.Capability)
+	}
+	def := "false"
+	if spec.AlwaysOn {
+		def = "true"
+	}
+	feat, err := s.UpsertFeature(UpsertFeatureInput{
+		Key:          key,
+		Name:         display,
+		Description:  "In-module capability (no menu)",
+		Type:         entitlement.TypeBoolean,
+		DefaultValue: def,
+		MenuSlugs:    []string{},
+		AlwaysOn:     &spec.AlwaysOn,
+	})
+	if err != nil {
+		return nil, err
+	}
+	_ = s.audit(spec.AdminID, 0, "capability.register", feat.Key)
+	return feat, nil
 }
 
 // CheckAndConsumeModuleRows enforces quota.module.{name}.rows when that limit feature exists.

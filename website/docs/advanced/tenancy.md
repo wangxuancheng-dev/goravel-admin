@@ -36,6 +36,7 @@ TENANCY_DRIVER=database
 | 你要做的事 | 页面入口 | 说明 |
 |------------|----------|------|
 | 登记模块 / 手写模块 | **权益套餐** `/platform/entitlements` | 「登记模块」 |
+| 登记模块内小功能 | 同上 | 「登记小功能」→ `module.{模块}.{能力}`，不绑菜单 |
 | 新建套餐、改套餐里开哪些模块/额度 | 同上页下方 **套餐** → **套餐权益** | 每行 `key=value` |
 | 给某租户订套餐 / 特批开关 | **租户** `/platform/tenants` → 打开详情 → **模块权益** | 分配套餐或 Switch 特批 |
 | 代码生成时选是否纳入权益 | 租户后台 Dev → 代码生成器 | 勾选「纳入权益 / 始终开通 / 行数配额」 |
@@ -53,6 +54,11 @@ go run . artisan migrate
    - 填 `module_name`（如 `guestbook`）、菜单 slug  
    - 可选：**始终开通**（不走套餐）、**行数配额**（套餐里再写额度）  
    - 手写模块还需：路由包 `middleware.EntitlementModule("guestbook")`；有行数配额则在 Create 调 `CheckAndConsumeModuleRows`
+
+1b. **登记小功能**（可选，模块内能力如导出）  
+   - 同页 → **登记小功能**：`module_name=member` + `capability=export` → `module.member.export`  
+   - 不绑菜单；接口用 `middleware.EntitlementFeature("module.member.export")`；前端用 `/info` 的 entitlements 隐藏按钮  
+   - 套餐权益里写 `module.member.export=true`
 
 2. **配套餐权益**  
    - 同页新建套餐（如 `free` / `pro`）  
@@ -79,19 +85,96 @@ quota.module.guestbook.rows=1000
 | Key | 含义 |
 |-----|------|
 | `module.{name}` | 模块是否开通（boolean） |
+| `module.{name}.{capability}` | 模块内小功能（boolean，无菜单） |
 | `quota.module.{name}.rows` | 行数上限（limit，可选） |
 
 解析优先级：`套餐默认 < 特批覆盖`；`always_on` 功能忽略套餐关闭。
 
 ### API（可选，等同于上面 UI）
 
-- `GET /api/platform/features`、`POST /api/platform/features/register-module`
+- `GET /api/platform/features`、`POST /api/platform/features/register-module`、`POST /api/platform/features/register-capability`
 - `GET/POST /api/platform/plans`、`PUT /api/platform/plans/{code}`（body 可带 `entitlements`）
 - `GET /api/platform/tenants/{id}/entitlements`
 - `POST /api/platform/tenants/{id}/subscription`
 - `PUT/DELETE /api/platform/tenants/{id}/entitlements/{key}`
 
 权益开关全局生效（管理端 / 用户端同一套 snapshot）。
+
+### 开发接入（接口 + 页面）
+
+权益与 RBAC 权限是两套：菜单/按钮权限用 `hasPermission`；套餐开关用 `hasEntitlement`。**超级管理员不会绕过权益**。
+
+#### 1) 后端：模块路由整组拦截
+
+```go
+import "goravel/app/http/middleware"
+
+// module.guestbook — 未开通整组 403 tenant_feature_disabled
+router.Middleware(middleware.EntitlementModule("guestbook")).Group(func(router route.Router) {
+    router.Resource("guestbooks", guestbookController)
+})
+```
+
+#### 2) 后端：模块内小功能（单接口）
+
+平台页「登记小功能」得到 `module.member.export` 后：
+
+```go
+router.Middleware(middleware.EntitlementFeature("module.member.export")).Get(
+    "members/export", memberController.Export,
+)
+```
+
+也可用 `middleware.EntitlementModule("member")` 包外层 + 小功能中间件包导出接口。
+
+#### 3) 后端：行数配额（Create）
+
+登记模块时勾选「行数配额」后，在创建 成功写入前：
+
+```go
+if err := services.ConsumeModuleRowsFromHTTP(ctx, "guestbook", 1); err != nil {
+    return mapEntitlementError(ctx, err) // 422 entitlement_limit_exceeded
+}
+```
+
+`TENANCY_DRIVER=off` 或未登记 `quota.module.*.rows` 时为 no-op。
+
+#### 4) 前端：读 `/api/admin/info` 的 entitlements
+
+登录后 `GET /api/admin/info` 在 tenancy 开启时返回：
+
+```json
+{
+  "entitlements": {
+    "version": 3,
+    "plan_code": "pro",
+    "channel": "admin",
+    "features": { "module.guestbook": true, "module.member.export": false },
+    "limits": { "quota.module.guestbook.rows": { "limit": 1000, "used": 12, "remaining": 988 } }
+  }
+}
+```
+
+React（`html-react`）：
+
+```tsx
+import { useUserStore } from '@/stores/user'
+
+const canExport = useUserStore((s) => s.hasEntitlement('module.member.export'))
+// ...
+{canExport ? <Button onClick={onExport}>Export</Button> : null}
+```
+
+Vue（`html`）：
+
+```js
+import { useUserStore } from '@/store/user'
+const userStore = useUserStore()
+const canExport = userStore.hasEntitlement('module.member.export')
+```
+
+tenancy 关闭时 `hasEntitlement` 恒为 `true`（与后端中间件一致）。菜单隐藏由后端按 `menu_slugs` 过滤，小功能无菜单，必须前端自己藏按钮。
+
 
 ## 配置
 

@@ -44,10 +44,27 @@ export interface CurrentTenantInfo {
   name?: string
 }
 
+export interface EntitlementLimitView {
+  limit?: number
+  used?: number
+  remaining?: number
+  unlimited?: boolean
+}
+
+/** Payload from GET /api/admin/info → data.entitlements (tenancy on). */
+export interface EntitlementsView {
+  version?: number
+  plan_code?: string
+  channel?: string
+  features?: Record<string, boolean>
+  limits?: Record<string, EntitlementLimitView>
+}
+
 export interface UserInfoPayload {
   admin: AdminInfo
   config?: Record<string, unknown>
   tenant?: CurrentTenantInfo | null
+  entitlements?: EntitlementsView | null
 }
 
 export interface LoginPayload {

@@ -1,10 +1,11 @@
-import { Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, message } from 'antd'
+import { AutoComplete, Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, message } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   getPlatformFeatures,
   getPlatformPlanEntitlements,
   getPlatformPlans,
+  registerPlatformCapability,
   registerPlatformModuleFeature,
   updatePlatformPlan,
   upsertPlatformPlan,
@@ -41,10 +42,12 @@ export default function PlatformEntitlementsPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(false)
   const [moduleOpen, setModuleOpen] = useState(false)
+  const [capabilityOpen, setCapabilityOpen] = useState(false)
   const [planOpen, setPlanOpen] = useState(false)
   const [planEntOpen, setPlanEntOpen] = useState(false)
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
   const [moduleForm] = Form.useForm()
+  const [capabilityForm] = Form.useForm()
   const [planForm] = Form.useForm()
   const [planEntForm] = Form.useForm()
 
@@ -92,6 +95,40 @@ export default function PlatformEntitlementsPage() {
       showError(e, t('common.operation_failed'))
     }
   }
+
+  const submitCapability = async () => {
+    try {
+      const values = await capabilityForm.validateFields()
+      await registerPlatformCapability({
+        module_name: values.module_name,
+        capability: values.capability,
+        display_name: values.display_name,
+        always_on: !!values.always_on,
+      })
+      message.success(t('entitlement.capability_registered'))
+      setCapabilityOpen(false)
+      capabilityForm.resetFields()
+      await load()
+    } catch (e) {
+      if (e && typeof e === 'object' && 'errorFields' in e) return
+      showError(e, t('common.operation_failed'))
+    }
+  }
+
+  const featureKind = (row: Feature) => {
+    const key = String(row.key || '')
+    if (key.startsWith('quota.')) return 'quota'
+    if (key.startsWith('module.') && key.split('.').length >= 3) return 'capability'
+    if (key.startsWith('module.')) return 'module'
+    return 'other'
+  }
+
+  const moduleOptions = features
+    .filter((f) => featureKind(f) === 'module')
+    .map((f) => {
+      const name = String(f.key || '').replace(/^module\./, '')
+      return { value: name, label: f.name ? `${f.name} (${name})` : name }
+    })
 
   const submitPlan = async () => {
     try {
@@ -182,13 +219,19 @@ export default function PlatformEntitlementsPage() {
       <Card
         title={t('entitlement.catalog_title')}
         extra={
-          <Button type="primary" disabled={isViewer} onClick={() => setModuleOpen(true)}>
-            {t('entitlement.register_module')}
-          </Button>
+          <Space>
+            <Button disabled={isViewer} onClick={() => setCapabilityOpen(true)}>
+              {t('entitlement.register_capability')}
+            </Button>
+            <Button type="primary" disabled={isViewer} onClick={() => setModuleOpen(true)}>
+              {t('entitlement.register_module')}
+            </Button>
+          </Space>
         }
       >
         <p style={{ color: 'rgba(0,0,0,0.45)', marginTop: 0 }}>{t('entitlement.catalog_hint')}</p>
         <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('entitlement.handwritten_hint')}</p>
+        <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('entitlement.capability_hint')}</p>
         <Table
           rowKey="key"
           loading={loading}
@@ -197,6 +240,17 @@ export default function PlatformEntitlementsPage() {
           columns={[
             { title: t('entitlement.feature'), dataIndex: 'name' },
             { title: 'Key', dataIndex: 'key', render: (v) => <code>{v}</code> },
+            {
+              title: t('entitlement.kind'),
+              width: 120,
+              render: (_, row) => {
+                const kind = featureKind(row)
+                if (kind === 'capability') return <Tag color="blue">{t('entitlement.kind_capability')}</Tag>
+                if (kind === 'quota') return <Tag>{t('entitlement.kind_quota')}</Tag>
+                if (kind === 'module') return <Tag color="purple">{t('entitlement.kind_module')}</Tag>
+                return '—'
+              },
+            },
             { title: t('entitlement.type'), dataIndex: 'type', width: 100 },
             {
               title: t('entitlement.always_on'),
@@ -265,6 +319,52 @@ export default function PlatformEntitlementsPage() {
             <Switch />
           </Form.Item>
           <Form.Item name="row_quota" label={t('entitlement.row_quota')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={capabilityOpen}
+        title={t('entitlement.register_capability')}
+        onCancel={() => setCapabilityOpen(false)}
+        onOk={() => void submitCapability()}
+        destroyOnHidden
+      >
+        <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('entitlement.capability_hint')}</p>
+        <Form form={capabilityForm} layout="vertical">
+          <Form.Item
+            name="module_name"
+            label={t('entitlement.module_name')}
+            rules={[
+              { required: true },
+              {
+                // Keep module.{a}.{b} within ValidateFeatureKey max length (63).
+                pattern: /^[A-Za-z][A-Za-z0-9_-]{0,23}$/,
+                message: t('entitlement.capability_name_invalid'),
+              },
+            ]}
+          >
+            <AutoComplete options={moduleOptions} placeholder="member" filterOption />
+          </Form.Item>
+          <Form.Item
+            name="capability"
+            label={t('entitlement.capability_name')}
+            rules={[
+              { required: true },
+              {
+                pattern: /^[A-Za-z][A-Za-z0-9_-]{0,23}$/,
+                message: t('entitlement.capability_name_invalid'),
+              },
+            ]}
+            extra={t('entitlement.capability_key_preview')}
+          >
+            <Input placeholder="export" />
+          </Form.Item>
+          <Form.Item name="display_name" label={t('entitlement.feature')}>
+            <Input placeholder="Member export" />
+          </Form.Item>
+          <Form.Item name="always_on" label={t('entitlement.always_on')} valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>

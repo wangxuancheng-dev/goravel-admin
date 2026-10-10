@@ -389,6 +389,15 @@ export function registerPlatformModuleFeature(data: {
   return platformRequest.post('/features/register-module', data)
 }
 
+export function registerPlatformCapability(data: {
+  module_name: string
+  capability: string
+  display_name?: string
+  always_on?: boolean
+}) {
+  return platformRequest.post('/features/register-capability', data)
+}
+
 export async function getPlatformPlans() {
   return normalizeListResponse(await platformRequest.get('/plans'))
 }

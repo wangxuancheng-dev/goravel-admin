@@ -12,6 +12,7 @@ export const useUserStore = defineStore('user', {
       token: Storage.getItem('token', ''),
       adminInfo: adminInfo,
       tenant: Storage.getItem('tenantInfo', null),
+      entitlements: null,
       permissions: [],
       menus: [], // 菜单不缓存，每次刷新都从服务器重新获取
       isSuperAdmin: false, // 是否是超级管理员
@@ -57,6 +58,24 @@ export const useUserStore = defineStore('user', {
       }
       // 如果没有权限，根据配置决定是否显示
       return state.config.showButtonsWithoutPermission
+    },
+    // Plan feature gate (not RBAC). Super-admin does not bypass.
+    hasEntitlement: (state) => (featureKey) => {
+      if (!state.config.tenancyEnabled) {
+        return true
+      }
+      const key = String(featureKey || '').trim().toLowerCase()
+      if (!key) {
+        return false
+      }
+      return !!(state.entitlements?.features && state.entitlements.features[key])
+    },
+    getEntitlementLimit: (state) => (limitKey) => {
+      const key = String(limitKey || '').trim().toLowerCase()
+      if (!key) {
+        return undefined
+      }
+      return state.entitlements?.limits?.[key]
     }
   },
 
@@ -151,6 +170,20 @@ export const useUserStore = defineStore('user', {
       }
     },
 
+    setEntitlements(view) {
+      if (!view || typeof view !== 'object') {
+        this.entitlements = null
+        return
+      }
+      this.entitlements = {
+        version: view.version,
+        plan_code: view.plan_code,
+        channel: view.channel,
+        features: view.features && typeof view.features === 'object' ? view.features : {},
+        limits: view.limits && typeof view.limits === 'object' ? view.limits : {}
+      }
+    },
+
     setConfig(config) {
       this.config = {
         showButtonsWithoutPermission: config?.show_buttons_without_permission || config?.showButtonsWithoutPermission || false,
@@ -207,6 +240,7 @@ export const useUserStore = defineStore('user', {
           this.menus = []
           this.adminInfo = null
           this.permissions = []
+          this.entitlements = null
           Storage.removeItem('adminInfo')
         }
         
@@ -267,6 +301,7 @@ export const useUserStore = defineStore('user', {
             this.setTenant(null)
           }
         }
+        this.setEntitlements(res.data?.entitlements || null)
         return res
       } catch (error) {
         // fetchUserInfo 失败时，如果旧数据存在，恢复旧数据
@@ -302,6 +337,7 @@ export const useUserStore = defineStore('user', {
         this.token = ''
         this.adminInfo = null
         this.tenant = null
+        this.entitlements = null
         this.permissions = []
         this.menus = []
         this.isSuperAdmin = false

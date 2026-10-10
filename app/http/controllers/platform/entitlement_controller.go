@@ -99,6 +99,33 @@ func (c *EntitlementController) RegisterModule(ctx http.Context) http.Response {
 	return response.Success(ctx, res)
 }
 
+// RegisterCapability registers module.{module}.{capability} without a menu slug.
+func (c *EntitlementController) RegisterCapability(ctx http.Context) http.Response {
+	if resp := c.requireTenancy(ctx); resp != nil {
+		return resp
+	}
+	var body struct {
+		ModuleName  string `json:"module_name"`
+		Capability  string `json:"capability"`
+		DisplayName string `json:"display_name"`
+		AlwaysOn    bool   `json:"always_on"`
+	}
+	if err := ctx.Request().Bind(&body); err != nil {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrParamsError.Code)
+	}
+	feat, err := c.svc(ctx).RegisterCapability(services.RegisterCapabilitySpec{
+		ModuleName:  body.ModuleName,
+		Capability:  body.Capability,
+		DisplayName: body.DisplayName,
+		AlwaysOn:    body.AlwaysOn,
+		AdminID:     c.platformAdminID(ctx),
+	})
+	if err != nil {
+		return mapEntitlementError(ctx, err)
+	}
+	return response.Success(ctx, map[string]any{"feature": featureToJSON(*feat)})
+}
+
 func (c *EntitlementController) FeatureUpdate(ctx http.Context) http.Response {
 	if resp := c.requireTenancy(ctx); resp != nil {
 		return resp

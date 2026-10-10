@@ -1,6 +1,7 @@
 package entitlement
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -72,6 +73,19 @@ func TestModuleFeatureKey(t *testing.T) {
 	}
 	if ModuleRowsLimitKey("guestbook") != "quota.module.guestbook.rows" {
 		t.Fatalf("got %s", ModuleRowsLimitKey("guestbook"))
+	}
+	if ModuleCapabilityKey("member", "export") != "module.member.export" {
+		t.Fatalf("got %s", ModuleCapabilityKey("member", "export"))
+	}
+	if ModuleCapabilityKey("member.export", "x") != "" {
+		t.Fatalf("dotted module segment should be rejected")
+	}
+	if ModuleCapabilityKey("member", "export.v2") != "" {
+		t.Fatalf("dotted capability segment should be rejected")
+	}
+	long := strings.Repeat("a", 32)
+	if ModuleCapabilityKey(long, long) != "" {
+		t.Fatalf("overlong capability key should be rejected")
 	}
 }
 

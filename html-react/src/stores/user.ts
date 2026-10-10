@@ -3,7 +3,14 @@ import { compact, map } from 'lodash-es'
 import { getInfo, logout as logoutApi } from '@/api/auth'
 import Storage from '@/utils/storage'
 import logger from '@/utils/logger'
-import type { AdminInfo, CurrentTenantInfo, FeatureConfig, MenuNode } from '@/types'
+import type {
+  AdminInfo,
+  CurrentTenantInfo,
+  EntitlementLimitView,
+  EntitlementsView,
+  FeatureConfig,
+  MenuNode,
+} from '@/types'
 import { clearTenantCode, getTenantCode, resolveEffectiveTenantCode, resolveTenantCodeFromLocation, setTenantCode } from '@/utils/tenant'
 
 const defaultConfig: FeatureConfig = {
@@ -55,6 +62,7 @@ interface UserState {
   token: string
   adminInfo: AdminInfo | null
   tenant: CurrentTenantInfo | null
+  entitlements: EntitlementsView | null
   permissions: string[]
   menus: MenuNode[]
   isSuperAdmin: boolean
@@ -65,10 +73,14 @@ interface UserState {
   isLoggedIn: () => boolean
   hasPermission: (permission: string) => boolean
   shouldShowButton: (permission: string) => boolean
+  /** Plan feature gate (not RBAC). Super-admin does not bypass. */
+  hasEntitlement: (featureKey: string) => boolean
+  getEntitlementLimit: (limitKey: string) => EntitlementLimitView | undefined
 
   setToken: (token: string) => void
   setAdminInfo: (adminInfo: AdminInfo) => void
   setTenant: (tenant: CurrentTenantInfo | null | undefined) => void
+  setEntitlements: (view: EntitlementsView | null | undefined) => void
   setPermissions: (permissions: AdminInfo['permissions']) => void
   setMenus: (menus: MenuNode[]) => void
   setConfig: (config?: Record<string, unknown>) => void
@@ -83,6 +95,7 @@ export const useUserStore = create<UserState>((set, get) => {
     token: Storage.getItem<string>('token', '') || '',
     adminInfo: cachedAdmin,
     tenant: Storage.getItem<CurrentTenantInfo>('tenantInfo', null),
+    entitlements: null,
     permissions: [],
     menus: [],
     isSuperAdmin: false,
@@ -103,6 +116,25 @@ export const useUserStore = create<UserState>((set, get) => {
       if (state.isSuperAdmin) return true
       if (state.permissions.includes(permission)) return true
       return state.config.showButtonsWithoutPermission
+    },
+
+    hasEntitlement: (featureKey) => {
+      const state = get()
+      if (!state.config.tenancyEnabled) return true
+      const key = String(featureKey || '')
+        .trim()
+        .toLowerCase()
+      if (!key) return false
+      return !!state.entitlements?.features?.[key]
+    },
+
+    getEntitlementLimit: (limitKey) => {
+      const state = get()
+      const key = String(limitKey || '')
+        .trim()
+        .toLowerCase()
+      if (!key) return undefined
+      return state.entitlements?.limits?.[key]
     },
 
     setToken: (token) => {
@@ -147,6 +179,22 @@ export const useUserStore = create<UserState>((set, get) => {
       if (normalized.code) {
         setTenantCode(normalized.code)
       }
+    },
+
+    setEntitlements: (view) => {
+      if (!view || typeof view !== 'object') {
+        set({ entitlements: null })
+        return
+      }
+      set({
+        entitlements: {
+          version: view.version,
+          plan_code: view.plan_code,
+          channel: view.channel,
+          features: view.features && typeof view.features === 'object' ? view.features : {},
+          limits: view.limits && typeof view.limits === 'object' ? view.limits : {},
+        },
+      })
     },
 
     setPermissions: (permissions) => {
@@ -222,7 +270,7 @@ export const useUserStore = create<UserState>((set, get) => {
         set({ isFetchingUserInfo: true })
 
         if (force || !get().userInfoFetched) {
-          set({ menus: [], adminInfo: null, permissions: [] })
+          set({ menus: [], adminInfo: null, permissions: [], entitlements: null })
           Storage.removeItem('adminInfo')
         }
 
@@ -278,6 +326,10 @@ export const useUserStore = create<UserState>((set, get) => {
           }
         }
 
+        const entitlementsPayload = (res.data as { entitlements?: EntitlementsView | null } | undefined)
+          ?.entitlements
+        get().setEntitlements(entitlementsPayload)
+
         return res
       } catch (error) {
         if (oldMenus.length > 0 && !force) {
@@ -309,6 +361,7 @@ export const useUserStore = create<UserState>((set, get) => {
           token: '',
           adminInfo: null,
           tenant: null,
+          entitlements: null,
           permissions: [],
           menus: [],
           isSuperAdmin: false,

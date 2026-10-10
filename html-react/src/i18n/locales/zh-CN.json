@@ -2226,7 +2226,7 @@
   },
   "entitlement": {
     "catalog_title": "功能目录",
-    "catalog_hint": "此处列出已纳入套餐权益管理的模块。",
+    "catalog_hint": "此处列出已登记、可供套餐授权的模块与模块内小功能。",
     "plans_title": "套餐",
     "add_plan": "新增套餐",
     "feature": "功能",
@@ -2259,6 +2259,16 @@
     "edit_plan_entitlements": "套餐权益",
     "plan_entitlements": "权益配置",
     "plan_entitlements_hint": "每行一个 key=value。例如 module.guestbook=true，quota.module.guestbook.rows=1000（-1 表示不限）。",
-    "plan_entitlements_saved": "套餐权益已保存"
+    "plan_entitlements_saved": "套餐权益已保存",
+    "register_capability": "登记小功能",
+    "capability_name": "能力标识",
+    "capability_registered": "小功能已登记",
+    "capability_hint": "小功能是模块下的布尔能力（如 module.member.export），不绑定菜单。接口用 middleware.EntitlementFeature(key) 拦截，前端用 /info 的 entitlements 隐藏按钮。",
+    "capability_key_preview": "将保存为 module.{模块}.{能力}",
+    "kind": "类型",
+    "kind_module": "模块",
+    "kind_capability": "小功能",
+    "kind_quota": "配额",
+    "capability_name_invalid": "仅字母数字下划线或连字符，最多24字符，不能含点号"
   }
 }

@@ -2222,7 +2222,7 @@
   },
   "entitlement": {
     "catalog_title": "Feature catalog",
-    "catalog_hint": "Modules registered for plan entitlements are listed here.",
+    "catalog_hint": "Modules and in-module capabilities registered for plan entitlements are listed here.",
     "plans_title": "Plans",
     "add_plan": "Add plan",
     "feature": "Feature",
@@ -2255,6 +2255,16 @@
     "edit_plan_entitlements": "Plan grants",
     "plan_entitlements": "Entitlements",
     "plan_entitlements_hint": "One key=value per line. Example: module.guestbook=true and quota.module.guestbook.rows=1000 (-1=unlimited).",
-    "plan_entitlements_saved": "Plan entitlements saved"
+    "plan_entitlements_saved": "Plan entitlements saved",
+    "register_capability": "Register capability",
+    "capability_name": "Capability",
+    "capability_registered": "Capability registered",
+    "capability_hint": "Capabilities are boolean keys under a module (module.member.export) with no menu. Gate APIs with middleware.EntitlementFeature(key) and hide UI via /info entitlements.",
+    "capability_key_preview": "Saved as module.{module}.{capability}",
+    "kind": "Kind",
+    "kind_module": "Module",
+    "kind_capability": "Capability",
+    "kind_quota": "Quota",
+    "capability_name_invalid": "Use letters/numbers/_/- ; max 24 chars; no dots"
   }
 }

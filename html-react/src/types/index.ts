@@ -11,6 +11,8 @@ export type {
   AdminInfo,
   AdminRole,
   CurrentTenantInfo,
+  EntitlementLimitView,
+  EntitlementsView,
   FeatureConfig,
   UserInfoPayload,
   LoginPayload,

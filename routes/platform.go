@@ -117,6 +117,7 @@ func Platform() {
 
 				router.Post("features", entitlementController.FeatureStore)
 				router.Post("features/register-module", entitlementController.RegisterModule)
+				router.Post("features/register-capability", entitlementController.RegisterCapability)
 				router.Put("features/{key}", entitlementController.FeatureUpdate)
 				router.Post("plans", entitlementController.PlanStore)
 				router.Put("plans/{code}", entitlementController.PlanUpdate)

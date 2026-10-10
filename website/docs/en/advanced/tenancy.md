@@ -84,6 +84,32 @@ TENANCY_DRIVER=database
 | 开户 migrate | — | Platform UI async queue / CLI；HTTP create still forbids sync migrate |
 | 开户状态 | — | `provision_status`: `pending` → `migrating` → `ready`/`failed` |
 
+## Tenant entitlements (developer)
+
+Plan features are separate from RBAC. Super-admin does **not** bypass entitlements.
+
+### Backend
+
+```go
+// Whole module
+router.Middleware(middleware.EntitlementModule("guestbook")).Group(...)
+
+// In-module capability (platform UI: Register capability -> module.member.export)
+router.Middleware(middleware.EntitlementFeature("module.member.export")).Get("members/export", ...)
+
+// Optional row quota on Create
+services.ConsumeModuleRowsFromHTTP(ctx, "guestbook", 1)
+```
+
+### Frontend
+
+`GET /api/admin/info` includes `entitlements.features` / `entitlements.limits` when tenancy is on.
+
+- React: `useUserStore((s) => s.hasEntitlement('module.member.export'))`
+- Vue: `useUserStore().hasEntitlement('module.member.export')`
+
+When tenancy is off, `hasEntitlement` returns `true`. Capability keys have no menu — hide buttons in the UI yourself.
+
 ## 配置
 
 ```ini
