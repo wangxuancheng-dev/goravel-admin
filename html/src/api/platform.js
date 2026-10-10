@@ -298,6 +298,58 @@ export function updatePlatformAllowedIPs(data) {
   return platformRequest.put('/security/allowed-ips', data)
 }
 
+// --- Entitlements ---
+
+export async function getPlatformFeatures() {
+  return normalizeListResponse(await platformRequest.get('/features'))
+}
+
+export function registerPlatformModuleFeature(data) {
+  return platformRequest.post('/features/register-module', data)
+}
+
+export function registerPlatformCapability(data) {
+  return platformRequest.post('/features/register-capability', data)
+}
+
+export async function getPlatformPlans() {
+  return normalizeListResponse(await platformRequest.get('/plans'))
+}
+
+export async function getPlatformPlanEntitlements(code) {
+  return normalizeListResponse(
+    await platformRequest.get(`/plans/${encodeURIComponent(code)}/entitlements`)
+  )
+}
+
+export function upsertPlatformPlan(data) {
+  return platformRequest.post('/plans', data)
+}
+
+export function updatePlatformPlan(code, data) {
+  return platformRequest.put(`/plans/${encodeURIComponent(code)}`, data)
+}
+
+export function getPlatformTenantEntitlements(id) {
+  return platformRequest.get(`/tenants/${id}/entitlements`)
+}
+
+export function assignPlatformTenantPlan(id, data) {
+  return platformRequest.post(`/tenants/${id}/subscription`, data)
+}
+
+export function setPlatformTenantEntitlement(id, key, data) {
+  return platformRequest.put(`/tenants/${id}/entitlements/${encodeURIComponent(key)}`, data)
+}
+
+export function deletePlatformTenantEntitlement(id, key) {
+  return platformRequest.delete(`/tenants/${id}/entitlements/${encodeURIComponent(key)}`)
+}
+
+export function recomputePlatformTenantEntitlements(id) {
+  return platformRequest.post(`/tenants/${id}/entitlements/recompute`)
+}
+
 export async function completePlatformLogin(res) {
   const token = res?.data?.token
   const admin = res?.data?.admin

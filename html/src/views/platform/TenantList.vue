@@ -507,6 +507,8 @@
           <span v-else>—</span>
         </el-descriptions-item>
       </el-descriptions>
+      <el-divider content-position="left">{{ $t('entitlement.tenant_section') }}</el-divider>
+      <TenantEntitlementsPanel v-if="Number(detailRow.id) > 0" :tenant-id="Number(detailRow.id)" />
       <div class="domain-panel">
         <div class="domain-title">{{ $t('tenant.domains_title') }}</div>
         <p class="domain-hint">{{ $t('tenant.domains_hint') }}</p>
@@ -762,6 +764,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ListPage from '@/components/ListPage.vue'
+import TenantEntitlementsPanel from '@/views/platform/TenantEntitlementsPanel.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import {
   backupPlatformTenant,
