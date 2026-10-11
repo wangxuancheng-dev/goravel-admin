@@ -1,4 +1,4 @@
-import { AutoComplete, Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, message } from 'antd'
+import { AutoComplete, Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, Typography, message } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -229,9 +229,15 @@ export default function PlatformEntitlementsPage() {
           </Space>
         }
       >
-        <p style={{ color: 'rgba(0,0,0,0.45)', marginTop: 0 }}>{t('entitlement.catalog_hint')}</p>
-        <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('entitlement.handwritten_hint')}</p>
-        <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('entitlement.capability_hint')}</p>
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 8 }}>
+          {t('entitlement.catalog_hint')}
+        </Typography.Paragraph>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+          {t('entitlement.handwritten_hint')}
+        </Typography.Paragraph>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+          {t('entitlement.capability_hint')}
+        </Typography.Paragraph>
         <Table
           rowKey="key"
           loading={loading}
@@ -304,7 +310,7 @@ export default function PlatformEntitlementsPage() {
         onOk={() => void submitModule()}
         destroyOnHidden
       >
-        <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('entitlement.handwritten_hint')}</p>
+        <Typography.Paragraph type="secondary">{t('entitlement.handwritten_hint')}</Typography.Paragraph>
         <Form form={moduleForm} layout="vertical">
           <Form.Item name="module_name" label={t('entitlement.module_name')} rules={[{ required: true }]}>
             <Input placeholder="guestbook" />
@@ -331,7 +337,7 @@ export default function PlatformEntitlementsPage() {
         onOk={() => void submitCapability()}
         destroyOnHidden
       >
-        <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('entitlement.capability_hint')}</p>
+        <Typography.Paragraph type="secondary">{t('entitlement.capability_hint')}</Typography.Paragraph>
         <Form form={capabilityForm} layout="vertical">
           <Form.Item
             name="module_name"
@@ -404,7 +410,7 @@ export default function PlatformEntitlementsPage() {
         width={640}
         destroyOnHidden
       >
-        <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('entitlement.plan_entitlements_hint')}</p>
+        <Typography.Paragraph type="secondary">{t('entitlement.plan_entitlements_hint')}</Typography.Paragraph>
         <Form form={planEntForm} layout="vertical">
           <Form.Item name="entitlements_text" label={t('entitlement.plan_entitlements')}>
             <Input.TextArea rows={12} placeholder={'module.guestbook=true\nquota.module.guestbook.rows=1000'} />
