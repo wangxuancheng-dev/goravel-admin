@@ -100,6 +100,13 @@ func getSlideCaptcha() (slide.Captcha, error) {
 	builder.SetOptions(
 		slide.WithImageSize(option.Size{Width: slideImageWidth, Height: slideImageHeight}),
 		slide.WithRangeGraphSize(option.RangeVal{Min: slideTileMin, Max: slideTileMax}),
+		// Left dead-zone + odd tile width can place the hole at X+Width == imageWidth+1
+		// (go-captcha uses width/2 integer math). Skip left so answers stay in-bounds.
+		slide.WithRangeDeadZoneDirections([]slide.DeadZoneDirectionType{
+			slide.DeadZoneDirectionTypeTop,
+			slide.DeadZoneDirectionTypeBottom,
+			slide.DeadZoneDirectionTypeRight,
+		}),
 	)
 	builder.SetResources(
 		slide.WithBackgrounds(append([]image.Image(nil), backgrounds...)),
@@ -117,30 +124,50 @@ func generateSlide() (*CaptchaChallenge, int, error) {
 	}
 
 	// Generation is serialized: the generator shares option/resource state.
+	const maxAttempts = 8
 	slideMu.Lock()
-	data, err := capt.Generate()
+	var (
+		block  *slide.Block
+		master string
+		tile   string
+	)
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		data, err := capt.Generate()
+		if err != nil {
+			slideMu.Unlock()
+			return nil, 0, err
+		}
+		block = data.GetData()
+		if block == nil {
+			slideMu.Unlock()
+			return nil, 0, errors.New("slide captcha: empty block")
+		}
+		if block.X < 0 || block.Y < 0 ||
+			block.X+block.Width > slideImageWidth ||
+			block.Y+block.Height > slideImageHeight {
+			continue
+		}
+		master, err = data.GetMasterImage().ToBase64()
+		if err != nil {
+			slideMu.Unlock()
+			return nil, 0, err
+		}
+		tile, err = data.GetTileImage().ToBase64()
+		if err != nil {
+			slideMu.Unlock()
+			return nil, 0, err
+		}
+		break
+	}
 	slideMu.Unlock()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	block := data.GetData()
-	if block == nil {
-		return nil, 0, errors.New("slide captcha: empty block")
-	}
-	master, err := data.GetMasterImage().ToBase64()
-	if err != nil {
-		return nil, 0, err
-	}
-	tile, err := data.GetTileImage().ToBase64()
-	if err != nil {
-		return nil, 0, err
+	if master == "" || block == nil {
+		return nil, 0, errors.New("slide captcha: geometry out of bounds")
 	}
 
 	return &CaptchaChallenge{
-		Type:        CaptchaTypeSlide,
-		MasterImage: master,
-		TileImage:   tile,
+		Type:         CaptchaTypeSlide,
+		MasterImage:  master,
+		TileImage:    tile,
 		MasterWidth:  slideImageWidth,
 		MasterHeight: slideImageHeight,
 		TileWidth:    block.Width,
