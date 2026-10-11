@@ -2141,7 +2141,19 @@
       "purge": "Purge tenant files",
       "force_delete": "Force delete tenant",
       "update": "Update tenant",
-      "delete": "Delete tenant"
+      "delete": "Delete tenant",
+      "rollback": "Rollback tenant",
+      "subscription": "Assign tenant plan",
+      "entitlement": {
+        "set": "Set tenant entitlement override",
+        "delete": "Delete tenant entitlement override",
+        "recompute": "Recompute tenant entitlements"
+      },
+      "admin": {
+        "reset_password": "Reset tenant admin password",
+        "unlock": "Unlock tenant admin",
+        "reset_2fa": "Reset tenant admin 2FA"
+      }
     },
     "domain": {
       "verify": "Verify domain",
@@ -2158,6 +2170,27 @@
       "update": "Update platform admin",
       "delete": "Delete platform admin",
       "reset_password": "Reset platform admin password"
+    },
+    "settings": {
+      "update": "Update platform settings"
+    },
+    "security": {
+      "allowed_ips": "Update login IP allowlist",
+      "2fa_bind": "Bind 2FA",
+      "2fa_unbind": "Unbind 2FA"
+    },
+    "alert": {
+      "retry": "Retry alert delivery"
+    },
+    "feature": {
+      "create": "Create feature",
+      "update": "Update feature",
+      "register_module": "Register module feature",
+      "register_capability": "Register capability feature"
+    },
+    "plan": {
+      "create": "Create plan",
+      "update": "Update plan"
     }
   },
   "platform_admin": {

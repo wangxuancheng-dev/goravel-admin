@@ -285,6 +285,14 @@ func PlatformOperationTitle(method, path string) string {
 	switch {
 	case method == "PUT" && path == "/api/platform/password":
 		return "platform.password.update"
+	case method == "PUT" && path == "/api/platform/settings":
+		return "platform.settings.update"
+	case method == "PUT" && path == "/api/platform/security/allowed-ips":
+		return "platform.security.allowed_ips"
+	case method == "POST" && path == "/api/platform/security/2fa/bind":
+		return "platform.security.2fa_bind"
+	case method == "POST" && path == "/api/platform/security/2fa/unbind":
+		return "platform.security.2fa_unbind"
 	case method == "POST" && path == "/api/platform/admins":
 		return "platform.admin.create"
 	case strings.HasSuffix(path, "/reset-password") && strings.Contains(path, "/tenants/") && strings.Contains(path, "/admins/") && method == "POST":
@@ -325,6 +333,8 @@ func PlatformOperationTitle(method, path string) string {
 		return "platform.tenant.backup"
 	case strings.HasSuffix(path, "/restore") && method == "POST":
 		return "platform.tenant.restore"
+	case strings.HasSuffix(path, "/rollback") && strings.Contains(path, "/tenants/") && method == "POST":
+		return "platform.tenant.rollback"
 	case strings.HasSuffix(path, "/ping") && method == "POST":
 		return "platform.tenant.ping"
 	case strings.HasSuffix(path, "/undelete") && method == "POST":
@@ -345,6 +355,26 @@ func PlatformOperationTitle(method, path string) string {
 		return "platform.domain.delete"
 	case strings.HasSuffix(path, "/backups/prune") && method == "POST":
 		return "platform.backup.prune"
+	case method == "POST" && path == "/api/platform/features":
+		return "platform.feature.create"
+	case method == "POST" && path == "/api/platform/features/register-module":
+		return "platform.feature.register_module"
+	case method == "POST" && path == "/api/platform/features/register-capability":
+		return "platform.feature.register_capability"
+	case strings.HasPrefix(path, "/api/platform/features/") && method == "PUT":
+		return "platform.feature.update"
+	case method == "POST" && path == "/api/platform/plans":
+		return "platform.plan.create"
+	case strings.HasPrefix(path, "/api/platform/plans/") && method == "PUT":
+		return "platform.plan.update"
+	case strings.HasSuffix(path, "/subscription") && strings.Contains(path, "/tenants/") && method == "POST":
+		return "platform.tenant.subscription"
+	case strings.HasSuffix(path, "/entitlements/recompute") && strings.Contains(path, "/tenants/") && method == "POST":
+		return "platform.tenant.entitlement.recompute"
+	case strings.Contains(path, "/entitlements/") && strings.Contains(path, "/tenants/") && method == "PUT":
+		return "platform.tenant.entitlement.set"
+	case strings.Contains(path, "/entitlements/") && strings.Contains(path, "/tenants/") && method == "DELETE":
+		return "platform.tenant.entitlement.delete"
 	case strings.HasPrefix(path, "/api/platform/tenants/") && method == "PUT":
 		return "platform.tenant.update"
 	case strings.HasPrefix(path, "/api/platform/tenants/") && method == "DELETE":

@@ -2145,7 +2145,19 @@
       "purge": "清理租户文件",
       "force_delete": "永久删除租户",
       "update": "更新租户",
-      "delete": "删除租户"
+      "delete": "删除租户",
+      "rollback": "回滚租户",
+      "subscription": "分配租户套餐",
+      "entitlement": {
+        "set": "设置租户权益覆盖",
+        "delete": "删除租户权益覆盖",
+        "recompute": "重算租户权益"
+      },
+      "admin": {
+        "reset_password": "重置租户管理员密码",
+        "unlock": "解锁租户管理员",
+        "reset_2fa": "重置租户管理员二次验证"
+      }
     },
     "domain": {
       "verify": "验证域名",
@@ -2162,6 +2174,27 @@
       "update": "更新平台管理员",
       "delete": "删除平台管理员",
       "reset_password": "重置平台管理员密码"
+    },
+    "settings": {
+      "update": "更新平台设置"
+    },
+    "security": {
+      "allowed_ips": "更新登录 IP 白名单",
+      "2fa_bind": "绑定二次验证",
+      "2fa_unbind": "解绑二次验证"
+    },
+    "alert": {
+      "retry": "重试告警投递"
+    },
+    "feature": {
+      "create": "创建功能项",
+      "update": "更新功能项",
+      "register_module": "注册模块功能",
+      "register_capability": "注册能力功能"
+    },
+    "plan": {
+      "create": "创建套餐",
+      "update": "更新套餐"
     }
   },
   "platform_admin": {
