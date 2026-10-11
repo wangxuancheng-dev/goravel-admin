@@ -1418,7 +1418,17 @@
     "op_rollback_batch": "批次 (migrations.batch；0/0=上一批)",
     "op_rollback_hint": "建议 step=1。首次 migrate 常把全部文件记为 batch 1；step=0 且 batch=0 会回滚整个上一批次。",
     "batch_rollback": "批量回滚",
-    "batch_rollback_confirm": "确认为选中的 {n} 个租户入队回滚（默认 step=1）？建议先备份。"
+    "batch_rollback_confirm": "确认为选中的 {n} 个租户入队回滚（默认 step=1）？建议先备份。",
+    "plan_stats_title": "套餐分布",
+    "plan_code": "套餐",
+    "plan_code_label": "套餐 {{code}}",
+    "plan_none": "无订阅",
+    "expiring_filter": "即将到期",
+    "expiring_7d": "7天内到期",
+    "expiring_30d": "30天内到期",
+    "filter_plan_none": "无订阅租户",
+    "filter_expiring_7d": "7天内到期",
+    "filter_expiring_30d": "30天内到期"
   },
   "platform": {
     "title": "租户运维",
@@ -2620,7 +2630,12 @@
     "kind_module": "模块",
     "kind_capability": "小功能",
     "kind_quota": "配额",
-    "capability_name_invalid": "仅字母数字下划线或连字符，最多24字符，不能含点号"
+    "capability_name_invalid": "仅字母数字下划线或连字符，最多24字符，不能含点号",
+    "summary_plan": "当前套餐",
+    "summary_features": "功能开通",
+    "summary_limits": "额度使用",
+    "summary_ends_at": "到期时间",
+    "type_limit": "额度"
   },
   "subscription": {
     "current_plan": "当前套餐",

@@ -89,6 +89,46 @@ export default function PlatformOverview() {
     [summary, t],
   )
 
+  const planCards = useMemo(() => {
+    const byPlan = (summary?.by_plan_code || {}) as Record<string, number>
+    const codes = Object.keys(byPlan).sort((a, b) => a.localeCompare(b))
+    const cards = codes.map((code) => ({
+      key: code,
+      label: t('tenant.plan_code_label', { code }),
+      value: byPlan[code] || 0,
+      color: '#2563eb',
+      q: `plan_code=${encodeURIComponent(code)}`,
+    }))
+    cards.push({
+      key: '_none',
+      label: t('tenant.plan_none'),
+      value: summary?.no_subscription || 0,
+      color: '#64748b',
+      q: 'plan_code=_none',
+    })
+    return cards
+  }, [summary, t])
+
+  const expiringCards = useMemo(
+    () => [
+      {
+        key: '7',
+        label: t('tenant.expiring_7d'),
+        value: summary?.expiring_7d || 0,
+        color: '#dc2626',
+        q: 'expiring=7',
+      },
+      {
+        key: '30',
+        label: t('tenant.expiring_30d'),
+        value: summary?.expiring_30d || 0,
+        color: '#d97706',
+        q: 'expiring=30',
+      },
+    ],
+    [summary, t],
+  )
+
   const load = async () => {
     setLoading(true)
     try {
@@ -223,6 +263,29 @@ export default function PlatformOverview() {
           ))}
         </Row>
 
+        <Typography.Text type="secondary">{t('tenant.plan_stats_title')}</Typography.Text>
+        <Row gutter={[16, 16]}>
+          {planCards.map((item) => (
+            <Col xs={12} sm={8} md={6} key={item.key}>
+              <Card size="small" hoverable onClick={() => goTenantsQuery(item.q)}>
+                <Typography.Text type="secondary">{item.label}</Typography.Text>
+                <div style={{ fontSize: 22, fontWeight: 600, color: item.color }}>{item.value}</div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
+        <Row gutter={[16, 16]}>
+          {expiringCards.map((item) => (
+            <Col xs={12} sm={8} md={6} key={item.key}>
+              <Card size="small" hoverable onClick={() => goTenantsQuery(item.q)}>
+                <Typography.Text type="secondary">{item.label}</Typography.Text>
+                <div style={{ fontSize: 22, fontWeight: 600, color: item.color }}>{item.value}</div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
         <Card size="small" title={t('platform.alerts_title')}>
           <Space wrap>
             <Tag color={alerts?.tenant_ops?.configured ? 'success' : 'default'}>
@@ -271,6 +334,15 @@ export default function PlatformOverview() {
             </Button>
             <Button danger onClick={() => goTenantsQuery('health_status=fail')}>
               {t('tenant.filter_health_fail')}
+            </Button>
+            <Button onClick={() => goTenantsQuery('plan_code=_none')}>
+              {t('tenant.filter_plan_none')}
+            </Button>
+            <Button danger onClick={() => goTenantsQuery('expiring=7')}>
+              {t('tenant.filter_expiring_7d')}
+            </Button>
+            <Button onClick={() => goTenantsQuery('expiring=30')}>
+              {t('tenant.filter_expiring_30d')}
             </Button>
             <Button loading={inspectLoading} onClick={() => void runHealthInspect()}>
               {t('tenant.health_inspect')}

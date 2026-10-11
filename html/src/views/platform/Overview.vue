@@ -65,6 +65,25 @@
       </el-col>
     </el-row>
 
+    <div class="stat-section-label">{{ $t('tenant.plan_stats_title') }}</div>
+    <el-row :gutter="16" class="stat-row">
+      <el-col :xs="12" :sm="8" :md="6" v-for="item in planCards" :key="item.key">
+        <el-card shadow="hover" class="stat-card clickable" @click="goQuery(item.query)">
+          <div class="stat-label">{{ item.label }}</div>
+          <div class="stat-value" :class="item.tone">{{ item.value }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16" class="stat-row">
+      <el-col :xs="12" :sm="8" :md="6" v-for="item in expiringCards" :key="item.key">
+        <el-card shadow="hover" class="stat-card clickable" @click="goQuery(item.query)">
+          <div class="stat-label">{{ item.label }}</div>
+          <div class="stat-value" :class="item.tone">{{ item.value }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-card shadow="never" class="action-card" style="margin-bottom: 16px">
       <template #header>
         <span>{{ $t('platform.alerts_title') }}</span>
@@ -97,6 +116,9 @@
         <el-button type="danger" plain @click="goTenants('failed')">{{ $t('tenant.filter_schema_failed') }}</el-button>
         <el-button @click="goQuery({ domain_status: 'verify_failed' })">{{ $t('tenant.filter_domain_failed') }}</el-button>
         <el-button type="danger" plain @click="goQuery({ health_status: 'fail' })">{{ $t('tenant.filter_health_fail') }}</el-button>
+        <el-button @click="goQuery({ plan_code: '_none' })">{{ $t('tenant.filter_plan_none') }}</el-button>
+        <el-button type="danger" plain @click="goQuery({ expiring: '7' })">{{ $t('tenant.filter_expiring_7d') }}</el-button>
+        <el-button @click="goQuery({ expiring: '30' })">{{ $t('tenant.filter_expiring_30d') }}</el-button>
         <el-button :loading="inspectLoading" @click="runHealthInspect">{{ $t('tenant.health_inspect') }}</el-button>
         <el-button @click="goMaintenance">{{ $t('platform.filter_maintenance') }}</el-button>
         <el-button @click="$router.push('/platform/tenants')">{{ $t('menu.tenant') }}</el-button>
@@ -154,6 +176,35 @@ const healthCards = computed(() => {
   ]
 })
 
+const planCards = computed(() => {
+  const s = summary.value || {}
+  const byPlan = s.by_plan_code || {}
+  const codes = Object.keys(byPlan).sort((a, b) => a.localeCompare(b))
+  const cards = codes.map((code) => ({
+    key: code,
+    label: t('tenant.plan_code_label', { code }),
+    value: byPlan[code] || 0,
+    tone: 'ok',
+    query: { plan_code: code },
+  }))
+  cards.push({
+    key: '_none',
+    label: t('tenant.plan_none'),
+    value: s.no_subscription || 0,
+    tone: '',
+    query: { plan_code: '_none' },
+  })
+  return cards
+})
+
+const expiringCards = computed(() => {
+  const s = summary.value || {}
+  return [
+    { key: '7', label: t('tenant.expiring_7d'), value: s.expiring_7d || 0, tone: 'danger', query: { expiring: '7' } },
+    { key: '30', label: t('tenant.expiring_30d'), value: s.expiring_30d || 0, tone: 'warn', query: { expiring: '30' } },
+  ]
+})
+
 const load = async () => {
   loading.value = true
   try {
@@ -208,6 +259,11 @@ onMounted(load)
 }
 .stat-row {
   margin-bottom: 16px;
+}
+.stat-section-label {
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 8px;
 }
 .stat-card {
   margin-bottom: 12px;

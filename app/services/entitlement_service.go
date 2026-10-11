@@ -11,8 +11,8 @@ import (
 	contractsorm "github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
 
-	apperrors "goravel/app/errors"
 	"goravel/app/entitlement"
+	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/http/helpers"
 	"goravel/app/models"
@@ -81,11 +81,11 @@ func (s *EntitlementService) EnsureBootstrap() error {
 // ---------- Catalog ----------
 
 type UpsertFeatureInput struct {
-	Key             string
-	Name            string
-	Description     string
-	Type            string
-	DefaultValue    string
+	Key          string
+	Name         string
+	Description  string
+	Type         string
+	DefaultValue string
 	MenuSlugs    []string
 	Channels     []string
 	AlwaysOn     *bool
@@ -768,6 +768,17 @@ type TenantEntitlementDTO struct {
 	Overrides    []models.TenantEntitlementOverride `json:"overrides"`
 	Effective    entitlement.ClientView             `json:"effective"`
 	Catalog      []TenantFeatureRow                 `json:"catalog"`
+	Summary      TenantEntitlementSummary           `json:"summary"`
+}
+
+// TenantEntitlementSummary is the compact header for platform tenant detail.
+type TenantEntitlementSummary struct {
+	PlanCode        string             `json:"plan_code"`
+	PlanName        string             `json:"plan_name"`
+	EndsAt          *time.Time         `json:"ends_at,omitempty"`
+	FeaturesEnabled int                `json:"features_enabled"`
+	FeaturesTotal   int                `json:"features_total"`
+	Limits          []TenantLimitBrief `json:"limits"`
 }
 
 type TenantFeatureRow struct {
@@ -779,6 +790,10 @@ type TenantFeatureRow struct {
 	Effective     bool     `json:"effective"`
 	OverrideValue string   `json:"override_value,omitempty"`
 	HasOverride   bool     `json:"has_override"`
+	Limit         int64    `json:"limit,omitempty"`
+	Used          int64    `json:"used,omitempty"`
+	Remaining     int64    `json:"remaining,omitempty"`
+	Unlimited     bool     `json:"unlimited,omitempty"`
 }
 
 func (s *EntitlementService) GetTenantEntitlements(tenantID uint) (*TenantEntitlementDTO, error) {
@@ -789,18 +804,30 @@ func (s *EntitlementService) GetTenantEntitlements(tenantID uint) (*TenantEntitl
 	if err != nil {
 		return nil, err
 	}
-	view := entitlement.Present(set, entitlement.ChannelAdmin, nil)
+	usage, _ := s.loadUsageMap(tenantID)
+	view := entitlement.Present(set, entitlement.ChannelAdmin, usage)
 
-	dto := &TenantEntitlementDTO{Effective: view}
+	dto := &TenantEntitlementDTO{
+		Effective: view,
+		Summary: TenantEntitlementSummary{
+			Limits: []TenantLimitBrief{},
+		},
+	}
 
 	var sub models.TenantSubscription
 	if err := s.q().Where("tenant_id", tenantID).Where("status", entitlement.SubActive).
 		Order("id desc").First(&sub); err == nil && sub.ID > 0 {
 		dto.Subscription = &sub
+		dto.Summary.EndsAt = sub.EndsAt
 		var plan models.PlatformPlan
 		if err := s.q().Where("id", sub.PlanID).First(&plan); err == nil && plan.ID > 0 {
 			dto.Plan = &plan
+			dto.Summary.PlanCode = plan.Code
+			dto.Summary.PlanName = plan.Name
 		}
+	}
+	if dto.Summary.PlanCode == "" {
+		dto.Summary.PlanCode = strings.TrimSpace(set.PlanCode)
 	}
 
 	var ovs []models.TenantEntitlementOverride
@@ -817,17 +844,60 @@ func (s *EntitlementService) GetTenantEntitlements(tenantID uint) (*TenantEntitl
 	}
 	rows := make([]TenantFeatureRow, 0, len(features))
 	for _, f := range features {
+		if f.Status == 0 {
+			continue
+		}
 		row := TenantFeatureRow{
 			Key:       f.Key,
 			Name:      f.Name,
 			Type:      f.Type,
 			AlwaysOn:  f.AlwaysOn,
 			MenuSlugs: f.MenuSlugs(),
-			Effective: set.Can(f.Key),
 		}
 		if o, ok := ovMap[f.Key]; ok {
 			row.HasOverride = true
 			row.OverrideValue = o.Value
+		}
+		switch f.Type {
+		case entitlement.TypeBoolean:
+			row.Effective = set.Can(f.Key)
+			dto.Summary.FeaturesTotal++
+			if row.Effective {
+				dto.Summary.FeaturesEnabled++
+			}
+		case entitlement.TypeLimit:
+			lv, ok := view.Limits[f.Key]
+			if !ok {
+				lv = entitlement.LimitView{
+					Limit:     entitlement.ParseLimitValue(f.DefaultValue),
+					Used:      usage[f.Key],
+					Unlimited: entitlement.ParseLimitValue(f.DefaultValue) < 0,
+				}
+				if !lv.Unlimited {
+					rem := lv.Limit - lv.Used
+					if rem < 0 {
+						rem = 0
+					}
+					lv.Remaining = rem
+				} else {
+					lv.Remaining = -1
+				}
+			}
+			row.Limit = lv.Limit
+			row.Used = lv.Used
+			row.Remaining = lv.Remaining
+			row.Unlimited = lv.Unlimited
+			row.Effective = lv.Unlimited || lv.Limit > 0
+			dto.Summary.Limits = append(dto.Summary.Limits, TenantLimitBrief{
+				Key:       f.Key,
+				Name:      f.Name,
+				Limit:     lv.Limit,
+				Used:      lv.Used,
+				Remaining: lv.Remaining,
+				Unlimited: lv.Unlimited,
+			})
+		default:
+			row.Effective = set.Can(f.Key)
 		}
 		rows = append(rows, row)
 	}

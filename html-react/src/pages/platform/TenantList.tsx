@@ -125,6 +125,10 @@ interface TenantRow {
   health_issues?: string[]
   last_ping_ok?: boolean
   last_ping_ms?: number
+  plan_code?: string
+  plan_name?: string
+  subscription_ends_at?: string
+  has_active_subscription?: boolean
 }
 
 function isTenantBusy(row: TenantRow) {
@@ -194,8 +198,15 @@ interface TenantOverviewData {
 interface TenantQuotaData {
   storage_limit_bytes?: number
   storage_used_bytes?: number
+}
 
-
+interface EntitlementSummaryData {
+  plan_code?: string
+  plan_name?: string
+  ends_at?: string
+  features_enabled?: number
+  features_total?: number
+  limits?: { key: string; name: string; limit: number; used: number; remaining: number; unlimited?: boolean }[]
 }
 
 interface TenantOpLogRow {
@@ -307,6 +318,7 @@ export default function PlatformTenantList() {
   const [detailExtraLoading, setDetailExtraLoading] = useState(false)
   const [detailOverview, setDetailOverview] = useState<TenantOverviewData | null>(null)
   const [detailQuota, setDetailQuota] = useState<TenantQuotaData | null>(null)
+  const [detailEntitlementSummary, setDetailEntitlementSummary] = useState<EntitlementSummaryData | null>(null)
   const [detailOpLogs, setDetailOpLogs] = useState<TenantOpLogRow[]>([])
   const [systemLogSummary, setSystemLogSummary] = useState<{
     error_count_24h?: number
@@ -477,6 +489,8 @@ export default function PlatformTenantList() {
       domain_host: '',
       domain_status: '',
       health_status: '',
+      plan_code: '',
+      expiring: '',
       trashed: '',
     },
     defaultSort: 'id:desc',
@@ -520,6 +534,10 @@ export default function PlatformTenantList() {
         health_issues: (entityField(record, 'health_issues', []) as string[]) || [],
         last_ping_ok: Boolean(entityField(record, 'last_ping_ok', false)),
         last_ping_ms: Number(entityField(record, 'last_ping_ms', 0) ?? 0),
+        plan_code: String(entityField(record, 'plan_code', '') ?? ''),
+        plan_name: String(entityField(record, 'plan_name', '') ?? ''),
+        subscription_ends_at: String(entityField(record, 'subscription_ends_at', '') ?? ''),
+        has_active_subscription: Boolean(entityField(record, 'has_active_subscription', false)),
       }
     },
   })
@@ -531,7 +549,18 @@ export default function PlatformTenantList() {
     const maintenanceFromQuery = String(searchParams.get('maintenance') || '').trim()
     const domainFromQuery = String(searchParams.get('domain_status') || '').trim()
     const healthFromQuery = String(searchParams.get('health_status') || '').trim()
-    if (!schemaFromQuery && !maintenanceFromQuery && !domainFromQuery && !healthFromQuery) return
+    const planFromQuery = String(searchParams.get('plan_code') || '').trim()
+    const expiringFromQuery = String(searchParams.get('expiring') || '').trim()
+    if (
+      !schemaFromQuery &&
+      !maintenanceFromQuery &&
+      !domainFromQuery &&
+      !healthFromQuery &&
+      !planFromQuery &&
+      !expiringFromQuery
+    ) {
+      return
+    }
     const next = { ...searchForm }
     let changed = false
     if (schemaFromQuery && String(searchForm.schema_status || '') !== schemaFromQuery) {
@@ -548,6 +577,14 @@ export default function PlatformTenantList() {
     }
     if (healthFromQuery && String(searchForm.health_status || '') !== healthFromQuery) {
       next.health_status = healthFromQuery
+      changed = true
+    }
+    if (planFromQuery && String(searchForm.plan_code || '') !== planFromQuery) {
+      next.plan_code = planFromQuery
+      changed = true
+    }
+    if (expiringFromQuery && String(searchForm.expiring || '') !== expiringFromQuery) {
+      next.expiring = expiringFromQuery
       changed = true
     }
     if (!changed) return
@@ -661,6 +698,7 @@ export default function PlatformTenantList() {
     setDetailExtraLoading(true)
     setDetailOverview(null)
     setDetailQuota(null)
+    setDetailEntitlementSummary(null)
     setDetailLoginLinks(null)
     setDetailDomains([])
     setSystemLogSummary(null)
@@ -677,6 +715,10 @@ export default function PlatformTenantList() {
       )
       setDetailQuota(
         (overviewRes as { data?: { quota?: TenantQuotaData } })?.data?.quota || null,
+      )
+      setDetailEntitlementSummary(
+        (overviewRes as { data?: { entitlement_summary?: EntitlementSummaryData } })?.data
+          ?.entitlement_summary || null,
       )
       setDetailLoginLinks(
         (linksRes as { data?: { links?: TenantLoginLinksData } })?.data?.links || null,
@@ -701,6 +743,7 @@ export default function PlatformTenantList() {
     setDetailRow(null)
     setDetailOverview(null)
     setDetailQuota(null)
+    setDetailEntitlementSummary(null)
     setDetailLoginLinks(null)
     setDetailDomains([])
     setSystemLogSummary(null)
@@ -1210,6 +1253,19 @@ export default function PlatformTenantList() {
       { title: t('table.id'), dataIndex: 'id', key: 'id', width: 70, sorter: true },
       { title: t('tenant.code'), dataIndex: 'code', key: 'code', width: 110 },
       { title: t('tenant.name'), dataIndex: 'name', key: 'name', width: 120 },
+      {
+        title: t('tenant.plan_code'),
+        dataIndex: 'plan_code',
+        key: 'plan_code',
+        width: 110,
+        render: (_: string, row) => (
+          <Tooltip title={row.subscription_ends_at || undefined}>
+            <Tag color={row.has_active_subscription ? 'blue' : 'default'}>
+              {row.plan_code || t('tenant.plan_none')}
+            </Tag>
+          </Tooltip>
+        ),
+      },
       { title: t('tenant.driver'), dataIndex: 'driver', key: 'driver', width: 90 },
       { title: t('tenant.database'), dataIndex: 'database', key: 'database', width: 140 },
       {
@@ -1903,6 +1959,25 @@ export default function PlatformTenantList() {
                     { label: t('tenant.health_unknown'), value: 'unknown' },
                   ],
                 },
+                {
+                  name: 'plan_code',
+                  label: t('tenant.plan_code'),
+                  type: 'select',
+                  options: [
+                    { label: 'free', value: 'free' },
+                    { label: 'pro', value: 'pro' },
+                    { label: t('tenant.plan_none'), value: '_none' },
+                  ],
+                },
+                {
+                  name: 'expiring',
+                  label: t('tenant.expiring_filter'),
+                  type: 'select',
+                  options: [
+                    { label: t('tenant.expiring_7d'), value: '7' },
+                    { label: t('tenant.expiring_30d'), value: '30' },
+                  ],
+                },
               ]
         }
         values={searchForm}
@@ -1922,6 +1997,8 @@ export default function PlatformTenantList() {
             domain_host: '',
             domain_status: '',
             health_status: '',
+            plan_code: '',
+            expiring: '',
             trashed: keep,
           })
           window.setTimeout(() => handleSearch(), 0)
@@ -2060,6 +2137,32 @@ export default function PlatformTenantList() {
                 </Descriptions.Item>
                 <Descriptions.Item label={t('tenant.storage_used')}>
                   {formatQuota(detailQuota?.storage_used_bytes, detailQuota?.storage_limit_bytes)}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('entitlement.summary_plan')}>
+                  {detailEntitlementSummary?.plan_code
+                    ? detailEntitlementSummary.plan_name
+                      ? `${detailEntitlementSummary.plan_name} (${detailEntitlementSummary.plan_code})`
+                      : detailEntitlementSummary.plan_code
+                    : t('tenant.plan_none')}
+                  {detailEntitlementSummary?.ends_at
+                    ? ` · ${t('entitlement.summary_ends_at')}: ${detailEntitlementSummary.ends_at}`
+                    : ''}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('entitlement.summary_features')}>
+                  {detailEntitlementSummary
+                    ? `${detailEntitlementSummary.features_enabled ?? 0} / ${detailEntitlementSummary.features_total ?? 0}`
+                    : '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('entitlement.summary_limits')}>
+                  {(detailEntitlementSummary?.limits || []).length === 0
+                    ? '—'
+                    : (detailEntitlementSummary?.limits || [])
+                        .map((lim) =>
+                          lim.unlimited
+                            ? `${lim.name || lim.key}: ${lim.used ?? 0}/∞`
+                            : `${lim.name || lim.key}: ${lim.used ?? 0}/${lim.limit ?? 0}`,
+                        )
+                        .join(' · ')}
                 </Descriptions.Item>
                 <Descriptions.Item label={t('tenant.storage_mode')}>
                   {detailRow?.storage_mode === 'custom'

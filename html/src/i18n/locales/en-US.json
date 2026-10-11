@@ -1409,7 +1409,17 @@
     "op_rollback_batch": "Batch (migrations.batch; 0/0 = last batch)",
     "op_rollback_hint": "Prefer --step=1. First migrate often puts all files in batch 1; step=0 batch=0 rolls back the entire last batch.",
     "batch_rollback": "Batch rollback",
-    "batch_rollback_confirm": "Enqueue rollback (step=1) for {n} selected tenant(s)? Prefer backup first."
+    "batch_rollback_confirm": "Enqueue rollback (step=1) for {n} selected tenant(s)? Prefer backup first.",
+    "plan_stats_title": "Plan distribution",
+    "plan_code": "Plan",
+    "plan_code_label": "Plan {{code}}",
+    "plan_none": "No subscription",
+    "expiring_filter": "Expiring",
+    "expiring_7d": "Expiring in 7 days",
+    "expiring_30d": "Expiring in 30 days",
+    "filter_plan_none": "No subscription",
+    "filter_expiring_7d": "Expiring in 7 days",
+    "filter_expiring_30d": "Expiring in 30 days"
   },
   "platform": {
     "title": "Tenant Ops",
@@ -2611,7 +2621,12 @@
     "kind_module": "Module",
     "kind_capability": "Capability",
     "kind_quota": "Quota",
-    "capability_name_invalid": "Use letters/numbers/_/- ; max 24 chars; no dots"
+    "capability_name_invalid": "Use letters/numbers/_/- ; max 24 chars; no dots",
+    "summary_plan": "Current plan",
+    "summary_features": "Features enabled",
+    "summary_limits": "Quota usage",
+    "summary_ends_at": "Ends at",
+    "type_limit": "Limit"
   },
   "subscription": {
     "current_plan": "Current plan",

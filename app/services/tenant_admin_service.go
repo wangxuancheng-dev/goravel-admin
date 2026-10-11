@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/http"
@@ -37,6 +38,10 @@ type TenantAdminFilters struct {
 	DomainStatus string
 	// HealthStatus: ok|warn|fail|unknown
 	HealthStatus string
+	// PlanCode: platform_plans.code, or _none for no active subscription.
+	PlanCode string
+	// Expiring: 7|30 — active subscription ends_at within N days from now.
+	Expiring string
 }
 
 func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
@@ -53,6 +58,8 @@ func BuildTenantAdminFiltersFromHTTP(ctx http.Context) TenantAdminFilters {
 		DomainHost:      strings.TrimSpace(ctx.Request().Query("domain_host", "")),
 		DomainStatus:    strings.TrimSpace(ctx.Request().Query("domain_status", "")),
 		HealthStatus:    strings.TrimSpace(ctx.Request().Query("health_status", "")),
+		PlanCode:        strings.TrimSpace(ctx.Request().Query("plan_code", "")),
+		Expiring:        strings.TrimSpace(ctx.Request().Query("expiring", "")),
 	}
 }
 
@@ -79,51 +86,51 @@ func NormalizeTenantLastOpStatusFilter(raw string) string {
 
 // TenantCreateInput create tenant from API / CLI shared fields.
 type TenantCreateInput struct {
-	Code              string
-	Name              string
-	Driver            string
-	Isolation         string
-	Database          string
-	Schema            string
-	Host              string
-	Port              int
-	Username          string
-	Password          string
-	Migrate           bool
-	SkipCreate        bool // remote DB already exists: skip CREATE DATABASE/SCHEMA
-	StorageLimitBytes *int64
-	StorageMode       string
-	StorageDriver     string
-	StorageKey        string
-	StorageSecret     string
-	StorageRegion     string
-	StorageBucket     string
-	StorageURL        string
-	StorageEndpoint   string
+	Code                string
+	Name                string
+	Driver              string
+	Isolation           string
+	Database            string
+	Schema              string
+	Host                string
+	Port                int
+	Username            string
+	Password            string
+	Migrate             bool
+	SkipCreate          bool // remote DB already exists: skip CREATE DATABASE/SCHEMA
+	StorageLimitBytes   *int64
+	StorageMode         string
+	StorageDriver       string
+	StorageKey          string
+	StorageSecret       string
+	StorageRegion       string
+	StorageBucket       string
+	StorageURL          string
+	StorageEndpoint     string
 	StorageUsePathStyle *bool
-	StorageSSL        *bool
+	StorageSSL          *bool
 }
 
 // TenantUpdateInput updates connection metadata for an existing tenant.
 type TenantUpdateInput struct {
-	Name              *string
-	Host              *string
-	Port              *int
-	Username          *string
-	Password          *string
-	Database          *string
-	Schema            *string
-	StorageLimitBytes *int64
-	StorageMode       *string
-	StorageDriver     *string
-	StorageKey        *string
-	StorageSecret     *string
-	StorageRegion     *string
-	StorageBucket     *string
-	StorageURL        *string
-	StorageEndpoint   *string
+	Name                *string
+	Host                *string
+	Port                *int
+	Username            *string
+	Password            *string
+	Database            *string
+	Schema              *string
+	StorageLimitBytes   *int64
+	StorageMode         *string
+	StorageDriver       *string
+	StorageKey          *string
+	StorageSecret       *string
+	StorageRegion       *string
+	StorageBucket       *string
+	StorageURL          *string
+	StorageEndpoint     *string
 	StorageUsePathStyle *bool
-	StorageSSL        *bool
+	StorageSSL          *bool
 	ClearStorageSecret  *bool
 }
 
@@ -183,6 +190,7 @@ func (s *TenantAdminService) GetList(filters TenantAdminFilters, page, pageSize 
 	}
 	query = applyDomainFilters(query, filters.DomainHost, filters.DomainStatus)
 	query = applySchemaStatusFilter(query, filters.SchemaStatus)
+	query = applySubscriptionFilters(query, filters.PlanCode, filters.Expiring)
 	total, err := query.Count()
 	if err != nil {
 		return nil, 0, err
@@ -539,31 +547,36 @@ func (s *TenantAdminService) ListAll() ([]models.Tenant, error) {
 
 // TenantOpsSummary aggregates provision / op status counts for the platform console.
 type TenantOpsSummary struct {
-	Total                  int64             `json:"total"`
-	ByProvision            map[string]int64  `json:"by_provision"`
-	ByLastOpStatus         map[string]int64  `json:"by_last_op_status"`
-	FailedProvision        int64             `json:"failed_provision"`
-	FailedSeed             int64             `json:"failed_seed"`
-	Busy                   int64             `json:"busy"`
-	Deleted                int64             `json:"deleted"`
-	FailedPurge            int64             `json:"failed_purge"`
-	ExpectedMigrationCount int64             `json:"expected_migration_count"`
-	SchemaAligned          int64             `json:"schema_aligned"`
-	SchemaBehind           int64             `json:"schema_behind"`
-	SchemaFailed           int64             `json:"schema_failed"`
-	SchemaRunning          int64             `json:"schema_running"`
-	SchemaUnknown          int64             `json:"schema_unknown"`
-	BySchemaStatus         map[string]int64  `json:"by_schema_status"`
-	Maintenance            int64             `json:"maintenance"`
-	DomainUnbound          int64             `json:"domain_unbound"`
-	DomainPending          int64             `json:"domain_pending"`
-	DomainActive           int64             `json:"domain_active"`
-	DomainVerifyFailed     int64             `json:"domain_verify_failed"`
-	DomainDisabled         int64             `json:"domain_disabled"`
-	HealthOK               int64             `json:"health_ok"`
-	HealthWarn             int64             `json:"health_warn"`
-	HealthFail             int64             `json:"health_fail"`
-	HealthUnknown          int64             `json:"health_unknown"`
+	Total                  int64            `json:"total"`
+	ByProvision            map[string]int64 `json:"by_provision"`
+	ByLastOpStatus         map[string]int64 `json:"by_last_op_status"`
+	FailedProvision        int64            `json:"failed_provision"`
+	FailedSeed             int64            `json:"failed_seed"`
+	Busy                   int64            `json:"busy"`
+	Deleted                int64            `json:"deleted"`
+	FailedPurge            int64            `json:"failed_purge"`
+	ExpectedMigrationCount int64            `json:"expected_migration_count"`
+	SchemaAligned          int64            `json:"schema_aligned"`
+	SchemaBehind           int64            `json:"schema_behind"`
+	SchemaFailed           int64            `json:"schema_failed"`
+	SchemaRunning          int64            `json:"schema_running"`
+	SchemaUnknown          int64            `json:"schema_unknown"`
+	BySchemaStatus         map[string]int64 `json:"by_schema_status"`
+	Maintenance            int64            `json:"maintenance"`
+	DomainUnbound          int64            `json:"domain_unbound"`
+	DomainPending          int64            `json:"domain_pending"`
+	DomainActive           int64            `json:"domain_active"`
+	DomainVerifyFailed     int64            `json:"domain_verify_failed"`
+	DomainDisabled         int64            `json:"domain_disabled"`
+	HealthOK               int64            `json:"health_ok"`
+	HealthWarn             int64            `json:"health_warn"`
+	HealthFail             int64            `json:"health_fail"`
+	HealthUnknown          int64            `json:"health_unknown"`
+	// Subscription / plan ops (active tenants only; soft-deleted excluded).
+	ByPlanCode     map[string]int64 `json:"by_plan_code"`
+	NoSubscription int64            `json:"no_subscription"`
+	Expiring7d     int64            `json:"expiring_7d"`
+	Expiring30d    int64            `json:"expiring_30d"`
 }
 
 func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
@@ -651,6 +664,16 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 		Where("last_op_status", models.TenantOpStatusFailed).
 		Count()
 	sum.FailedPurge = failedPurge
+
+	picks, planCodes, err := loadActiveSubscriptionPicks(ids)
+	if err != nil {
+		return nil, err
+	}
+	subStats := BuildTenantSubscriptionStats(ids, picks, planCodes, time.Now())
+	sum.ByPlanCode = subStats.ByPlanCode
+	sum.NoSubscription = subStats.NoSubscription
+	sum.Expiring7d = subStats.Expiring7d
+	sum.Expiring30d = subStats.Expiring30d
 	return sum, nil
 }
 
@@ -686,6 +709,11 @@ func TenantToJSON(t *models.Tenant) map[string]any {
 
 // TenantToJSONWithDomain includes vanity-domain list summary.
 func TenantToJSONWithDomain(t *models.Tenant, domain TenantDomainListMeta) map[string]any {
+	return TenantToJSONWithMeta(t, domain, TenantSubscriptionListMeta{})
+}
+
+// TenantToJSONWithMeta includes domain + active subscription summary.
+func TenantToJSONWithMeta(t *models.Tenant, domain TenantDomainListMeta, sub TenantSubscriptionListMeta) map[string]any {
 	if t == nil {
 		return nil
 	}
@@ -701,47 +729,52 @@ func TenantToJSONWithDomain(t *models.Tenant, domain TenantDomainListMeta) map[s
 		domain.Status = TenantDomainStatusUnbound
 	}
 	out := map[string]any{
-		"id":                       t.ID,
-		"code":                     t.Code,
-		"name":                     t.Name,
-		"status":                   t.Status,
-		"provision_status":         t.ProvisionStatus,
-		"driver":                   t.Driver,
-		"isolation":                t.Isolation,
-		"host":                     t.Host,
-		"port":                     t.Port,
-		"database":                 t.Database,
-		"schema":                   t.Schema,
-		"username":                 t.Username,
-		"has_password":             TenantHasPassword(t.Password),
-		"connection_name":          t.ConnectionName,
-		"last_migrate_error":       t.LastMigrateError,
-		"migrated_at":              t.MigratedAt,
-		"schema_migration_count":   t.SchemaMigrationCount,
-		"expected_migration_count": expected,
-		"schema_status":            ResolveTenantSchemaStatus(t, expected),
-		"maintenance":              t.Maintenance,
-		"maintenance_message":      t.MaintenanceMessage,
-		"last_op":                  t.LastOp,
-		"last_op_status":           t.LastOpStatus,
-		"last_op_message":          t.LastOpMessage,
-		"last_op_at":               t.LastOpAt,
-		"last_backup_path":         t.LastBackupPath,
-		"backup_dir":               TenantBackupDir(t.Code),
-		"storage_limit_bytes":      t.StorageLimitBytes,
-		"health_status":            strings.TrimSpace(t.HealthStatus),
-		"health_checked_at":        t.HealthCheckedAt,
-		"health_issues":            parseHealthIssues(t.HealthIssues),
-		"last_ping_ok":             t.LastPingOK,
-		"last_ping_ms":             t.LastPingMs,
-		"domain_status":            domain.Status,
-		"domain_primary_host":      domain.PrimaryHost,
-		"domain_active_hosts":      domain.ActiveHosts,
-		"domain_count":             domain.DomainCount,
-		"deleted_at":               deletedAt,
-		"trashed":                  TenantIsTrashed(t),
-		"created_at":               t.CreatedAt,
-		"updated_at":               t.UpdatedAt,
+		"id":                         t.ID,
+		"code":                       t.Code,
+		"name":                       t.Name,
+		"status":                     t.Status,
+		"provision_status":           t.ProvisionStatus,
+		"driver":                     t.Driver,
+		"isolation":                  t.Isolation,
+		"host":                       t.Host,
+		"port":                       t.Port,
+		"database":                   t.Database,
+		"schema":                     t.Schema,
+		"username":                   t.Username,
+		"has_password":               TenantHasPassword(t.Password),
+		"connection_name":            t.ConnectionName,
+		"last_migrate_error":         t.LastMigrateError,
+		"migrated_at":                t.MigratedAt,
+		"schema_migration_count":     t.SchemaMigrationCount,
+		"expected_migration_count":   expected,
+		"schema_status":              ResolveTenantSchemaStatus(t, expected),
+		"maintenance":                t.Maintenance,
+		"maintenance_message":        t.MaintenanceMessage,
+		"last_op":                    t.LastOp,
+		"last_op_status":             t.LastOpStatus,
+		"last_op_message":            t.LastOpMessage,
+		"last_op_at":                 t.LastOpAt,
+		"last_backup_path":           t.LastBackupPath,
+		"backup_dir":                 TenantBackupDir(t.Code),
+		"storage_limit_bytes":        t.StorageLimitBytes,
+		"health_status":              strings.TrimSpace(t.HealthStatus),
+		"health_checked_at":          t.HealthCheckedAt,
+		"health_issues":              parseHealthIssues(t.HealthIssues),
+		"last_ping_ok":               t.LastPingOK,
+		"last_ping_ms":               t.LastPingMs,
+		"domain_status":              domain.Status,
+		"domain_primary_host":        domain.PrimaryHost,
+		"domain_active_hosts":        domain.ActiveHosts,
+		"domain_count":               domain.DomainCount,
+		"plan_code":                  sub.PlanCode,
+		"plan_name":                  sub.PlanName,
+		"subscription_ends_at":       sub.EndsAt,
+		"subscription_trial_ends_at": sub.TrialEndsAt,
+		"has_active_subscription":    sub.HasActive,
+		"deleted_at":                 deletedAt,
+		"trashed":                    TenantIsTrashed(t),
+		"created_at":                 t.CreatedAt,
+		"updated_at":                 t.UpdatedAt,
 	}
 	for k, v := range tenantstorage.PublicJSON(t) {
 		out[k] = v
@@ -749,16 +782,17 @@ func TenantToJSONWithDomain(t *models.Tenant, domain TenantDomainListMeta) map[s
 	return out
 }
 
-// TenantsToJSONList enriches rows with domain meta in one query.
+// TenantsToJSONList enriches rows with domain + subscription meta in batched queries.
 func TenantsToJSONList(list []models.Tenant) []map[string]any {
 	ids := make([]uint, 0, len(list))
 	for i := range list {
 		ids = append(ids, list[i].ID)
 	}
-	meta := LoadTenantDomainListMeta(ids)
+	domainMeta := LoadTenantDomainListMeta(ids)
+	subMeta := LoadTenantSubscriptionListMeta(ids)
 	rows := make([]map[string]any, 0, len(list))
 	for i := range list {
-		rows = append(rows, TenantToJSONWithDomain(&list[i], meta[list[i].ID]))
+		rows = append(rows, TenantToJSONWithMeta(&list[i], domainMeta[list[i].ID], subMeta[list[i].ID]))
 	}
 	return rows
 }

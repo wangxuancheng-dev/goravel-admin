@@ -1338,7 +1338,17 @@
     "batch_rollback_confirm": "Enqueue rollback (step=1) for {{n}} selected tenant(s)? Prefer backup first.",
     "op_progress": "Progress",
     "migrate_queued_hint": "Job is queued on long-running. Ensure the app process is running with queue workers enabled (do not set APP_DISABLED_RUNNERS=queue-*). No DDL stream in UI — check Ops timeline and last_op.",
-    "migrate_running_hint": "Migration is running on the worker. UI only shows short status; open Ops timeline for steps, or check server logs."
+    "migrate_running_hint": "Migration is running on the worker. UI only shows short status; open Ops timeline for steps, or check server logs.",
+    "plan_stats_title": "Plan distribution",
+    "plan_code": "Plan",
+    "plan_code_label": "Plan {{code}}",
+    "plan_none": "No subscription",
+    "expiring_filter": "Expiring",
+    "expiring_7d": "Expiring in 7 days",
+    "expiring_30d": "Expiring in 30 days",
+    "filter_plan_none": "No subscription",
+    "filter_expiring_7d": "Expiring in 7 days",
+    "filter_expiring_30d": "Expiring in 30 days"
   },
   "platform": {
     "title": "Tenant Ops",
@@ -2280,7 +2290,12 @@
     "kind_module": "Module",
     "kind_capability": "Capability",
     "kind_quota": "Quota",
-    "capability_name_invalid": "Use letters/numbers/_/- ; max 24 chars; no dots"
+    "capability_name_invalid": "Use letters/numbers/_/- ; max 24 chars; no dots",
+    "summary_plan": "Current plan",
+    "summary_features": "Features enabled",
+    "summary_limits": "Quota usage",
+    "summary_ends_at": "Ends at",
+    "type_limit": "Limit"
   },
   "subscription": {
     "current_plan": "Current plan",

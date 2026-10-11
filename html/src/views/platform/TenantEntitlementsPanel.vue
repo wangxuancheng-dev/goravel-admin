@@ -1,6 +1,37 @@
 <template>
   <div v-loading="loading" class="tenant-entitlements">
     <p class="hint">{{ $t('entitlement.tenant_hint') }}</p>
+
+    <el-row :gutter="12" class="summary-row">
+      <el-col :xs="24" :sm="12" :md="8">
+        <el-card shadow="never" class="summary-card">
+          <div class="stat-label">{{ $t('entitlement.summary_plan') }}</div>
+          <div class="stat-value">{{ currentPlanLabel }}</div>
+          <div v-if="summary?.ends_at" class="stat-sub">
+            {{ $t('entitlement.summary_ends_at') }}: {{ summary.ends_at }}
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :md="8">
+        <el-card shadow="never" class="summary-card">
+          <div class="stat-label">{{ $t('entitlement.summary_features') }}</div>
+          <div class="stat-value">{{ summary?.features_enabled ?? 0 }} / {{ summary?.features_total ?? 0 }}</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="24" :md="8">
+        <el-card shadow="never" class="summary-card">
+          <div class="stat-label">{{ $t('entitlement.summary_limits') }}</div>
+          <div v-if="!(summary?.limits || []).length" class="stat-value muted">—</div>
+          <div v-else class="limit-list">
+            <div v-for="lim in summary.limits" :key="lim.key" class="limit-item">
+              <div class="limit-name">{{ lim.name || lim.key }}</div>
+              <div class="stat-value small">{{ formatLimit(lim) }}</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <div class="toolbar">
       <el-select
         v-model="planCode"
@@ -24,12 +55,15 @@
         <template #default="{ row }">
           <span>{{ row.name }}</span>
           <code class="key">{{ row.key }}</code>
+          <el-tag v-if="row.type === 'limit'" size="small">{{ $t('entitlement.type_limit') }}</el-tag>
           <el-tag v-if="row.always_on" type="success" size="small">{{ $t('entitlement.always_on') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('entitlement.enabled')" width="100">
+      <el-table-column :label="$t('entitlement.enabled')" width="140">
         <template #default="{ row }">
+          <span v-if="row.type === 'limit'">{{ formatLimit(row) }}</span>
           <el-switch
+            v-else
             :model-value="!!row.effective"
             :disabled="isViewer || row.type !== 'boolean' || !!row.always_on"
             :loading="savingKey === row.key"
@@ -96,13 +130,27 @@ const load = async () => {
     ])
     const ent = entRes?.data || null
     data.value = ent
-    planCode.value = ent?.plan?.code || ent?.effective?.plan_code || undefined
+    planCode.value = ent?.plan?.code || ent?.summary?.plan_code || ent?.effective?.plan_code || undefined
     plans.value = planRes?.data?.list || planRes?.list || []
   } catch (e) {
     reportError(e)
   } finally {
     loading.value = false
   }
+}
+
+const summary = computed(() => data.value?.summary || null)
+
+const currentPlanLabel = computed(() => {
+  const code = summary.value?.plan_code || data.value?.plan?.code || data.value?.effective?.plan_code
+  if (!code) return t('tenant.plan_none')
+  const name = summary.value?.plan_name || data.value?.plan?.name
+  return name ? `${name} (${code})` : code
+})
+
+const formatLimit = (row) => {
+  if (row?.unlimited) return `${row.used ?? 0} / ∞`
+  return `${row?.used ?? 0} / ${row?.limit ?? 0}`
 }
 
 const planLabel = (code) => {
@@ -114,7 +162,8 @@ const planLabel = (code) => {
 // Assigning cancels the active subscription and applies the new plan immediately: confirm first.
 const onAssignPlan = async () => {
   if (!planCode.value) return
-  const currentCode = data.value?.plan?.code || data.value?.effective?.plan_code || undefined
+  const currentCode =
+    data.value?.plan?.code || data.value?.summary?.plan_code || data.value?.effective?.plan_code || undefined
   const to = planLabel(planCode.value)
   const message =
     currentCode && currentCode === planCode.value
@@ -188,6 +237,43 @@ onMounted(load)
   margin: 0 0 8px;
   color: var(--el-text-color-secondary);
   font-size: 13px;
+}
+.summary-row {
+  margin-bottom: 12px;
+}
+.summary-card {
+  margin-bottom: 8px;
+}
+.stat-label {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.stat-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.stat-value.small {
+  font-size: 15px;
+}
+.stat-value.muted {
+  color: var(--el-text-color-secondary);
+  font-weight: 400;
+}
+.stat-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.limit-list {
+  margin-top: 4px;
+}
+.limit-item + .limit-item {
+  margin-top: 6px;
+}
+.limit-name {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 .toolbar {
   display: flex;

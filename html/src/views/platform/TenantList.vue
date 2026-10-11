@@ -150,6 +150,13 @@
     @sort-change="handleSortChange"
     @selection-change="handleSelectionChange"
   >
+    <template #plan_code="{ row }">
+      <el-tooltip :content="row.subscription_ends_at || ''" :disabled="!row.subscription_ends_at">
+        <el-tag :type="row.has_active_subscription ? 'primary' : 'info'" size="small" effect="plain">
+          {{ row.plan_code || $t('tenant.plan_none') }}
+        </el-tag>
+      </el-tooltip>
+    </template>
     <template #provision_status="{ row }">
       <el-tooltip :content="row.last_migrate_error || row.last_op_message || ''" :disabled="!(row.last_migrate_error || row.last_op_message)">
         <el-tag :type="provisionTagType(row.provision_status)" size="small">
@@ -664,6 +671,9 @@
       <el-descriptions-item :label="$t('tenant.overview_admins')">{{ overviewData.admins_count }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.overview_migrations')">{{ overviewData.migrations_count }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.storage_used')">{{ formatQuota(quotaData?.storage_used_bytes, quotaData?.storage_limit_bytes) }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('entitlement.summary_plan')">{{ entitlementSummaryPlanLabel }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('entitlement.summary_features')">{{ entitlementSummaryFeaturesLabel }}</el-descriptions-item>
+      <el-descriptions-item :label="$t('entitlement.summary_limits')">{{ entitlementSummaryLimitsLabel }}</el-descriptions-item>
       <el-descriptions-item :label="$t('tenant.storage_mode')">{{ storageModeLabel(overviewTenant) }}</el-descriptions-item>
       <el-descriptions-item v-if="overviewTenant?.storage_mode === 'custom'" :label="$t('tenant.storage_bucket')">{{ overviewTenant.storage_bucket || '-' }}</el-descriptions-item>
       <el-descriptions-item v-if="overviewData.error" :label="$t('tenant.op_message')">{{ overviewData.error }}</el-descriptions-item>
@@ -858,6 +868,29 @@ const overviewVisible = ref(false)
 const overviewData = ref(null)
 const overviewTenant = ref(null)
 const quotaData = ref(null)
+const entitlementSummary = ref(null)
+const entitlementSummaryPlanLabel = computed(() => {
+  const s = entitlementSummary.value
+  if (!s?.plan_code) return t('tenant.plan_none')
+  const base = s.plan_name ? `${s.plan_name} (${s.plan_code})` : s.plan_code
+  return s.ends_at ? `${base} · ${t('entitlement.summary_ends_at')}: ${s.ends_at}` : base
+})
+const entitlementSummaryFeaturesLabel = computed(() => {
+  const s = entitlementSummary.value
+  if (!s) return '—'
+  return `${s.features_enabled ?? 0} / ${s.features_total ?? 0}`
+})
+const entitlementSummaryLimitsLabel = computed(() => {
+  const limits = entitlementSummary.value?.limits || []
+  if (!limits.length) return '—'
+  return limits
+    .map((lim) =>
+      lim.unlimited
+        ? `${lim.name || lim.key}: ${lim.used ?? 0}/∞`
+        : `${lim.name || lim.key}: ${lim.used ?? 0}/${lim.limit ?? 0}`
+    )
+    .join(' · ')
+})
 const timelineVisible = ref(false)
 const timelineRow = ref(null)
 const timelineLoading = ref(false)
@@ -930,6 +963,8 @@ const initialSearchForm = {
   domain_host: '',
   domain_status: '',
   health_status: '',
+  plan_code: '',
+  expiring: '',
   trashed: ''
 }
 const onboardResultVisible = ref(false)
@@ -968,6 +1003,14 @@ onMounted(async () => {
   if (healthFromQuery) {
     searchForm.health_status = healthFromQuery
   }
+  const planFromQuery = String(route.query.plan_code || '').trim()
+  if (planFromQuery) {
+    searchForm.plan_code = planFromQuery
+  }
+  const expiringFromQuery = String(route.query.expiring || '').trim()
+  if (expiringFromQuery) {
+    searchForm.expiring = expiringFromQuery
+  }
   try {
     const res = await platformHealth()
     health.value = res?.data || null
@@ -978,7 +1021,14 @@ onMounted(async () => {
   }
   await refreshOpsSummary()
   await refreshSettings()
-  if (schemaFromQuery || maintenanceFromQuery || domainFromQuery || healthFromQuery) {
+  if (
+    schemaFromQuery ||
+    maintenanceFromQuery ||
+    domainFromQuery ||
+    healthFromQuery ||
+    planFromQuery ||
+    expiringFromQuery
+  ) {
     await loadData()
   }
 })
@@ -1286,6 +1336,27 @@ const searchFields = computed(() => {
         { label: t('tenant.health_fail'), value: 'fail' },
         { label: t('tenant.health_unknown'), value: 'unknown' }
       ]
+    },
+    {
+      prop: 'plan_code',
+      label: t('tenant.plan_code'),
+      type: 'select',
+      width: '140px',
+      options: [
+        { label: 'free', value: 'free' },
+        { label: 'pro', value: 'pro' },
+        { label: t('tenant.plan_none'), value: '_none' }
+      ]
+    },
+    {
+      prop: 'expiring',
+      label: t('tenant.expiring_filter'),
+      type: 'select',
+      width: '160px',
+      options: [
+        { label: t('tenant.expiring_7d'), value: '7' },
+        { label: t('tenant.expiring_30d'), value: '30' }
+      ]
     }
   ]
 })
@@ -1349,6 +1420,7 @@ const tableColumns = computed(() => {
     { field: 'id', title: t('table.id'), width: 70, sortable: true, key: 'id' },
     { field: 'code', title: t('tenant.code'), width: 110, key: 'code' },
     { field: 'name', title: t('tenant.name'), width: 120, key: 'name' },
+    { field: 'plan_code', title: t('tenant.plan_code'), width: 110, slot: 'plan_code', key: 'plan_code' },
     { field: 'driver', title: t('tenant.driver'), width: 90, key: 'driver' },
     { field: 'database', title: t('tenant.database'), width: 140, key: 'database' },
     { field: 'provision_status', title: t('tenant.provision_status'), width: 110, slot: 'provision_status', key: 'provision_status' },
@@ -1813,10 +1885,12 @@ const openOverview = async (row) => {
   overviewData.value = null
   overviewTenant.value = row || null
   quotaData.value = null
+  entitlementSummary.value = null
   try {
     const res = await getPlatformTenantOverview(row.id)
     overviewData.value = res?.data?.overview || null
     quotaData.value = res?.data?.quota || null
+    entitlementSummary.value = res?.data?.entitlement_summary || null
   } catch (error) {
     if (!error?.__handled) {
       ElMessage.error(error?.translatedMessage || error?.message || t('common.operation_failed'))

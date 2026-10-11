@@ -1,5 +1,5 @@
-import { App, Button, Select, Space, Switch, Table, Tag, Typography } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import { App, Button, Card, Col, Row, Select, Space, Switch, Table, Tag, Typography } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   assignPlatformTenantPlan,
@@ -20,12 +20,39 @@ type FeatureRow = {
   effective?: boolean
   has_override?: boolean
   override_value?: string
+  limit?: number
+  used?: number
+  remaining?: number
+  unlimited?: boolean
+}
+
+type LimitBrief = {
+  key: string
+  name: string
+  limit: number
+  used: number
+  remaining: number
+  unlimited?: boolean
 }
 
 type EntitlementsData = {
   plan?: { code?: string; name?: string }
   catalog?: FeatureRow[]
   effective?: { version?: number; plan_code?: string }
+  subscription?: { ends_at?: string; status?: string }
+  summary?: {
+    plan_code?: string
+    plan_name?: string
+    ends_at?: string
+    features_enabled?: number
+    features_total?: number
+    limits?: LimitBrief[]
+  }
+}
+
+function formatLimit(row: { used?: number; limit?: number; unlimited?: boolean }) {
+  if (row.unlimited) return `${row.used ?? 0} / ∞`
+  return `${row.used ?? 0} / ${row.limit ?? 0}`
 }
 
 export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number }) {
@@ -48,7 +75,7 @@ export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number
       ])
       const ent = (entRes as { data?: EntitlementsData })?.data || null
       setData(ent)
-      setPlanCode(ent?.plan?.code || ent?.effective?.plan_code || undefined)
+      setPlanCode(ent?.plan?.code || ent?.summary?.plan_code || ent?.effective?.plan_code || undefined)
       const list = ((planRes as { data?: { list?: { code: string; name: string }[] } })?.data?.list ||
         (planRes as { list?: { code: string; name: string }[] })?.list ||
         []) as { code: string; name: string }[]
@@ -64,6 +91,14 @@ export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number
     void load()
   }, [load])
 
+  const summary = data?.summary
+  const currentPlanLabel = useMemo(() => {
+    const code = summary?.plan_code || data?.plan?.code || data?.effective?.plan_code
+    if (!code) return t('tenant.plan_none')
+    const name = summary?.plan_name || data?.plan?.name
+    return name ? `${name} (${code})` : code
+  }, [summary, data, t])
+
   const planLabel = (code?: string) => {
     if (!code) return t('entitlement.assign_none')
     const p = plans.find((x) => x.code === code)
@@ -73,7 +108,7 @@ export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number
   // Assigning cancels the active subscription and applies the new plan immediately: confirm first.
   const onAssignPlan = () => {
     if (!planCode) return
-    const currentCode = data?.plan?.code || data?.effective?.plan_code || undefined
+    const currentCode = data?.plan?.code || data?.summary?.plan_code || data?.effective?.plan_code || undefined
     const to = planLabel(planCode)
     modal.confirm({
       title: t('entitlement.assign_confirm_title'),
@@ -144,9 +179,53 @@ export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number
     }
   }
 
+  const limits = summary?.limits || []
+
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
       <Typography.Text type="secondary">{t('entitlement.tenant_hint')}</Typography.Text>
+
+      <Row gutter={[12, 12]}>
+        <Col xs={24} sm={12} md={8}>
+          <Card size="small">
+            <Typography.Text type="secondary">{t('entitlement.summary_plan')}</Typography.Text>
+            <div style={{ fontWeight: 600, marginTop: 4 }}>{currentPlanLabel}</div>
+            {summary?.ends_at ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('entitlement.summary_ends_at')}: {summary.ends_at}
+              </Typography.Text>
+            ) : null}
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8}>
+          <Card size="small">
+            <Typography.Text type="secondary">{t('entitlement.summary_features')}</Typography.Text>
+            <div style={{ fontWeight: 600, marginTop: 4 }}>
+              {summary?.features_enabled ?? 0} / {summary?.features_total ?? 0}
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={24} md={8}>
+          <Card size="small">
+            <Typography.Text type="secondary">{t('entitlement.summary_limits')}</Typography.Text>
+            <div style={{ marginTop: 4 }}>
+              {limits.length === 0 ? (
+                <Typography.Text type="secondary">—</Typography.Text>
+              ) : (
+                <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                  {limits.map((lim) => (
+                    <div key={lim.key}>
+                      <Typography.Text style={{ fontSize: 12 }}>{lim.name || lim.key}</Typography.Text>
+                      <div style={{ fontWeight: 600 }}>{formatLimit(lim)}</div>
+                    </div>
+                  ))}
+                </Space>
+              )}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
       <Space wrap>
         <Select
           style={{ minWidth: 180 }}
@@ -181,6 +260,7 @@ export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number
               <Space>
                 <span>{row.name}</span>
                 <Typography.Text code>{row.key}</Typography.Text>
+                {row.type === 'limit' ? <Tag>{t('entitlement.type_limit')}</Tag> : null}
                 {row.always_on ? <Tag color="green">{t('entitlement.always_on')}</Tag> : null}
               </Space>
             ),
@@ -188,15 +268,18 @@ export default function TenantEntitlementsPanel({ tenantId }: { tenantId: number
           {
             title: t('entitlement.enabled'),
             dataIndex: 'effective',
-            width: 100,
-            render: (v: boolean, row) => (
-              <Switch
-                checked={!!v}
-                disabled={isViewer || row.type !== 'boolean' || !!row.always_on}
-                loading={savingKey === row.key}
-                onChange={(checked) => void onToggle(row, checked)}
-              />
-            ),
+            width: 140,
+            render: (v: boolean, row) =>
+              row.type === 'limit' ? (
+                <Typography.Text>{formatLimit(row)}</Typography.Text>
+              ) : (
+                <Switch
+                  checked={!!v}
+                  disabled={isViewer || row.type !== 'boolean' || !!row.always_on}
+                  loading={savingKey === row.key}
+                  onChange={(checked) => void onToggle(row, checked)}
+                />
+              ),
           },
           {
             title: t('entitlement.override'),

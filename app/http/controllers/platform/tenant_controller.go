@@ -57,29 +57,29 @@ func (c *TenantController) Show(ctx http.Context) http.Response {
 }
 
 type tenantStoreBody struct {
-	Code              string `json:"code" form:"code"`
-	Name              string `json:"name" form:"name"`
-	Driver            string `json:"driver" form:"driver"`
-	Isolation         string `json:"isolation" form:"isolation"`
-	Database          string `json:"database" form:"database"`
-	Schema            string `json:"schema" form:"schema"`
-	Host              string `json:"host" form:"host"`
-	Port              int    `json:"port" form:"port"`
-	Username          string `json:"username" form:"username"`
-	Password          string `json:"password" form:"password"`
-	Migrate           *bool  `json:"migrate" form:"migrate"` // 若传 true 则拒绝，引导 CLI
-	SkipCreate        bool   `json:"skip_create" form:"skip_create"`
-	StorageLimitBytes *int64 `json:"storage_limit_bytes" form:"storage_limit_bytes"`
-	StorageMode       string `json:"storage_mode" form:"storage_mode"`
-	StorageDriver     string `json:"storage_driver" form:"storage_driver"`
-	StorageKey        string `json:"storage_key" form:"storage_key"`
-	StorageSecret     string `json:"storage_secret" form:"storage_secret"`
-	StorageRegion     string `json:"storage_region" form:"storage_region"`
-	StorageBucket     string `json:"storage_bucket" form:"storage_bucket"`
-	StorageURL        string `json:"storage_url" form:"storage_url"`
-	StorageEndpoint   string `json:"storage_endpoint" form:"storage_endpoint"`
-	StorageUsePathStyle *bool `json:"storage_use_path_style" form:"storage_use_path_style"`
-	StorageSSL        *bool  `json:"storage_ssl" form:"storage_ssl"`
+	Code                string `json:"code" form:"code"`
+	Name                string `json:"name" form:"name"`
+	Driver              string `json:"driver" form:"driver"`
+	Isolation           string `json:"isolation" form:"isolation"`
+	Database            string `json:"database" form:"database"`
+	Schema              string `json:"schema" form:"schema"`
+	Host                string `json:"host" form:"host"`
+	Port                int    `json:"port" form:"port"`
+	Username            string `json:"username" form:"username"`
+	Password            string `json:"password" form:"password"`
+	Migrate             *bool  `json:"migrate" form:"migrate"` // 若传 true 则拒绝，引导 CLI
+	SkipCreate          bool   `json:"skip_create" form:"skip_create"`
+	StorageLimitBytes   *int64 `json:"storage_limit_bytes" form:"storage_limit_bytes"`
+	StorageMode         string `json:"storage_mode" form:"storage_mode"`
+	StorageDriver       string `json:"storage_driver" form:"storage_driver"`
+	StorageKey          string `json:"storage_key" form:"storage_key"`
+	StorageSecret       string `json:"storage_secret" form:"storage_secret"`
+	StorageRegion       string `json:"storage_region" form:"storage_region"`
+	StorageBucket       string `json:"storage_bucket" form:"storage_bucket"`
+	StorageURL          string `json:"storage_url" form:"storage_url"`
+	StorageEndpoint     string `json:"storage_endpoint" form:"storage_endpoint"`
+	StorageUsePathStyle *bool  `json:"storage_use_path_style" form:"storage_use_path_style"`
+	StorageSSL          *bool  `json:"storage_ssl" form:"storage_ssl"`
 }
 
 func (c *TenantController) Store(ctx http.Context) http.Response {
@@ -365,7 +365,7 @@ func (c *TenantController) Onboard(ctx http.Context) http.Response {
 }
 
 type tenantHealthInspectBody struct {
-	Limit int  `json:"limit" form:"limit"`
+	Limit int   `json:"limit" form:"limit"`
 	Alert *bool `json:"alert" form:"alert"`
 }
 
@@ -817,10 +817,15 @@ func (c *TenantController) Overview(ctx http.Context) http.Response {
 	}
 	overview := services.NewTenantConnectionService().BuildTenantOverview(tenant)
 	quota := services.BuildTenantQuotaSnapshot(tenant)
+	var entitlementSummary any
+	if dto, err := services.NewEntitlementServiceFromHTTP(ctx).GetTenantEntitlements(id); err == nil && dto != nil {
+		entitlementSummary = dto.Summary
+	}
 	return response.Success(ctx, map[string]any{
-		"overview": overview,
-		"quota":    quota,
-		"tenant":   services.TenantToJSON(tenant),
+		"overview":            overview,
+		"quota":               quota,
+		"entitlement_summary": entitlementSummary,
+		"tenant":              services.TenantToJSON(tenant),
 	})
 }
 
@@ -1122,4 +1127,3 @@ func (c *TenantController) DownloadBackup(ctx http.Context) http.Response {
 	}
 	return ctx.Response().Download(absPath, filepath.Base(absPath))
 }
-
