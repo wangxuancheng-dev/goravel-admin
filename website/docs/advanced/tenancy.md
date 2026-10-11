@@ -392,6 +392,7 @@ shop.customer-b.com.     CNAME  tenants.example.com.
 | **默认池 + 单机部署** | 稳妥大约 **&lt; 50 活跃**；储备 **50–200**（建议已收紧 `OPEN`） |
 | **调参 + Redis 队列 + API/Worker 分开** | **数百～约 1k 活跃** |
 | **再加 `tenants.host` 分库主机 + `queue-schedule` Worker** | **几千活跃**（本产品目标量级） |
+| **再加按区域多套完整部署（cell）** | **超出单舰队**时复制栈（见本节下文） |
 
 默认 `TENANCY_POOL_MAX_OPEN_CONNS=20`、`TENANCY_REGISTERED_MAX=0`（不限）。**几千商户不要原样上生产**，按下表调参。
 
@@ -537,6 +538,29 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 ```
 
 **建议监控：** MySQL/PG `Threads_connected`、队列 pending / `queue:alert-backlog`、`schedule` / `long-running` 积压、Redis 内存与连接数。接近上限时先下调 `TENANCY_POOL_*` 或扩容 DB/Worker，**不要盲目加 API 副本**（副本会放大连接占用）。
+
+### 超出单舰队：按区域多套部署
+
+单舰队目标大约是**几千活跃**（见上表）。户数继续增长时，优先**新开一套完整部署（区域 / cell）**，而不是在同一平台库上无限加 API 或堆更多 `tenant_*`。
+
+推荐模式：
+
+```text
+区域 A（存量）              区域 B（新区）
+平台库 A + API/Worker…  →  平台库 B + API/Worker…
+老租户继续留在 A            新开户只写入 B
+```
+
+| 要点 | 说明 |
+|------|------|
+| 每区域一套栈 | 独立平台库、`TENANCY_DRIVER=database`、API / Worker / Scheduler / Redis、租户库（可再按 `tenants.host` 分机） |
+| 开户指向 | 注册/销售入口默认打到**当前写入区域**的 platform/API；从某日起新户只进新区即可 |
+| 租户如何回访 | 子域/根域按区域区分，或在网关/DNS 上维护极薄的 `tenant_code → 区域 API` 目录；勿把老户域名指到错区域 |
+| 平台控制台 | 每区各自 `/platform`；本产品**无**跨区域统一控制面 |
+| 迁户 | 尽量不搬；跨区等于备份恢复 + 改域名/目录，成本高 |
+| 冷户 | `disabled` / 归档或 DROP 后保留平台行；勿让大量无流量但仍 `ready` 的库拖垮单区 backup / `migrate-all` |
+
+**没有内置的** `CELL_ID`、全球租户路由表或一键跨区迁移。区域扩展是**运维级复制部署**；组内仍按本文「规模与推荐配置」调参即可。单组常见容量约一千户量级时最省心，总规模用「组数 × 组容量」放大。
 
 ## 对象存储与配额
 

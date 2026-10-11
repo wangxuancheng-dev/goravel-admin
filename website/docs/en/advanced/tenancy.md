@@ -265,6 +265,7 @@ These are **starting points**, not hard quotas — tune from monitoring. With ma
 | **Stock pool + single host** | Comfortable for about **&lt; 50 active**; stretch **50–200** (tighten `OPEN` first) |
 | **Tuned pools + Redis queue + split API/Worker** | **Hundreds to ~1k active** |
 | **Plus `tenants.host` DB sharding + `queue-schedule` workers** | **A few thousand active** (this product's target band) |
+| **Plus regional multi-stack (cell) deployments** | **Beyond one fleet** — copy the stack (see below) |
 
 Defaults: `TENANCY_POOL_MAX_OPEN_CONNS=20`, `TENANCY_REGISTERED_MAX=0` (unlimited). **Do not ship stock defaults unchanged for thousands of merchants.**
 
@@ -410,6 +411,29 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 ```
 
 **Watch:** MySQL/PG `Threads_connected`, queue pending / `queue:alert-backlog`, `schedule` / `long-running` depth, Redis memory and connections. Near limits, lower `TENANCY_POOL_*` or scale DB/Workers **before** blindly adding API replicas (replicas multiply connection usage).
+
+### Beyond one fleet: regional (cell) deployments
+
+A single fleet targets about **a few thousand active** tenants (see table above). When counts keep growing, prefer **standing up another full stack (region / cell)** instead of endlessly adding API replicas or `tenant_*` databases on one platform DB.
+
+Recommended pattern:
+
+```text
+Region A (existing)           Region B (new)
+Platform DB A + API/Worker… → Platform DB B + API/Worker…
+Existing tenants stay on A    New signups write only to B
+```
+
+| Point | Guidance |
+|-------|----------|
+| One stack per region | Separate platform DB, `TENANCY_DRIVER=database`, API / Worker / Scheduler / Redis, tenant DBs (optionally split further with `tenants.host`) |
+| Signup traffic | Point registration/sales at the **current write region** platform/API; from a cutover date, new tenants go only to the new region |
+| How tenants return | Region-specific subdomains/apexes, or a thin gateway/DNS map `tenant_code → region API`; do not point old tenant hosts at the wrong region |
+| Platform console | Each region has its own `/platform`; this product has **no** cross-region control plane |
+| Moves | Avoid moving tenants; cross-region means backup/restore plus DNS/directory changes |
+| Cold tenants | `disabled` / archive or DROP the DB while keeping the platform row; do not leave huge numbers of idle-but-`ready` DBs to drag down regional backup / `migrate-all` |
+
+There is **no built-in** `CELL_ID`, global tenant router, or one-click cross-region migrate. Regional scale-out is **ops-level copy of the stack**; tune each cell with the settings in this section. About **~1k tenants per cell** is the comfortable band; grow total capacity as `cells × per-cell capacity`.
 
 ## Object storage and quotas
 
