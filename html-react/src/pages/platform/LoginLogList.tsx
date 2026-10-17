@@ -121,7 +121,7 @@ export default function PlatformLoginLogList() {
           >
             {t('common.view')}
           </Button>
-          {isOwner ? (
+          {isOwner && !String(row.location || '').trim() ? (
             <Button
               type="link"
               onClick={async () => {

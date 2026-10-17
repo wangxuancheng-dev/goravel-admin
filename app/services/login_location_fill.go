@@ -69,13 +69,9 @@ func collectEmptyIPs(q orm.Query, scan, limit int) ([]string, error) {
 	return uniqueIPs(ips, limit), nil
 }
 
-func writeLocation(query locationQuery, ip, location string, alsoID uint) (int64, error) {
+func writeLocation(query locationQuery, ip, location string) (int64, error) {
 	apply := func(q orm.Query) orm.Query {
-		q = q.Where("ip", ip)
-		if alsoID > 0 {
-			return q.Where("(id = ? OR location = '' OR location IS NULL)", alsoID)
-		}
-		return q.Where("(location = '' OR location IS NULL)")
+		return q.Where("ip", ip).Where("(location = '' OR location IS NULL)")
 	}
 	n, err := apply(query()).Count()
 	if err != nil || n == 0 {
@@ -85,7 +81,7 @@ func writeLocation(query locationQuery, ip, location string, alsoID uint) (int64
 	return n, err
 }
 
-func refreshLocationByIP(query locationQuery, ip string, alsoID uint) (string, int64, error) {
+func refreshLocationByIP(query locationQuery, ip string) (string, int64, error) {
 	ip = strings.TrimSpace(ip)
 	if ip == "" {
 		return "", 0, apperrors.ErrIPLocationUnavailable
@@ -94,7 +90,7 @@ func refreshLocationByIP(query locationQuery, ip string, alsoID uint) (string, i
 	if location == "" {
 		return "", 0, apperrors.ErrIPLocationUnavailable
 	}
-	updated, err := writeLocation(query, ip, location, alsoID)
+	updated, err := writeLocation(query, ip, location)
 	if err != nil {
 		return "", 0, apperrors.ErrUpdateFailed.WithError(err)
 	}
@@ -122,7 +118,7 @@ func fillEmptyLocations(query locationQuery, limit, hardCap int, pause time.Dura
 			time.Sleep(pause)
 		}
 		result.LookedUp++
-		_, updated, err := refreshLocationByIP(query, ip, 0)
+		_, updated, err := refreshLocationByIP(query, ip)
 		if err != nil {
 			result.Failed++
 			continue
@@ -141,13 +137,16 @@ func (s *LoginLogServiceImpl) loginLogQuery() orm.Query {
 	return rbac.ApplyDataScope(s.ctx, q, rbac.DataScopeApplyOpts{Mode: rbac.DataScopeModeAdmin, AdminColumn: "admin_id"})
 }
 
-// RefreshLocation looks up one login log IP and writes that location onto the row and other empty rows with the same IP.
+// RefreshLocation looks up one empty login log IP and writes that location onto empty rows with the same IP.
 func (s *LoginLogServiceImpl) RefreshLocation(id uint) (string, int64, error) {
 	log, err := s.GetByID(id, false)
 	if err != nil {
 		return "", 0, err
 	}
-	return refreshLocationByIP(s.loginLogQuery, log.IP, id)
+	if strings.TrimSpace(log.Location) != "" {
+		return log.Location, 0, nil
+	}
+	return refreshLocationByIP(s.loginLogQuery, log.IP)
 }
 
 // FillEmptyLocations backfills up to loginLocationFillLimit distinct empty IPs.
@@ -167,13 +166,16 @@ func platformLoginLogQuery() orm.Query {
 	return appfacades.PlatformOrmQuery(nil).Model(&models.PlatformLoginLog{})
 }
 
-// RefreshPlatformLoginLocation looks up one platform login log and fills empty rows with the same IP.
+// RefreshPlatformLoginLocation looks up one empty platform login log and fills empty rows with the same IP.
 func RefreshPlatformLoginLocation(id uint) (string, int64, error) {
 	row, err := GetPlatformLoginLogByID(id)
 	if err != nil {
 		return "", 0, err
 	}
-	return refreshLocationByIP(platformLoginLogQuery, row.IP, id)
+	if strings.TrimSpace(row.Location) != "" {
+		return row.Location, 0, nil
+	}
+	return refreshLocationByIP(platformLoginLogQuery, row.IP)
 }
 
 // FillPlatformEmptyLoginLocations backfills empty platform login locations.

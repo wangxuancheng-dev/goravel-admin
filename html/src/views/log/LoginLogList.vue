@@ -216,6 +216,7 @@ const operationActions = computed(() => [
     type: 'primary',
     permission: 'login_log.index',
     icon: RefreshRight,
+    show: (row) => !String(row.location || '').trim(),
     handler: handleRefreshLocation
   },
   {

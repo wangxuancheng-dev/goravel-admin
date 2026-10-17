@@ -214,7 +214,7 @@ export default function LoginLogList() {
               {t('common.view')}
             </PermissionButton>
           ) : null}
-          {getButtonState('login_log.index').show ? (
+          {getButtonState('login_log.index').show && !String(row.location || '').trim() ? (
             <PermissionButton
               permission="login_log.index"
               type="link"

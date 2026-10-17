@@ -33,7 +33,12 @@
     </template>
     <template #operation="{ row }">
       <el-button link type="primary" @click="handleView(row)">{{ $t('common.view') }}</el-button>
-      <el-button v-if="isOwner" link type="primary" @click="handleRefreshLocation(row)">{{ $t('log.refresh_location') }}</el-button>
+      <el-button
+        v-if="isOwner && !String(row.location || '').trim()"
+        link
+        type="primary"
+        @click="handleRefreshLocation(row)"
+      >{{ $t('log.refresh_location') }}</el-button>
     </template>
   </ListPage>
 
