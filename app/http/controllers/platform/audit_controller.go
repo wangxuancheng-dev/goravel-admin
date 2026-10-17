@@ -46,6 +46,35 @@ func (c *AuditController) LoginLogShow(ctx http.Context) http.Response {
 	})
 }
 
+type platformRefreshLocationRequest struct {
+	ID        uint `json:"id"`
+	FillEmpty bool `json:"fill_empty"`
+}
+
+// RefreshLoginLocation looks up one platform login log by id, or backfills when fill_empty is true.
+func (c *AuditController) RefreshLoginLocation(ctx http.Context) http.Response {
+	var req platformRefreshLocationRequest
+	_ = ctx.Request().Bind(&req)
+	if req.ID > 0 {
+		location, updated, err := services.RefreshPlatformLoginLocation(req.ID)
+		if err != nil {
+			return admin.HandleGeneratedServiceError(ctx, "platform_login_log", http.StatusBadRequest, err, map[string]any{"id": req.ID})
+		}
+		return response.Success(ctx, map[string]any{
+			"location": location,
+			"updated":  updated,
+		})
+	}
+	if !req.FillEmpty {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrParamsError.Code)
+	}
+	result, err := services.FillPlatformEmptyLoginLocations(0, services.LoginLocationHTTPPause)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "platform_login_log", http.StatusInternalServerError, err, nil)
+	}
+	return response.Success(ctx, result)
+}
+
 // OperationLogs lists platform console write audits.
 func (c *AuditController) OperationLogs(ctx http.Context) http.Response {
 	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})

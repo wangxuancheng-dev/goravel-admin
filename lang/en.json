@@ -70,6 +70,7 @@
         "option_type_required": "Option type is required",
         "invalid_option_type": "Invalid option type",
         "log_not_found": "Log not found",
+        "ip_location_unavailable": "IP location lookup failed. Try again later.",
         "no_permission": "No permission to access",
         "menu_path_required": "Please enter path",
         "exported": "Export successful",

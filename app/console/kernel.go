@@ -61,6 +61,7 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.ClearLogs{},
 		&commands.ArchiveOperationLogs{},
 		&commands.ArchiveLoginLogs{},
+		&commands.FillLoginLocations{},
 		&commands.ClearChunks{},
 		&commands.CreateToken{},
 		&commands.QueueStats{},

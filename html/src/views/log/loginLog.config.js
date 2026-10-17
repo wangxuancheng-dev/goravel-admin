@@ -52,7 +52,7 @@ export function createLoginLogTableColumns(t) {
     { field: 'status', title: t('table.status'), width: 100, sortable: false, slot: 'status', key: 'status' },
     { field: 'message', title: t('log.message'), width: 100, sortable: false, slot: 'message', key: 'message' },
     { field: 'created_at', title: t('log.login_time'), width: 180, sortable: true, key: 'created_at' },
-    { title: t('table.operation'), width: 150, fixed: 'right', slot: 'operation', sortable: false, key: 'operation' }
+    { title: t('table.operation'), width: 260, fixed: 'right', slot: 'operation', sortable: false, key: 'operation' }
   ]
 }
 

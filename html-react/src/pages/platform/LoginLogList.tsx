@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Button, Descriptions, Modal, Table, Tag } from 'antd'
+import { App, Button, Descriptions, Modal, Space, Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useTranslation } from 'react-i18next'
-import { getPlatformLoginLogDetail, getPlatformLoginLogList } from '@/api/platform'
+import { getPlatformLoginLogDetail, getPlatformLoginLogList, refreshPlatformLoginLogLocation } from '@/api/platform'
+import { isPlatformOwner } from '@/utils/platformRequest'
+import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { useListPage } from '@/hooks/useListPage'
 import { handlePaginatedTableChange } from '@/utils/tableChange'
 import { entityField } from '@/utils/normalize'
@@ -32,6 +34,10 @@ function formatRequest(raw?: string) {
 
 export default function PlatformLoginLogList() {
   const { t } = useTranslation()
+  const { message, modal } = App.useApp()
+  const showError = useUnhandledError()
+  const isOwner = isPlatformOwner()
+  const [filling, setFilling] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<LoginLogRow | null>(null)
   const {
@@ -44,6 +50,7 @@ export default function PlatformLoginLogList() {
     handleSearch,
     handleReset,
     handleSortChange,
+    refresh,
   } = useListPage<LoginLogRow>({
     fetchApi: getPlatformLoginLogList,
     initialSearchForm: { username: '', ip: '', status: '' },
@@ -94,9 +101,10 @@ export default function PlatformLoginLogList() {
       {
         title: t('table.operation'),
         key: 'action',
-        width: 90,
+        width: 200,
         fixed: 'right',
         render: (_, row) => (
+          <Space size={4}>
           <Button
             type="link"
             onClick={async () => {
@@ -113,14 +121,71 @@ export default function PlatformLoginLogList() {
           >
             {t('common.view')}
           </Button>
+          {isOwner ? (
+            <Button
+              type="link"
+              onClick={async () => {
+                try {
+                  const res = await refreshPlatformLoginLogLocation(row.id)
+                  const data = (res as { data?: { location?: string; updated?: number } })?.data
+                  message.success(t('log.location_refreshed', { location: data?.location || '', count: data?.updated ?? 0 }))
+                  if (detail?.id === row.id) {
+                    setDetail({ ...detail, location: data?.location || '' })
+                  }
+                  await refresh()
+                } catch (error) {
+                  showError(error, t('common.operation_failed'))
+                }
+              }}
+            >
+              {t('log.refresh_location')}
+            </Button>
+          ) : null}
+          </Space>
         ),
       },
     ],
-    [t],
+    [t, isOwner, detail, message, refresh, showError],
   )
 
+  const handleFillEmpty = () => {
+    modal.confirm({
+      title: t('common.confirm'),
+      content: t('log.fill_empty_confirm'),
+      onOk: async () => {
+        setFilling(true)
+        try {
+          const res = await refreshPlatformLoginLogLocation()
+          const data = (res as { data?: { updated?: number; failed?: number; looked_up?: number; has_more?: boolean } })?.data
+          if (!data?.looked_up) {
+            message.success(t('log.fill_empty_none'))
+            return
+          }
+          message.success(t('log.fill_empty_done', { updated: data.updated ?? 0, failed: data.failed ?? 0 }))
+          if (data.has_more) {
+            message.info(t('log.fill_empty_more'))
+          }
+          await refresh()
+        } catch (error) {
+          showError(error, t('common.operation_failed'))
+        } finally {
+          setFilling(false)
+        }
+      },
+    })
+  }
+
   return (
-    <PageContainer title={t('menu.login_log')}>
+    <PageContainer
+      title={t('menu.login_log')}
+      extra={
+        isOwner ? (
+          <Button loading={filling} onClick={handleFillEmpty}>
+            {t('log.fill_empty_locations')}
+          </Button>
+        ) : null
+      }
+    >
       <SearchForm
         fields={[
           { name: 'username', label: t('log.admin'), type: 'input' },

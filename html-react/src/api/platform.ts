@@ -167,6 +167,10 @@ export function getPlatformLoginLogDetail(id: string | number) {
   return platformRequest.get(`/login-logs/${id}`)
 }
 
+export function refreshPlatformLoginLogLocation(id?: string | number) {
+  return platformRequest.post('/login-logs/refresh-location', id ? { id } : { fill_empty: true })
+}
+
 export async function getPlatformOperationLogList(params?: Record<string, unknown>) {
   return normalizeListResponse(await platformRequest.get('/operation-logs', { params }))
 }

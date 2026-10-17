@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { App, Button, Descriptions, Drawer, Space, Spin, Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { EyeOutlined, SettingOutlined } from '@ant-design/icons'
+import { EyeOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import {
   batchDeleteLoginLogs,
@@ -9,6 +9,7 @@ import {
   deleteLoginLog,
   getLoginLogDetail,
   getLoginLogList,
+  refreshLoginLogLocation,
 } from '@/api/log'
 import { useListPage } from '@/hooks/useListPage'
 import { handlePaginatedTableChange } from '@/utils/tableChange'
@@ -42,6 +43,7 @@ export default function LoginLogList() {
   const [logDetail, setLogDetail] = useState<LoginLogRow | null>(null)
   const [cleanOpen, setCleanOpen] = useState(false)
   const [cleanLoading, setCleanLoading] = useState(false)
+  const [filling, setFilling] = useState(false)
 
   const {
     tableData,
@@ -108,6 +110,47 @@ export default function LoginLogList() {
     })
   }
 
+  const handleRefreshLocation = async (row: LoginLogRow) => {
+    try {
+      const res = await refreshLoginLogLocation(row.id)
+      const data = (res.data || {}) as { location?: string; updated?: number }
+      message.success(t('log.location_refreshed', { location: data.location || '', count: data.updated ?? 0 }))
+      if (logDetail?.id === row.id) {
+        setLogDetail({ ...logDetail, location: data.location || '' })
+      }
+      await refresh()
+    } catch (error) {
+      showError(error, t('common.operation_failed'))
+    }
+  }
+
+  const handleFillEmpty = () => {
+    modal.confirm({
+      title: t('common.confirm'),
+      content: t('log.fill_empty_confirm'),
+      onOk: async () => {
+        setFilling(true)
+        try {
+          const res = await refreshLoginLogLocation()
+          const data = (res.data || {}) as { updated?: number; failed?: number; looked_up?: number; has_more?: boolean }
+          if (!data.looked_up) {
+            message.success(t('log.fill_empty_none'))
+            return
+          }
+          message.success(t('log.fill_empty_done', { updated: data.updated ?? 0, failed: data.failed ?? 0 }))
+          if (data.has_more) {
+            message.info(t('log.fill_empty_more'))
+          }
+          await refresh()
+        } catch (error) {
+          showError(error, t('common.operation_failed'))
+        } finally {
+          setFilling(false)
+        }
+      },
+    })
+  }
+
   const handleClean = async (days: number) => {
     setCleanLoading(true)
     try {
@@ -156,7 +199,7 @@ export default function LoginLogList() {
     {
       title: t('common.operation'),
       key: 'operation',
-      width: 160,
+      width: 260,
       fixed: 'end',
       onCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       render: (_, row) => (
@@ -169,6 +212,16 @@ export default function LoginLogList() {
               onClick={() => void handleView(row)}
             >
               {t('common.view')}
+            </PermissionButton>
+          ) : null}
+          {getButtonState('login_log.index').show ? (
+            <PermissionButton
+              permission="login_log.index"
+              type="link"
+              icon={<ReloadOutlined />}
+              onClick={() => void handleRefreshLocation(row)}
+            >
+              {t('log.refresh_location')}
             </PermissionButton>
           ) : null}
           {getButtonState('login_log.destroy').show ? (
@@ -206,6 +259,15 @@ export default function LoginLogList() {
           {selectedRowKeys.length > 0 && getButtonState('login_log.batch_delete').show ? (
             <PermissionButton permission="login_log.batch_delete" danger onClick={handleBatchDelete}>
               {t('common.delete_selected')} ({selectedRowKeys.length})
+            </PermissionButton>
+          ) : null}
+          {getButtonState('login_log.index').show ? (
+            <PermissionButton
+              permission="login_log.index"
+              loading={filling}
+              onClick={handleFillEmpty}
+            >
+              {t('log.fill_empty_locations')}
             </PermissionButton>
           ) : null}
           {getButtonState('login_log.clean').show ? (

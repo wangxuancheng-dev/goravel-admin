@@ -106,7 +106,8 @@
     "admin_cannot_delete_self": "不能删除自己",
     "confirm_delete": "确认删除？",
     "detail_rows": "明细行",
-    "actions": "操作"
+    "actions": "操作",
+    "ip_location_unavailable": "IP 地点查询失败，请稍后重试"
   },
   "admin_id": "管理员ID",
   "title": "标题",
@@ -1641,7 +1642,14 @@
     "validation_failed": "验证失败",
     "google_code_required": "需要谷歌验证码",
     "captcha_required": "请输入验证码",
-    "captcha_invalid": "验证码错误"
+    "captcha_invalid": "验证码错误",
+    "refresh_location": "重新获取地点",
+    "fill_empty_locations": "补全空地点",
+    "fill_empty_confirm": "将按 IP 重新查询地点为空的登录记录，同一 IP 只请求一次。本次最多处理 30 个 IP。",
+    "location_refreshed": "地点已更新为 {{location}}，同 IP 空记录共写入 {{count}} 条",
+    "fill_empty_done": "已补全 {{updated}} 条，失败 {{failed}} 个 IP",
+    "fill_empty_more": "仍有地点为空的记录，可再次点击继续",
+    "fill_empty_none": "没有需要补全的空地点"
   },
   "monitor_runtime": {
     "health_status": "健康状态",

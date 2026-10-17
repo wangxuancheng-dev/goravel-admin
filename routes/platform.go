@@ -92,6 +92,7 @@ func Platform() {
 				router.Post("admins/{id}/reset-password", adminController.ResetPassword)
 
 				router.Post("alert-deliveries/{id}/retry", alertDeliveryController.Retry)
+				router.Post("login-logs/refresh-location", auditController.RefreshLoginLocation)
 
 				router.Post("tenants/migrate-batch", tenantController.MigrateBatch)
 				router.Post("tenants/ops-batch", tenantController.OpsBatch)

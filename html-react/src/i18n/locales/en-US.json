@@ -106,7 +106,8 @@
     "platform_cannot_modify_self": "Cannot change your own role or status",
     "admin_cannot_delete_self": "Cannot delete yourself",
     "confirm_delete": "Confirm delete?",
-    "actions": "Actions"
+    "actions": "Actions",
+    "ip_location_unavailable": "IP location lookup failed. Try again later."
   },
   "admin_id": "Admin ID",
   "title": "Title",
@@ -1637,7 +1638,14 @@
     "validation_failed": "Validation failed",
     "google_code_required": "Google code required",
     "captcha_required": "Please enter the verification code",
-    "captcha_invalid": "Captcha invalid"
+    "captcha_invalid": "Captcha invalid",
+    "refresh_location": "Refresh location",
+    "fill_empty_locations": "Fill empty locations",
+    "fill_empty_confirm": "Look up login rows with an empty location. Each IP is queried once. This run handles at most 30 IPs.",
+    "location_refreshed": "Location updated to {{location}}. {{count}} rows with this IP were written.",
+    "fill_empty_done": "Filled {{updated}} rows, {{failed}} IPs failed",
+    "fill_empty_more": "Some empty locations remain. Click again to continue.",
+    "fill_empty_none": "No empty locations to fill"
   },
   "monitor_runtime": {
     "health_status": "Health Status",

@@ -71,6 +71,7 @@
         "option_type_required": "选项类型不能为空",
         "invalid_option_type": "无效的选项类型",
         "log_not_found": "日志不存在",
+        "ip_location_unavailable": "IP 地点查询失败，请稍后重试",
         "no_permission": "没有权限访问",
         "menu_path_required": "请输入路径",
         "generate_success": "生成成功",

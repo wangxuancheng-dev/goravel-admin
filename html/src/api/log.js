@@ -88,6 +88,14 @@ export function cleanLoginLogs(params = {}) {
   })
 }
 
+export function refreshLoginLogLocation(id) {
+  return request({
+    url: '/login-logs/refresh-location',
+    method: 'post',
+    data: id ? { id } : { fill_empty: true }
+  })
+}
+
 // 系统日志
 export async function getSystemLogList(params) {
   const res = await request({

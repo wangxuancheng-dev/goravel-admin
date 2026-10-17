@@ -48,6 +48,14 @@ export function cleanLoginLogs(params: Record<string, unknown> = {}) {
   return request({ url: '/login-logs/clean', method: 'post', params })
 }
 
+export function refreshLoginLogLocation(id?: string | number) {
+  return request({
+    url: '/login-logs/refresh-location',
+    method: 'post',
+    data: id ? { id } : { fill_empty: true },
+  }) as Promise<ApiResponse>
+}
+
 export async function getSystemLogList(params?: Record<string, unknown>) {
   const res = await request({ url: '/system-logs', method: 'get', params })
   return normalizeListResponse(res as unknown as ApiResponse<PaginatedData>) as ApiResponse<PaginatedData>

@@ -24,6 +24,9 @@ type LoginLogService interface {
 	BatchDelete(ids []uint) error
 	Clean(days int) error
 	Archive(days int) (uint, error)
+	RefreshLocation(id uint) (string, int64, error)
+	FillEmptyLocations(limit int) (LocationFillResult, error)
+	FillEmptyLocationsBatch(limit int, pause time.Duration) (LocationFillResult, error)
 }
 
 // LoginLogFilters 登录日志查询过滤器

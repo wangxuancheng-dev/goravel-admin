@@ -233,6 +233,7 @@ func Admin() {
 			router.Post("login-logs/batch-delete", loginLogController.BatchDestroy)
 			router.Post("login-logs/clean", loginLogController.Clean)
 			router.Post("login-logs/archive", loginLogController.Archive)
+			router.Post("login-logs/refresh-location", loginLogController.RefreshLocation)
 
 			// 系统日志
 			router.Get("system-logs", systemLogController.Index)

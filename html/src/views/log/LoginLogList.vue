@@ -28,6 +28,17 @@
     @page-change="loadData"
     @sort-change="handleSortChange"
   >
+    <template #extra-buttons>
+      <el-button
+        v-if="getButtonState('login_log.index').show"
+        :loading="filling"
+        :disabled="getButtonState('login_log.index').disabled"
+        @click="handleFillEmpty"
+      >
+        {{ $t('log.fill_empty_locations') }}
+      </el-button>
+    </template>
+
     <template #admin="{ row }">
       {{ row.admin?.username || '-' }}
     </template>
@@ -79,12 +90,13 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Delete, View } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, RefreshRight, View } from '@element-plus/icons-vue'
 import ListPage from '@/components/ListPage.vue'
 import TableActionButtons from '@/components/TableActionButtons.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
 import { useColumnSetting } from '@/composables/useColumnSetting'
-import { getLoginLogList, getLoginLogDetail, deleteLoginLog } from '@/api/log'
+import { getLoginLogList, getLoginLogDetail, deleteLoginLog, refreshLoginLogLocation } from '@/api/log'
 import {
   loginLogInitialSearchForm,
   transformLoginLogRow,
@@ -97,6 +109,7 @@ const { t } = useI18n()
 const listPageRef = ref(null)
 const detailVisible = ref(false)
 const logDetail = ref(null)
+const filling = ref(false)
 
 const {
   pagination,
@@ -147,6 +160,47 @@ const handleView = async (row) => {
 
 const handleDelete = (row) => handleDeleteRow(row, loadData)
 
+const handleRefreshLocation = async (row) => {
+  try {
+    const res = await refreshLoginLogLocation(row.id)
+    const location = res.data?.location || ''
+    const updated = res.data?.updated ?? 0
+    ElMessage.success(t('log.location_refreshed', { location, count: updated }))
+    if (logDetail.value?.id === row.id) {
+      logDetail.value.location = location
+    }
+    await loadData()
+  } catch (error) {
+    console.error('Refresh login location error:', error)
+  }
+}
+
+const handleFillEmpty = async () => {
+  try {
+    await ElMessageBox.confirm(t('log.fill_empty_confirm'), t('common.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  filling.value = true
+  try {
+    const res = await refreshLoginLogLocation()
+    const data = res.data || {}
+    if (!data.looked_up) {
+      ElMessage.success(t('log.fill_empty_none'))
+      return
+    }
+    ElMessage.success(t('log.fill_empty_done', { updated: data.updated ?? 0, failed: data.failed ?? 0 }))
+    if (data.has_more) {
+      ElMessage.info(t('log.fill_empty_more'))
+    }
+    await loadData()
+  } catch (error) {
+    console.error('Fill empty login locations error:', error)
+  } finally {
+    filling.value = false
+  }
+}
+
 const operationActions = computed(() => [
   {
     key: 'view',
@@ -155,6 +209,14 @@ const operationActions = computed(() => [
     permission: 'login_log.show',
     icon: View,
     handler: handleView
+  },
+  {
+    key: 'refresh-location',
+    label: t('log.refresh_location'),
+    type: 'primary',
+    permission: 'login_log.index',
+    icon: RefreshRight,
+    handler: handleRefreshLocation
   },
   {
     key: 'delete',

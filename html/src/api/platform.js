@@ -138,6 +138,10 @@ export function getPlatformLoginLogDetail(id) {
   return platformRequest.get(`/login-logs/${id}`)
 }
 
+export function refreshPlatformLoginLogLocation(id) {
+  return platformRequest.post('/login-logs/refresh-location', id ? { id } : { fill_empty: true })
+}
+
 export async function getPlatformOperationLogList(params) {
   const res = await platformRequest.get('/operation-logs', { params })
   return normalizeListResponse(res)

@@ -26,8 +26,14 @@
     <template #message="{ row }">
       {{ translateLoginMessage(row.message) }}
     </template>
+    <template #extra-buttons>
+      <el-button v-if="isOwner" :loading="filling" @click="handleFillEmpty">
+        {{ $t('log.fill_empty_locations') }}
+      </el-button>
+    </template>
     <template #operation="{ row }">
       <el-button link type="primary" @click="handleView(row)">{{ $t('common.view') }}</el-button>
+      <el-button v-if="isOwner" link type="primary" @click="handleRefreshLocation(row)">{{ $t('log.refresh_location') }}</el-button>
     </template>
   </ListPage>
 
@@ -56,11 +62,15 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import ListPage from '@/components/ListPage.vue'
 import { useStandardListPage } from '@/composables/useStandardListPage'
-import { getPlatformLoginLogDetail, getPlatformLoginLogList } from '@/api/platform'
+import { getPlatformLoginLogDetail, getPlatformLoginLogList, refreshPlatformLoginLogLocation } from '@/api/platform'
+import { getPlatformAdmin } from '@/utils/platformRequest'
 
 const { t } = useI18n()
+const isOwner = computed(() => getPlatformAdmin()?.role !== 'viewer')
+const filling = ref(false)
 const initialSearchForm = {
   username: '',
   ip: '',
@@ -108,7 +118,7 @@ const tableColumns = computed(() => [
   { field: 'status', title: t('table.status'), width: 100, slot: 'status', key: 'status' },
   { field: 'message', title: t('log.message'), minWidth: 160, slot: 'message', key: 'message' },
   { field: 'created_at', title: t('log.login_time'), width: 170, key: 'created_at' },
-  { field: 'operation', title: t('table.operation'), width: 90, slot: 'operation', key: 'operation', fixed: 'right' },
+  { field: 'operation', title: t('table.operation'), width: 200, slot: 'operation', key: 'operation', fixed: 'right' },
 ])
 
 const translateLoginMessage = (messageKey) => {
@@ -123,6 +133,46 @@ const formatRequest = (raw) => {
     return JSON.stringify(JSON.parse(raw), null, 2)
   } catch {
     return String(raw || '')
+  }
+}
+
+const handleRefreshLocation = async (row) => {
+  try {
+    const res = await refreshPlatformLoginLogLocation(row.id)
+    const location = res.data?.location || ''
+    ElMessage.success(t('log.location_refreshed', { location, count: res.data?.updated ?? 0 }))
+    if (logDetail.value?.id === row.id) {
+      logDetail.value.location = location
+    }
+    await loadData()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleFillEmpty = async () => {
+  try {
+    await ElMessageBox.confirm(t('log.fill_empty_confirm'), t('common.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  filling.value = true
+  try {
+    const res = await refreshPlatformLoginLogLocation()
+    const data = res.data || {}
+    if (!data.looked_up) {
+      ElMessage.success(t('log.fill_empty_none'))
+      return
+    }
+    ElMessage.success(t('log.fill_empty_done', { updated: data.updated ?? 0, failed: data.failed ?? 0 }))
+    if (data.has_more) {
+      ElMessage.info(t('log.fill_empty_more'))
+    }
+    await loadData()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    filling.value = false
   }
 }
 

@@ -106,3 +106,33 @@ func (c *LoginLogController) Archive(ctx http.Context) http.Response {
 		"days":      days,
 	})
 }
+
+type loginLogRefreshLocationRequest struct {
+	ID        uint `json:"id"`
+	FillEmpty bool `json:"fill_empty"`
+}
+
+// RefreshLocation looks up one log by id, or backfills empty locations when fill_empty is true.
+func (c *LoginLogController) RefreshLocation(ctx http.Context) http.Response {
+	var req loginLogRefreshLocationRequest
+	_ = ctx.Request().Bind(&req)
+	svc := c.LoginLogService(ctx)
+	if req.ID > 0 {
+		location, updated, err := svc.RefreshLocation(req.ID)
+		if err != nil {
+			return HandleGeneratedServiceError(ctx, "login-log", http.StatusBadRequest, err, map[string]any{"id": req.ID})
+		}
+		return response.Success(ctx, http.Json{
+			"location": location,
+			"updated":  updated,
+		})
+	}
+	if !req.FillEmpty {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrParamsError.Code)
+	}
+	result, err := svc.FillEmptyLocations(0)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "login-log", http.StatusInternalServerError, err, nil)
+	}
+	return response.Success(ctx, result)
+}

@@ -146,6 +146,7 @@ func (s *PermissionSeeder) Run() error {
 		{Name: "登录日志批量删除", Slug: "login_log.batch_delete", Method: "POST", Path: "/api/admin/login-logs/batch-delete", Description: "批量删除登录日志", Status: 1, Sort: 4, MenuID: loginLogMenu.ID},
 		{Name: "登录日志清理", Slug: "login_log.clean", Method: "POST", Path: "/api/admin/login-logs/clean", Description: "清理登录日志", Status: 1, Sort: 5, MenuID: loginLogMenu.ID},
 		{Name: "登录日志归档", Slug: "login_log.archive", Method: "POST", Path: "/api/admin/login-logs/archive", Description: "归档并清理登录日志", Status: 1, Sort: 6, MenuID: loginLogMenu.ID},
+		{Name: "Refresh login location", Slug: "login_log.refresh_location", Method: "POST", Path: "/api/admin/login-logs/refresh-location", Description: "Look up and fill empty login locations (granted with login_log.index)", Status: 1, Sort: 7, MenuID: loginLogMenu.ID},
 		// {Name: "登录日志清理", Slug: "login_log.clean", Method: "POST", Path: "/api/admin/login-logs/clean", Description: "清理登录日志", Status: 1, Sort: 5, MenuID: loginLogMenu.ID},
 		// 系统日志
 		{Name: "系统日志列表", Slug: "system_log.index", Method: "GET", Path: "/api/admin/system-logs", Description: "查看系统日志列表", Status: 1, Sort: 1, MenuID: systemLogMenu.ID},
@@ -287,5 +288,35 @@ func (s *PermissionSeeder) Run() error {
 		facades.Orm().Query().Where("slug", perm.Slug).OrWhere("name", perm.Name).FirstOrCreate(&perm, perm)
 	}
 
+	grantLoginLogRefreshToRolesWithIndex()
 	return nil
+}
+
+// grantLoginLogRefreshToRolesWithIndex copies the refresh permission onto roles that can list login logs.
+func grantLoginLogRefreshToRolesWithIndex() {
+	var refresh models.Permission
+	if err := facades.Orm().Query().Where("slug", "login_log.refresh_location").First(&refresh); err != nil || refresh.ID == 0 {
+		return
+	}
+	var index models.Permission
+	if err := facades.Orm().Query().Where("slug", "login_log.index").First(&index); err != nil || index.ID == 0 {
+		return
+	}
+	var roleIDs []uint
+	if err := facades.Orm().Query().Table("role_permission").Where("permission_id", index.ID).Pluck("role_id", &roleIDs); err != nil {
+		return
+	}
+	for _, roleID := range roleIDs {
+		if roleID == 0 {
+			continue
+		}
+		n, err := facades.Orm().Query().Table("role_permission").Where("role_id", roleID).Where("permission_id", refresh.ID).Count()
+		if err != nil || n > 0 {
+			continue
+		}
+		_ = facades.Orm().Query().Table("role_permission").Create(map[string]any{
+			"role_id":       roleID,
+			"permission_id": refresh.ID,
+		})
+	}
 }
