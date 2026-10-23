@@ -62,7 +62,7 @@ type AttachmentService interface {
 	// GetFileType 根据MIME类型判断文件类型
 	GetFileType(mimeType string) string
 
-	// DeleteFile 删除文件
+	// DeleteFile removes storage object (if present) and the DB row.
 	DeleteFile(attachment *models.Attachment) error
 	// UpdateDisplayName 更新显示名称
 	UpdateDisplayName(id uint, displayName string) error
@@ -842,37 +842,47 @@ func (s *AttachmentServiceImpl) resolveDefaultCategoryID() uint {
 	return id
 }
 
-// DeleteFile 删除文件
+// DeleteFile removes the object from storage (best-effort if already missing) then deletes the DB row.
 func (s *AttachmentServiceImpl) DeleteFile(attachment *models.Attachment) error {
 	if err := s.ensureCanMutate(attachment); err != nil {
 		return err
 	}
-	// 删除文件
 	if attachment.Path != "" && attachment.Disk != "" {
 		storage, err := utils.StorageDisk(attachment.Disk)
 		if err != nil {
 			return err
 		}
 		if err := storage.Delete(attachment.Path); err != nil {
+			// Local disk Delete returns Stat error when the object is already gone.
+			// Only fail when the object still exists after Delete.
+			if storage.Exists(attachment.Path) {
+				if s.ctx != nil {
+					errorlog.RecordHTTP(s.ctx, "attachment", "Failed to delete attachment file", map[string]any{
+						"attachment_id": attachment.ID,
+						"file_path":     attachment.Path,
+						"disk":          attachment.Disk,
+						"error":         err.Error(),
+					}, "Failed to delete attachment file: %v", err)
+				}
+				return apperrors.ErrDeleteFileFailed.WithError(err)
+			}
 			if s.ctx != nil {
-				errorlog.RecordHTTP(s.ctx, "attachment", "删除文件失败", map[string]any{
+				errorlog.RecordHTTPWithLevel(s.ctx, "warning", "attachment", "Attachment file already missing, continue DB delete", map[string]any{
 					"attachment_id": attachment.ID,
 					"file_path":     attachment.Path,
 					"disk":          attachment.Disk,
 					"error":         err.Error(),
-				}, "删除文件失败: %w", err)
+				}, "Attachment file already missing, continue DB delete: %v", err)
 			}
-			return apperrors.ErrDeleteFileFailed.WithError(err)
 		}
 	}
 
-	// 删除数据库记录
 	if _, err := appfacades.OrmQuery(s.ctx).Delete(attachment); err != nil {
 		if s.ctx != nil {
-			errorlog.RecordHTTP(s.ctx, "attachment", "删除附件记录失败", map[string]any{
+			errorlog.RecordHTTP(s.ctx, "attachment", "Failed to delete attachment record", map[string]any{
 				"attachment_id": attachment.ID,
 				"error":         err.Error(),
-			}, "删除附件记录失败: %w", err)
+			}, "Failed to delete attachment record: %v", err)
 		}
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
