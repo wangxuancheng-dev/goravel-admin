@@ -366,6 +366,8 @@ npx wrangler deploy
 
 pprof is available at: http://localhost:3000/debug/pprof/
 
+Debug dashboard (requests / SQL / logs / jobs, development only): http://localhost:3000/goralens. See the [Goralens docs](./website/docs/en/reference/goralens.md).
+
 ### Binary Compression
 
 To reduce the binary size, you can use UPX (Ultimate Packer for eXecutables) to compress the compiled executable:

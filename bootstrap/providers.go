@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"github.com/beratkara/goralens"
 	"github.com/goravel/cos"
 	"github.com/goravel/framework/ai"
 	"github.com/goravel/framework/auth"
@@ -78,5 +79,6 @@ func Providers() []foundation.ServiceProvider {
 		&telemetry.ServiceProvider{},
 		&ai.ServiceProvider{},
 		&openai.ServiceProvider{},
+		&goralens.ServiceProvider{},
 	}
 }

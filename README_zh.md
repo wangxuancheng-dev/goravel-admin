@@ -365,6 +365,8 @@ npx wrangler deploy
 
 pprof 性能分析工具地址：http://localhost:3000/debug/pprof/
 
+开发调试面板（请求 / SQL / 日志 / 队列等记录，仅开发环境）：http://localhost:3000/goralens ，见 [Goralens 文档](./website/docs/reference/goralens.md)
+
 ### 二进制压缩
 
 为了减小二进制文件大小，可以使用 UPX（Ultimate Packer for eXecutables）压缩编译后的可执行文件：

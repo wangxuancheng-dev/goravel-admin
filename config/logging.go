@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/beratkara/goralens"
 	"github.com/goravel/framework/facades"
 )
 
@@ -32,7 +33,7 @@ func init() {
 		"channels": map[string]any{
 			"stack": map[string]any{
 				"driver":   "stack",
-				"channels": []string{"daily"},
+				"channels": []string{"daily", "goralens"},
 			},
 			"single": map[string]any{
 				"driver": "single",
@@ -50,6 +51,11 @@ func init() {
 			"otel": map[string]any{
 				"driver":          "otel",
 				"instrument_name": config.GetString("APP_NAME", "goravel/log"),
+			},
+			// Feeds the Goralens dashboard; a no-op while GORALENS_ENABLED is false.
+			"goralens": map[string]any{
+				"driver": "custom",
+				"via":    goralens.LogDriver(),
 			},
 		},
 	})

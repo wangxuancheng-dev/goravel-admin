@@ -95,6 +95,7 @@ func All() []schema.Migration {
 		&M20261010180000CreateEntitlementTables{},
 		&M20261010190000AddPlatformFeatureAlwaysOn{},
 		&M20261011000000CreatePlatformSettingsTable{},
+		&M20260101000000CreateGoralensTables{},
 	}
 }
 

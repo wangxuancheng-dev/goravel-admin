@@ -27,6 +27,9 @@ func TestIsLandlordOnlyMigration(t *testing.T) {
 	if !IsLandlordOnlyMigration("20261011000000_create_platform_settings_table") {
 		t.Fatal("platform_settings should be landlord-only")
 	}
+	if !IsLandlordOnlyMigration("20260101000000_create_goralens_tables") {
+		t.Fatal("goralens debug tables should be landlord-only")
+	}
 	if IsLandlordOnlyMigration("20250101000002_create_admins_table") {
 		t.Fatal("admins should run on tenant DBs")
 	}
