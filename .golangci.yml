@@ -1,0 +1,39 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (net.Conn).Close
+        - (*crypto/tls.Conn).Close
+        - (*net/smtp.Client).Close
+        - os.Remove
+        - fmt.Fprintf
+        - fmt.Fprintln
+    govet:
+      disable:
+        # Suggests reflect.Ptr -> reflect.Pointer; style only.
+        - inline
+    staticcheck:
+      # Bug-finding checks only; S/ST/QF are style suggestions.
+      checks:
+        - SA*
+        # nil context is a project convention: PlatformOrmQuery(nil) means the platform connection.
+        - -SA1012
+        # tenancyctx uses string keys on purpose so Goravel ctx.Value("...") can read them.
+        - -SA1029
+        # Empty branches here are deliberate (recover-and-ignore, documented no-ops).
+        - -SA9003
+  exclusions:
+    rules:
+      # Seeders insert demo data; a failed row should not abort the whole seed.
+      - path: database/seeders/
+        linters:
+          - errcheck

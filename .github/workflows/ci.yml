@@ -49,6 +49,47 @@ jobs:
           mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|node_modules')
           go test -count=1 -timeout=3m "${PKGS[@]}"
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.15.0
+
+  vulncheck:
+    name: Vulnerability Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+
+      - name: govulncheck (allowlist in scripts/check-govulncheck.sh)
+        run: bash scripts/check-govulncheck.sh
+
   backend-integration:
     name: Backend Integration
     runs-on: ubuntu-latest
