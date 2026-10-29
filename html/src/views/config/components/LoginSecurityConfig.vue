@@ -52,7 +52,7 @@ const formData = reactive({
   password_min_length: 8,
   password_require_letter: true,
   password_require_number: true,
-  password_require_special: false,
+  password_require_special: true,
   anomaly_alert_enabled: true
 })
 

@@ -86,6 +86,8 @@ const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
 const needGoogleCode = ref(false)
+// 第一步（图形验证码 + 密码）通过后签发的票据，第二步提交谷歌验证码时带上
+const loginTicket = ref('')
 const showCaptcha = ref(false)
 const tenantLoginUrl = getTenantAdminLoginUrl()
 const form = reactive({ username: '', password: '', captcha_answer: '', google_code: '' })
@@ -179,6 +181,7 @@ const submit = async () => {
       }
       if (needGoogleCode.value) {
         payload.google_code = form.google_code
+        payload.login_ticket = loginTicket.value
       } else if (showCaptcha.value) {
         payload.captcha_id = captcha.id
         payload.captcha_answer = captcha.type === 'slide' ? slideAnswer.value : form.captcha_answer
@@ -191,6 +194,7 @@ const submit = async () => {
       const code = error?.error_code || error?.errorCode || ''
       if (code === 'google_code_required') {
         needGoogleCode.value = true
+        loginTicket.value = String(error?.response?.data?.data?.login_ticket || error?.data?.login_ticket || '')
         showCaptcha.value = false
         captcha.type = 'image'
         captcha.id = ''
@@ -209,10 +213,19 @@ const submit = async () => {
         }
         return
       }
-      if (
-        !needGoogleCode.value &&
-        (code === 'captcha_required' || code === 'captcha_invalid' || code === 'captcha_expired')
-      ) {
+      // 票据过期 / 不匹配：回到第一步重新验证密码与图形验证码
+      if (code === 'login_ticket_expired') {
+        needGoogleCode.value = false
+        loginTicket.value = ''
+        form.google_code = ''
+        await fetchCaptcha()
+        ElMessage.warning(error?.translatedMessage || error?.message || t('login.login_failed'))
+        return
+      }
+      // 2FA 步骤收到验证码错误说明票据缺失：回到第一步
+      if (code === 'captcha_required' || code === 'captcha_invalid' || code === 'captcha_expired') {
+        needGoogleCode.value = false
+        loginTicket.value = ''
         await fetchCaptcha()
         if (code === 'captcha_required') {
           ElMessage.info(t('login.captcha_required'))

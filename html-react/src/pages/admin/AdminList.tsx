@@ -20,6 +20,7 @@ import { useCrudActions } from '@/hooks/useCrudActions'
 import { usePermission } from '@/hooks/usePermission'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { useColumnSetting } from '@/hooks/useColumnSetting'
+import { usePasswordPolicy } from '@/hooks/usePasswordPolicy'
 import { promptSensitiveConfirm } from '@/utils/sensitiveConfirm'
 import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
@@ -45,6 +46,7 @@ export default function AdminList() {
   const [editId, setEditId] = useState<string | number | null>(null)
   const [exporting, setExporting] = useState(false)
   const [pwdForm] = Form.useForm()
+  const passwordPolicy = usePasswordPolicy()
 
   const {
     tableData,
@@ -97,7 +99,8 @@ export default function AdminList() {
           <Form.Item
             name="password"
             label={t('admin.new_password', { defaultValue: '新密码' })}
-            rules={[{ required: true, message: t('admin.password_required') }]}
+            rules={[{ required: true, message: t('admin.password_required') }, passwordPolicy.rule]}
+            extra={passwordPolicy.hint}
           >
             <Input.Password />
           </Form.Item>

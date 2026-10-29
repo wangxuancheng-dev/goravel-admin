@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { login, getLoginCaptcha, getLoginBranding } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { useAppStore, THEME_COLORS } from '@/stores/app'
-import { ERROR_CODES, type ApiError } from '@/types'
+import { ERROR_CODES, loginTicketFromError, type ApiError } from '@/types'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import {
@@ -55,6 +55,8 @@ export default function LoginPage() {
   const [form] = Form.useForm<LoginFormValues>()
   const [loading, setLoading] = useState(false)
   const [needGoogleCode, setNeedGoogleCode] = useState(false)
+  // Issued after captcha + password pass; lets the Google-code step skip a second captcha.
+  const [loginTicket, setLoginTicket] = useState('')
   const tenancyEnabled = useMemo(() => isTenancyEnabled(), [])
   const hostBoundTenant = useMemo(() => isHostBoundTenantContext(), [])
   // Show tenant input when Vite tenancy is on, or URL already carries a code (local header mode).
@@ -236,7 +238,7 @@ export default function LoginPage() {
         username: values.username,
         password: values.password,
         ...(tenantCode ? { tenant_code: tenantCode } : {}),
-        ...(needGoogleCode ? { google_code: values.google_code } : {}),
+        ...(needGoogleCode ? { google_code: values.google_code, login_ticket: loginTicket } : {}),
         ...(!needGoogleCode && captcha.shouldShow
           ? {
               captcha_id: captcha.id,
@@ -261,6 +263,7 @@ export default function LoginPage() {
 
       if (code === ERROR_CODES.GOOGLE_CODE_REQUIRED) {
         setNeedGoogleCode(true)
+        setLoginTicket(loginTicketFromError(err))
         setCaptcha((prev) => ({ ...prev, shouldShow: false, id: '', image: '', slide: null }))
         setSlideAnswer('')
         form.setFieldValue('captcha_answer', undefined)
@@ -277,12 +280,24 @@ export default function LoginPage() {
         return
       }
 
-      // Adaptive captcha: after failures backend may require captcha even when captcha_enabled=false.
       const captchaError =
         code === ERROR_CODES.CAPTCHA_REQUIRED ||
         code === ERROR_CODES.CAPTCHA_INVALID ||
         code === ERROR_CODES.CAPTCHA_EXPIRED
 
+      // Ticket expired / mismatched (or missing → captcha demanded): restart from the password + captcha step.
+      if (code === ERROR_CODES.LOGIN_TICKET_EXPIRED || (needGoogleCode && captchaError)) {
+        setNeedGoogleCode(false)
+        setLoginTicket('')
+        form.setFieldValue('google_code', undefined)
+        if (captcha.enabled || captchaError) {
+          await fetchCaptcha()
+        }
+        message.warning(err.translatedMessage || err.message || t('login.login_failed'))
+        return
+      }
+
+      // Adaptive captcha: after failures backend may require captcha even when captcha_enabled=false.
       if (!needGoogleCode && (captchaError || captcha.enabled || captcha.shouldShow)) {
         await fetchCaptcha()
       }

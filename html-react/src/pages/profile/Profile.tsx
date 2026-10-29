@@ -13,6 +13,7 @@ import {
 import { useUserStore } from '@/stores/user'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { usePermission } from '@/hooks/usePermission'
+import { usePasswordPolicy } from '@/hooks/usePasswordPolicy'
 import PageContainer from '@/components/PageContainer'
 import ProfileSessionsPanel from './ProfileSessionsPanel'
 import './Profile.scss'
@@ -68,6 +69,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'password' ? 'password' : 'basic')
   const [profileForm] = Form.useForm()
   const [passwordForm] = Form.useForm()
+  const passwordPolicy = usePasswordPolicy()
   const [bindForm] = Form.useForm()
   const [unbindForm] = Form.useForm()
   const [savingProfile, setSavingProfile] = useState(false)
@@ -291,7 +293,12 @@ export default function ProfilePage() {
                   <Form.Item name="old_password" label={t('common.old_password')} rules={[{ required: true }]}>
                     <Input.Password />
                   </Form.Item>
-                  <Form.Item name="new_password" label={t('common.new_password')} rules={[{ required: true }]}>
+                  <Form.Item
+                    name="new_password"
+                    label={t('common.new_password')}
+                    rules={[{ required: true }, passwordPolicy.rule]}
+                    extra={passwordPolicy.hint}
+                  >
                     <Input.Password />
                   </Form.Item>
                   <Form.Item

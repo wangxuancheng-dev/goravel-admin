@@ -112,6 +112,7 @@
                     v-model="passwordForm.new_password"
                     type="password"
                     show-password
+                    :placeholder="describePasswordPolicy(userStore.config.passwordPolicy, t)"
                   />
                 </el-form-item>
                 <el-form-item :label="$t('profile.confirm_password')" prop="confirm_password">
@@ -311,6 +312,7 @@ import {
 } from '../../api/auth'
 import ProfileSessions from './ProfileSessions.vue'
 import { useUserStore } from '../../store/user'
+import { describePasswordPolicy, passwordPolicyRule } from '../../utils/passwordPolicy'
 import { usePermission } from '../../composables/usePermission'
 
 const { t } = useI18n()
@@ -447,7 +449,8 @@ const passwordRules = {
     { required: true, message: t('profile.old_password_required'), trigger: 'blur' }
   ],
   new_password: [
-    { required: true, message: t('profile.new_password_required'), trigger: 'blur' }
+    { required: true, message: t('profile.new_password_required'), trigger: 'blur' },
+    passwordPolicyRule(() => userStore.config.passwordPolicy, t)
   ],
   confirm_password: [
     { required: true, message: t('profile.confirm_password_required'), trigger: 'blur' },

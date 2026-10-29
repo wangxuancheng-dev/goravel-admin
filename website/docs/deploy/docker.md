@@ -98,6 +98,8 @@ export GREEN_PORT=4001
 ./scripts/deploy/docker-blue-green.sh
 ```
 
+容器端口默认只绑定 `127.0.0.1`（`APP_BIND`），只有本机 nginx 能访问，外部无法绕过 nginx 的限流和 TLS 直连应用。nginx 部署在另一台机器时，设置 `export APP_BIND=<本机内网IP>`，并把 nginx 的地址加进 `TRUSTED_PROXIES`。
+
 详细说明请参考：`scripts/deploy/README-PORT-CONFIG.md`
 
 ### 环境变量

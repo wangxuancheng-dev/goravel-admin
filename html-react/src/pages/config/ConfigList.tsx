@@ -602,7 +602,7 @@ function LoginSecurityConfigPanel() {
           password_min_length: (v) => (v ? Number(v) : 8),
           password_require_letter: (v) => v === '' || v === '1' || v === 'true',
           password_require_number: (v) => v === '' || v === '1' || v === 'true',
-          password_require_special: (v) => v === '1' || v === 'true',
+          password_require_special: (v) => v === '' || v === '1' || v === 'true',
           anomaly_alert_enabled: (v) => v === '' || v === '1' || v === 'true',
         },
       )

@@ -26,6 +26,9 @@ func UpsertPlatformAdmin(username, password, name, role string) (*models.Platfor
 		name = username
 	}
 	role = models.NormalizePlatformAdminRole(role)
+	if err := ValidateAccountPassword(password, username, ConfigPasswordPolicy()); err != nil {
+		return nil, err
+	}
 	hashed, err := facades.Hash().Make(password)
 	if err != nil {
 		return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
@@ -77,6 +80,12 @@ func ChangePlatformAdminPassword(adminID uint, oldPassword, newPassword string) 
 	}
 	if !facades.Hash().Check(oldPassword, admin.Password) {
 		return apperrors.ErrOldPasswordError
+	}
+	if err := ValidateAccountPassword(newPassword, admin.Username, ConfigPasswordPolicy()); err != nil {
+		return err
+	}
+	if facades.Hash().Check(newPassword, admin.Password) {
+		return apperrors.ErrPasswordSameAsOld
 	}
 	hashed, err := facades.Hash().Make(newPassword)
 	if err != nil {
@@ -178,8 +187,8 @@ func CreatePlatformAdmin(in CreatePlatformAdminInput) (*models.PlatformAdmin, er
 	if username == "" || password == "" {
 		return nil, apperrors.ErrInvalidArgument
 	}
-	if len(password) < 6 {
-		return nil, apperrors.ErrPasswordTooWeak
+	if err := ValidateAccountPassword(password, username, ConfigPasswordPolicy()); err != nil {
+		return nil, err
 	}
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
@@ -328,11 +337,11 @@ func ResetPlatformAdminPassword(targetID uint, newPassword string) error {
 	if targetID == 0 || newPassword == "" {
 		return apperrors.ErrInvalidArgument
 	}
-	if len(newPassword) < 6 {
-		return apperrors.ErrPasswordTooWeak
-	}
 	admin, err := GetPlatformAdminByID(targetID)
 	if err != nil {
+		return err
+	}
+	if err := ValidateAccountPassword(newPassword, admin.Username, ConfigPasswordPolicy()); err != nil {
 		return err
 	}
 	hashed, err := facades.Hash().Make(newPassword)

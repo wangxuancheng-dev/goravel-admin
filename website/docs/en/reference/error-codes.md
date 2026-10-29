@@ -109,8 +109,9 @@
 |---|---|---|
 | `google_authenticator_not_bound` | 未绑定谷歌验证器 | 400/403 |
 | `google_authenticator_already_bound` | 已绑定谷歌验证器 | 400 |
-| `google_code_required` | 谷歌验证码不能为空 | 400 |
+| `google_code_required` | 谷歌验证码不能为空 (returns `data.login_ticket`; send it with the code in step 2) | 400 |
 | `google_code_invalid` | 谷歌验证码无效 | 400 |
+| `login_ticket_expired` | 登录验证已过期 (two-step ticket invalid/expired; restart with password + captcha) | 400 |
 | `secret_and_code_required` | 密钥和验证码不能为空 | 400 |
 
 ### 6) 业务冲突与依赖关系

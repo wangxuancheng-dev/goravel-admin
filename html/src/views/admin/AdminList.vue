@@ -120,6 +120,8 @@ import {
 import logger from '@/utils/logger'
 import ErrorHandler from '@/utils/errorHandler'
 import { promptSensitiveConfirm } from '@/utils/sensitiveConfirm'
+import { describePasswordPolicy, passwordPolicyError } from '@/utils/passwordPolicy'
+import { useUserStore } from '@/store/user'
 import { compact, map as lodashMap } from 'lodash-es'
 import {
   adminInitialSearchForm,
@@ -132,6 +134,7 @@ import {
 } from './admin.config'
 
 const { t } = useI18n()
+const userStore = useUserStore()
 const listPageRef = ref(null)
 const adminFormRef = ref(null)
 
@@ -241,13 +244,17 @@ const handleDelete = (row) => handleDeleteRow(row, loadData)
 
 const handleResetPassword = async (row) => {
   try {
+    const policy = userStore.config.passwordPolicy
     const { value: password } = await ElMessageBox.prompt(
-      t('admin.new_password'),
+      describePasswordPolicy(policy, t),
       t('admin.reset_password'),
       {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
-        inputType: 'password'
+        inputType: 'password',
+        inputPlaceholder: t('admin.new_password'),
+        inputValidator: (value) =>
+          (!value ? t('admin.password_required') : passwordPolicyError(value, policy, t)) || true
       }
     )
     const confirmCode = await promptSensitiveConfirm(t)

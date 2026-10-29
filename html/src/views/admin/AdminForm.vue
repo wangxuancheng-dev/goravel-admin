@@ -40,6 +40,8 @@ import {
 } from '../../api/admin'
 import logger from '../../utils/logger'
 import ErrorHandler from '../../utils/errorHandler'
+import { describePasswordPolicy, passwordPolicyRule } from '../../utils/passwordPolicy'
+import { useUserStore } from '../../store/user'
 
 const props = defineProps({
   modelValue: {
@@ -55,6 +57,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'success'])
 
 const { t } = useI18n()
+const userStore = useUserStore()
 const formRef = ref(null)
 const submitting = ref(false)
 const loading = ref(false)
@@ -88,7 +91,12 @@ const isDefaultAdmin = computed(() => formData.is_super_admin === true && formDa
 
 const formRules = computed(() => ({
   username: [{ required: true, message: t('admin.username_required'), trigger: 'blur' }],
-  password: formData.id ? [] : [{ required: true, message: t('admin.password_required'), trigger: 'blur' }]
+  password: formData.id
+    ? []
+    : [
+        { required: true, message: t('admin.password_required'), trigger: 'blur' },
+        passwordPolicyRule(userStore.config.passwordPolicy, t)
+      ]
 }))
 
 const formFields = computed(() => {
@@ -98,6 +106,7 @@ const formFields = computed(() => {
       prop: 'password',
       label: t('common.password'),
       type: 'password',
+      placeholder: describePasswordPolicy(userStore.config.passwordPolicy, t),
       disabled: loading.value,
       visible: () => !formData.id   // 只在新增时显示
     },

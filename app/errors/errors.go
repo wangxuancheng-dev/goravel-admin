@@ -115,6 +115,7 @@ var (
 	ErrGoogleAuthenticatorAlreadyBound   = NewBusinessError("google_authenticator_already_bound", "已绑定谷歌验证器")
 	ErrGoogleCodeInvalid                 = NewBusinessError("google_code_invalid", "谷歌验证码无效")
 	ErrGoogleCodeRequired                = NewBusinessError("google_code_required", "谷歌验证码不能为空")
+	ErrLoginTicketExpired                = NewBusinessError("login_ticket_expired", "登录验证已过期，请重新登录")
 	ErrSecretAndCodeRequired             = NewBusinessError("secret_and_code_required", "密钥和验证码不能为空")
 	ErrScheduleCommandRequired           = NewBusinessError("schedule_command_required", "请选择要执行的定时任务")
 	ErrScheduleCommandNotAllowed         = NewBusinessError("schedule_command_not_allowed", "不允许执行该命令")
@@ -129,6 +130,15 @@ var (
 	ErrFlexibleScheduleMutationForbidden = NewBusinessError("flexible_schedule_mutation_forbidden", "Cannot add or delete configurable schedules")
 	ErrOldPasswordError                  = NewBusinessError("old_password_error", "旧密码错误")
 	ErrPasswordTooWeak                   = NewBusinessError("password_too_weak", "密码强度不足")
+	ErrPasswordTooShort                  = NewBusinessError("password_too_short", "密码长度不能少于 {min_length} 位")
+	ErrPasswordMissingChars              = NewBusinessError("password_missing_chars", "密码还需包含：{missing}")
+	ErrPasswordRequirementsUnmet         = NewBusinessError("password_requirements_unmet", "密码长度不能少于 {min_length} 位，且需包含：{missing}")
+	PasswordCharLetter                   = NewTransLabel("password_char_letter", "字母")
+	PasswordCharNumber                   = NewTransLabel("password_char_number", "数字")
+	PasswordCharSpecial                  = NewTransLabel("password_char_special", "特殊符号（如 !@#$%）")
+	ErrPasswordTooCommon                 = NewBusinessError("password_too_common", "密码过于常见，容易被猜中，请换一个")
+	ErrPasswordContainsUsername          = NewBusinessError("password_contains_username", "密码不能包含用户名")
+	ErrPasswordSameAsOld                 = NewBusinessError("password_same_as_old", "新密码不能与旧密码相同")
 	ErrMustChangePassword                = NewBusinessError("must_change_password", "请先修改密码后再继续操作")
 	ErrSensitiveConfirmRequired          = NewBusinessError("sensitive_confirm_required", "敏感操作需要二次确认")
 	ErrSensitiveConfirmInvalid           = NewBusinessError("sensitive_confirm_invalid", "二次确认失败")
@@ -276,10 +286,15 @@ func NewBusinessError(code, message string) *BusinessError {
 
 // Error 实现 error 接口
 func (e *BusinessError) Error() string {
-	if e.Err != nil {
-		return fmt.Sprintf("[%s] %s: %v", e.Code, e.Message, e.Err)
+	// 无请求上下文（CLI / 日志）时用默认文案渲染占位符，避免输出 "{missing}" 这类原始占位符
+	message := e.Message
+	if len(e.Params) > 0 {
+		message = e.replacePlaceholders(message)
 	}
-	return fmt.Sprintf("[%s] %s", e.Code, e.Message)
+	if e.Err != nil {
+		return fmt.Sprintf("[%s] %s: %v", e.Code, message, e.Err)
+	}
+	return fmt.Sprintf("[%s] %s", e.Code, message)
 }
 
 // Unwrap 返回包装的错误
@@ -383,10 +398,63 @@ func (e *BusinessError) GetFormattedMessage(ctx http.Context) string {
 
 	// 3. 如果有参数，替换占位符
 	if len(e.Params) > 0 {
-		message = e.replacePlaceholders(message)
+		message = e.withTranslatedLists(ctx).replacePlaceholders(message)
 	}
 
 	return message
+}
+
+// TransList 参数值：渲染消息时把每一项当作翻译键翻译，再用 list_separator 拼接（中文“、”，英文“, ”）。
+// 用于“缺少哪些项”这类需要随语言变化的列表；项用 NewTransLabel 定义。
+type TransList []string
+
+// transLabelDefaults 列表项的默认文案（与 NewBusinessError 的默认消息一样用中文），翻译缺失或无请求上下文时使用。
+var transLabelDefaults = map[string]string{}
+
+// NewTransLabel 定义一个 TransList 列表项，返回其翻译键。仅在包初始化时调用。
+func NewTransLabel(key, defaultText string) string {
+	transLabelDefaults[key] = defaultText
+	return key
+}
+
+func (l TransList) defaultText() string {
+	items := make([]string, 0, len(l))
+	for _, key := range l {
+		if text, ok := transLabelDefaults[key]; ok {
+			key = text
+		}
+		items = append(items, key)
+	}
+	return strings.Join(items, "、")
+}
+
+func (e *BusinessError) withTranslatedLists(ctx http.Context) *BusinessError {
+	out := e
+	for key, value := range e.Params {
+		list, ok := value.(TransList)
+		if !ok {
+			continue
+		}
+		if out == e {
+			out = e.clone()
+		}
+		sep := trans.Get(ctx, "list_separator")
+		if sep == "list_separator" {
+			sep = "、"
+		}
+		items := make([]string, 0, len(list))
+		for _, item := range list {
+			text := trans.Get(ctx, item)
+			if text == item {
+				if def, ok := transLabelDefaults[item]; ok {
+					text = def
+				}
+			}
+			items = append(items, text)
+		}
+		out.Params[key] = strings.Join(items, sep)
+	}
+	return out
 }
 
 // replacePlaceholders 替换消息中的占位符
@@ -412,6 +480,8 @@ func (e *BusinessError) replacePlaceholders(message string) string {
 // float64/float32 保留2位小数，整数保持原样，其他类型使用 %v
 func (e *BusinessError) formatValue(value any) string {
 	switch v := value.(type) {
+	case TransList:
+		return v.defaultText()
 	case float64:
 		return fmt.Sprintf("%.2f", v)
 	case float32:

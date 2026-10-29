@@ -2364,5 +2364,16 @@
     "not_available": "Plan management is not enabled in this environment",
     "expiring_hint": "Your plan expires in {{days}} day(s). Please contact your administrator to renew.",
     "expired_hint": "Your plan has expired. Please contact your administrator to renew."
+  },
+  "password_policy": {
+    "too_short": "Password must be at least {{min}} characters",
+    "missing": "Password must also contain: {{items}}",
+    "too_short_and_missing": "Password must be at least {{min}} characters and contain: {{items}}",
+    "hint": "At least {{min}} characters",
+    "hint_with_items": "At least {{min}} characters, including {{items}}",
+    "letter": "a letter",
+    "number": "a number",
+    "special": "a special character (e.g. !@#$%)",
+    "separator": ", "
   }
 }

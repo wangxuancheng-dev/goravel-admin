@@ -96,16 +96,16 @@ func ResetTenantAdminPassword(tenant *models.Tenant, adminID uint, newPassword s
 	if err != nil {
 		return err
 	}
-	if err := ValidatePasswordPolicyCtx(ctx, newPassword); err != nil {
+	var admin models.Admin
+	if err := appfacades.OrmQuery(ctx).Where("id", adminID).FirstOrFail(&admin); err != nil {
+		return apperrors.ErrAdminNotFound.WithError(err)
+	}
+	if err := ValidatePasswordPolicyCtx(ctx, newPassword, admin.Username); err != nil {
 		return err
 	}
 	hashed, err := facades.Hash().Make(newPassword)
 	if err != nil {
 		return apperrors.ErrPasswordEncryptFailed.WithError(err)
-	}
-	var admin models.Admin
-	if err := appfacades.OrmQuery(ctx).Where("id", adminID).FirstOrFail(&admin); err != nil {
-		return apperrors.ErrAdminNotFound.WithError(err)
 	}
 	admin.Password = hashed
 	admin.MustChangePassword = 1

@@ -59,7 +59,7 @@
         <el-input v-model="form.username" autocomplete="off" />
       </el-form-item>
       <el-form-item v-if="!editingId" :label="$t('platform_admin.password')" prop="password">
-        <el-input v-model="form.password" type="password" show-password autocomplete="new-password" />
+        <el-input v-model="form.password" type="password" show-password autocomplete="new-password" :placeholder="passwordHint" />
       </el-form-item>
       <el-form-item :label="$t('platform_admin.name')" prop="name">
         <el-input v-model="form.name" />
@@ -87,7 +87,7 @@
   <el-dialog v-model="resetVisible" :title="$t('platform_admin.reset_password')" width="420px" destroy-on-close @closed="resetPwdForm">
     <el-form ref="resetFormRef" :model="resetForm" :rules="resetRules" label-width="110px">
       <el-form-item :label="$t('platform_admin.password')" prop="password">
-        <el-input v-model="resetForm.password" type="password" show-password />
+        <el-input v-model="resetForm.password" type="password" show-password :placeholder="passwordHint" />
       </el-form-item>
       <el-form-item :label="$t('platform.confirm_password')" prop="confirm_password">
         <el-input v-model="resetForm.confirm_password" type="password" show-password />
@@ -114,8 +114,12 @@ import {
   updatePlatformAdmin,
 } from '@/api/platform'
 import { getPlatformAdmin } from '@/utils/platformRequest'
+import { describePasswordPolicy, passwordPolicyRule } from '@/utils/passwordPolicy'
+import { usePlatformPasswordPolicy } from '@/composables/usePlatformPasswordPolicy'
 
 const { t } = useI18n()
+const passwordPolicy = usePlatformPasswordPolicy()
+const passwordHint = computed(() => describePasswordPolicy(passwordPolicy.value, t))
 const platformAdmin = computed(() => getPlatformAdmin())
 const isOwner = computed(() => platformAdmin.value?.role !== 'viewer')
 const currentId = computed(() => platformAdmin.value?.id)
@@ -192,7 +196,7 @@ const formRules = computed(() => ({
     ? []
     : [
         { required: true, message: () => t('platform_admin.password'), trigger: 'blur' },
-        { min: 6, message: () => t('platform_admin.password_min'), trigger: 'blur' },
+        passwordPolicyRule(() => passwordPolicy.value, t),
       ],
   role: [{ required: true, message: () => t('platform_admin.role'), trigger: 'change' }],
 }))
@@ -273,7 +277,7 @@ const resetForm = reactive({
 const resetRules = {
   password: [
     { required: true, message: () => t('platform_admin.password'), trigger: 'blur' },
-    { min: 6, message: () => t('platform_admin.password_min'), trigger: 'blur' },
+    passwordPolicyRule(() => passwordPolicy.value, t),
   ],
   confirm_password: [
     { required: true, message: () => t('platform.confirm_password'), trigger: 'blur' },

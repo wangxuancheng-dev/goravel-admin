@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { completePlatformLogin, getPlatformLoginCaptcha, platformLogin } from '@/api/platform'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { getTenantAdminLoginUrl } from '@/utils/tenant'
-import { ERROR_CODES, type ApiError } from '@/types'
+import { ERROR_CODES, loginTicketFromError, type ApiError } from '@/types'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import SlideCaptcha, { type SlideCaptchaData } from '@/components/SlideCaptcha'
@@ -19,6 +19,8 @@ export default function PlatformLogin() {
   const showError = useUnhandledError()
   const [loading, setLoading] = useState(false)
   const [needGoogleCode, setNeedGoogleCode] = useState(false)
+  // Issued after captcha + password pass; lets the Google-code step skip a second captcha.
+  const [loginTicket, setLoginTicket] = useState('')
   const [captcha, setCaptcha] = useState<{
     type: 'image' | 'slide'
     id: string
@@ -113,6 +115,7 @@ export default function PlatformLogin() {
         username: string
         password: string
         google_code?: string
+        login_ticket?: string
         captcha_id?: string
         captcha_answer?: string
       } = {
@@ -121,6 +124,7 @@ export default function PlatformLogin() {
       }
       if (needGoogleCode) {
         payload.google_code = values.google_code
+        payload.login_ticket = loginTicket
       } else if (captcha.shouldShow) {
         payload.captcha_id = captcha.id
         payload.captcha_answer = captcha.type === 'slide' ? slideAnswer : values.captcha_answer
@@ -135,6 +139,7 @@ export default function PlatformLogin() {
 
       if (code === ERROR_CODES.GOOGLE_CODE_REQUIRED) {
         setNeedGoogleCode(true)
+        setLoginTicket(loginTicketFromError(err))
         setCaptcha({ type: 'image', id: '', image: '', slide: null, shouldShow: false })
         setSlideAnswer('')
         form.setFieldValue('captcha_answer', undefined)
@@ -151,12 +156,25 @@ export default function PlatformLogin() {
         return
       }
 
+      // Ticket expired / mismatched: restart from the password + captcha step.
+      if (code === ERROR_CODES.LOGIN_TICKET_EXPIRED) {
+        setNeedGoogleCode(false)
+        setLoginTicket('')
+        form.setFieldValue('google_code', undefined)
+        await fetchCaptcha()
+        message.warning(err.translatedMessage || err.message || t('login.login_failed'))
+        return
+      }
+
       const captchaError =
         code === ERROR_CODES.CAPTCHA_REQUIRED ||
         code === ERROR_CODES.CAPTCHA_INVALID ||
         code === ERROR_CODES.CAPTCHA_EXPIRED
 
-      if (!needGoogleCode && captchaError) {
+      // Captcha demanded during the 2FA step means the ticket was missing: restart from step 1.
+      if (captchaError) {
+        setNeedGoogleCode(false)
+        setLoginTicket('')
         await fetchCaptcha()
         if (!err.__handled && code !== ERROR_CODES.CAPTCHA_REQUIRED) {
           message.error(err.translatedMessage || err.message || t('common.operation_failed'))

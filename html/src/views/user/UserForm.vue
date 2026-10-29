@@ -38,6 +38,8 @@ import { getEnableDisableOptions } from '@/utils/options'
 import { createUser, updateUser, getUserDetail } from '../../api/user'
 import { mapFields } from '../../utils/normalizeFormData'
 import ErrorHandler from '../../utils/errorHandler'
+import { describePasswordPolicy, passwordPolicyRule } from '../../utils/passwordPolicy'
+import { useUserStore } from '../../store/user'
 
 const props = defineProps({
   modelValue: {
@@ -53,6 +55,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'success'])
 
 const { t } = useI18n()
+const userStore = useUserStore()
 const formRef = ref(null)
 const loading = ref(false)
 const submitting = ref(false)
@@ -99,13 +102,13 @@ const formRules = computed(() => {
     ]
     rules.password = [
       { required: true, message: t('form.password_required'), trigger: 'blur' },
-      { min: 6, message: t('form.password_min_length'), trigger: 'blur' },
+      passwordPolicyRule(userStore.config.passwordPolicy, t),
       { max: 50, message: t('form.password_max_length'), trigger: 'blur' }
     ]
   } else {
     // 编辑时，username 和 password 不是必填的（username 不可修改，password 可选）
     rules.password = [
-      { min: 6, message: t('form.password_min_length'), trigger: 'blur' },
+      passwordPolicyRule(userStore.config.passwordPolicy, t),
       { max: 50, message: t('form.password_max_length'), trigger: 'blur' }
     ]
   }
@@ -127,6 +130,7 @@ const formFields = computed(() => {
       prop: 'password',
       label: t('common.password'),
       type: 'password',
+      placeholder: describePasswordPolicy(userStore.config.passwordPolicy, t),
       disabled: loading.value,
       // 仅新增时显示（和原代码 v-if="!formData.id" 逻辑一致）
       visible: () => !formData.id

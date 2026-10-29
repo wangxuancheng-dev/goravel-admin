@@ -65,3 +65,19 @@ func TestGetBusinessErrorSupportsUnwrap(t *testing.T) {
 		t.Fatal("expected errors.Is to match by code via Unwrap chain")
 	}
 }
+
+// Without a request context (CLI / logs) placeholders render with default labels, never as "{missing}".
+func TestBusinessErrorStringRendersTransList(t *testing.T) {
+	err := ErrPasswordRequirementsUnmet.WithParams(map[string]any{
+		"min_length": 8,
+		"missing":    TransList{PasswordCharNumber, PasswordCharSpecial},
+	})
+	want := "[password_requirements_unmet] 密码长度不能少于 8 位，且需包含：数字、特殊符号（如 !@#$%）"
+	if got := err.Error(); got != want {
+		t.Fatalf("got %q\nwant %q", got, want)
+	}
+	// Sentinel stays untouched.
+	if ErrPasswordRequirementsUnmet.Params != nil {
+		t.Fatal("WithParams must not mutate the sentinel")
+	}
+}

@@ -8,7 +8,8 @@ services:
     image: goravel-admin:green
     container_name: goravel-admin-green
     ports:
-      - "${GREEN_PORT:-3001}:${CONTAINER_PORT:-3000}"  # 使用不同端口
+      # 使用不同端口；默认只监听本机（见 docker-compose.blue.yml）
+      - "${APP_BIND:-127.0.0.1}:${GREEN_PORT:-3001}:${CONTAINER_PORT:-3000}"
     environment:
       - APP_ENV=production
       - APP_HOST=0.0.0.0

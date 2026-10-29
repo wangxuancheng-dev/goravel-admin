@@ -3,6 +3,7 @@ import { compact, map } from 'lodash-es'
 import { getInfo, logout } from '../api/auth'
 import Storage from '../utils/storage'
 import logger from '../utils/logger'
+import { DEFAULT_PASSWORD_POLICY, normalizePasswordPolicy } from '../utils/passwordPolicy'
 import { clearTenantCode, getTenantCode, resolveEffectiveTenantCode, resolveTenantCodeFromLocation, setTenantCode } from '../utils/tenant'
 
 export const useUserStore = defineStore('user', {
@@ -31,7 +32,8 @@ export const useUserStore = defineStore('user', {
         searchEnabled: false,
         searchDriver: 'null',
         otelEnabled: false,
-        tenancyEnabled: false
+        tenancyEnabled: false,
+        passwordPolicy: { ...DEFAULT_PASSWORD_POLICY }
       }
     }
   },
@@ -199,7 +201,8 @@ export const useUserStore = defineStore('user', {
         searchEnabled: !!config?.search_enabled,
         searchDriver: config?.search_driver || 'null',
         otelEnabled: config?.otel_enabled || config?.otelEnabled || false,
-        tenancyEnabled: !!(config?.tenancy_enabled || config?.tenancyEnabled)
+        tenancyEnabled: !!(config?.tenancy_enabled || config?.tenancyEnabled),
+        passwordPolicy: normalizePasswordPolicy(config?.password_policy)
       }
     },
 

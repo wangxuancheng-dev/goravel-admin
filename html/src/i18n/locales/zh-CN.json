@@ -2705,5 +2705,16 @@
     "expiring_hint": "套餐将在 {days} 天后到期，请及时联系管理员续期。",
     "expired_hint": "套餐已到期，请联系管理员续期。",
     "header_desc": "查看套餐、到期时间与额度"
+  },
+  "password_policy": {
+    "too_short": "密码长度不能少于 {min} 位",
+    "missing": "密码还需包含：{items}",
+    "too_short_and_missing": "密码长度不能少于 {min} 位，且需包含：{items}",
+    "hint": "至少 {min} 位",
+    "hint_with_items": "至少 {min} 位，需包含{items}",
+    "letter": "字母",
+    "number": "数字",
+    "special": "特殊符号（如 !{'@'}#$%）",
+    "separator": "、"
   }
 }

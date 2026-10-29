@@ -5,6 +5,7 @@ import { createAdmin, getAdminDetail, updateAdmin } from '@/api/admin'
 import { normalizeOptions, toOptionTreeData, useOptions } from '@/hooks/useOptions'
 import { getOptions, type OptionItem } from '@/api/option'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
+import { usePasswordPolicy } from '@/hooks/usePasswordPolicy'
 import { entityField } from '@/utils/normalize'
 
 interface AdminFormModalProps {
@@ -19,6 +20,7 @@ export default function AdminFormModal({ open, editId, onClose, onSuccess }: Adm
   const { message } = App.useApp()
   const showError = useUnhandledError()
   const [form] = Form.useForm()
+  const passwordPolicy = usePasswordPolicy()
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
@@ -133,7 +135,8 @@ export default function AdminFormModal({ open, editId, onClose, onSuccess }: Adm
           <Form.Item
             name="password"
             label={t('common.password')}
-            rules={[{ required: true, message: t('admin.password_required') }]}
+            rules={[{ required: true, message: t('admin.password_required') }, passwordPolicy.rule]}
+            extra={passwordPolicy.hint}
           >
             <Input.Password />
           </Form.Item>

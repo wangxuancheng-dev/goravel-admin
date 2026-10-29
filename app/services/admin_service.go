@@ -309,7 +309,7 @@ func (s *AdminServiceImpl) UpdateByRequest(httpCtx http.Context, id uint, req *a
 	}
 	passwordChanged := false
 	if req.Password != nil && *req.Password != "" {
-		if err := ValidatePasswordPolicyCtx(s.ctx, *req.Password); err != nil {
+		if err := ValidatePasswordPolicyCtx(s.ctx, *req.Password, adminModel.Username); err != nil {
 			return nil, err
 		}
 		hashedPassword, err := facades.Hash().Make(*req.Password)
@@ -380,8 +380,11 @@ func (s *AdminServiceImpl) UpdateOwnPassword(adminID uint, oldPassword, newPassw
 	if !facades.Hash().Check(oldPassword, adminModel.Password) {
 		return apperrors.ErrOldPasswordError
 	}
-	if err := ValidatePasswordPolicyCtx(s.ctx, newPassword); err != nil {
+	if err := ValidatePasswordPolicyCtx(s.ctx, newPassword, adminModel.Username); err != nil {
 		return err
+	}
+	if facades.Hash().Check(newPassword, adminModel.Password) {
+		return apperrors.ErrPasswordSameAsOld
 	}
 	hashedPassword, err := facades.Hash().Make(newPassword)
 	if err != nil {
@@ -402,7 +405,7 @@ func (s *AdminServiceImpl) ResetPassword(adminID uint, newPassword string) error
 	if err != nil {
 		return err
 	}
-	if err := ValidatePasswordPolicyCtx(s.ctx, newPassword); err != nil {
+	if err := ValidatePasswordPolicyCtx(s.ctx, newPassword, adminModel.Username); err != nil {
 		return err
 	}
 	hashedPassword, err := facades.Hash().Make(newPassword)
@@ -523,7 +526,7 @@ func (s *AdminServiceImpl) CreateAdmin(input CreateAdminInput) (*models.Admin, e
 	if err := s.ValidateUsernameUnique(input.Username, 0); err != nil {
 		return nil, err
 	}
-	if err := ValidatePasswordPolicyCtx(s.ctx, input.Password); err != nil {
+	if err := ValidatePasswordPolicyCtx(s.ctx, input.Password, input.Username); err != nil {
 		return nil, err
 	}
 	hashedPassword, err := facades.Hash().Make(input.Password)

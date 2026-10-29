@@ -2,12 +2,14 @@ package api
 
 import (
 	appfacades "goravel/app/facades"
+	"strings"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
+	"goravel/app/http/helpers"
 	adminrequests "goravel/app/http/requests/admin"
 	apirequests "goravel/app/http/requests/api"
 	"goravel/app/http/response"
@@ -47,7 +49,7 @@ func (r *AuthController) Register(ctx http.Context) http.Response {
 	})
 	if err != nil {
 		if businessErr, ok := apperrors.GetBusinessError(err); ok {
-			return response.Error(ctx, http.StatusBadRequest, businessErr.Code)
+			return response.Error(ctx, http.StatusBadRequest, businessErr)
 		}
 		return response.ErrorWithLog(ctx, "user", err, map[string]any{
 			"username": registerRequest.Username,
@@ -88,32 +90,38 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 		return response.ValidationError(ctx, http.StatusBadRequest, "validation_failed", errors.All())
 	}
 
-	// 验证用户名是否存在
-	exists, err := appfacades.OrmQuery(ctx).Model(&models.User{}).Where("username", loginRequest.Username).Exists()
-	if err != nil {
-		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
-			"username": loginRequest.Username,
-		})
-	}
-	if !exists {
-		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
+	// 登录失败锁定（与后台管理员共用服务，user: 前缀隔离计数）
+	ip := helpers.GetRealIP(ctx)
+	lockout := services.NewLoginLockoutService(ctx)
+	lockoutName := "user:" + strings.ToLower(loginRequest.Username)
+	if locked, _ := lockout.IsLocked(ip, lockoutName); locked {
+		lockMinutes := facades.Config().GetInt("login_security.lock_duration_minutes", 15)
+		return response.Error(ctx, http.StatusTooManyRequests,
+			apperrors.ErrLoginLocked.WithParams(map[string]any{"minutes": lockMinutes}))
 	}
 
 	// 获取用户信息
 	var user models.User
-	if err := appfacades.OrmQuery(ctx).Where("username", loginRequest.Username).FirstOrFail(&user); err != nil {
+	if err := appfacades.OrmQuery(ctx).Where("username", loginRequest.Username).First(&user); err != nil {
 		return response.ErrorWithLog(ctx, "auth", err, map[string]any{
 			"username": loginRequest.Username,
 		})
 	}
+	if user.ID == 0 {
+		services.BurnPasswordCheck(loginRequest.Password)
+		lockout.RecordFailure(ip, lockoutName)
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
+	}
+
+	// 验证密码（先于状态检查，避免未知密码者探测账号是否被禁用）
+	if !facades.Hash().Check(loginRequest.Password, user.Password) {
+		lockout.RecordFailure(ip, lockoutName)
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
+	}
+	lockout.ClearFailures(ip, lockoutName)
 
 	if user.Status == 0 {
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrAccountDisabled.Code)
-	}
-
-	// 验证密码
-	if !facades.Hash().Check(loginRequest.Password, user.Password) {
-		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
 	}
 
 	// 使用Goravel标准Auth生成token

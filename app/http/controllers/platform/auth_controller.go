@@ -30,6 +30,7 @@ type platformLoginBody struct {
 	CaptchaID     string `json:"captcha_id" form:"captcha_id"`
 	CaptchaAnswer string `json:"captcha_answer" form:"captcha_answer"`
 	GoogleCode    string `json:"google_code" form:"google_code"`
+	LoginTicket   string `json:"login_ticket" form:"login_ticket"`
 }
 
 // Captcha always issues a login captcha for the platform console (forced).
@@ -67,55 +68,84 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
 	}
 
-	var adminUser models.PlatformAdmin
-	if err := appfacades.PlatformOrmQuery(ctx).Where("username", username).First(&adminUser); err != nil {
-		// Unknown user: still require captcha to slow enumeration / brute force.
-		if ok, messageKey := services.NewPlatformCaptchaService(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
-			if messageKey == "" {
-				messageKey = "captcha_invalid"
-			}
-			services.RecordPlatformLoginLog(ctx, 0, username, 0, messageKey)
-			return response.Error(ctx, http.StatusBadRequest, messageKey)
+	clientIP := helpers.GetRealIP(ctx)
+	// Platform accounts share the lockout service with tenant admins; prefix keeps buckets apart.
+	lockout := services.NewLoginLockoutService(ctx)
+	lockoutName := "platform:" + strings.ToLower(username)
+	if locked, _ := lockout.IsLocked(clientIP, lockoutName); locked {
+		lockMinutes := facades.Config().GetInt("login_security.lock_duration_minutes", 15)
+		services.RecordPlatformLoginLog(ctx, 0, username, 0, "login_locked")
+		return response.Error(ctx, http.StatusTooManyRequests,
+			apperrors.ErrLoginLocked.WithParams(map[string]any{"minutes": lockMinutes}))
+	}
+
+	// Captcha is forced for every first step (bound 2FA or not), before the password check.
+	// The 2FA step presents the ticket issued after captcha + password passed instead.
+	ticketAdminID := uint(0)
+	if body.LoginTicket != "" {
+		ticketAdminID = services.LoginTwoFactorTicketSubject(ctx, body.LoginTicket, "platform", username, clientIP)
+		if ticketAdminID == 0 {
+			services.RecordPlatformLoginLog(ctx, 0, username, 0, "login_ticket_expired")
+			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrLoginTicketExpired.Code)
 		}
+	} else if ok, messageKey := services.NewPlatformCaptchaService(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
+		if messageKey == "" {
+			messageKey = "captcha_invalid"
+		}
+		services.RecordPlatformLoginLog(ctx, 0, username, 0, messageKey)
+		return response.Error(ctx, http.StatusBadRequest, messageKey)
+	}
+
+	var adminUser models.PlatformAdmin
+	if err := appfacades.PlatformOrmQuery(ctx).Where("username", username).First(&adminUser); err != nil || adminUser.ID == 0 {
+		services.BurnPasswordCheck(body.Password)
+		lockout.RecordFailure(clientIP, lockoutName)
 		services.RecordPlatformLoginLog(ctx, 0, username, 0, "username_not_found")
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
+	}
+	// Password before status / allowlist so neither leaks to someone without the password.
+	if !facades.Hash().Check(body.Password, adminUser.Password) {
+		lockout.RecordFailure(clientIP, lockoutName)
+		services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "password_error")
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
+	}
+	if ticketAdminID != 0 && ticketAdminID != adminUser.ID {
+		services.ConsumeLoginTwoFactorTicket(ctx, body.LoginTicket)
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrLoginTicketExpired.Code)
 	}
 	if adminUser.Status != models.PlatformAdminStatusActive {
 		services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "account_disabled")
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrAccountDisabled.Code)
 	}
-	if !facades.Hash().Check(body.Password, adminUser.Password) {
-		services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "password_error")
-		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
-	}
 
-	clientIP := helpers.GetRealIP(ctx)
 	if !services.IPInAllowlist(clientIP, adminUser.AllowedIPs) {
 		services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "login_ip_not_allowed")
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrLoginIPNotAllowed.Code)
 	}
 
-	// Bound 2FA replaces image captcha (same as tenant admin login).
 	if adminUser.Is2FABound() {
 		code := strings.TrimSpace(body.GoogleCode)
 		if code == "" {
+			ticket := body.LoginTicket
+			if ticket == "" {
+				var err error
+				if ticket, err = services.IssueLoginTwoFactorTicket(ctx, "platform", adminUser.ID, username, clientIP); err != nil {
+					return admin.HandleGeneratedServiceError(ctx, "platform_auth", http.StatusInternalServerError, err, nil)
+				}
+			}
 			services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "google_code_required")
-			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeRequired.Code)
+			return response.ErrorWithData(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeRequired.Code, http.Json{
+				"login_ticket": ticket,
+			})
 		}
-		ga := services.NewGoogleAuthenticatorServiceImpl(ctx)
-		if !ga.Verify(adminUser.GoogleSecret, code) {
+		if !services.VerifyTOTPOnce(ctx, "platform", adminUser.ID, adminUser.GoogleSecret, code) {
+			lockout.RecordFailure(clientIP, lockoutName)
 			services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, "google_code_invalid")
 			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeInvalid.Code)
 		}
-	} else {
-		if ok, messageKey := services.NewPlatformCaptchaService(ctx).Verify(body.CaptchaID, body.CaptchaAnswer); !ok {
-			if messageKey == "" {
-				messageKey = "captcha_invalid"
-			}
-			services.RecordPlatformLoginLog(ctx, adminUser.ID, username, 0, messageKey)
-			return response.Error(ctx, http.StatusBadRequest, messageKey)
-		}
 	}
+	services.ConsumeLoginTwoFactorTicket(ctx, body.LoginTicket)
+	lockout.ClearFailures(clientIP, lockoutName)
 
 	ttl := facades.Config().GetInt("jwt.ttl", 60)
 	var expiresAt *time.Time
@@ -153,7 +183,8 @@ func (c *AuthController) Info(ctx http.Context) http.Response {
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrNotLoggedIn.Code)
 	}
 	return response.Success(ctx, map[string]any{
-		"admin": services.PlatformAdminToJSON(&adminUser),
+		"admin":           services.PlatformAdminToJSON(&adminUser),
+		"password_policy": services.ConfigPasswordPolicy().ToJSON(),
 	})
 }
 

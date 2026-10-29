@@ -20,6 +20,7 @@ import { handlePaginatedTableChange } from '@/utils/tableChange'
 import { useCrudActions } from '@/hooks/useCrudActions'
 import { usePermission } from '@/hooks/usePermission'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
+import { usePasswordPolicy } from '@/hooks/usePasswordPolicy'
 import { useColumnSetting } from '@/hooks/useColumnSetting'
 import PageContainer from '@/components/PageContainer'
 import ColumnSettingDialog from '@/components/ColumnSettingDialog'
@@ -41,6 +42,7 @@ export default function UserList() {
   const { getButtonState } = usePermission()
   const [form] = Form.useForm()
   const [pwdForm] = Form.useForm()
+  const passwordPolicy = usePasswordPolicy()
   const [balanceForm] = Form.useForm()
   const [formOpen, setFormOpen] = useState(false)
   const [editId, setEditId] = useState<string | number | null>(null)
@@ -127,10 +129,8 @@ export default function UserList() {
           <Form.Item
             name="password"
             label={t('user.new_password')}
-            rules={[
-              { required: true },
-              { min: 6, message: t('user.password_min_length') },
-            ]}
+            rules={[{ required: true }, passwordPolicy.rule]}
+            extra={passwordPolicy.hint}
           >
             <Input.Password />
           </Form.Item>
@@ -372,7 +372,12 @@ export default function UserList() {
             <Input disabled={!!editId} />
           </Form.Item>
           {!editId && (
-            <Form.Item name="password" label={t('common.password')} rules={[{ required: true }, { min: 6 }]}>
+            <Form.Item
+              name="password"
+              label={t('common.password')}
+              rules={[{ required: true }, passwordPolicy.rule]}
+              extra={passwordPolicy.hint}
+            >
               <Input.Password />
             </Form.Item>
           )}

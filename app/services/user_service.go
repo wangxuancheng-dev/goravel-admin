@@ -195,6 +195,9 @@ func (s *UserServiceImpl) Create(req *admin.UserCreate) (*models.User, error) {
 	if err := s.validateUserExists(req.Username, req.Email, req.Phone, 0); err != nil {
 		return nil, err
 	}
+	if err := ValidatePasswordPolicyCtx(s.ctx, req.Password, req.Username); err != nil {
+		return nil, err
+	}
 
 	hashedPassword, err := facades.Hash().Make(req.Password)
 	if err != nil {
@@ -257,6 +260,9 @@ func (s *UserServiceImpl) Update(id uint, req *admin.UserUpdate) (*models.User, 
 		updateData["status"] = *req.Status
 	}
 	if req.Password != nil && *req.Password != "" {
+		if err := ValidatePasswordPolicyCtx(s.ctx, *req.Password, user.Username); err != nil {
+			return nil, err
+		}
 		hashedPassword, err := facades.Hash().Make(*req.Password)
 		if err != nil {
 			return nil, apperrors.NewBusinessError("password_encrypt_failed", "密码加密失败").WithError(err)
@@ -401,8 +407,11 @@ func (s *UserServiceImpl) validateUserExists(username, email, phone string, excl
 // ResetPassword 重置用户密码
 func (s *UserServiceImpl) ResetPassword(userID uint, newPassword string) error {
 	// 检查用户是否存在
-	_, err := s.GetByID(userID)
+	user, err := s.GetByID(userID)
 	if err != nil {
+		return err
+	}
+	if err := ValidatePasswordPolicyCtx(s.ctx, newPassword, user.Username); err != nil {
 		return err
 	}
 

@@ -16,6 +16,7 @@ import PageContainer from '@/components/PageContainer'
 import SearchForm from '@/components/SearchForm'
 import { getPlatformAdmin } from '@/utils/platformRequest'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
+import { usePlatformPasswordPolicy } from '@/hooks/usePasswordPolicy'
 
 interface AdminRow {
   id: number | string
@@ -29,6 +30,7 @@ interface AdminRow {
 export default function PlatformAdminList() {
   const { t } = useTranslation()
   const showError = useUnhandledError()
+  const passwordPolicy = usePlatformPasswordPolicy()
   const me = getPlatformAdmin()
   const isOwner = me?.role !== 'viewer'
   const currentId = me?.id
@@ -289,10 +291,8 @@ export default function PlatformAdminList() {
               <Form.Item
                 name="password"
                 label={t('platform_admin.password')}
-                rules={[
-                  { required: true, message: t('platform_admin.password') },
-                  { min: 6, message: t('platform_admin.password_min') },
-                ]}
+                rules={[{ required: true, message: t('platform_admin.password') }, passwordPolicy.rule]}
+                extra={passwordPolicy.hint}
               >
                 <Input.Password autoComplete="new-password" />
               </Form.Item>
@@ -335,10 +335,8 @@ export default function PlatformAdminList() {
           <Form.Item
             name="password"
             label={t('platform_admin.password')}
-            rules={[
-              { required: true, message: t('platform_admin.password') },
-              { min: 6, message: t('platform_admin.password_min') },
-            ]}
+            rules={[{ required: true, message: t('platform_admin.password') }, passwordPolicy.rule]}
+            extra={passwordPolicy.hint}
           >
             <Input.Password />
           </Form.Item>

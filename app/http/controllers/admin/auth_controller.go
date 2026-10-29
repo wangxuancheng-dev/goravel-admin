@@ -240,41 +240,58 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 			apperrors.ErrLoginLocked.WithParams(map[string]any{"minutes": lockMinutes}))
 	}
 
-	// 验证用户名是否存在
+	// ---- 人机验证（先于密码校验，不论是否绑定谷歌验证码） ----
+	// 第二步（凭票据提交谷歌验证码）免验证码；票据只在第一步通过人机验证 + 密码后签发。
+	ticketAdminID := uint(0)
+	if loginRequest.LoginTicket != "" {
+		ticketAdminID = services.LoginTwoFactorTicketSubject(ctx, loginRequest.LoginTicket, "admin", loginRequest.Username, ip)
+		if ticketAdminID == 0 {
+			r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "login_ticket_expired", requestData)
+			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrLoginTicketExpired.Code)
+		}
+	} else if r.captchaService(ctx).Enabled() || r.lockoutService(ctx).NeedsCaptcha(ip, loginRequest.Username) {
+		captchaID := ctx.Request().Input("captcha_id")
+		captchaAnswer := ctx.Request().Input("captcha_answer")
+		if ok, messageKey := r.captchaService(ctx).Verify(captchaID, captchaAnswer); !ok {
+			if messageKey == "" {
+				messageKey = "captcha_invalid"
+			}
+			r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, messageKey, requestData)
+			return response.Error(ctx, http.StatusBadRequest, messageKey)
+		}
+	}
+
 	q := appfacades.OrmQuery(ctx)
 	if q == nil {
 		return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrTenantConnectionFailed.Code)
 	}
-	exists, err := q.Model(&models.Admin{}).Where("username", loginRequest.Username).Exists()
-	if err != nil {
+	var admin models.Admin
+	if err := q.Where("username", loginRequest.Username).First(&admin); err != nil {
 		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"username": loginRequest.Username,
 		})
 	}
-	if !exists {
+	if admin.ID == 0 {
+		services.BurnPasswordCheck(loginRequest.Password)
 		r.lockoutService(ctx).RecordFailure(ip, loginRequest.Username)
 		r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "username_not_found", requestData)
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
 	}
 
-	// 获取管理员信息
-	var admin models.Admin
-	if err := q.Where("username", loginRequest.Username).FirstOrFail(&admin); err != nil {
-		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
-			"username": loginRequest.Username,
-		})
+	// 验证密码（先于状态检查：不知道密码的人无法探测账号是否被禁用）
+	if !facades.Hash().Check(loginRequest.Password, admin.Password) {
+		r.lockoutService(ctx).RecordFailure(ip, loginRequest.Username)
+		r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "password_error", requestData)
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
+	}
+	if ticketAdminID != 0 && ticketAdminID != admin.ID {
+		services.ConsumeLoginTwoFactorTicket(ctx, loginRequest.LoginTicket)
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrLoginTicketExpired.Code)
 	}
 
 	if admin.Status == 0 {
 		r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "account_disabled", requestData)
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrAccountDisabled.Code)
-	}
-
-	// 验证密码
-	if !facades.Hash().Check(loginRequest.Password, admin.Password) {
-		r.lockoutService(ctx).RecordFailure(ip, loginRequest.Username)
-		r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "password_error", requestData)
-		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
 	}
 
 	// 检查是否绑定了谷歌验证码
@@ -287,10 +304,20 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 
 	// 如果绑定了谷歌验证码，验证谷歌验证码
 	if isBound {
-		googleCode := loginRequest.GoogleCode
+		googleCode := strings.TrimSpace(loginRequest.GoogleCode)
 		if googleCode == "" {
+			ticket := loginRequest.LoginTicket
+			if ticket == "" {
+				if ticket, err = services.IssueLoginTwoFactorTicket(ctx, "admin", admin.ID, loginRequest.Username, ip); err != nil {
+					return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
+						"admin_id": admin.ID,
+					})
+				}
+			}
 			r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "google_code_required", requestData)
-			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeRequired.Code)
+			return response.ErrorWithData(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeRequired.Code, http.Json{
+				"login_ticket": ticket,
+			})
 		}
 
 		secret, err := r.googleAuthenticatorService(ctx).GetSecret(admin.ID)
@@ -300,28 +327,15 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 			})
 		}
 
-		if !r.googleAuthenticatorService(ctx).Verify(secret, googleCode) {
+		if !services.VerifyTOTPOnce(ctx, "admin", admin.ID, secret, googleCode) {
 			r.lockoutService(ctx).RecordFailure(ip, loginRequest.Username)
 			r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "google_code_error", requestData)
 			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeInvalid.Code)
 		}
-	} else {
-		captchaRequired := r.captchaService(ctx).Enabled() ||
-			r.lockoutService(ctx).GetFailureCount(ip, loginRequest.Username) >= 2
-		if captchaRequired {
-			captchaID := ctx.Request().Input("captcha_id")
-			captchaAnswer := ctx.Request().Input("captcha_answer")
-			if ok, messageKey := r.captchaService(ctx).Verify(captchaID, captchaAnswer); !ok {
-				if messageKey == "" {
-					messageKey = "captcha_invalid"
-				}
-				r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, messageKey, requestData)
-				return response.Error(ctx, http.StatusBadRequest, messageKey)
-			}
-		}
 	}
 
-	// 所有验证通过，清除失败计数
+	// 所有验证通过，清除失败计数并作废票据
+	services.ConsumeLoginTwoFactorTicket(ctx, loginRequest.LoginTicket)
 	r.lockoutService(ctx).ClearFailures(ip, loginRequest.Username)
 
 	// 登录异常检测（在写入本次成功日志之前对比上次成功 IP）
@@ -364,7 +378,7 @@ func (r *AuthController) Captcha(ctx http.Context) http.Response {
 	if username == "" {
 		username = ctx.Request().Input("username", "")
 	}
-	adaptiveRequired := username != "" && r.lockoutService(ctx).GetFailureCount(ip, username) >= 2
+	adaptiveRequired := username != "" && r.lockoutService(ctx).NeedsCaptcha(ip, username)
 	required := enabled || adaptiveRequired
 
 	captchaData := http.Json{
@@ -514,6 +528,7 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 			"search_driver":                   search.Driver(),
 			"otel_enabled":                    utils.OTELEnabled(),
 			"tenancy_enabled":                 tenancy.Enabled(),
+			"password_policy":                 services.ResolvePasswordPolicy(ctx).ToJSON(),
 		},
 	}
 	if tenancy.Enabled() {

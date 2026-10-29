@@ -3,6 +3,7 @@ import { compact, map } from 'lodash-es'
 import { getInfo, logout as logoutApi } from '@/api/auth'
 import Storage from '@/utils/storage'
 import logger from '@/utils/logger'
+import { DEFAULT_PASSWORD_POLICY, normalizePasswordPolicy } from '@/utils/passwordPolicy'
 import type {
   AdminInfo,
   CurrentTenantInfo,
@@ -26,6 +27,7 @@ const defaultConfig: FeatureConfig = {
   searchDriver: 'null',
   otelEnabled: false,
   tenancyEnabled: false,
+  passwordPolicy: { ...DEFAULT_PASSWORD_POLICY },
 }
 
 function toBasicAdminInfo(adminInfo: AdminInfo): AdminInfo {
@@ -238,6 +240,7 @@ export const useUserStore = create<UserState>((set, get) => {
           searchDriver: (config?.search_driver || config?.searchDriver || 'null') as string,
           otelEnabled: !!(config?.otel_enabled || config?.otelEnabled),
           tenancyEnabled: !!(config?.tenancy_enabled || config?.tenancyEnabled),
+          passwordPolicy: normalizePasswordPolicy(config?.password_policy),
         },
       })
     },

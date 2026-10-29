@@ -7,6 +7,9 @@
 # App:   http://localhost:3000
 # Login: admin / admin123  (change after first login)
 #
+# Ports listen on 127.0.0.1 only (MySQL/Redis use weak demo credentials).
+# To reach the app from another device on the LAN, set APP_BIND=0.0.0.0 in .env.
+#
 # Production blue/green: see website/docs/deploy/docker.md (docker-compose.blue.yml / green.yml)
 
 services:
@@ -19,7 +22,7 @@ services:
       MYSQL_USER: goravel
       MYSQL_PASSWORD: goravel
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - goravel_mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
@@ -34,7 +37,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - goravel_redis_data:/data
     healthcheck:
@@ -50,7 +53,7 @@ services:
     env_file:
       - .env
     ports:
-      - "3000:3000"
+      - "${APP_BIND:-127.0.0.1}:3000:3000"
     depends_on:
       mysql:
         condition: service_healthy

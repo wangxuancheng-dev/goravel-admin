@@ -11,7 +11,8 @@ type Login struct {
 	Password      string `form:"password" json:"password"`
 	CaptchaID     string `form:"captcha_id" json:"captcha_id"`
 	CaptchaAnswer string `form:"captcha_answer" json:"captcha_answer"`
-	GoogleCode    string `form:"google_code" json:"google_code"` // 谷歌验证码
+	GoogleCode    string `form:"google_code" json:"google_code"`   // 谷歌验证码
+	LoginTicket   string `form:"login_ticket" json:"login_ticket"` // 第一步通过后签发的两步登录票据
 	TenantCode    string `form:"tenant_code" json:"tenant_code"` // 一户一库开启时必填（也可用 Header）
 	TenantID      string `form:"tenant_id" json:"tenant_id"`
 }

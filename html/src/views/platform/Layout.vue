@@ -37,7 +37,12 @@
           <el-input v-model="pwdForm.old_password" type="password" show-password />
         </el-form-item>
         <el-form-item :label="$t('platform.new_password')" prop="new_password">
-          <el-input v-model="pwdForm.new_password" type="password" show-password />
+          <el-input
+            v-model="pwdForm.new_password"
+            type="password"
+            show-password
+            :placeholder="describePasswordPolicy(passwordPolicy, t)"
+          />
         </el-form-item>
         <el-form-item :label="$t('platform.confirm_password')" prop="confirm_password">
           <el-input v-model="pwdForm.confirm_password" type="password" show-password />
@@ -60,8 +65,11 @@ import { logoutPlatform, updatePlatformPassword } from '@/api/platform'
 import { getPlatformAdmin } from '@/utils/platformRequest'
 import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
 import LanguageSwitch from '@/components/LanguageSwitch.vue'
+import { describePasswordPolicy, passwordPolicyRule } from '@/utils/passwordPolicy'
+import { usePlatformPasswordPolicy } from '@/composables/usePlatformPasswordPolicy'
 
 const { t } = useI18n()
+const passwordPolicy = usePlatformPasswordPolicy()
 const route = useRoute()
 const router = useRouter()
 const active = computed(() => route.path)
@@ -81,7 +89,7 @@ const pwdRules = {
   old_password: [{ required: true, message: () => t('platform.old_password'), trigger: 'blur' }],
   new_password: [
     { required: true, message: () => t('platform.new_password'), trigger: 'blur' },
-    { min: 6, message: () => t('platform.new_password'), trigger: 'blur' },
+    passwordPolicyRule(() => passwordPolicy.value, t),
   ],
   confirm_password: [
     { required: true, message: () => t('platform.confirm_password'), trigger: 'blur' },

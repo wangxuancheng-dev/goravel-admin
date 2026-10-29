@@ -12,11 +12,17 @@ import { isAuthEndpointUrl } from './authEndpoint'
 
 const { t } = i18n.global
 
+// 两步登录票据：google_code_required 时随错误返回，第二步与谷歌验证码一起提交（免二次图形验证码）
+export function loginTicketFromError(error) {
+  return String(error?.response?.data?.data?.login_ticket || error?.data?.login_ticket || '')
+}
+
 // 错误码常量
 const ERROR_CODES = {
   // 认证相关
   GOOGLE_CODE_REQUIRED: 'google_code_required',
   GOOGLE_CODE_INVALID: 'google_code_invalid',
+  LOGIN_TICKET_EXPIRED: 'login_ticket_expired',
   ACCOUNT_DISABLED: 'account_disabled',
   UNAUTHORIZED: 'unauthorized',
   FORBIDDEN: 'forbidden',

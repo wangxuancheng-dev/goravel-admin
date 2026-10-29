@@ -102,6 +102,8 @@ export GREEN_PORT=4001
 ./scripts/deploy/docker-blue-green.sh
 ```
 
+Container ports bind to `127.0.0.1` by default (`APP_BIND`), so only the local nginx can reach the app and nothing bypasses its rate limits / TLS. If nginx runs on another host, `export APP_BIND=<this host's private IP>` and add the nginx address to `TRUSTED_PROXIES`.
+
 详细说明请参考：`scripts/deploy/README-PORT-CONFIG.md`
 
 ### 环境变量

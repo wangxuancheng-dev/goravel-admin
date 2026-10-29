@@ -172,7 +172,7 @@ import { resolveImageDisplayUrl } from '../utils/publicImage'
 import LanguageSwitch from '../components/LanguageSwitch.vue'
 import DarkModeSwitch from '../components/DarkModeSwitch.vue'
 import SlideCaptcha from '../components/SlideCaptcha.vue'
-import { ERROR_CODES } from '../utils/request'
+import { ERROR_CODES, loginTicketFromError } from '../utils/request'
 import Storage from '../utils/storage'
 import {
   getTenantCode,
@@ -218,6 +218,8 @@ const captchaInfo = reactive({
 })
 
 const needGoogleCode = ref(false)
+// 第一步（图形验证码 + 密码）通过后签发的票据，第二步提交谷歌验证码时带上
+const loginTicket = ref('')
 // Slide mode: x offset recorded after the user releases the slider (verified on login)
 const slideAnswer = ref('')
 
@@ -438,6 +440,7 @@ const handleLogin = async () => {
         // 如果已经需要谷歌验证码，添加谷歌验证码
         if (needGoogleCode.value) {
           payload.google_code = loginForm.google_code
+          payload.login_ticket = loginTicket.value
         }
         // 如果图形验证码应该显示，添加图形验证码
         else if (captchaInfo.shouldShow) {
@@ -485,6 +488,7 @@ const handleLogin = async () => {
         if (errorCode === ERROR_CODES.GOOGLE_CODE_REQUIRED) {
           // 绑定了 2FA，需要谷歌验证码，隐藏图形验证码
           needGoogleCode.value = true
+          loginTicket.value = loginTicketFromError(error)
           captchaInfo.shouldShow = false
           captchaInfo.slide = null
           slideAnswer.value = ''
@@ -502,6 +506,18 @@ const handleLogin = async () => {
           loginForm.google_code = ''
           return
         }
+
+        // 票据过期 / 不匹配：回到第一步重新验证密码与图形验证码
+        if (errorCode === ERROR_CODES.LOGIN_TICKET_EXPIRED) {
+          needGoogleCode.value = false
+          loginTicket.value = ''
+          loginForm.google_code = ''
+          if (captchaInfo.enabled) {
+            await fetchCaptcha()
+          }
+          ElMessage.warning(message)
+          return
+        }
         
         if (errorCode === ERROR_CODES.ACCOUNT_DISABLED) {
           ElMessage.error(message)
@@ -509,10 +525,11 @@ const handleLogin = async () => {
         }
         
         // 检查是否是验证码相关的错误（含失败次数触发的自适应验证码）
+        // 2FA 步骤收到验证码错误说明票据缺失：回到第一步
         if (errorCode === ERROR_CODES.CAPTCHA_INVALID || errorCode === ERROR_CODES.CAPTCHA_REQUIRED) {
-          if (!needGoogleCode.value) {
-            await fetchCaptcha()
-          }
+          needGoogleCode.value = false
+          loginTicket.value = ''
+          await fetchCaptcha()
           ElMessage.error(message)
           return
         }

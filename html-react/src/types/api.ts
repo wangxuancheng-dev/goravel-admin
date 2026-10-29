@@ -53,6 +53,7 @@ export interface ApiError extends Error {
 export const ERROR_CODES = {
   GOOGLE_CODE_REQUIRED: 'google_code_required',
   GOOGLE_CODE_INVALID: 'google_code_invalid',
+  LOGIN_TICKET_EXPIRED: 'login_ticket_expired',
   ACCOUNT_DISABLED: 'account_disabled',
   UNAUTHORIZED: 'unauthorized',
   FORBIDDEN: 'forbidden',
@@ -65,3 +66,11 @@ export const ERROR_CODES = {
 } as const
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
+
+/** Two-step login ticket returned with google_code_required (sent back with the Google code). */
+export function loginTicketFromError(err: ApiError): string {
+  const body = (err.response as { data?: { data?: { login_ticket?: unknown } } } | undefined)?.data
+  const fromBody = body?.data?.login_ticket
+  const fromData = (err.data as { login_ticket?: unknown } | undefined)?.login_ticket
+  return String(fromBody || fromData || '')
+}

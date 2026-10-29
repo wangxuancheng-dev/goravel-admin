@@ -1,3 +1,5 @@
+import type { PasswordPolicy } from '@/utils/passwordPolicy'
+
 export interface AdminRole {
   id: number | string
   name: string
@@ -36,6 +38,7 @@ export interface FeatureConfig {
   searchDriver: string
   otelEnabled: boolean
   tenancyEnabled: boolean
+  passwordPolicy: PasswordPolicy
 }
 
 export interface CurrentTenantInfo {
@@ -71,6 +74,8 @@ export interface LoginPayload {
   username: string
   password: string
   google_code?: string
+  /** Ticket from google_code_required; sent with google_code instead of a second captcha. */
+  login_ticket?: string
   captcha_id?: string
   captcha_answer?: string
 }

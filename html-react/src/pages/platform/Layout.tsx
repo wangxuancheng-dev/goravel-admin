@@ -13,6 +13,7 @@ import {
   updatePlatformPassword,
 } from '@/api/platform'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
+import { usePlatformPasswordPolicy } from '@/hooks/usePasswordPolicy'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import LanguageSwitch from '@/components/LanguageSwitch'
 import { useAppStore } from '@/stores/app'
@@ -28,6 +29,7 @@ export default function PlatformLayout() {
   const admin = getPlatformAdmin()
   const isViewer = admin?.role === 'viewer'
   const showError = useUnhandledError()
+  const passwordPolicy = usePlatformPasswordPolicy()
   const [pwdOpen, setPwdOpen] = useState(false)
   const [secOpen, setSecOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -259,7 +261,8 @@ export default function PlatformLayout() {
           <Form.Item
             name="new_password"
             label={t('platform.new_password')}
-            rules={[{ required: true, min: 6 }]}
+            rules={[{ required: true }, passwordPolicy.rule]}
+            extra={passwordPolicy.hint}
           >
             <Input.Password />
           </Form.Item>

@@ -101,6 +101,17 @@ func SuccessWithHeader(ctx http.Context, messageKey string, headerKey, headerVal
 //
 // 当 code >= 500 时，如果 context 中包含错误日志信息，会自动记录日志
 func Error(ctx http.Context, code int, messageOrErr any) http.Response {
+	return ctx.Response().Json(code, errorPayload(ctx, code, messageOrErr))
+}
+
+// ErrorWithData 同 Error，额外携带 data 字段（如两步登录票据）。
+func ErrorWithData(ctx http.Context, code int, messageOrErr any, data http.Json) http.Response {
+	payload := errorPayload(ctx, code, messageOrErr)
+	payload["data"] = data
+	return ctx.Response().Json(code, payload)
+}
+
+func errorPayload(ctx http.Context, code int, messageOrErr any) http.Json {
 	var message string
 	var messageKey string
 
@@ -155,7 +166,7 @@ func Error(ctx http.Context, code int, messageOrErr any) http.Response {
 		}
 	}
 
-	return ctx.Response().Json(code, response)
+	return response
 }
 
 // Abort writes a canonical error JSON (with error_code / trace_id) and stops the middleware chain.

@@ -99,6 +99,8 @@ import {
 } from '@/api/user'
 import logger from '@/utils/logger'
 import ErrorHandler from '@/utils/errorHandler'
+import { describePasswordPolicy, passwordPolicyError } from '@/utils/passwordPolicy'
+import { useUserStore } from '@/store/user'
 import {
   userInitialSearchForm,
   createUserSearchFields,
@@ -107,6 +109,7 @@ import {
 } from './user.config'
 
 const { t } = useI18n()
+const userStore = useUserStore()
 const router = useRouter()
 const listPageRef = ref(null)
 const userFormRef = ref(null)
@@ -249,11 +252,14 @@ const handleUpdateBalance = async (row) => {
 
 const handleResetPassword = async (row) => {
   try {
-    const { value: password } = await ElMessageBox.prompt(t('user.new_password'), t('user.reset_password'), {
+    const policy = userStore.config.passwordPolicy
+    const { value: password } = await ElMessageBox.prompt(describePasswordPolicy(policy, t), t('user.reset_password'), {
       confirmButtonText: t('common.confirm'),
       cancelButtonText: t('common.cancel'),
       inputType: 'password',
-      inputValidator: (value) => (!value || value.length < 6 ? t('user.password_min_length') : true)
+      inputPlaceholder: t('user.new_password'),
+      inputValidator: (value) =>
+        (!value ? t('form.password_required') : passwordPolicyError(value, policy, t)) || true
     })
     await resetPassword(row.id, { password })
     ElMessage.success(t('user.reset_password_success'))

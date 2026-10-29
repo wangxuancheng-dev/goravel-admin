@@ -67,7 +67,7 @@ func businessErrorStatus(code string, fallback int) int {
 	case code == "tenant_migrate_via_cli":
 		return http.StatusBadRequest
 	case code == "old_password_error" ||
-		code == "password_too_weak" ||
+		strings.HasPrefix(code, "password_") || // policy errors (password_encrypt_failed matched above)
 		code == "sensitive_confirm_required" ||
 		code == "sensitive_confirm_invalid" ||
 		code == "google_code_invalid" ||

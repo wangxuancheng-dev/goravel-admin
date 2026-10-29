@@ -11,6 +11,7 @@ export function platformLogin(data: {
   captcha_id?: string
   captcha_answer?: string
   google_code?: string
+  login_ticket?: string
 }) {
   return platformRequest.post('/login', data)
 }

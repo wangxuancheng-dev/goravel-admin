@@ -105,8 +105,9 @@
 |---|---|---|
 | `google_authenticator_not_bound` | 未绑定谷歌验证器 | 400/403 |
 | `google_authenticator_already_bound` | 已绑定谷歌验证器 | 400 |
-| `google_code_required` | 谷歌验证码不能为空 | 400 |
+| `google_code_required` | 谷歌验证码不能为空（附 `data.login_ticket`，第二步随谷歌验证码提交） | 400 |
 | `google_code_invalid` | 谷歌验证码无效 | 400 |
+| `login_ticket_expired` | 两步登录票据无效或已过期，需重新验证密码与验证码 | 400 |
 | `secret_and_code_required` | 密钥和验证码不能为空 | 400 |
 
 ### 6) 业务冲突与依赖关系

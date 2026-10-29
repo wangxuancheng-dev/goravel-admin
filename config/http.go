@@ -34,6 +34,13 @@ func init() {
 		"host": config.Env("APP_HOST", "127.0.0.1"),
 		// HTTP Port
 		"port": config.Env("APP_PORT", "3000"),
+		// 可信反向代理（逗号分隔 IP/CIDR）。只有直连对端在此列表内时才读取 X-Forwarded-For / X-Real-IP，
+		// 否则客户端可伪造 IP 绕过限流、登录锁定和 IP 白/黑名单。默认回环 + 内网段（同机 / Docker 内 nginx）。
+		// 前面还有公网 LB / CDN 时，把其出口段也加进来；"*" 表示信任所有（不安全，仅兼容旧部署）。
+		"trusted_proxies": config.Env("TRUSTED_PROXIES", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"),
+		// 可选：由可信 CDN 写入的客户端 IP 头，如 Cloudflare 填 CF-Connecting-IP。
+		// 仅当源站只能经由该 CDN 访问时才可设置，否则可被伪造。
+		"trusted_ip_header": config.Env("TRUSTED_IP_HEADER", ""),
 		// Browser security headers (see app/http/middleware/security_headers.go).
 		// Set SECURITY_HSTS_MAX_AGE (e.g. 31536000) only when serving behind HTTPS.
 		"security": map[string]any{

@@ -8,7 +8,9 @@ services:
     image: goravel-admin:blue
     container_name: goravel-admin-blue
     ports:
-      - "${BLUE_PORT:-3000}:${CONTAINER_PORT:-3000}"
+      # 默认只监听本机：宿主机 nginx 经 127.0.0.1 反代，外部无法绕过 nginx 直连。
+      # nginx 在另一台机器时设 APP_BIND=内网IP。
+      - "${APP_BIND:-127.0.0.1}:${BLUE_PORT:-3000}:${CONTAINER_PORT:-3000}"
     environment:
       - APP_ENV=production
       - APP_HOST=0.0.0.0

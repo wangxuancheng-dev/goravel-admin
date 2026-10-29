@@ -6,7 +6,7 @@ export type {
   ListFetchFn,
   ErrorCode,
 } from './api'
-export { ERROR_CODES } from './api'
+export { ERROR_CODES, loginTicketFromError } from './api'
 export type {
   AdminInfo,
   AdminRole,
