@@ -17,11 +17,17 @@ import (
 
 func insertPendingTenant(t *testing.T, code string) *models.Tenant {
 	t.Helper()
+	return insertTenantFixture(t, code, models.TenantProvisionPending)
+}
+
+// insertTenantFixture creates a landlord tenant row without a database behind it.
+func insertTenantFixture(t *testing.T, code, provisionStatus string) *models.Tenant {
+	t.Helper()
 	tenant := models.Tenant{
 		Code:            code,
-		Name:            "Pending Gate " + code,
+		Name:            "Fixture " + code,
 		Status:          models.TenantStatusActive,
-		ProvisionStatus: models.TenantProvisionPending,
+		ProvisionStatus: provisionStatus,
 		Driver:          "mysql",
 		Isolation:       models.TenantIsolationDatabase,
 		Database:        "tenant_" + code,
