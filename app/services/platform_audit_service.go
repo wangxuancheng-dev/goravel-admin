@@ -123,7 +123,17 @@ func CreatePlatformOperationLog(row *models.PlatformOperationLog) error {
 	if row == nil {
 		return nil
 	}
-	return appfacades.PlatformOrmQuery(context.Background()).Create(row)
+	failed := row.Status == 0
+	if err := appfacades.PlatformOrmQuery(context.Background()).Create(row); err != nil {
+		return err
+	}
+	// status 列 gorm default:1：零值插入会被替换为默认值，失败记录需补写
+	if failed {
+		row.Status = 0
+		_, err := appfacades.PlatformOrmQuery(context.Background()).Model(&models.PlatformOperationLog{}).Where("id", row.ID).Update("status", 0)
+		return err
+	}
+	return nil
 }
 
 func applyPlatformLogOrder(orderBy string) (column string, direction string) {

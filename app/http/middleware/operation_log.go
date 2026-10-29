@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	appfacades "goravel/app/facades"
@@ -65,6 +66,28 @@ func shouldPersistOperationLog(method, path string, ctx http.Context) bool {
 	return true
 }
 
+// operationErrorMessage 从 JSON 响应体提取 "错误码: 提示"，用于操作日志的 error_msg。
+func operationErrorMessage(body *bytes.Buffer) string {
+	if body == nil || body.Len() == 0 {
+		return ""
+	}
+	var payload struct {
+		ErrorCode string `json:"error_code"`
+		Message   string `json:"message"`
+	}
+	if err := json.Unmarshal(body.Bytes(), &payload); err != nil {
+		return ""
+	}
+	msg := payload.Message
+	if payload.ErrorCode != "" {
+		msg = payload.ErrorCode + ": " + msg
+	}
+	if r := []rune(msg); len(r) > 500 {
+		msg = string(r[:500])
+	}
+	return msg
+}
+
 // OperationLog 操作日志中间件
 func OperationLog() http.Middleware {
 	return newMiddleware("operation_log", func(ctx http.Context) {
@@ -121,9 +144,13 @@ func OperationLog() http.Middleware {
 				}
 			}
 
-			// 默认状态为成功
+			// 按响应状态码判定成败（业务错误统一返回 4xx/5xx）
 			status := uint8(1)
 			var errorMsg string
+			if origin := ctx.Response().Origin(); origin != nil && origin.Status() >= 400 {
+				status = 0
+				errorMsg = operationErrorMessage(origin.Body())
+			}
 
 			// 在goroutine之前保存所有需要的数据，避免context问题
 			savedAdminID := adminID
@@ -180,6 +207,13 @@ func OperationLog() http.Middleware {
 					})
 					logger.ErrorfContext(dbCtx, "Failed to create operation log: %v", err)
 				} else {
+					// status 列 gorm default:1：零值插入（连同结构体字段）会被替换为默认值，失败时需补写
+					if status == 0 {
+						operationLog.Status = 0
+						if _, err := appfacades.OrmQuery(dbCtx).Model(&models.OperationLog{}).Where("id", operationLog.ID).Update("status", 0); err != nil {
+							logger.ErrorfContext(dbCtx, "Failed to mark operation log failed: %v", err)
+						}
+					}
 					services.DispatchAuditWebhook(dbCtx, "operation_log", map[string]any{
 						"id":        operationLog.ID,
 						"admin_id":  operationLog.AdminID,

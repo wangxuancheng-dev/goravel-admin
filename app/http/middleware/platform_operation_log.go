@@ -77,6 +77,12 @@ func PlatformOperationLog() http.Middleware {
 		}
 
 		duration := int(time.Since(startTime).Milliseconds())
+		status := uint8(1)
+		var errorMsg string
+		if origin := ctx.Response().Origin(); origin != nil && origin.Status() >= 400 {
+			status = 0
+			errorMsg = operationErrorMessage(origin.Body())
+		}
 		row := &models.PlatformOperationLog{
 			AdminID:   adminID,
 			Username:  username,
@@ -86,7 +92,8 @@ func PlatformOperationLog() http.Middleware {
 			IP:        ip,
 			UserAgent: userAgent,
 			Request:   requestBody,
-			Status:    1,
+			Status:    status,
+			ErrorMsg:  errorMsg,
 			Duration:  duration,
 		}
 		if err := services.CreatePlatformOperationLog(row); err != nil {
