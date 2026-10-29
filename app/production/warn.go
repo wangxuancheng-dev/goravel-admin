@@ -38,6 +38,9 @@ func WarnInsecureDefaults() {
 	if queue == "sync" {
 		warn("QUEUE_CONNECTION=sync — async export/jobs will block HTTP workers; use redis/database")
 	}
+	if corsAllowsAnyOrigin() {
+		warn("CORS_ALLOWED_ORIGINS is empty or * — any website can call the API from a browser; set an explicit allowlist")
+	}
 	if facades.Config().GetBool("swagger.enabled", false) {
 		warn("SWAGGER_ENABLED=true — disable or protect in production")
 	}
@@ -63,4 +66,24 @@ func WarnInsecureDefaults() {
 			warn("TENANCY_RESOLVER=header — public deployments should prefer subdomain")
 		}
 	}
+}
+
+// corsAllowsAnyOrigin mirrors the Cors middleware (configStringSlice + resolveCorsOrigin):
+// config/cors.go turns an empty CORS_ALLOWED_ORIGINS into ["*"], and only a leading "*"
+// allows every Origin. An empty list still falls through to base-domain / tenant checks.
+func corsAllowsAnyOrigin() bool {
+	var origins []string
+	switch v := facades.Config().Get("cors.allowed_origins", []string{"*"}).(type) {
+	case []string:
+		origins = v
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				origins = append(origins, s)
+			}
+		}
+	default:
+		origins = []string{"*"}
+	}
+	return len(origins) > 0 && origins[0] == "*"
 }

@@ -24,3 +24,30 @@ func TestWarnInsecureDefaultsRunsInProduction(t *testing.T) {
 	})
 	WarnInsecureDefaults() // logs only
 }
+
+func TestCorsAllowsAnyOrigin(t *testing.T) {
+	prev := facades.Config().Get("cors.allowed_origins")
+	t.Cleanup(func() { facades.Config().Add("cors.allowed_origins", prev) })
+
+	cases := []struct {
+		name    string
+		origins any
+		want    bool
+	}{
+		{"wildcard", []string{"*"}, true},
+		{"empty", []string{}, false},
+		{"allowlist", []string{"https://admin.example.com"}, false},
+		{"any wildcard", []any{"*"}, true},
+		{"any wildcard after blank", []any{"", "*"}, true},
+		{"any allowlist", []any{"https://admin.example.com"}, false},
+		{"unknown type falls back", "bogus", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			facades.Config().Add("cors.allowed_origins", tc.origins)
+			if got := corsAllowsAnyOrigin(); got != tc.want {
+				t.Fatalf("corsAllowsAnyOrigin() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
