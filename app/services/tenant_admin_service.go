@@ -429,8 +429,9 @@ func (s *TenantAdminService) SetMaintenance(id uint, enabled bool, message strin
 		return nil, err
 	}
 	msg := strings.TrimSpace(message)
-	if len(msg) > 500 {
-		msg = msg[:500]
+	// maintenance_message is VARCHAR(500): cut by characters so multi-byte text stays valid UTF-8.
+	if r := []rune(msg); len(r) > 500 {
+		msg = string(r[:500])
 	}
 	if !enabled {
 		msg = ""

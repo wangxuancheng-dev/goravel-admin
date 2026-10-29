@@ -28,7 +28,12 @@ func Tenant() http.Middleware {
 				case apperrors.ErrTenantDisabled.Code:
 					response.Abort(ctx, http.StatusForbidden, businessErr.Code)
 				case apperrors.ErrTenantMaintenance.Code:
-					response.Abort(ctx, http.StatusServiceUnavailable, businessErr.Code)
+					// Show the notice the platform operator wrote for this tenant, if any.
+					if businessErr.Message != apperrors.ErrTenantMaintenance.Message {
+						response.AbortWithMessage(ctx, http.StatusServiceUnavailable, businessErr.Code, businessErr.Message)
+					} else {
+						response.Abort(ctx, http.StatusServiceUnavailable, businessErr.Code)
+					}
 				case apperrors.ErrTenantNotReady.Code:
 					response.Abort(ctx, http.StatusForbidden, businessErr.Code)
 				case apperrors.ErrTenantHintConflict.Code:

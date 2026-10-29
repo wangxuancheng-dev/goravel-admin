@@ -169,6 +169,19 @@ func errorPayload(ctx http.Context, code int, messageOrErr any) http.Json {
 	return response
 }
 
+// AbortWithMessage is Abort with a caller-supplied message (e.g. an operator-written notice)
+// in place of the translated text for errorCode.
+func AbortWithMessage(ctx http.Context, code int, errorCode, message string) {
+	payload := errorPayload(ctx, code, errorCode)
+	payload["message"] = message
+	resp := ctx.Response().Json(code, payload)
+	if abortable, ok := resp.(interface{ Abort() error }); ok {
+		_ = abortable.Abort()
+		return
+	}
+	ctx.Request().Abort(code)
+}
+
 // Abort writes a canonical error JSON (with error_code / trace_id) and stops the middleware chain.
 // Prefer this over hand-rolled ctx.Response().Json(...).Abort() in middleware.
 func Abort(ctx http.Context, code int, messageOrErr any) {
