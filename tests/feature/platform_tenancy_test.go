@@ -43,7 +43,11 @@ func ensurePlatformSmokeAdmin(t *testing.T) {
 func loginPlatformSmoke(t *testing.T) string {
 	t.Helper()
 	ensurePlatformSmokeAdmin(t)
+	return loginPlatformAs(t, platformSmokeUser, platformSmokePass)
+}
 
+func loginPlatformAs(t *testing.T, username, password string) string {
+	t.Helper()
 	testCase := tests.TestCase{}
 	captchaResp, err := testCase.Http(t).Get("/api/platform/login/captcha")
 	require.NoError(t, err)
@@ -68,7 +72,7 @@ func loginPlatformSmoke(t *testing.T) string {
 
 	body := fmt.Sprintf(
 		`{"username":%q,"password":%q,"captcha_id":%q,"captcha_answer":%q}`,
-		platformSmokeUser, platformSmokePass, captchaID, answer,
+		username, password, captchaID, answer,
 	)
 	resp, err := testCase.Http(t).
 		WithHeader("Content-Type", "application/json").
