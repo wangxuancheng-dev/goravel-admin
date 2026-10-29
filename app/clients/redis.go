@@ -83,7 +83,7 @@ func createRedisClient(connectionName string) (*redis.Client, error) {
 
 	_, err := client.Ping(ctx).Result()
 	if err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("Redis 连接失败 [%s]: %v", connectionName, err)
 	}
 	return client, nil

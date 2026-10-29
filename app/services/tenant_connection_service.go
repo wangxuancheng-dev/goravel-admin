@@ -151,12 +151,6 @@ func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error 
 	return nil
 }
 
-// warmConnection opens the pool and pings; safe when BuildQuery left query nil.
-func (s *TenantConnectionService) warmConnection(connectionName string) error {
-	to := appfacades.BuildOrmConnection(connectionName)
-	return s.finishWarm(to, connectionName)
-}
-
 // warmConnectionLocked assumes LockOrmConnectionBuild is held.
 func (s *TenantConnectionService) warmConnectionLocked(connectionName string) error {
 	to := appfacades.BuildOrmConnectionLocked(connectionName)

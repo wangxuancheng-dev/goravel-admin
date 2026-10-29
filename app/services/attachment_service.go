@@ -520,12 +520,12 @@ func (s *AttachmentServiceImpl) GetChunkProgress(chunkID string, totalChunks int
 }
 
 // UploadFile 普通文件上传（小文件）
-func (s *AttachmentServiceImpl) UploadFile(fileData []byte, filename string, mimeType string, isPublicRaw string) (*models.Attachment, error) {
-	validatedMIME, err := utils.ValidateAttachmentFile(filename, fileData)
+// The client-supplied MIME type is ignored: it is untrusted, so the content-sniffed type is used instead.
+func (s *AttachmentServiceImpl) UploadFile(fileData []byte, filename string, _ string, isPublicRaw string) (*models.Attachment, error) {
+	mimeType, err := utils.ValidateAttachmentFile(filename, fileData)
 	if err != nil {
 		return nil, err
 	}
-	mimeType = validatedMIME
 
 	fileSize := int64(len(fileData))
 	if err := EnsureTenantStorageQuota(s.ctx, fileSize); err != nil {

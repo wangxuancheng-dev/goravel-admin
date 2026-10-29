@@ -233,7 +233,7 @@ func TestLoginLockoutUsernameVariantsShareCounters(t *testing.T) {
 	t.Cleanup(func() { lockout.UnlockUsername(base) })
 
 	maxPerIP := facades.Config().GetInt("login_security.max_attempts", 5)
-	variants := []string{base, strings.ToUpper(base), base + " ", " " + strings.Title(base)}
+	variants := []string{base, strings.ToUpper(base), base + " ", " " + strings.ToUpper(base[:1]) + base[1:]}
 	for i := 0; i < maxPerIP; i++ {
 		lockout.RecordFailure("198.51.100.30", variants[i%len(variants)])
 	}

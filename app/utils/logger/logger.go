@@ -101,10 +101,3 @@ func prependContext(ctx context.Context, format string) string {
 	}
 	return prefix + format
 }
-
-func prependTrace(traceID, format string) string {
-	if traceID == "" {
-		return format
-	}
-	return fmt.Sprintf("[trace_id=%s] %s", traceID, format)
-}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	appfacades "goravel/app/facades"
-	"sort"
 	"strings"
 	"time"
 
@@ -68,7 +67,6 @@ type OrderServiceImpl struct {
 	ctx                  context.Context
 	shardingService      ShardingService
 	shardingQueryService ShardingQueryService
-	countThreshold       int64 // count 查询优化阈值
 }
 
 type OrderProduct struct {
@@ -401,38 +399,6 @@ func (s *OrderServiceImpl) queryMultipleTablesWithUnionForExport(tableNames []st
 	return orders, nil
 }
 
-// sortOrders 对订单列表进行排序
-func (s *OrderServiceImpl) sortOrders(orders []models.Order, orderBy string) {
-	parts := strings.Split(orderBy, ":")
-	field := "created_at"
-	desc := true
-	if len(parts) == 2 {
-		field = parts[0]
-		desc = strings.ToLower(parts[1]) == "desc"
-	}
-
-	// 使用 sort.Slice 进行排序
-	sort.Slice(orders, func(i, j int) bool {
-		var less bool
-		switch field {
-		case "id":
-			less = orders[i].ID < orders[j].ID
-		case "amount":
-			less = orders[i].Amount < orders[j].Amount
-		case "created_at":
-			less = orders[i].CreatedAt.ToDateTimeString() < orders[j].CreatedAt.ToDateTimeString()
-		case "updated_at":
-			less = orders[i].UpdatedAt.ToDateTimeString() < orders[j].UpdatedAt.ToDateTimeString()
-		default:
-			less = orders[i].CreatedAt.ToDateTimeString() < orders[j].CreatedAt.ToDateTimeString()
-		}
-		if desc {
-			return !less
-		}
-		return less
-	})
-}
-
 // querySingleTable 查询单个分表
 func (s *OrderServiceImpl) querySingleTable(tableName string, filters OrderFilters, page, pageSize int) ([]models.Order, int64, error) {
 	// 友好处理：目标分表不存在时返回空结果，而不是抛出 SQL 1146 错误。
@@ -445,11 +411,6 @@ func (s *OrderServiceImpl) querySingleTable(tableName string, filters OrderFilte
 	if orderBy == "" {
 		orderBy = "created_at:desc"
 	}
-
-	// 构建基础查询条件
-	query := s.buildShardingQuery(tableName, filters)
-
-	query = s.applyOrderBy(query, orderBy)
 
 	whereClause, whereArgs := s.buildOrderWhereClause(filters)
 	total, err := utils.CountWithTable(s.ctx, tableName, whereClause, whereArgs...)

@@ -85,7 +85,7 @@ func (s *AuthServiceImpl) Login(ctx http.Context, username, password string) (*m
 				requestData = string(data)
 			}
 		}
-		s.RecordLoginLog(ctx, 0, username, 0, "password_error", requestData)
+		_ = s.RecordLoginLog(ctx, 0, username, 0, "password_error", requestData)
 		return nil, "", errors.ErrPasswordError
 	}
 
@@ -97,7 +97,9 @@ func (s *AuthServiceImpl) Login(ctx http.Context, username, password string) (*m
 	token := plainToken
 
 	// 更新最后登录时间（ORM会自动更新UpdatedAt）
-	appfacades.OrmQuery(ctx).Save(&admin)
+	if err := appfacades.OrmQuery(ctx).Save(&admin); err != nil {
+		facades.Log().Warningf("update admin last login failed: admin_id=%d err=%v", admin.ID, err)
+	}
 
 	// 记录登录成功日志
 	requestData := ""
@@ -106,7 +108,7 @@ func (s *AuthServiceImpl) Login(ctx http.Context, username, password string) (*m
 			requestData = string(data)
 		}
 	}
-	s.RecordLoginLog(ctx, admin.ID, username, 1, "login_success", requestData)
+	_ = s.RecordLoginLog(ctx, admin.ID, username, 1, "login_success", requestData)
 
 	return &admin, token, nil
 }
@@ -363,6 +365,7 @@ func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, usernam
 	}
 
 	if err := appfacades.OrmQuery(ctx).Create(&loginLog); err != nil {
+		facades.Log().Warningf("record login log failed: username=%s message=%s err=%v", username, message, err)
 		return err
 	}
 

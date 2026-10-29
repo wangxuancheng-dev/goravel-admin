@@ -163,5 +163,11 @@ func (r *M20250105000001AddCompositeIndexesToOrders) Down() error {
 		}
 	}
 
+	facades.Log().Info(fmt.Sprintf("已删除 %d 张表的复合索引", deletedCount))
+	if len(failedTables) > 0 {
+		facades.Log().Warning(fmt.Sprintf("❌ 失败: %d 张表，需要手动处理: %v", len(failedTables), failedTables))
+		return fmt.Errorf("部分分表索引删除失败，请检查日志并手动处理")
+	}
+
 	return nil
 }

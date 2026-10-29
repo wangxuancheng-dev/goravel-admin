@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"strings"
 
 	"goravel/app/utils"
 )
@@ -271,25 +270,5 @@ func expandSelectedReactFiles(selectedMap map[string]bool, fields []FieldConfig,
 	}
 	if selectedMap["react_list_page_config"] || selectedMap["react_form_modal"] {
 		selectedMap["react_list_page"] = true
-	}
-}
-
-func shouldGenerateFileType(fileType string, selectedMap map[string]bool, hasSelection bool) bool {
-	if !hasSelection {
-		return true
-	}
-	return selectedMap[fileType]
-}
-
-func isReactFileType(fileType string) bool {
-	return strings.HasPrefix(fileType, "react_")
-}
-
-func isVueFileType(fileType string) bool {
-	switch fileType {
-	case "api", "list_page_config", "list_page", "form_page":
-		return true
-	default:
-		return false
 	}
 }

@@ -49,7 +49,9 @@ func (r *M20250130000004AddCurrencyIdToUsersTable) Up() error {
 	// 如果找到了人民币，更新所有现有用户的 currency_id 为人民币ID
 	if cnyID > 0 {
 		// 更新所有 currency_id 为 NULL 的用户
-		facades.Orm().Query().Table("users").Where("currency_id IS NULL").Update("currency_id", cnyID)
+		if _, err := facades.Orm().Query().Table("users").Where("currency_id IS NULL").Update("currency_id", cnyID); err != nil {
+			return err
+		}
 	}
 
 	return nil

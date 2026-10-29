@@ -463,49 +463,6 @@ func (s *PaymentServiceImpl) UpdatePaymentStatus(paymentID uint, status string, 
 	return nil
 }
 
-// buildPaymentWhereClause 构建支付记录查询的 WHERE 条件
-func (s *PaymentServiceImpl) buildPaymentWhereClause(filters PaymentFilters) (string, []any) {
-	var conditions []string
-	var args []any
-
-	if filters.PaymentNo != "" {
-		conditions = append(conditions, "payment_no LIKE ?")
-		args = append(args, filters.PaymentNo+"%")
-	}
-	if filters.OrderNo != "" {
-		conditions = append(conditions, "order_no LIKE ?")
-		args = append(args, filters.OrderNo+"%")
-	}
-	if filters.PaymentMethodID > 0 {
-		conditions = append(conditions, "payment_method_id = ?")
-		args = append(args, filters.PaymentMethodID)
-	}
-	if filters.UserID > 0 {
-		conditions = append(conditions, "user_id = ?")
-		args = append(args, filters.UserID)
-	}
-	if filters.Status != "" {
-		conditions = append(conditions, "status = ?")
-		args = append(args, filters.Status)
-	}
-	if !filters.StartTime.IsZero() {
-		conditions = append(conditions, paymentTimeColumn(filters.TimeField)+" >= ?")
-		args = append(args, filters.StartTime)
-	}
-	if !filters.EndTime.IsZero() {
-		conditions = append(conditions, paymentTimeColumn(filters.TimeField)+" <= ?")
-		args = append(args, filters.EndTime)
-	}
-	if paymentTimeColumn(filters.TimeField) == "pay_time" && (!filters.StartTime.IsZero() || !filters.EndTime.IsZero()) {
-		conditions = append(conditions, "pay_time IS NOT NULL")
-	}
-
-	if len(conditions) == 0 {
-		return "", nil
-	}
-	return strings.Join(conditions, " AND "), args
-}
-
 // applyOrderBy 应用排序
 func (s *PaymentServiceImpl) applyOrderBy(query orm.Query, orderBy string) orm.Query {
 	// 解析排序字段，格式：字段:asc/desc

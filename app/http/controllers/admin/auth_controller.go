@@ -226,7 +226,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 
 	if err := services.EnsureClientIPAllowed(ctx, ip); err != nil {
 		if businessErr, ok := apperrors.GetBusinessError(err); ok && businessErr.Code == apperrors.ErrIPNotAllowed.Code {
-			r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "ip_not_allowed", requestData)
+			_ = r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "ip_not_allowed", requestData)
 			return response.Error(ctx, http.StatusForbidden, businessErr.Code)
 		}
 		return response.Error(ctx, http.StatusServiceUnavailable, "service_unavailable")
@@ -235,7 +235,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	// ---- 登录失败锁定检查 ----
 	if locked, _ := r.lockoutService(ctx).IsLocked(ip, loginRequest.Username); locked {
 		lockMinutes := facades.Config().GetInt("login_security.lock_duration_minutes", 15)
-		r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "login_locked", requestData)
+		_ = r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "login_locked", requestData)
 		return response.Error(ctx, http.StatusTooManyRequests,
 			apperrors.ErrLoginLocked.WithParams(map[string]any{"minutes": lockMinutes}))
 	}
@@ -246,7 +246,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	if loginRequest.LoginTicket != "" {
 		ticketAdminID = services.LoginTwoFactorTicketSubject(ctx, loginRequest.LoginTicket, "admin", loginRequest.Username, ip)
 		if ticketAdminID == 0 {
-			r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "login_ticket_expired", requestData)
+			_ = r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "login_ticket_expired", requestData)
 			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrLoginTicketExpired.Code)
 		}
 	} else if r.captchaService(ctx).Enabled() || r.lockoutService(ctx).NeedsCaptcha(ip, loginRequest.Username) {
@@ -256,7 +256,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 			if messageKey == "" {
 				messageKey = "captcha_invalid"
 			}
-			r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, messageKey, requestData)
+			_ = r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, messageKey, requestData)
 			return response.Error(ctx, http.StatusBadRequest, messageKey)
 		}
 	}
@@ -274,14 +274,14 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	if admin.ID == 0 {
 		services.BurnPasswordCheck(loginRequest.Password)
 		r.lockoutService(ctx).RecordFailure(ip, loginRequest.Username)
-		r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "username_not_found", requestData)
+		_ = r.authService(ctx).RecordLoginLog(ctx, 0, loginRequest.Username, 0, "username_not_found", requestData)
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
 	}
 
 	// 验证密码（先于状态检查：不知道密码的人无法探测账号是否被禁用）
 	if !facades.Hash().Check(loginRequest.Password, admin.Password) {
 		r.lockoutService(ctx).RecordFailure(ip, loginRequest.Username)
-		r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "password_error", requestData)
+		_ = r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "password_error", requestData)
 		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUsernameOrPasswordErr.Code)
 	}
 	if ticketAdminID != 0 && ticketAdminID != admin.ID {
@@ -290,7 +290,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	}
 
 	if admin.Status == 0 {
-		r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "account_disabled", requestData)
+		_ = r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "account_disabled", requestData)
 		return response.Error(ctx, http.StatusForbidden, apperrors.ErrAccountDisabled.Code)
 	}
 
@@ -314,7 +314,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 					})
 				}
 			}
-			r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "google_code_required", requestData)
+			_ = r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "google_code_required", requestData)
 			return response.ErrorWithData(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeRequired.Code, http.Json{
 				"login_ticket": ticket,
 			})
@@ -329,7 +329,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 
 		if !services.VerifyTOTPOnce(ctx, "admin", admin.ID, secret, googleCode) {
 			r.lockoutService(ctx).RecordFailure(ip, loginRequest.Username)
-			r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "google_code_error", requestData)
+			_ = r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 0, "google_code_error", requestData)
 			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrGoogleCodeInvalid.Code)
 		}
 	}
@@ -352,10 +352,12 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	}
 
 	// 记录登录成功日志
-	r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 1, "login_success", requestData)
+	_ = r.authService(ctx).RecordLoginLog(ctx, admin.ID, loginRequest.Username, 1, "login_success", requestData)
 
 	// 更新最后登录时间（ORM会自动更新UpdatedAt）
-	appfacades.OrmQuery(ctx).Save(&admin)
+	if err := appfacades.OrmQuery(ctx).Save(&admin); err != nil {
+		facades.Log().Warningf("update admin last login failed: admin_id=%d err=%v", admin.ID, err)
+	}
 
 	return response.SuccessWithHeader(ctx, "login_success", "Authorization", "Bearer "+token, http.Json{
 		"token": token,
@@ -686,7 +688,7 @@ func (r *AuthController) Logout(ctx http.Context) http.Response {
 
 		// 记录退出日志
 		logoutRequestData := r.getLoginRequestData(ctx)
-		r.authService(ctx).RecordLoginLog(ctx, admin.ID, admin.Username, 1, "logout_success", logoutRequestData)
+		_ = r.authService(ctx).RecordLoginLog(ctx, admin.ID, admin.Username, 1, "logout_success", logoutRequestData)
 	}
 
 	return response.Success(ctx, "logout_success")

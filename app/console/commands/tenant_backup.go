@@ -42,7 +42,7 @@ func (r *TenantBackup) Handle(ctx console.Context) error {
 		ctx.Error("租户不存在: " + idOrCode)
 		return nil
 	}
-	keep := -1
+	var keep int
 	if raw := strings.TrimSpace(ctx.Option("keep")); raw != "" {
 		keep = ctx.OptionInt("keep")
 	} else {

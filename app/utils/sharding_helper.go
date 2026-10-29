@@ -121,9 +121,6 @@ func GetShardingTableNames(baseTableName string, startTime, endTime time.Time) [
 	return tableNames
 }
 
-// 默认最大时间范围（月），运行时应优先使用 GetMaxTimeRangeMonths()。
-const defaultMaxTimeRangeMonths = 3
-
 // TimeRangeError 时间范围验证错误
 type TimeRangeError struct {
 	Key    string
@@ -215,7 +212,7 @@ func GetAllExistingShardingTables(ctx context.Context, baseTableName string) ([]
 						// 尝试遍历所有键
 						for key, value := range row {
 							if (key == "table_name" || key == "TABLE_NAME" || key == "Table_Name" || key == "name" || key == "NAME") && value != nil {
-								if str, ok := value.(string); ok {
+								if str, isStr := value.(string); isStr {
 									tableName = str
 									ok = true
 									break

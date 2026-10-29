@@ -201,18 +201,6 @@ func (s *UserBalanceLogServiceImpl) GetUserStatistics(userID uint, startTime, en
 	// 根据 user_id 计算分表名称
 	tableName := utils.GetHashShardingTableNameByConfig(utils.GetUserBalanceLogsShardingConfig(), userID)
 
-	// 使用 Goravel ORM，通过 Table() 方法指定分表名称
-	query := appfacades.OrmQuery(s.ctx).Table(tableName).
-		Where("user_id", userID).
-		Where("status", "success")
-
-	if !startTime.IsZero() {
-		query = query.Where("created_at >= ?", startTime)
-	}
-	if !endTime.IsZero() {
-		query = query.Where("created_at <= ?", endTime)
-	}
-
 	var stats UserBalanceStatistics
 
 	// 构建基础查询条件（用于构建 SQL）

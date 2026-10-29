@@ -21,7 +21,6 @@ import (
 
 // GenerateTestPayments 生成测试支付记录数据
 type GenerateTestPayments struct {
-	paymentService  services.PaymentService
 	shardingService services.ShardingService
 	dbCtx           context.Context
 }

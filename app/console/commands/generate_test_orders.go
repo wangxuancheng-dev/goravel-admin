@@ -191,9 +191,6 @@ func (receiver *GenerateTestOrders) handleScoped(ctx console.Context, bound cont
 	totalInserted := 0
 	batches := (count + batchSize - 1) / batchSize // 向上取整
 
-	// 使用随机种子
-	rand.Seed(time.Now().UnixNano())
-
 	for range batches {
 		if runCtx.Err() != nil {
 			ctx.Warning("收到停止信号，正在退出...")

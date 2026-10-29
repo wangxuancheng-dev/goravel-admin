@@ -135,7 +135,9 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	// 更新最后登录时间
 	now := time.Now()
 	user.LastLoginAt = &now
-	appfacades.OrmQuery(ctx).Save(&user)
+	if err := appfacades.OrmQuery(ctx).Save(&user); err != nil {
+		facades.Log().Warningf("update user last login failed: user_id=%d err=%v", user.ID, err)
+	}
 
 	return response.SuccessWithHeader(ctx, "login_success", "Authorization", "Bearer "+token, http.Json{
 		"token": token,

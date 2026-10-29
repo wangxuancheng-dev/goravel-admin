@@ -341,9 +341,9 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 		}
 
 		cr := csv.NewReader(strings.NewReader(csvBuf.String()))
-		rows, err := cr.ReadAll()
-		if err != nil {
-			return err
+		rows, readErr := cr.ReadAll()
+		if readErr != nil {
+			return readErr
 		}
 
 		filePathResult, err = exportService.ExportToXLSXAt(headers, rows, filePath, true)

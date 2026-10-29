@@ -266,7 +266,9 @@ func (r *ExportPayments) formatPaymentRow(payment models.Payment, paymentMethodM
 // loadPaymentMethods
 func (r *ExportPayments) loadPaymentMethods(ctx context.Context) map[uint]models.PaymentMethod {
 	var methods []models.PaymentMethod
-	appfacades.OrmQuery(ctx).Model(&models.PaymentMethod{}).Get(&methods)
+	if err := appfacades.OrmQuery(ctx).Model(&models.PaymentMethod{}).Get(&methods); err != nil {
+		facades.Log().Warningf("export payments: load payment methods failed: %v", err)
+	}
 
 	result := make(map[uint]models.PaymentMethod)
 	for _, m := range methods {

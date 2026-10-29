@@ -43,7 +43,7 @@ func TestSlideCaptchaGenerateAndVerify(t *testing.T) {
 
 	answer := PeekCaptchaAnswer(challenge.ID)
 	require.NotEmpty(t, answer)
-	x, err := strconv.Atoi(answer)
+	_, err = strconv.Atoi(answer)
 	require.NoError(t, err)
 
 	ok, key := svc.Verify(challenge.ID, answer)
@@ -57,7 +57,7 @@ func TestSlideCaptchaGenerateAndVerify(t *testing.T) {
 	// A wrong answer fails and also burns the captcha.
 	challenge, err = svc.GenerateChallenge()
 	require.NoError(t, err)
-	x, err = strconv.Atoi(PeekCaptchaAnswer(challenge.ID))
+	x, err := strconv.Atoi(PeekCaptchaAnswer(challenge.ID))
 	require.NoError(t, err)
 	ok, key = svc.Verify(challenge.ID, strconv.Itoa(x+slideTolerancePx+20))
 	require.False(t, ok)

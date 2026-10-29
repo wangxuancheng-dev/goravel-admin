@@ -539,12 +539,6 @@ func (s *ExportServiceImpl) ExportToXLSXAt(headers []string, data [][]string, fi
 	return filePath, nil
 }
 
-func (s *ExportServiceImpl) recordExportLog(filePath string, absOrTmpPathForSize string) {
-	ctx, cancel := s.persistCtx(5 * time.Second)
-	defer cancel()
-	s.recordExportLogWithContext(ctx, filePath, absOrTmpPathForSize)
-}
-
 // recordExportLogWithContext 使用指定的 context 记录导出日志（支持超时控制）
 func (s *ExportServiceImpl) recordExportLogWithContext(ctx context.Context, filePath string, absOrTmpPathForSize string) {
 	defer func() {

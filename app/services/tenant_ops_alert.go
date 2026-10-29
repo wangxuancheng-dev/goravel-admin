@@ -129,11 +129,6 @@ func deliverPlatformWebhookAlert(channel, event string, tenantID *uint, tenantCo
 	FinishPlatformAlertDelivery(row.ID, models.PlatformAlertStatusSuccess, httpStatus, "")
 }
 
-func postTenantOpsWebhook(url string, payload map[string]any) error {
-	_, err := postTenantOpsWebhookWithStatus(url, payload)
-	return err
-}
-
 func postTenantOpsWebhookWithStatus(url string, payload map[string]any) (int, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
