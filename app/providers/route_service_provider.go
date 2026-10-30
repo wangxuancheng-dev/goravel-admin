@@ -97,7 +97,9 @@ func isBadRequestBodyPanicWithStack(msg, stack string) bool {
 func (receiver *RouteServiceProvider) configureRateLimiting() {
 	// 全局速率限制器
 	facades.RateLimiter().For("global", func(ctx contractshttp.Context) contractshttp.Limit {
-		return limit.PerMinute(1000)
+		// Key by the proxy-aware client IP. The framework default (gin ClientIP) trusts any
+		// X-Forwarded-For, so rotating that header would give each request a fresh bucket.
+		return limit.PerMinute(1000).By(helpers.GetRealIP(ctx) + ":" + ctx.Request().Path())
 	})
 
 	// IP 速率限制器
