@@ -52,6 +52,12 @@ func (w *gzipResponseWriter) Close() error {
 	if w.gz != nil {
 		return w.gz.Close()
 	}
+	// No body was written (e.g. Abort with a bare 429): the status is only sent on the first
+	// Write, so pass it through now, uncompressed, or the client sees an empty 200.
+	if w.code != 0 {
+		w.ResponseWriter.Header().Del("Content-Encoding")
+		w.ResponseWriter.WriteHeader(w.code)
+	}
 	return nil
 }
 
