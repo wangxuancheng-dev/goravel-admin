@@ -205,11 +205,11 @@ func (r *QueuePeek) Handle(ctx console.Context) error {
 
 	switch state {
 	case "pending":
-		q = q.Where("reserved_at IS NULL").Where("available_at", "<=", now)
+		q = q.Where("reserved_at IS NULL").Where("available_at <= ?", now)
 	case "reserved":
 		q = q.Where("reserved_at IS NOT NULL")
 	case "delayed":
-		q = q.Where("reserved_at IS NULL").Where("available_at", ">", now)
+		q = q.Where("reserved_at IS NULL").Where("available_at > ?", now)
 	case "all":
 		// no filter
 	default:
@@ -218,7 +218,7 @@ func (r *QueuePeek) Handle(ctx console.Context) error {
 	}
 
 	if queueName != "" {
-		q = q.Where("queue", "=", queueName)
+		q = q.Where("queue", queueName)
 	}
 
 	var rows []map[string]any

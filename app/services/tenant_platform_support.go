@@ -171,10 +171,10 @@ func BuildTenantAuditSummary(tenant *models.Tenant, recentLimit int) *TenantAudi
 	q := appfacades.OrmQuery(ctx)
 	if appfacades.SchemaHasTable(ctx, "login_logs") {
 		ok, _ := q.Table("login_logs").
-			Where("status", 1).Where("created_at", ">=", since).Count()
+			Where("status", 1).Where("created_at >= ?", since).Count()
 		out.LoginSuccess24h = ok
 		fail, _ := q.Table("login_logs").
-			Where("status", 0).Where("created_at", ">=", since).Count()
+			Where("status", 0).Where("created_at >= ?", since).Count()
 		out.LoginFailed24h = fail
 
 		var logins []models.LoginLog
@@ -193,7 +193,7 @@ func BuildTenantAuditSummary(tenant *models.Tenant, recentLimit int) *TenantAudi
 	}
 	if appfacades.SchemaHasTable(ctx, "operation_logs") {
 		n, _ := q.Table("operation_logs").
-			Where("created_at", ">=", since).Count()
+			Where("created_at >= ?", since).Count()
 		out.OperationCount24h = n
 
 		var ops []models.OperationLog

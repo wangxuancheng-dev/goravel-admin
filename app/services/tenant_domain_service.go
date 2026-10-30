@@ -186,7 +186,7 @@ func (s *TenantDomainService) Create(tenantID uint, in TenantDomainCreateInput) 
 func (s *TenantDomainService) clearOtherPrimary(tenantID, keepID uint) error {
 	_, err := appfacades.PlatformOrmQuery(nil).Model(&models.TenantDomain{}).
 		Where("tenant_id", tenantID).
-		Where("id", "!=", keepID).
+		Where("id != ?", keepID).
 		Where("is_primary", true).
 		Update("is_primary", false)
 	return err

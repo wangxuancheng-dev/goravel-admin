@@ -288,7 +288,7 @@ func (s *EntitlementService) UpsertPlan(in UpsertPlanInput) (*models.PlatformPla
 	}
 
 	if in.IsDefault {
-		_, _ = s.q().Model(&models.PlatformPlan{}).Where("id", "!=", plan.ID).Update("is_default", false)
+		_, _ = s.q().Model(&models.PlatformPlan{}).Where("id != ?", plan.ID).Update("is_default", false)
 	}
 
 	if in.Entitlements != nil {
