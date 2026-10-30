@@ -52,8 +52,7 @@ func (c *OperationLogController) Index(ctx http.Context) http.Response {
 	}
 
 	filters := services.BuildOperationLogFiltersFromHTTP(ctx)
-	page := helpers.GetIntQuery(ctx, "page", 1)
-	pageSize := helpers.GetIntQuery(ctx, "page_size", 10)
+	page, pageSize := helpers.PaginationFromQuery(ctx, helpers.PaginationLimits{})
 
 	logs, total, err := c.OperationLogService(ctx).GetList(filters, page, pageSize)
 	if err != nil {

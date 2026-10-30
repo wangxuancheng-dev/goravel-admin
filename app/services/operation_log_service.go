@@ -89,6 +89,11 @@ func (s *OperationLogServiceImpl) GetByID(id uint, withAdmin bool) (*models.Oper
 }
 
 func (s *OperationLogServiceImpl) GetList(filters OperationLogFilters, page, pageSize int) ([]models.OperationLog, int64, error) {
+	page, pageSize = helpers.ValidatePagination(page, pageSize)
+	if helpers.ListTooDeep(page, pageSize) {
+		return nil, 0, apperrors.ErrDeepPaginationExceeded.WithParams(map[string]any{"max": helpers.MaxListRows})
+	}
+
 	query := appfacades.OrmQuery(s.ctx).Model(&models.OperationLog{})
 
 	if filters.AdminID != "" {

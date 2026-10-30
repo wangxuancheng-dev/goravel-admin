@@ -44,6 +44,15 @@ func ValidatePagination(page, pageSize int) (int, int) {
 	return ValidatePaginationEx(page, pageSize, PaginationLimits{})
 }
 
+// MaxListRows 普通单表列表的分页深度上限（offset+page_size）。OFFSET 需要数据库读出并丢弃
+// 之前的所有行，越往后翻越慢；压测中操作日志翻到第 5000 页时 p50 达到 141ms。
+const MaxListRows = 10000
+
+// ListTooDeep 判断 page/page_size 是否超出 MaxListRows（参数应已经过 ValidatePagination 规范化）。
+func ListTooDeep(page, pageSize int) bool {
+	return page*pageSize > MaxListRows
+}
+
 // TotalPages 根据总条数与每页条数计算总页数（total 小于 1 或 pageSize 小于 1 时为 0）。
 func TotalPages(total int64, pageSize int) int {
 	if pageSize < 1 || total < 1 {
