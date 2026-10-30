@@ -18,6 +18,9 @@ linters:
         - fmt.Fprintf
         - fmt.Fprintln
     govet:
+      enable:
+        # := shadowing caused the export and sharding bugs fixed in 6725d9eb.
+        - shadow
       disable:
         # Suggests reflect.Ptr -> reflect.Pointer; style only.
         - inline
@@ -37,3 +40,9 @@ linters:
       - path: database/seeders/
         linters:
           - errcheck
+
+issues:
+  # shadow was enabled when the code already had 60 reviewed, harmless `if err := ...` cases.
+  # Report only issues introduced after this commit (CI checks out full history for this).
+  # Applies to every linter; the others had zero issues at this point.
+  new-from-rev: 5c0b1554
