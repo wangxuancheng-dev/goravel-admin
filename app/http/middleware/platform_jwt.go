@@ -43,11 +43,12 @@ func PlatformJwt() http.Middleware {
 		accessToken, err := tokenService.FindToken(token)
 		if err != nil {
 			tokenPrefix := token[:min(20, len(token))]
-			if isExpectedUnauthorizedErr(err) {
-				logger.WarnfHTTP(ctx, "Platform JWT: unauthorized token: %v, prefix: %s", err, tokenPrefix)
-			} else {
+			if !isExpectedUnauthorizedErr(err) {
 				logger.ErrorfHTTP(ctx, "Platform JWT: FindToken error: %v, prefix: %s", err, tokenPrefix)
+				response.Abort(ctx, http.StatusServiceUnavailable, "service_unavailable")
+				return
 			}
+			logger.WarnfHTTP(ctx, "Platform JWT: unauthorized token: %v, prefix: %s", err, tokenPrefix)
 			response.Abort(ctx, http.StatusUnauthorized, "invalid_token")
 			return
 		}
@@ -58,6 +59,11 @@ func PlatformJwt() http.Middleware {
 
 		var admin models.PlatformAdmin
 		if err := appfacades.PlatformOrmQuery(ctx).Where("id", accessToken.TokenableID).First(&admin); err != nil {
+			logger.ErrorfHTTP(ctx, "Platform JWT: load admin %d: %v", accessToken.TokenableID, err)
+			response.Abort(ctx, http.StatusServiceUnavailable, "service_unavailable")
+			return
+		}
+		if admin.ID == 0 {
 			response.Abort(ctx, http.StatusUnauthorized, "user_not_found")
 			return
 		}

@@ -51,11 +51,14 @@ func Jwt() http.Middleware {
 		accessToken, err := tokenService.FindToken(token)
 		if err != nil {
 			tokenPrefix := token[:min(20, len(token))]
-			if isExpectedUnauthorizedErr(err) {
-				logger.WarnfHTTP(ctx, "JWT middleware: unauthorized token: %v, token prefix: %s", err, tokenPrefix)
-			} else {
+			if !isExpectedUnauthorizedErr(err) {
+				// The lookup itself failed (DB down/overloaded): a 401 would log the user out
+				// and look like a client error to monitoring.
 				logger.ErrorfHTTP(ctx, "JWT middleware: FindToken error: %v, token prefix: %s", err, tokenPrefix)
+				response.Abort(ctx, http.StatusServiceUnavailable, "service_unavailable")
+				return
 			}
+			logger.WarnfHTTP(ctx, "JWT middleware: unauthorized token: %v, token prefix: %s", err, tokenPrefix)
 			response.Abort(ctx, http.StatusUnauthorized, "invalid_token")
 			return
 		}
@@ -74,6 +77,12 @@ func Jwt() http.Middleware {
 		// 查询用户信息（一户一库时已在 Tenant 中间件切到租户库）
 		var admin models.Admin
 		if err := appfacades.OrmQuery(ctx).Where("id", accessToken.TokenableID).First(&admin); err != nil {
+			logger.ErrorfHTTP(ctx, "JWT middleware: load admin %d: %v", accessToken.TokenableID, err)
+			response.Abort(ctx, http.StatusServiceUnavailable, "service_unavailable")
+			return
+		}
+		// First returns no error when nothing matches.
+		if admin.ID == 0 {
 			response.Abort(ctx, http.StatusUnauthorized, "user_not_found")
 			return
 		}
