@@ -2,12 +2,15 @@ package feature_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/goravel/framework/facades"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"goravel/app/http/helpers"
+	"goravel/app/utils/errorlog"
 	"goravel/tests"
 )
 
@@ -37,4 +40,12 @@ func TestGlobalThrottleIgnoresSpoofedForwardedFor(t *testing.T) {
 		require.Equal(t, 200, get(i), "request %d is within the limit", i)
 	}
 	assert.Equal(t, 429, get(1000), "a new X-Forwarded-For must not buy a fresh bucket")
+}
+
+// System/error log rows must record the proxy-aware IP; errorlog cannot import helpers,
+// so the route provider wires it in at boot.
+func TestErrorLogUsesProxyAwareClientIP(t *testing.T) {
+	assert.Equal(t,
+		reflect.ValueOf(helpers.GetRealIP).Pointer(),
+		reflect.ValueOf(errorlog.ClientIP).Pointer())
 }

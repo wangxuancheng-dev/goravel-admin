@@ -14,6 +14,11 @@ import (
 	"goravel/app/utils/traceid"
 )
 
+// ClientIP resolves the client IP stored with each log row. The default trusts any
+// X-Forwarded-For; the route provider replaces it with helpers.GetRealIP (which this
+// package cannot import without a cycle).
+var ClientIP = func(ctx http.Context) string { return ctx.Request().Ip() }
+
 // RecordHTTP 同时记录文件日志和数据库日志（用于系统级错误，默认 error 级别）
 // 使用场景：数据库操作失败、系统服务异常、关键业务逻辑错误等
 //
@@ -39,7 +44,7 @@ func RecordHTTP(ctx http.Context, module, message string, attributes map[string]
 //	// 记录警告
 //	errorlog.RecordHTTPWithLevel(ctx, "warning", "auth", "Unusual login pattern detected", map[string]any{
 //	    "admin_id": admin.ID,
-//	    "ip": ctx.Request().Ip(),
+//	    "ip": errorlog.ClientIP(ctx),
 //	}, "Unusual login pattern: %s", pattern)
 //
 //	// 记录信息
@@ -164,7 +169,7 @@ func recordToDatabaseHTTPWithLevel(ctx http.Context, level, module, message stri
 		TraceID:   traceID,
 		Message:   message,
 		Context:   contextJSON,
-		IP:        ctx.Request().Ip(),
+		IP:        ClientIP(ctx),
 		UserAgent: ctx.Request().Header("User-Agent", ""),
 	}
 

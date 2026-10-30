@@ -20,6 +20,7 @@ import (
 	"goravel/app/services"
 	"goravel/app/tenancy"
 	"goravel/app/tenancyctx"
+	"goravel/app/utils/errorlog"
 )
 
 type RouteServiceProvider struct {
@@ -29,6 +30,9 @@ func (receiver *RouteServiceProvider) Register(app foundation.Application) {
 }
 
 func (receiver *RouteServiceProvider) Boot(app foundation.Application) {
+	// Log rows record the proxy-aware client IP, not a client-supplied X-Forwarded-For.
+	errorlog.ClientIP = helpers.GetRealIP
+
 	// Add HTTP middleware
 	facades.Route().GlobalMiddleware(http.Kernel{}.Middleware()...)
 	facades.Route().Recover(func(ctx contractshttp.Context, err any) {
@@ -106,7 +110,7 @@ func (receiver *RouteServiceProvider) configureRateLimiting() {
 	facades.RateLimiter().ForWithLimits("ip", func(ctx contractshttp.Context) []contractshttp.Limit {
 		return []contractshttp.Limit{
 			limit.PerDay(1000),
-			limit.PerMinute(2).By(ctx.Request().Ip()),
+			limit.PerMinute(2).By(helpers.GetRealIP(ctx)),
 		}
 	})
 

@@ -136,7 +136,7 @@ func (c *PaymentController) Store(ctx http.Context) http.Response {
 
 	out := c.PaymentService(ctx).PaymentToJSON(payment)
 	if req.Initiate {
-		gateway, err := services.NewPaymentGatewayService(ctx).CreatePaymentOrder(payment, ctx.Request().Ip())
+		gateway, err := services.NewPaymentGatewayService(ctx).CreatePaymentOrder(payment, helpers.GetRealIP(ctx))
 		if err != nil {
 			return HandleGeneratedServiceError(ctx, "payment", http.StatusNotImplemented, err, map[string]any{
 				"payment_no": payment.PaymentNo,

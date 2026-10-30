@@ -222,7 +222,7 @@ func (s *SystemLogServiceImpl) RecordHTTP(ctx http.Context, level, module, messa
 
 	ip, userAgent := "", ""
 	if ctx != nil && ctx.Request() != nil {
-		ip = ctx.Request().Ip()
+		ip = helpers.GetRealIP(ctx)
 		userAgent = ctx.Request().Header("User-Agent", "")
 	}
 

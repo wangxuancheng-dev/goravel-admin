@@ -97,7 +97,7 @@ func OperationLog() http.Middleware {
 		// 获取请求信息
 		method := ctx.Request().Method()
 		path := ctx.Request().Path()
-		ip := ctx.Request().Ip()
+		ip := helpers.GetRealIP(ctx)
 		userAgent := ctx.Request().Header("User-Agent", "")
 
 		// 获取请求参数（排除敏感信息）
