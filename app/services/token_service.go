@@ -239,10 +239,11 @@ func (s *TokenServiceImpl) Touch(accessToken *models.PersonalAccessToken, ttl ti
 	if ttl > 0 && ttl/2 < interval {
 		interval = ttl / 2
 	}
-	// A last_used_at in the future (clock or time zone skew) never skips, so the token is
-	// still kept alive.
+	// Skip only when last_used_at is within one interval either way: MySQL rounds fractional
+	// seconds, so a fresh value can read up to 0.5s in the future, while a far-off value
+	// (time zone skew) still writes and keeps the token alive.
 	if accessToken.LastUsedAt != nil {
-		if since := now.Sub(*accessToken.LastUsedAt); since >= 0 && since < interval {
+		if since := now.Sub(*accessToken.LastUsedAt); since > -interval && since < interval {
 			return nil
 		}
 	}

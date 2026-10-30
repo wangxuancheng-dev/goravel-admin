@@ -68,6 +68,12 @@ func TestAdminJwtTouchIsThrottled(t *testing.T) {
 		resp.AssertOk()
 	}
 
+	// MySQL rounds fractional seconds, so a value written just now can read slightly in the
+	// future; that must still count as "just used".
+	_, err = facades.Orm().Query().Model(&models.PersonalAccessToken{}).Where("id", created.ID).
+		Update("last_used_at", time.Now().Add(time.Second))
+	require.NoError(t, err)
+
 	before := load()
 	call()
 	after := load()
