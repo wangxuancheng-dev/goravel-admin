@@ -177,7 +177,7 @@ func applyTenantPoolLimits(db interface {
 	SetConnMaxIdleTime(d time.Duration)
 	SetConnMaxLifetime(d time.Duration)
 }) {
-	idle := facades.Config().GetInt("tenancy.pool_max_idle_conns", 2)
+	idle := facades.Config().GetInt("tenancy.pool_max_idle_conns", 10)
 	open := facades.Config().GetInt("tenancy.pool_max_open_conns", 20)
 	idleSec := facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300)
 	lifeSec := facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800)
@@ -335,7 +335,7 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 
 func tenantPoolConfig() map[string]any {
 	return map[string]any{
-		"max_idle_conns":    facades.Config().GetInt("tenancy.pool_max_idle_conns", 2),
+		"max_idle_conns":    facades.Config().GetInt("tenancy.pool_max_idle_conns", 10),
 		"max_open_conns":    facades.Config().GetInt("tenancy.pool_max_open_conns", 20),
 		"conn_max_idletime": facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300),
 		"conn_max_lifetime": facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800),

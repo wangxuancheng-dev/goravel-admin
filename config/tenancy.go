@@ -38,7 +38,7 @@ func init() {
 		// Soft-deleted tenant retention days before tenant:cleanup-deleted hard-deletes (0=never auto)
 		"deleted_retention_days": config.Env("TENANCY_DELETED_RETENTION_DAYS", 30),
 		// 每租户连接池（公网收紧；覆盖 database.pool 对动态连接的默认）
-		"pool_max_idle_conns":    config.Env("TENANCY_POOL_MAX_IDLE_CONNS", 2),
+		"pool_max_idle_conns":    config.Env("TENANCY_POOL_MAX_IDLE_CONNS", 10),
 		"pool_max_open_conns":    config.Env("TENANCY_POOL_MAX_OPEN_CONNS", 20),
 		"pool_conn_max_idletime": config.Env("TENANCY_POOL_CONN_MAX_IDLETIME", 300),
 		"pool_conn_max_lifetime": config.Env("TENANCY_POOL_CONN_MAX_LIFETIME", 1800),

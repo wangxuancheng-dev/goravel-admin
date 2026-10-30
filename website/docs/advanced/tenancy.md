@@ -206,7 +206,7 @@ TENANCY_BACKUP_KEEP=10                    # tenant:backup 保留份数；0=不�
 TENANCY_MIGRATE_CONCURRENCY=2             # tenant:migrate-all / seed-all 并发；可用 --concurrency 覆盖；上限 100
 TENANCY_BACKUP_CONCURRENCY=2              # 备份 fleet 并行 dump；上限 50
 TENANT_BACKUP_SCHEDULE_MODE=full          # full=每日全舰队；rotate=按 BATCH 轮转
-TENANCY_POOL_MAX_IDLE_CONNS=2
+TENANCY_POOL_MAX_IDLE_CONNS=10
 TENANCY_POOL_MAX_OPEN_CONNS=20
 
 PLATFORM_ADMIN_USERNAME=admin
@@ -295,7 +295,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
-4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 2 / open 20）；户多时按下方 [规模与推荐配置](#规模与推荐配置) 下调，避免打满 MySQL。
+4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 10 / open 20）；户多时按下方 [规模与推荐配置](#规模与推荐配置) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
 

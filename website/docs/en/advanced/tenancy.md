@@ -134,7 +134,7 @@ TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
 TENANCY_BACKUP_KEEP=10                    # tenant:backup keep count; 0=never prune
 TENANCY_MIGRATE_CONCURRENCY=2             # tenant:migrate-all / seed-all parallelism; --concurrency overrides; max 100
-TENANCY_POOL_MAX_IDLE_CONNS=2
+TENANCY_POOL_MAX_IDLE_CONNS=10
 TENANCY_POOL_MAX_OPEN_CONNS=20
 
 PLATFORM_ADMIN_USERNAME=admin
@@ -167,7 +167,7 @@ PLATFORM_ADMIN_NAME=平台管理员
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
-4. **Connection pool**: per-tenant `TENANCY_POOL_MAX_*` (default idle 2 / open 20); at higher tenant counts, tighten using [Scale and recommended settings](#scale-and-recommended-settings) so MySQL is not exhausted.
+4. **Connection pool**: per-tenant `TENANCY_POOL_MAX_*` (default idle 10 / open 20); at higher tenant counts, tighten using [Scale and recommended settings](#scale-and-recommended-settings) so MySQL is not exhausted.
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
 
