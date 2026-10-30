@@ -226,6 +226,38 @@ func (s *TokenServiceImpl) UpdateLastUsedAt(token string) error {
 	return err
 }
 
+// tokenTouchInterval bounds how often requests write last_used_at / the sliding expires_at.
+// Online status uses a 15-minute window, so a minute of lag is invisible, and it saves an
+// UPDATE on nearly every authenticated request.
+const tokenTouchInterval = time.Minute
+
+// Touch records use of a token loaded by FindToken and, for an expiring token, slides
+// expires_at to now+ttl, in one UPDATE. It is skipped while the token was used recently.
+func (s *TokenServiceImpl) Touch(accessToken *models.PersonalAccessToken, ttl time.Duration) error {
+	now := time.Now()
+	interval := tokenTouchInterval
+	if ttl > 0 && ttl/2 < interval {
+		interval = ttl / 2
+	}
+	// A last_used_at in the future (clock or time zone skew) never skips, so the token is
+	// still kept alive.
+	if accessToken.LastUsedAt != nil {
+		if since := now.Sub(*accessToken.LastUsedAt); since >= 0 && since < interval {
+			return nil
+		}
+	}
+
+	values := map[string]any{"last_used_at": now}
+	if accessToken.ExpiresAt != nil && ttl > 0 {
+		values["expires_at"] = now.Add(ttl)
+	}
+	_, err := s.query().
+		Model(&models.PersonalAccessToken{}).
+		Where("id", accessToken.ID).
+		Update(values)
+	return err
+}
+
 func (s *TokenServiceImpl) generateRandomToken() string {
 	b := make([]byte, 40)
 	_, _ = rand.Read(b)

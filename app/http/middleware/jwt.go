@@ -94,20 +94,9 @@ func Jwt() http.Middleware {
 			return
 		}
 
-		// 更新最后使用时间
-		_ = tokenService.UpdateLastUsedAt(token)
-
-		// 滑动过期：如果token有过期时间，每次请求时自动延长过期时间
-		if accessToken.ExpiresAt != nil {
-			ttl := facades.Config().GetInt("jwt.ttl", 60) // 默认60分钟
-			if ttl > 0 {
-				newExpiresAt := time.Now().Add(time.Duration(ttl) * time.Minute)
-				_, _ = appfacades.OrmQuery(ctx).
-					Model(&models.PersonalAccessToken{}).
-					Where("id", accessToken.ID).
-					Update("expires_at", newExpiresAt)
-			}
-		}
+		// 更新最后使用时间，并滑动延长过期时间（每分钟最多写一次）
+		ttl := time.Duration(facades.Config().GetInt("jwt.ttl", 60)) * time.Minute // 默认60分钟
+		_ = tokenService.Touch(accessToken, ttl)
 
 		// 将用户信息存储到context中，供后续中间件使用
 		ctx.WithValue("admin", admin)

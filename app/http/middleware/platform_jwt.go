@@ -72,17 +72,7 @@ func PlatformJwt() http.Middleware {
 			return
 		}
 
-		_ = tokenService.UpdateLastUsedAt(token)
-		if accessToken.ExpiresAt != nil {
-			ttl := facades.Config().GetInt("jwt.ttl", 60)
-			if ttl > 0 {
-				newExpiresAt := time.Now().Add(time.Duration(ttl) * time.Minute)
-				_, _ = appfacades.PlatformOrmQuery(ctx).
-					Model(&models.PersonalAccessToken{}).
-					Where("id", accessToken.ID).
-					Update("expires_at", newExpiresAt)
-			}
-		}
+		_ = tokenService.Touch(accessToken, time.Duration(facades.Config().GetInt("jwt.ttl", 60))*time.Minute)
 
 		ctx.WithValue("platform_admin", admin)
 		ctx.WithValue("platform_token", accessToken)
