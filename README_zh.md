@@ -220,7 +220,7 @@ docker compose up -d --build
 
 后台管理 API 接口前缀为 `/api/admin`。除登录和验证码接口外，所有接口都需要 JWT 认证。
 
-详细的 API 文档请查看 [routes/admin.go](./routes/admin.go)
+路由定义见 [routes/admin.go](./routes/admin.go)（租户后台，`/api/admin`）、[routes/platform.go](./routes/platform.go)（平台控制台，`/api/platform`）和 [routes/api.go](./routes/api.go)（终端用户 API，`/api`）。
 
 #### Swagger API 文档
 
@@ -230,7 +230,7 @@ docker compose up -d --build
 
 **访问 Swagger 文档：**
 
-Swagger JSON 文档访问地址：
+Swagger 默认关闭。在 `.env` 中设置 `SWAGGER_ENABLED=true`（生产环境请保持关闭或加访问保护）后访问：
 - 本地开发：`http://localhost:3000/swagger/index.html`
 - 生产环境：`https://your-domain.com/swagger/index.html`
 
@@ -251,13 +251,19 @@ swag init
 .
 ├── app/
 │   ├── http/
-│   │   ├── controllers/admin/    # 后台控制器
-│   │   ├── middleware/           # 自定义中间件（JWT、权限、操作日志）
+│   │   ├── controllers/
+│   │   │   ├── admin/            # 租户后台控制器
+│   │   │   ├── platform/         # 平台控制台控制器
+│   │   │   └── api/              # 终端用户 API 控制器
+│   │   ├── middleware/           # 中间件（租户、JWT、权限、操作日志）
 │   │   └── helpers/              # 辅助函数
 │   ├── models/                   # 数据库模型
-│   └── services/                 # 业务逻辑服务
+│   ├── services/                 # 业务逻辑服务
+│   └── jobs/                     # 队列任务（导出、导入、租户运维）
 ├── routes/
-│   └── admin.go                  # 后台路由
+│   ├── admin.go                  # 租户后台路由（/api/admin）
+│   ├── platform.go               # 平台控制台路由（/api/platform）
+│   └── api.go                    # 终端用户 API 路由（/api）
 ├── database/
 │   ├── migrations/               # 数据库迁移
 │   └── seeders/                  # 数据库填充
@@ -274,12 +280,10 @@ swag init
 │       ├── api/                  # API 客户端
 │       └── stores/               # Zustand 状态管理
 ├── config/                       # 配置文件
-├── docs/                         # 文档目录
-│   ├── API.md                    # API 接口文档
-│   ├── ARCHITECTURE.md           # 架构设计文档
-│   ├── BUILD.md                  # 编译打包与部署
-│   ├── SHARDING_MIGRATION.md     # 数据库分表指南
-│   └── ...                       # 其他文档
+├── docs/                         # 仅存放生成的 Swagger 文件（docs.go、swagger.json、swagger.yaml）
+├── website/docs/                 # 项目文档（VitePress 文档站）
+├── tests/feature/                # 功能测试（需要 MySQL + Redis）
+├── scripts/                      # CI 检查与部署脚本
 ├── CONTRIBUTING.md               # 贡献指南
 ├── CHANGELOG.md                  # 版本变更记录
 └── images/                       # 截图文件
@@ -363,7 +367,7 @@ npx wrangler deploy
 
 ### 性能分析
 
-pprof 性能分析工具地址：http://localhost:3000/debug/pprof/
+pprof 地址为 http://localhost:3000/debug/pprof/。需要 `APP_DEBUG=true`（或 `PPROF_ENABLED=true`），**并且**至少配置 `PPROF_TOKEN` / `PPROF_ALLOWED_IPS` 其中一项；两项都不配时不会注册这些路由。
 
 开发调试面板（请求 / SQL / 日志 / 队列等记录，仅开发环境）：http://localhost:3000/goralens ，见 [Goralens 文档](./website/docs/reference/goralens.md)
 
@@ -376,16 +380,16 @@ pprof 性能分析工具地址：http://localhost:3000/debug/pprof/
 1. 下载 UPX（Windows 64 位版本）：
    - 官网下载：https://github.com/upx/upx/releases/latest
    - 选择 `upx-5.0.2-win64.zip`（或最新版本）
-   - 解压到无中文或空格的路径（例如：`F:\tools\upx`）
+   - 解压到无中文或空格的路径（例如：`C:\tools\upx`）
    - 确保 `upx.exe` 可访问
 
 2. 压缩二进制文件（PowerShell）：
    ```powershell
    # 方式1：临时添加 UPX 到环境变量（推荐）
-   $env:PATH += ";F:\tools\upx"
+   $env:PATH += ";C:\tools\upx"
    
-   # 进入项目目录
-   cd F:\www\go\admin\goravel-admin
+   # 在项目根目录（编译产物所在目录）执行
+   cd path\to\goravel-admin
    
    # 最高级别压缩（-9）
    upx -9 main

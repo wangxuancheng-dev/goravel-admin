@@ -219,7 +219,7 @@ For detailed build and deployment instructions, including cross-platform compila
 
 The admin API endpoints are prefixed with `/api/admin`. All endpoints require JWT authentication except login and captcha.
 
-For detailed API documentation, see [routes/admin.go](./routes/admin.go)
+Routes are defined in [routes/admin.go](./routes/admin.go) (tenant admin, `/api/admin`), [routes/platform.go](./routes/platform.go) (platform console, `/api/platform`), and [routes/api.go](./routes/api.go) (end-user API, `/api`).
 
 #### Swagger API Documentation
 
@@ -229,7 +229,7 @@ Error code overview for frontend integration: [error codes](./website/docs/refer
 
 **Access Swagger Documentation:**
 
-The Swagger JSON document is available at:
+Swagger is off by default. Set `SWAGGER_ENABLED=true` in `.env` (keep it off or protected in production), then open:
 - Local development: `http://localhost:3000/swagger/index.html`
 - Production: `https://your-domain.com/swagger/index.html`
 
@@ -250,13 +250,19 @@ This will regenerate the `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.
 .
 ├── app/
 │   ├── http/
-│   │   ├── controllers/admin/    # Admin controllers
-│   │   ├── middleware/           # Custom middleware (JWT, Permission, OperationLog)
+│   │   ├── controllers/
+│   │   │   ├── admin/            # Tenant admin controllers
+│   │   │   ├── platform/         # Platform console controllers
+│   │   │   └── api/              # End-user API controllers
+│   │   ├── middleware/           # Middleware (tenant, JWT, permission, operation log)
 │   │   └── helpers/              # Helper functions
 │   ├── models/                   # Database models
-│   └── services/                 # Business logic services
+│   ├── services/                 # Business logic services
+│   └── jobs/                     # Queue jobs (export, import, tenant ops)
 ├── routes/
-│   └── admin.go                  # Admin routes
+│   ├── admin.go                  # Tenant admin routes (/api/admin)
+│   ├── platform.go               # Platform console routes (/api/platform)
+│   └── api.go                    # End-user API routes (/api)
 ├── database/
 │   ├── migrations/               # Database migrations
 │   └── seeders/                  # Database seeders
@@ -273,12 +279,10 @@ This will regenerate the `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.
 │       ├── api/                  # API client
 │       └── stores/               # Zustand stores
 ├── config/                       # Configuration files
-├── docs/                         # Documentation
-│   ├── API.md                    # API documentation
-│   ├── ARCHITECTURE.md           # Architecture documentation
-│   ├── BUILD.md                  # Build and deployment
-│   ├── SHARDING_MIGRATION.md     # Database sharding guide
-│   └── ...                       # Other documentation
+├── docs/                         # Generated Swagger files only (docs.go, swagger.json, swagger.yaml)
+├── website/docs/                 # Project documentation (VitePress site)
+├── tests/feature/                # Feature tests (need MySQL + Redis)
+├── scripts/                      # CI guards and deploy scripts
 ├── CONTRIBUTING.md               # Contribution guidelines
 ├── CHANGELOG.md                  # Version history
 └── images/                       # Screenshots
@@ -364,7 +368,7 @@ npx wrangler deploy
 
 ### Performance Profiling
 
-pprof is available at: http://localhost:3000/debug/pprof/
+pprof is served at http://localhost:3000/debug/pprof/ when `APP_DEBUG=true` (or `PPROF_ENABLED=true`) **and** at least one of `PPROF_TOKEN` / `PPROF_ALLOWED_IPS` is set; without either control the routes are not registered.
 
 Debug dashboard (requests / SQL / logs / jobs, development only): http://localhost:3000/goralens. See the [Goralens docs](./website/docs/en/reference/goralens.md).
 
@@ -377,16 +381,16 @@ To reduce the binary size, you can use UPX (Ultimate Packer for eXecutables) to 
 1. Download UPX (Windows 64-bit version):
    - Official download: https://github.com/upx/upx/releases/latest
    - Select `upx-5.0.2-win64.zip` (or the latest version)
-   - Extract the zip to a path without Chinese characters or spaces (e.g., `F:\tools\upx`)
+   - Extract the zip to a path without non-ASCII characters or spaces (e.g., `C:\tools\upx`)
    - Ensure `upx.exe` is accessible
 
 2. Compress the binary (PowerShell):
    ```powershell
    # Option 1: Temporarily add UPX to PATH (recommended)
-   $env:PATH += ";F:\tools\upx"
+   $env:PATH += ";C:\tools\upx"
    
-   # Navigate to project directory
-   cd F:\www\go\admin\goravel-admin
+   # Run from the project root (where the compiled binary is)
+   cd path\to\goravel-admin
    
    # Maximum compression level (-9)
    upx -9 main
