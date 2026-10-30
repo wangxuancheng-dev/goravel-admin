@@ -64,6 +64,7 @@ func TestUIBatchMigrateFleet(t *testing.T) {
 			if tn == nil || tn.ID == 0 {
 				continue
 			}
+			_, _ = appfacades.PlatformOrmQuery(nil).Where("tenant_id", tn.ID).Delete(&models.TenantOpLog{})
 			_ = conn.DropStorage(tn)
 			_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		}
