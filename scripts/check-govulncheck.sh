@@ -7,10 +7,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 ALLOW=(
-  # excelize: fixed only in unreleased commits after v2.11.0 — bump once v2.11.1 is tagged.
-  GO-2026-6684
-  GO-2026-6688
-  # otel log v0.21 breaks goravel/framework v1.18.0 (telemetry/instrumentation/log) — bump with the framework.
+  # otel log v0.21 breaks goravel/framework v1.18.1 (telemetry/instrumentation/log uses the removed
+  # otellog.Value API) — bump with the framework.
   GO-2026-6508
   GO-2026-6615
 )
