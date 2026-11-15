@@ -51,6 +51,8 @@ func init() {
 			"otel": map[string]any{
 				"driver":          "otel",
 				"instrument_name": config.GetString("APP_NAME", "goravel/log"),
+				// Respect LOG_LEVEL (without it every level is exported).
+				"level": config.Env("LOG_LEVEL", "debug"),
 			},
 			// Feeds the Goralens dashboard; a no-op while GORALENS_ENABLED is false.
 			"goralens": map[string]any{

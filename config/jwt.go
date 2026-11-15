@@ -28,5 +28,13 @@ func init() {
 		// This is not particularly recommended, so make sure you have appropriate
 		// systems in place to revoke the token if necessary.
 		"ttl": config.Env("JWT_TTL", 60),
+
+		// Refresh time to live (minutes)
+		//
+		// How long after expiry a token can still be refreshed. Since framework v1.18.1
+		// a logged-out token also stays blacklisted in cache for exp + refresh_ttl, so
+		// leaving this unset (falls back to 100 years) keeps refresh windows unbounded
+		// and logout cache entries effectively forever. Defaults to 2 weeks.
+		"refresh_ttl": config.Env("JWT_REFRESH_TTL", 20160),
 	})
 }
