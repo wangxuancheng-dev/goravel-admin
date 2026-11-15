@@ -10,15 +10,15 @@ require (
 	github.com/beratkara/goralens v0.1.0
 	github.com/coder/websocket v1.8.15
 	github.com/coreos/go-oidc/v3 v3.16.0
-	github.com/dromara/carbon/v2 v2.6.11
+	github.com/dromara/carbon/v2 v2.6.17
 	github.com/elastic/go-elasticsearch/v8 v8.19.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-pay/gopay v1.5.115
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936
 	github.com/goravel/cos v1.18.0
-	github.com/goravel/framework v1.18.0
-	github.com/goravel/gin v1.18.0
+	github.com/goravel/framework v1.18.1
+	github.com/goravel/gin v1.18.1
 	github.com/goravel/minio v1.18.0
 	github.com/goravel/mysql v1.18.0
 	github.com/goravel/openai v1.18.0
@@ -103,7 +103,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.16 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/gin-contrib/timeout v1.2.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.5 // indirect
