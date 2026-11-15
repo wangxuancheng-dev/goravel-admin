@@ -84,6 +84,14 @@ TENANCY_DRIVER=database
 | 开户 migrate | — | Platform UI async queue / CLI；HTTP create still forbids sync migrate |
 | 开户状态 | — | `provision_status`: `pending` → `migrating` → `ready`/`failed` |
 
+### Connection management (`app/tenantdb`)
+
+- Tenant connections are owned by the app's registry `tenantdb.Default`: each one is built from the framework's exported constructors (driver → gorm → Orm) with its own config overlay. **Nothing is written to the global config and nothing enters the framework's connection caches**, so the app decides when a pool is created, replaced and closed.
+- Looking up a registered connection on the request path takes only a read lock. Building or rebuilding one (including the ping, 5s timeout) happens outside any lock and is deduplicated per name, so one slow or unreachable tenant database never stalls other tenants.
+- `OrmQuery(ctx)` picks the connection named in ctx; an evicted connection is rebuilt from the `tenants` table on its next use.
+- Every tenant request reads the `tenants` row (resolution, connection, storage), so rows are cached in the shared cache (`app/tenantcache`; Redis in production; `TENANCY_TENANT_CACHE_TTL`, default 60s). Writing a tenant row through the ORM (`Model(t).Update`, `Save`, `Delete`, ...) **invalidates it on every node at once**, so disabling, maintenance and deletion are never delayed by the cache. Bulk writes without the model, such as `Where("id", x).Delete(&models.Tenant{})`, fire no event: call `tenantcache.Invalidate(id)` there. Manual SQL edits show up within one TTL. **Multi-process deployments (separate API and worker processes, several machines) need a shared cache (`CACHE_STORE=redis`)**: the `memory` store only invalidates within its own process, so other processes may lag by up to one TTL.
+- Migrations and seeders can only reach the database through `facades.Schema()` / `facades.Orm()` (they take no arguments), so migrate / seed / `WithTenantConnection` bind a dedicated tenant Schema to the **current goroutine** (`WithBoundTenantSchema`). No global state changes and other requests are unaffected. Work handed to other goroutines must carry `tenancyctx.Detach(ctx)` and use `OrmQuery(ctx)`.
+
 ## Tenant entitlements (developer)
 
 Plan features are separate from RBAC. Super-admin does **not** bypass entitlements.
@@ -148,9 +156,9 @@ PLATFORM_ADMIN_NAME=平台管理员
 
 ## 生产要点
 
-1. **平台连接钉死**：`PlatformOrmQuery` 使用 `tenancy.platform_connection`，不跟随 migrate 时临时翻转的 `database.default`。
+1. **Pinned platform connection**: `PlatformOrmQuery` uses `tenancy.platform_connection`; tenant migrate / seed bind only the current goroutine and never change `database.default` or other global state.
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
-3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
+3. **Connection lifecycle**: `Forget` closes the tenant's pool immediately; connections evicted as idle (`TENANCY_REGISTERED_IDLE_TTL`) or over the cap (`TENANCY_REGISTERED_MAX`) are closed after a 2-minute grace period and rebuilt on their next use.
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试。
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
 6. **Async ops**: per-tenant migrate / seed / backup / restore via `tenant_ops` (`long-running`); production needs Redis + long-running worker. `migrate-all` / `backup-all` remain CLI: `backup-all` enqueues long-running (paged fan-out); scheduled `backup-scheduled` rotates `TENANT_BACKUP_SCHEDULE_BATCH` tenants/day.
@@ -439,6 +447,8 @@ There is **no built-in** `CELL_ID`, global tenant router, or one-click cross-reg
 
 - **Default shared disk**: one platform `FILESYSTEM_DISK`; paths isolated with `tenants/{code}/`. Tenant admin **cannot** change `file_disk` (save rejected); export format remains editable.
 - **Optional BYOB (platform)**: set tenant `storage_mode=custom` with s3/oss/cos/minio credentials (secret sealed with `APP_KEY`). New uploads use disk `tenant_byob_{id}`; attachments store that disk name.
+  - Each tenant's storage driver is built from its own credentials and reused within the process; the credentials are **never written to the global config**, so no other tenant or code can read them. Credentials changed on the platform take effect on the next use, without a restart.
+  - In code, open a disk with `utils.StorageDisk(disk)`; to read a disk's settings (e.g. streaming uploads) use `tenantstorage.DiskConfig(disk)`. Do not read `filesystems.disks.tenant_byob_*` from `facades.Config()` (it is not there).
 - **Switching**: shared ↔ custom only changes **new** writes. Old objects remain on the disk recorded in `attachments.disk`. Keep BYOB credentials after switching back to shared so historical custom files stay readable. Purge cleans platform prefix and, if credentials exist, the BYOB prefix too.
 - **Delete tenant**: soft-delete into recycle bin; `drop_database` drops DB/schema only; **object storage is not purged here**.
 - **Recycle / force delete**: `GET /tenants?trashed=only`; `POST .../undelete`; `POST .../purge` optional retry; `DELETE .../force` defaults to async purge objects+backups then hard-delete (frees `code`). Retention `TENANCY_DELETED_RETENTION_DAYS`; schedule `tenant:cleanup-deleted`.
@@ -596,7 +606,8 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 | `tenancyctx.Detach(ctx)` | 异步 goroutine 保留租户连接 |
 | `tenancy.CacheKey` / `StoragePrefix` | 缓存键 / 对象存储路径前缀 |
 | `RunTenantScope` / `--tenant` | CLI 按租户执行 |
-| `SchemaHasTable` / `WithSchemaContext` | 请求路径 Schema（`SchemaConnLock`） |
+| `SchemaHasTable` / `WithSchemaContext` | Tenant Schema from ctx (no global state) |
+| `WithTenantConnection` | Run as the tenant on the current goroutine (migration-style code, seeders) |
 
 ### 硬性规则
 

@@ -25,6 +25,14 @@ TENANCY_DRIVER=database
 | 开户 migrate | — | 平台 UI 异步入队 / CLI；HTTP 开户仍禁止同步 migrate |
 | 开户状态 | — | `provision_status`: `pending` → `migrating` → `ready`/`failed` |
 
+### 连接管理（`app/tenantdb`）
+
+- 租户连接由应用自己的注册表 `tenantdb.Default` 持有：用框架导出的构造器为每个连接单独构建（驱动 → gorm → Orm），**不写全局 config、不进框架的连接缓存**，何时建、换、关都由应用决定。
+- 请求路径查找已注册连接只取读锁；新建或重建连接（含 ping，超时 5s）在锁外进行并按连接名去重，一个慢库或连不上的库不会拖住其他租户。
+- `OrmQuery(ctx)` 按 ctx 中的连接名取连接；连接被淘汰后再次访问，会按 `tenants` 表自动重建。
+- 每个租户请求都要读 `tenants` 行（识别租户、建连接、存储），所以缓存在共享缓存里（`app/tenantcache`，生产为 Redis，`TENANCY_TENANT_CACHE_TTL` 默认 60s）。通过 ORM 修改租户行（`Model(t).Update`、`Save`、`Delete` 等）会**立即在所有节点失效**，停用、维护、删除不受缓存延迟影响。`Where("id", x).Delete(&models.Tenant{})` 这类不带模型的批量写不会触发事件，须手动调用 `tenantcache.Invalidate(id)`；手工改库则最多延迟一个 TTL。**多进程部署（API 与 worker 分开、多台机器）必须用共享缓存（`CACHE_STORE=redis`）**：`memory` 驱动只在本进程内失效，其他进程最多延迟一个 TTL。
+- 迁移和 seeder 只能通过 `facades.Schema()` / `facades.Orm()` 访问数据库（不接收参数），所以 migrate / seed / `WithTenantConnection` 在**当前 goroutine** 上绑定一份独立的租户 Schema（`WithBoundTenantSchema`），不改任何全局状态，其他请求不受影响。交给其他 goroutine 的工作须传 `tenancyctx.Detach(ctx)` 并用 `OrmQuery(ctx)`。
+
 ## 租户权益 / 模块套餐
 
 > 仅登记到 platform_features 的模块走本页权益套餐；其余业务模块用角色菜单与权限控制。
@@ -276,9 +284,9 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 
 ## 生产要点
 
-1. **平台连接钉死**：`PlatformOrmQuery` 使用 `tenancy.platform_connection`，不跟随 migrate 时临时翻转的 `database.default`。
+1. **平台连接钉死**：`PlatformOrmQuery` 使用 `tenancy.platform_connection`；租户 migrate / seed 只绑定当前 goroutine，不修改 `database.default` 等全局状态。
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
-3. **连接回收**：`Forget` 会 `Close` + `Fresh` 动态连接池。
+3. **连接回收**：`Forget` 立即关闭该租户的连接池；空闲（`TENANCY_REGISTERED_IDLE_TTL`）或超上限（`TENANCY_REGISTERED_MAX`）淘汰的连接在 2 分钟宽限期后关闭，再次访问时自动重建。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试（防永久卡住）。
 5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
 6. **异步运维**：单户 migrate / seed / backup / restore / rollback 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` / `rollback-all` 仍可用 CLI：`backup-all` 改为入队 long-running（分页扇出），定时 `backup-scheduled` 按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` 户。
@@ -566,6 +574,8 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 
 - **默认共用盘**：全站一份 `FILESYSTEM_DISK`；路径用 `tenants/{code}/` 前缀隔离。租户后台**不可**改 `file_disk`（保存会被拒绝），仅可改导出格式。
 - **可选自有桶（平台配置）**：租户 `storage_mode=custom` 时可填 s3/oss/cos/minio 凭证（密钥用 `APP_KEY` 加密）。新上传写入磁盘名 `tenant_byob_{id}`，并由附件记录该 disk。
+  - 每个租户的存储驱动按其凭据单独构建并在进程内复用；凭据**不写入全局 config**，其他租户和代码都读不到。在平台修改凭据后，下次访问自动换用新凭据，无需重启。
+  - 代码里打开磁盘用 `utils.StorageDisk(disk)`；需要读取磁盘配置（如流式上传）用 `tenantstorage.DiskConfig(disk)`，不要直接读 `facades.Config()` 的 `filesystems.disks.tenant_byob_*`（那里没有）。
 - **切换**：shared ↔ custom **只影响新上传**。旧文件仍按 `attachments.disk` 读取。切回共享后请保留自有桶密钥，否则历史自定义文件可能无法访问。永久清理会删平台前缀，若仍有凭证也会清理自有桶前缀。
 - **删除租户**：平台元数据**软删**入回收站；drop_database 仅 DROP 库/Schema；**此时不清理对象存储**。
 - **回收站 / 永久删除**：GET /tenants?trashed=only；POST .../undelete 恢复；POST .../purge 可单独重试清理；DELETE .../force 默认异步清理对象+备份后再硬删并释放 code。保留 TENANCY_DELETED_RETENTION_DAYS；定时 tenant:cleanup-deleted。
@@ -727,7 +737,8 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | `tenancyctx.Detach(ctx)` | 异步 goroutine 保留租户连接 |
 | `tenancy.CacheKey` / `StoragePrefix` | 缓存键 / 对象存储路径前缀 |
 | `RunTenantScope` / `--tenant` | CLI 按租户执行 |
-| `SchemaHasTable` / `WithSchemaContext` | 请求路径 Schema（`SchemaConnLock`） |
+| `SchemaHasTable` / `WithSchemaContext` | 按 ctx 取租户 Schema（不改全局状态） |
+| `WithTenantConnection` | 在当前 goroutine 上以租户身份运行（迁移式代码、seeder） |
 
 ### 硬性规则
 
