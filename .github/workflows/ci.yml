@@ -96,7 +96,7 @@ jobs:
   backend-integration:
     name: Backend Integration
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     services:
       mysql:
@@ -162,7 +162,8 @@ jobs:
           grep -q 'Migration success' migrate.log
 
       - name: Feature / smoke tests
-        run: go test -count=1 -timeout=5m ./tests/feature/...
+        # Tenant tests create, migrate and seed real tenant databases (~4-5 min locally).
+        run: go test -count=1 -timeout=12m ./tests/feature/...
 
   frontend-vue:
     name: Frontend Vue
