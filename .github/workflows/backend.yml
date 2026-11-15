@@ -116,6 +116,8 @@ jobs:
     # The feature tests are dominated by tenant tests that create, migrate and seed real
     # databases. Two shards run them side by side: "heavy" runs the slowest ones by name,
     # "rest" runs everything else via -skip, so a new test always lands in some shard.
+    # Rebalance HEAVY_TESTS with the per-test CI timings each shard posts as a notice
+    # annotation ("Slowest feature tests"); local timings do not carry over to CI.
     strategy:
       fail-fast: false
       matrix:
@@ -126,7 +128,7 @@ jobs:
             select: -skip
 
     env:
-      HEAVY_TESTS: '^(TestBackupFleetFanOut|TestTenantLifecycleAndIsolationOverHTTP|TestUIBatchMigrateFleet|TestDualTenantDatabaseIsolation|TestTenantCreateWithMigrateAndSeed)$'
+      HEAVY_TESTS: '^(TestBackupFleetFanOut|TestTenantLifecycleAndIsolationOverHTTP|TestDualTenantDatabaseIsolation|TestTenantCreateWithMigrateAndSeed)$'
       # Fleet migrate+seed: 3 tenants on 2 workers still covers parallel runs and queueing.
       TENANCY_TEST_FLEET_COUNT: '3'
       TENANCY_TEST_FLEET_CONCURRENCY: '2'
@@ -195,4 +197,18 @@ jobs:
           grep -q 'Migration success' migrate.log
 
       - name: Feature / smoke tests
-        run: go test -count=1 -timeout=12m ${{ matrix.select }} "$HEAVY_TESTS" ./tests/feature/...
+        run: |
+          set -o pipefail
+          go test -count=1 -v -timeout=12m ${{ matrix.select }} "$HEAVY_TESTS" ./tests/feature/... 2>&1 | tee feature.log
+
+      - name: Report slowest feature tests
+        if: always()
+        run: |
+          [ -f feature.log ] || exit 0
+          # One notice per shard, readable from the run page and the checks API.
+          slowest=$(grep -E '^--- (PASS|FAIL)' feature.log \
+            | sed -E 's/^--- [A-Z]+: ([^ ]+) \(([0-9.]+)s\)/\2s \1/' \
+            | sort -rn | head -8 | paste -sd ',' - | sed 's/,/, /g')
+          echo "::notice title=Slowest feature tests (${{ matrix.shard }})::${slowest}"
+          failed=$(grep -E '^--- FAIL' feature.log | sed -E 's/^--- FAIL: ([^ ]+).*/\1/' | paste -sd ',' -)
+          if [ -n "$failed" ]; then echo "::error title=Failed feature tests (${{ matrix.shard }})::${failed}"; fi
