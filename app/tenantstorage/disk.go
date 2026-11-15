@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	cosdriver "github.com/goravel/cos"
 	contractsconfig "github.com/goravel/framework/contracts/config"
@@ -42,12 +44,58 @@ type diskEntry struct {
 	fingerprint string
 	cfg         contractsconfig.Config
 	driver      filesystem.Driver
+	lastUsed    atomic.Int64 // unix nanos
 }
 
 var (
-	disksMu sync.RWMutex
-	disks   = map[uint]*diskEntry{} // tenantID -> driver
+	disksMu   sync.RWMutex
+	disks     = map[uint]*diskEntry{} // tenantID -> driver
+	lastSweep atomic.Int64
 )
+
+// Drivers of tenants that stopped using their bucket are dropped like idle tenant DB
+// connections (tenancy.registered_idle_ttl / tenancy.registered_max). They hold only
+// an API client, so dropping the reference is enough; the next use rebuilds it.
+const sweepEvery = time.Minute
+
+func idleTTL() time.Duration {
+	sec := facades.Config().GetInt("tenancy.registered_idle_ttl", 900)
+	if sec <= 0 {
+		return 0
+	}
+	return time.Duration(sec) * time.Second
+}
+
+// sweepIdle drops drivers unused for idleTTL and, over tenancy.registered_max, the
+// least recently used ones. Runs at most once per sweepEvery.
+func sweepIdle(now time.Time) {
+	last := lastSweep.Load()
+	if now.UnixNano()-last < int64(sweepEvery) || !lastSweep.CompareAndSwap(last, now.UnixNano()) {
+		return
+	}
+	ttl := idleTTL()
+	maxN := facades.Config().GetInt("tenancy.registered_max", 0)
+
+	disksMu.Lock()
+	defer disksMu.Unlock()
+	if ttl > 0 {
+		for id, e := range disks {
+			if now.Sub(time.Unix(0, e.lastUsed.Load())) >= ttl {
+				delete(disks, id)
+			}
+		}
+	}
+	for maxN > 0 && len(disks) > maxN {
+		var oldestID uint
+		var oldest int64
+		for id, e := range disks {
+			if at := e.lastUsed.Load(); oldestID == 0 || at < oldest {
+				oldestID, oldest = id, at
+			}
+		}
+		delete(disks, oldestID)
+	}
+}
 
 // DiskName returns the runtime filesystem disk key for a tenant BYOB config.
 func DiskName(tenantID uint) string {
@@ -259,11 +307,14 @@ func entryFor(t *models.Tenant) (*diskEntry, error) {
 		return nil, err
 	}
 	fp := fingerprint(t, secret)
+	now := time.Now()
+	sweepIdle(now)
 
 	disksMu.RLock()
 	e := disks[t.ID]
 	disksMu.RUnlock()
 	if e != nil && e.fingerprint == fp {
+		e.lastUsed.Store(now.UnixNano())
 		return e, nil
 	}
 
@@ -273,10 +324,18 @@ func entryFor(t *models.Tenant) (*diskEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	e.lastUsed.Store(now.UnixNano())
 	disksMu.Lock()
 	disks[t.ID] = e
 	disksMu.Unlock()
 	return e, nil
+}
+
+// CachedDriverCount returns how many tenant BYOB drivers are kept (tests, metrics).
+func CachedDriverCount() int {
+	disksMu.RLock()
+	defer disksMu.RUnlock()
+	return len(disks)
 }
 
 // fingerprint identifies the credentials a driver was built from (hashed, so the
