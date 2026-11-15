@@ -48,7 +48,7 @@ func TestTenantCreateWithMigrateAndSeed(t *testing.T) {
 		Migrate: true,
 	})
 	if err != nil {
-		t.Skipf("skip create+migrate+seed: cannot create tenant DB: %v", err)
+		skipWithoutTenantDB(t, err)
 	}
 	t.Cleanup(func() {
 		_ = conn.DropStorage(tn)

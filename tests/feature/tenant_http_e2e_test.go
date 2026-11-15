@@ -89,6 +89,7 @@ func adminNickname(payload map[string]any) string {
 // the queue job, then each tenant's admin only ever reaches its own database.
 func TestTenantLifecycleAndIsolationOverHTTP(t *testing.T) {
 	withTenancyDriver(t, "database")
+	allowSharedTenantDBCredentials(t)
 	require.True(t, tenancy.Enabled())
 	runQueueInline(t)
 	platformToken := loginPlatformSmoke(t)
@@ -99,7 +100,7 @@ func TestTenantLifecycleAndIsolationOverHTTP(t *testing.T) {
 	create := func(prefix string) *models.Tenant {
 		tn, err := admin.Create(services.TenantCreateInput{Code: prefix + suffix, Name: prefix, Migrate: false})
 		if err != nil {
-			t.Skipf("skip: cannot create tenant DB (need CREATE privilege): %v", err)
+			skipWithoutTenantDB(t, err)
 		}
 		t.Cleanup(func() {
 			_ = conn.DropStorage(tn)

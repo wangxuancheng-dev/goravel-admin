@@ -83,7 +83,7 @@ func TestFleetTenantMigrateAndSeed(t *testing.T) {
 			Migrate: false,
 		})
 		if err != nil {
-			t.Skipf("skip fleet migrate+seed: cannot create tenant DB (%d/%d): %v", i+1, n, err)
+			skipWithoutTenantDB(t, err)
 		}
 		tenants = append(tenants, tn)
 	}

@@ -63,7 +63,7 @@ func TestParallelTenantMigrate(t *testing.T) {
 			Migrate: false,
 		})
 		if err != nil {
-			t.Skipf("skip parallel migrate: cannot create tenant DB: %v", err)
+			skipWithoutTenantDB(t, err)
 		}
 		tenants = append(tenants, tn)
 	}

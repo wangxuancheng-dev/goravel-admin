@@ -76,7 +76,7 @@ func TestUIBatchRollbackFleet(t *testing.T) {
 			Migrate: false,
 		})
 		if err != nil {
-			t.Skipf("skip UI rollback fleet: cannot create tenant DB: %v", err)
+			skipWithoutTenantDB(t, err)
 		}
 		tenants = append(tenants, tn)
 	}

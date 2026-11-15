@@ -360,7 +360,7 @@ func TestTenantBackupThenRestoreRevertsData(t *testing.T) {
 	code := fmt.Sprintf("rst%d", time.Now().UnixNano()%1_000_000_000)
 	tn, err := adminSvc.Create(services.TenantCreateInput{Code: code, Name: "Restore " + code, Migrate: true})
 	if err != nil {
-		t.Skipf("skip backup/restore: cannot create/migrate tenant DB: %v", err)
+		skipWithoutTenantDB(t, err)
 	}
 	t.Cleanup(func() {
 		_ = os.RemoveAll(services.TenantBackupDir(tn.Code))

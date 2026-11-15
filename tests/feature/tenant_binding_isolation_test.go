@@ -38,6 +38,7 @@ func observeDB(t *testing.T) dbView {
 // database.default for the duration, leaking concurrent requests into the tenant DB.
 func TestTenantScopeDoesNotLeakToOtherGoroutines(t *testing.T) {
 	withTenancyDriver(t, "database")
+	allowSharedTenantDBCredentials(t)
 	if !tenancy.Enabled() {
 		t.Fatal("tenancy driver not enabled for test")
 	}
@@ -48,7 +49,7 @@ func TestTenantScopeDoesNotLeakToOtherGoroutines(t *testing.T) {
 	code := fmt.Sprintf("bind%d", time.Now().UnixNano()%1000000)
 	ta, err := admin.Create(services.TenantCreateInput{Code: code, Name: "Binding isolation", Migrate: false})
 	if err != nil {
-		t.Skipf("skip: cannot create tenant DB (need CREATE privilege): %v", err)
+		skipWithoutTenantDB(t, err)
 	}
 	t.Cleanup(func() {
 		_ = conn.DropStorage(ta)

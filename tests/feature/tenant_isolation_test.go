@@ -22,6 +22,7 @@ import (
 
 func TestDualTenantDatabaseIsolation(t *testing.T) {
 	withTenancyDriver(t, "database")
+	allowSharedTenantDBCredentials(t)
 	if !tenancy.Enabled() {
 		t.Fatal("tenancy driver not enabled for test")
 	}
@@ -39,7 +40,7 @@ func TestDualTenantDatabaseIsolation(t *testing.T) {
 		Migrate: false,
 	})
 	if err != nil {
-		t.Skipf("skip dual-tenant isolation: cannot create tenant DB (need CREATE privilege): %v", err)
+		skipWithoutTenantDB(t, err)
 	}
 	tb, err := admin.Create(services.TenantCreateInput{
 		Code:    codeB,
@@ -49,7 +50,7 @@ func TestDualTenantDatabaseIsolation(t *testing.T) {
 	if err != nil {
 		_ = conn.DropStorage(ta)
 		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", ta.ID).Delete(&models.Tenant{})
-		t.Skipf("skip dual-tenant isolation: cannot create second tenant DB: %v", err)
+		skipWithoutTenantDB(t, err)
 	}
 
 	t.Cleanup(func() {

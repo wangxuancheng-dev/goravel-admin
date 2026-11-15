@@ -23,6 +23,7 @@ import (
 // working pool (the framework's driver cache used to hand back the closed one).
 func TestTenantRegistryOwnsConnections(t *testing.T) {
 	withTenancyDriver(t, "database")
+	allowSharedTenantDBCredentials(t)
 	if !tenancy.Enabled() {
 		t.Fatal("tenancy driver not enabled for test")
 	}
@@ -32,7 +33,7 @@ func TestTenantRegistryOwnsConnections(t *testing.T) {
 	code := fmt.Sprintf("reg%d", time.Now().UnixNano()%1000000)
 	ta, err := admin.Create(services.TenantCreateInput{Code: code, Name: "Registry", Migrate: false})
 	if err != nil {
-		t.Skipf("skip: cannot create tenant DB (need CREATE privilege): %v", err)
+		skipWithoutTenantDB(t, err)
 	}
 	t.Cleanup(func() {
 		_ = conn.DropStorage(ta)

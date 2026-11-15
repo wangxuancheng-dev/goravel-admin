@@ -138,6 +138,7 @@ func TestTenantByobDiskDriverLifecycle(t *testing.T) {
 // shared disk.
 func TestPlatformTenantStorageSettingsOverHTTP(t *testing.T) {
 	withTenancyDriver(t, "database")
+	allowSharedTenantDBCredentials(t)
 	token := loginPlatformSmoke(t)
 	tn := newMetaTenant(t, "pstore")
 	uri := fmt.Sprintf("/api/platform/tenants/%d", tn.ID)

@@ -81,7 +81,7 @@ func TestUIBatchMigrateFleet(t *testing.T) {
 			Migrate: false,
 		})
 		if err != nil {
-			t.Skipf("skip UI batch fleet: cannot create tenant DB: %v", err)
+			skipWithoutTenantDB(t, err)
 		}
 		tenants = append(tenants, tn)
 	}

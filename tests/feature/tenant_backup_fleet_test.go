@@ -79,7 +79,7 @@ func TestBackupFleetFanOut(t *testing.T) {
 			Migrate: true,
 		})
 		if err != nil {
-			t.Skipf("skip backup fleet: cannot create/migrate tenant DB: %v", err)
+			skipWithoutTenantDB(t, err)
 		}
 		tenants = append(tenants, tn)
 		require.Equal(t, models.TenantProvisionReady, tn.ProvisionStatus, code)
