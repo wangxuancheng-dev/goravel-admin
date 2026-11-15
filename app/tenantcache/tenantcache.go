@@ -3,13 +3,18 @@
 //
 // Rows live in the shared cache store (facades.Cache: Redis in production), so an
 // invalidation on one node takes effect on every node at once: disabling a tenant or
-// putting it in maintenance is not delayed by the cache. Every ORM write of a tenant row
-// invalidates it (models.TenantChanged); the TTL only bounds writes made outside the app.
+// putting it in maintenance is not delayed by the cache.
 //
-// Invalidation bumps a per-tenant generation that is part of the row key, and a loader
-// stores the row under the generation it read *before* querying the database. A load
-// that races with an invalidation therefore writes to a key nobody reads any more,
-// instead of putting the pre-write row back into the cache.
+// Invalidation is automatic (InstallHooks): every successful write to the tenants
+// table through the platform connection's gorm — Model(t).Update, Save, Delete, bulk
+// Where(...).Delete, even Exec("UPDATE tenants ...") — drops the affected row, or
+// every row when the write does not identify one. Only SQL run outside the app (a
+// mysql client) waits for the TTL.
+//
+// Each row key carries the tenant's generation and a global generation; invalidation
+// bumps one of them, and a loader stores the row under the generations it read
+// *before* querying the database. A load racing an invalidation therefore writes to a
+// key nobody reads any more, instead of putting the pre-write row back.
 //
 // Processes only share invalidations through a shared store: with CACHE_STORE=memory,
 // run a single process or rows may be stale for up to the TTL in the others.
@@ -36,22 +41,24 @@ import (
 // ErrNotFound means no (non-deleted) tenant matches.
 var ErrNotFound = errors.New("tenantcache: tenant not found")
 
-const keyPrefix = "tenant_row:v2:"
+const (
+	keyPrefix = "tenant_row:v3:"
+	allGenKey = keyPrefix + "gen:all"
+)
 
 var group singleflight.Group
 
-func init() {
-	models.TenantChanged = Invalidate
-}
-
 func genKey(id uint) string { return keyPrefix + "gen:" + strconv.FormatUint(uint64(id), 10) }
-func rowKey(id uint, gen string) string {
-	return keyPrefix + "id:" + strconv.FormatUint(uint64(id), 10) + ":g" + gen
+func rowKey(id uint, version string) string {
+	return keyPrefix + "id:" + strconv.FormatUint(uint64(id), 10) + ":v" + version
 }
 func codeKey(code string) string { return keyPrefix + "code:" + code }
 
-// ttl is tenancy.tenant_cache_ttl seconds; 0 disables the cache.
+// ttl is tenancy.tenant_cache_ttl seconds; 0 (or no InstallHooks yet) disables the cache.
 func ttl() time.Duration {
+	if !hooksInstalled.Load() {
+		return 0
+	}
 	sec := facades.Config().GetInt("tenancy.tenant_cache_ttl", 60)
 	if sec <= 0 {
 		return 0
@@ -59,9 +66,9 @@ func ttl() time.Duration {
 	return time.Duration(sec) * time.Second
 }
 
-// generation returns the current generation of tenant id ("0" before any write).
-func generation(id uint) string {
-	switch v := cacheStore().Get(genKey(id)).(type) {
+// counter reads a generation counter ("0" before the first bump).
+func counter(key string) string {
+	switch v := cacheStore().Get(key).(type) {
 	case nil:
 		return "0"
 	case *int64:
@@ -78,6 +85,10 @@ func generation(id uint) string {
 	}
 }
 
+// version is the tenant's generation plus the global one: bumping either makes every
+// row stored under the previous version unreachable.
+func version(id uint) string { return counter(genKey(id)) + "." + counter(allGenKey) }
+
 // ByID returns a copy of the non-deleted tenant with id (callers may mutate it).
 func ByID(id uint) (*models.Tenant, error) {
 	if id == 0 {
@@ -87,12 +98,12 @@ func ByID(id uint) (*models.Tenant, error) {
 	if d <= 0 {
 		return loadByID(id, "", 0)
 	}
-	gen := generation(id)
-	if t, ok := get(rowKey(id, gen)); ok {
+	ver := version(id)
+	if t, ok := get(rowKey(id, ver)); ok {
 		return t, nil
 	}
-	v, err, _ := group.Do(rowKey(id, gen), func() (any, error) {
-		return loadByID(id, gen, d)
+	v, err, _ := group.Do(rowKey(id, ver), func() (any, error) {
+		return loadByID(id, ver, d)
 	})
 	if err != nil {
 		return nil, err
@@ -109,7 +120,7 @@ func ByCode(code string) (*models.Tenant, error) {
 	d := ttl()
 	if d > 0 {
 		// code -> id is cached separately; the row itself goes through ByID, so its
-		// generation check also covers lookups by code.
+		// version check also covers lookups by code.
 		if id, err := strconv.ParseUint(cacheStore().GetString(codeKey(code), ""), 10, 64); err == nil && id > 0 {
 			if t, err := ByID(uint(id)); err == nil && t.Code == code {
 				return t, nil
@@ -144,20 +155,43 @@ func ByCode(code string) (*models.Tenant, error) {
 	return t, nil
 }
 
-// Invalidate makes every node stop serving the cached row of tenant id.
+// Invalidate makes every node stop serving the cached row of tenant id. Writes
+// through the ORM call it automatically (InstallHooks).
 func Invalidate(id uint) {
 	if id == 0 {
 		return
 	}
 	if _, err := cacheStore().Increment(genKey(id)); err != nil {
+		logInvalidateFailure("tenant "+strconv.FormatUint(uint64(id), 10), err)
 		// Without a generation bump, at least drop the current row.
-		_ = cacheStore().Forget(rowKey(id, generation(id)))
+		_ = cacheStore().Forget(rowKey(id, version(id)))
 	}
 }
 
-// loadByID queries the row and, when d > 0, stores it under gen — the generation read
-// before the query, so a concurrent Invalidate makes this write unreachable.
-func loadByID(id uint, gen string, d time.Duration) (*models.Tenant, error) {
+// InvalidateAll makes every node stop serving any cached tenant row (a write that
+// does not identify the rows it changed).
+func InvalidateAll() {
+	if _, err := cacheStore().Increment(allGenKey); err != nil {
+		logInvalidateFailure("all tenants", err)
+	}
+}
+
+// logInvalidateFailure reports an invalidation the cache store rejected: rows cached
+// before it may be served until the TTL.
+func logInvalidateFailure(what string, err error) {
+	if l := facades.Log(); l != nil {
+		l.Errorf("tenantcache: invalidating %s failed, cached rows may be stale for up to the TTL: %v", what, err)
+	}
+}
+
+// IsCached reports whether tenant id's current row is in the cache (tests, metrics).
+func IsCached(id uint) bool {
+	return cacheStore().GetString(rowKey(id, version(id)), "") != ""
+}
+
+// loadByID queries the row and, when d > 0, stores it under ver — the version read
+// before the query, so a concurrent invalidation makes this write unreachable.
+func loadByID(id uint, ver string, d time.Duration) (*models.Tenant, error) {
 	var t models.Tenant
 	if err := appfacades.PlatformOrmQuery(nil).Where("id", id).First(&t); err != nil {
 		return nil, err
@@ -167,7 +201,7 @@ func loadByID(id uint, gen string, d time.Duration) (*models.Tenant, error) {
 	}
 	if d > 0 {
 		if enc, err := encode(&t); err == nil {
-			_ = cacheStore().Put(rowKey(id, gen), enc, d)
+			_ = cacheStore().Put(rowKey(id, ver), enc, d)
 		}
 	}
 	return &t, nil

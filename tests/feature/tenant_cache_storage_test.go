@@ -42,8 +42,9 @@ func newMetaTenant(t *testing.T, prefix string) *models.Tenant {
 	return tn
 }
 
-// Tenant rows are read on every tenant request, so they are cached; every write must
-// show up at once (disabling a tenant must not wait for the cache to expire).
+// Tenant rows are read on every tenant request, so they are cached; every kind of
+// write must show up at once (disabling a tenant must not wait for the cache), with no
+// manual invalidation anywhere.
 func TestTenantRowCacheInvalidatesOnWrites(t *testing.T) {
 	withTenancyDriver(t, "database")
 	if !tenancy.Enabled() {
@@ -52,33 +53,47 @@ func TestTenantRowCacheInvalidatesOnWrites(t *testing.T) {
 	conn := services.NewTenantConnectionService()
 	tn := newMetaTenant(t, "tc")
 
-	byCode, err := conn.FindTenantByIDOrCode(tn.Code)
-	require.NoError(t, err)
-	require.Equal(t, tn.ID, byCode.ID)
-
-	// Served from the cache: a write that bypasses the ORM (no event) is not seen.
-	_, err = appfacades.PlatformOrmQuery(nil).Exec("UPDATE tenants SET name = ? WHERE id = ?", "changed-behind-cache", tn.ID)
-	require.NoError(t, err)
-	cached, err := conn.FindTenantByIDOrCode(fmt.Sprint(tn.ID))
-	require.NoError(t, err)
-	assert.Equal(t, tn.Code, cached.Name, "second read must come from the cache")
+	read := func() *models.Tenant {
+		t.Helper()
+		got, err := conn.FindTenantByIDOrCode(tn.Code)
+		require.NoError(t, err)
+		require.True(t, tenantcache.IsCached(tn.ID), "a read must leave the row cached")
+		return got
+	}
 
 	// Callers get copies: mutating one must not leak into the cache.
-	cached.Status = models.TenantStatusDisabled
-	again, _ := conn.FindTenantByIDOrCode(tn.Code)
-	assert.Equal(t, models.TenantStatusActive, again.Status)
+	first := read()
+	first.Status = models.TenantStatusDisabled
+	assert.Equal(t, models.TenantStatusActive, read().Status)
 
-	// An ORM write of the row (model event) invalidates it at once.
-	_, err = appfacades.PlatformOrmQuery(nil).Model(tn).Update(map[string]any{"status": models.TenantStatusDisabled})
-	require.NoError(t, err)
-	fresh, err := conn.FindTenantByIDOrCode(tn.Code)
-	require.NoError(t, err)
-	assert.Equal(t, models.TenantStatusDisabled, fresh.Status, "status change must be visible immediately")
-	assert.Equal(t, "changed-behind-cache", fresh.Name)
+	for _, w := range []struct {
+		name  string
+		write func() error
+		check func(*models.Tenant) bool
+	}{
+		{"Model(t).Update", func() error {
+			_, err := appfacades.PlatformOrmQuery(nil).Model(tn).Update(map[string]any{"status": models.TenantStatusDisabled})
+			return err
+		}, func(r *models.Tenant) bool { return r.Status == models.TenantStatusDisabled }},
+		{"bulk Where(id).Update", func() error {
+			_, err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).Where("id", tn.ID).Update(map[string]any{"status": models.TenantStatusActive})
+			return err
+		}, func(r *models.Tenant) bool { return r.Status == models.TenantStatusActive }},
+		{"raw Exec UPDATE", func() error {
+			_, err := appfacades.PlatformOrmQuery(nil).Exec("UPDATE tenants SET maintenance = ? WHERE id = ?", true, tn.ID)
+			return err
+		}, func(r *models.Tenant) bool { return r.Maintenance }},
+	} {
+		read() // make sure the row is cached before the write
+		require.NoError(t, w.write(), w.name)
+		assert.False(t, tenantcache.IsCached(tn.ID), "%s must invalidate the cached row", w.name)
+		assert.True(t, w.check(read()), "%s must be visible immediately", w.name)
+	}
 
-	// Soft delete through the platform service (bulk delete, no model event).
-	_, err = appfacades.PlatformOrmQuery(nil).Model(tn).Update(map[string]any{"status": models.TenantStatusActive})
+	// Soft delete through the platform service (a bulk Where(...).Delete).
+	_, err := appfacades.PlatformOrmQuery(nil).Model(tn).Update(map[string]any{"maintenance": false})
 	require.NoError(t, err)
+	read()
 	_, err = services.NewTenantAdminService().DeleteTenant(tn.ID, tn.Code, services.TenantDeleteOptions{})
 	require.NoError(t, err)
 	_, err = conn.FindTenantByIDOrCode(tn.Code)
@@ -177,4 +192,26 @@ func TestPlatformTenantStorageSettingsOverHTTP(t *testing.T) {
 	assert.Empty(t, tenantstorage.ResolveWriteDisk(ctx), "switching back must restore the shared disk for new uploads")
 	_, err = tenantstorage.OpenDisk(disk)
 	assert.NoError(t, err, "files already in the tenant's bucket must stay readable after switching back")
+}
+
+// Orm().Fresh() rebuilds the framework's connections; the invalidation hooks live on
+// the platform gorm instance, so they must still apply afterwards (or the cache must
+// be off) — never a cache that silently stopped invalidating.
+func TestTenantRowCacheStillInvalidatesAfterOrmFresh(t *testing.T) {
+	withTenancyDriver(t, "database")
+	conn := services.NewTenantConnectionService()
+	tn := newMetaTenant(t, "tcf")
+
+	facades.Orm().Fresh()
+
+	_, err := conn.FindTenantByIDOrCode(tn.Code)
+	require.NoError(t, err)
+	require.True(t, tenantcache.IsCached(tn.ID), "the cache must be back on after Fresh")
+
+	_, err = appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).Where("id", tn.ID).Update(map[string]any{"status": models.TenantStatusDisabled})
+	require.NoError(t, err)
+	assert.False(t, tenantcache.IsCached(tn.ID), "writes after Fresh must still invalidate")
+	got, err := conn.FindTenantByIDOrCode(tn.Code)
+	require.NoError(t, err)
+	assert.Equal(t, models.TenantStatusDisabled, got.Status)
 }

@@ -3,6 +3,7 @@ package facades
 import (
 	"context"
 	"database/sql"
+	"sync"
 
 	contractsbinding "github.com/goravel/framework/contracts/binding"
 	"github.com/goravel/framework/contracts/database"
@@ -82,8 +83,32 @@ func (r *ormRouter) Query() orm.Query {
 	return r.active().Query()
 }
 
+// Fresh rebuilds the framework's connections, then lets OnOrmFresh listeners re-attach
+// whatever they had installed on the replaced gorm instances.
 func (r *ormRouter) Fresh() {
 	r.active().Fresh()
+	ormFreshMu.Lock()
+	listeners := append([]func(){}, ormFreshListeners...)
+	ormFreshMu.Unlock()
+	for _, fn := range listeners {
+		fn()
+	}
+}
+
+var (
+	ormFreshMu        sync.Mutex
+	ormFreshListeners []func()
+)
+
+// OnOrmFresh registers fn to run after facades.Orm().Fresh(), which replaces the
+// gorm instances (and with them any callbacks registered on them).
+func OnOrmFresh(fn func()) {
+	if fn == nil {
+		return
+	}
+	ormFreshMu.Lock()
+	defer ormFreshMu.Unlock()
+	ormFreshListeners = append(ormFreshListeners, fn)
 }
 
 func (r *ormRouter) SetQuery(query orm.Query) {

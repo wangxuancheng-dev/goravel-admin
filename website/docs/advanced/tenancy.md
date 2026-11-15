@@ -30,7 +30,7 @@ TENANCY_DRIVER=database
 - 租户连接由应用自己的注册表 `tenantdb.Default` 持有：用框架导出的构造器为每个连接单独构建（驱动 → gorm → Orm），**不写全局 config、不进框架的连接缓存**，何时建、换、关都由应用决定。
 - 请求路径查找已注册连接只取读锁；新建或重建连接（含 ping，超时 5s）在锁外进行并按连接名去重，一个慢库或连不上的库不会拖住其他租户。
 - `OrmQuery(ctx)` 按 ctx 中的连接名取连接；连接被淘汰后再次访问，会按 `tenants` 表自动重建。
-- 每个租户请求都要读 `tenants` 行（识别租户、建连接、存储），所以缓存在共享缓存里（`app/tenantcache`，生产为 Redis，`TENANCY_TENANT_CACHE_TTL` 默认 60s）。通过 ORM 修改租户行（`Model(t).Update`、`Save`、`Delete` 等）会**立即在所有节点失效**，停用、维护、删除不受缓存延迟影响。`Where("id", x).Delete(&models.Tenant{})` 这类不带模型的批量写不会触发事件，须手动调用 `tenantcache.Invalidate(id)`；手工改库则最多延迟一个 TTL。**多进程部署（API 与 worker 分开、多台机器）必须用共享缓存（`CACHE_STORE=redis`）**：`memory` 驱动只在本进程内失效，其他进程最多延迟一个 TTL。
+- 每个租户请求都要读 `tenants` 行（识别租户、建连接、存储），所以缓存在共享缓存里（`app/tenantcache`，生产为 Redis，`TENANCY_TENANT_CACHE_TTL` 默认 60s）。失效是**自动**的：平台连接上任何成功写 `tenants` 表的语句（`Model(t).Update`、`Save`、`Delete`、`Where(...).Delete` 批量写，乃至应用内 `Exec("UPDATE tenants ...")`）都会**立即在所有节点失效**；能识别出租户的只失效该租户，识别不出的失效全部。停用、维护、删除不受缓存延迟影响，不需要手动调用任何失效函数。只有在应用之外手工改库（如 mysql 客户端）才会最多延迟一个 TTL。失效回调没挂上时缓存自动关闭。**多进程部署（API 与 worker 分开、多台机器）必须用共享缓存（`CACHE_STORE=redis`）**：`memory` 驱动只在本进程内失效，其他进程最多延迟一个 TTL。
 - 迁移和 seeder 只能通过 `facades.Schema()` / `facades.Orm()` 访问数据库（不接收参数），所以 migrate / seed / `WithTenantConnection` 在**当前 goroutine** 上绑定一份独立的租户 Schema（`WithBoundTenantSchema`），不改任何全局状态，其他请求不受影响。交给其他 goroutine 的工作须传 `tenancyctx.Detach(ctx)` 并用 `OrmQuery(ctx)`。
 
 ## 租户权益 / 模块套餐

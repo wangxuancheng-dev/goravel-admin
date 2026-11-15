@@ -6,9 +6,12 @@ import (
 	"time"
 
 	"github.com/goravel/framework/contracts/foundation"
+	frameworkfacades "github.com/goravel/framework/facades"
+	"gorm.io/gorm"
 
 	"goravel/app/facades"
 	"goravel/app/services"
+	"goravel/app/tenantcache"
 )
 
 type DatabaseServiceProvider struct {
@@ -27,6 +30,23 @@ func (receiver *DatabaseServiceProvider) Boot(app foundation.Application) {
 	facades.InstallTenantAwareOrm(app)
 	// Tenancy pool limits + rebuilding evicted tenant connections from the tenants table.
 	services.InstallTenantConnectionResolver()
+	// Every write to the tenants table invalidates the cached rows automatically.
+	installTenantCacheHooks()
+	// Orm().Fresh() replaces the gorm instance the hooks live on: re-attach them.
+	facades.OnOrmFresh(func() {
+		tenantcache.ResetHooks()
+		installTenantCacheHooks()
+	})
+}
+
+func installTenantCacheHooks() {
+	q, ok := facades.PlatformOrmQuery(nil).(interface{ Instance() *gorm.DB })
+	if !ok || q.Instance() == nil {
+		// Without the hooks, writes would not invalidate: tenantcache stays disabled.
+		frameworkfacades.Log().Warning("tenantcache: platform gorm instance unavailable; tenant row cache disabled")
+		return
+	}
+	tenantcache.InstallHooks(q.Instance())
 }
 
 // ensureDefaultDatabaseReachable 在应用启动阶段检测默认数据库是否可连，避免 ORM Query 为 nil 或后续才出现隐蔽错误。

@@ -4,35 +4,8 @@ import (
 	"strings"
 	"time"
 
-	contractsorm "github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/database/orm"
 )
-
-// TenantChanged is called after a tenant row is created, updated, saved, deleted or
-// restored through the ORM with the tenant model (Model(t).Update, Save(t), Delete(t),
-// Create(&t)). app/tenantcache sets it to drop its cached copy.
-//
-// Bulk writes without the model (Where("id", id).Delete(&models.Tenant{})) do not fire
-// it; call tenantcache.Invalidate there.
-var TenantChanged func(id uint)
-
-// DispatchesEvents notifies TenantChanged after every write of this row.
-func (t *Tenant) DispatchesEvents() map[contractsorm.EventType]func(contractsorm.Event) error {
-	notify := func(contractsorm.Event) error {
-		if t != nil && t.ID != 0 && TenantChanged != nil {
-			TenantChanged(t.ID)
-		}
-		return nil
-	}
-	return map[contractsorm.EventType]func(contractsorm.Event) error{
-		contractsorm.EventCreated:      notify,
-		contractsorm.EventUpdated:      notify,
-		contractsorm.EventSaved:        notify,
-		contractsorm.EventDeleted:      notify,
-		contractsorm.EventForceDeleted: notify,
-		contractsorm.EventRestored:     notify,
-	}
-}
 
 const (
 	TenantStatusActive   uint8 = 1

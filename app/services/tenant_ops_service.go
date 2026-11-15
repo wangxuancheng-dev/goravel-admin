@@ -11,7 +11,6 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/tenancy"
-	"goravel/app/tenantcache"
 	"goravel/app/utils"
 )
 
@@ -431,7 +430,6 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 			facades.Log().Errorf("tenant_ops purge force-delete failed id=%d: %v", tenant.ID, err)
 			return err
 		}
-		tenantcache.Invalidate(tenant.ID)
 	}
 	return nil
 }

@@ -63,15 +63,11 @@ func (s *memStore) Increment(key string, value ...int64) (int64, error) {
 	if len(value) > 0 {
 		by = value[0]
 	}
-	n, _ := strconv.ParseInt(stringOf(s.m[key]), 10, 64)
+	cur, _ := s.m[key].(string)
+	n, _ := strconv.ParseInt(cur, 10, 64)
 	n += by
 	s.m[key] = strconv.FormatInt(n, 10)
 	return n, nil
-}
-
-func stringOf(v any) string {
-	s, _ := v.(string)
-	return s
 }
 
 func useMemStore(t *testing.T) *memStore {
@@ -79,17 +75,28 @@ func useMemStore(t *testing.T) *memStore {
 	s := &memStore{m: map[string]any{}}
 	prev := cacheStore
 	cacheStore = func() store { return s }
-	t.Cleanup(func() { cacheStore = prev })
+	prevHooked := hooksInstalled.Load()
+	hooksInstalled.Store(true)
+	t.Cleanup(func() {
+		cacheStore = prev
+		hooksInstalled.Store(prevHooked)
+	})
 	return s
 }
 
-func putRow(t *testing.T, s *memStore, gen string, row *models.Tenant) {
+func cacheRow(t *testing.T, s *memStore, ver string, row *models.Tenant) {
 	t.Helper()
 	raw, err := encode(row)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = s.Put(rowKey(row.ID, gen), raw, time.Minute)
+	_ = s.Put(rowKey(row.ID, ver), raw, time.Minute)
+}
+
+func tenantRow(id uint, code string) *models.Tenant {
+	row := &models.Tenant{Code: code, Name: "cached", Status: models.TenantStatusActive}
+	row.ID = id
+	return row
 }
 
 // gob must keep the json:"-" fields: the connection and storage are built from them.
@@ -121,9 +128,7 @@ func TestEncodeKeepsSecretsAndSoftDelete(t *testing.T) {
 
 func TestByIDServesCachedCopiesAndInvalidates(t *testing.T) {
 	s := useMemStore(t)
-	row := &models.Tenant{Code: "acme", Name: "cached"}
-	row.ID = 7
-	putRow(t, s, generation(7), row)
+	cacheRow(t, s, version(7), tenantRow(7, "acme"))
 
 	a, err := ByID(7)
 	if err != nil || a.Name != "cached" {
@@ -135,51 +140,182 @@ func TestByIDServesCachedCopiesAndInvalidates(t *testing.T) {
 		t.Fatal("callers must get independent copies")
 	}
 
-	models.TenantChanged(7) // what an ORM write of the row triggers
-	if _, ok := get(rowKey(7, generation(7))); ok {
-		t.Fatal("TenantChanged must make the cached row unreachable")
+	Invalidate(7)
+	if IsCached(7) {
+		t.Fatal("Invalidate must make the cached row unreachable")
+	}
+}
+
+func TestInvalidateAllDropsEveryRow(t *testing.T) {
+	s := useMemStore(t)
+	cacheRow(t, s, version(7), tenantRow(7, "a"))
+	cacheRow(t, s, version(8), tenantRow(8, "b"))
+	if !IsCached(7) || !IsCached(8) {
+		t.Fatal("precondition: both rows cached")
+	}
+	InvalidateAll()
+	if IsCached(7) || IsCached(8) {
+		t.Fatal("InvalidateAll must make every cached row unreachable")
+	}
+}
+
+// The cache stays off until the invalidation hooks are installed.
+func TestCacheDisabledWithoutHooks(t *testing.T) {
+	useMemStore(t)
+	hooksInstalled.Store(false)
+	if ttl() != 0 {
+		t.Fatal("without hooks the cache must be disabled")
 	}
 }
 
 // A load that read the row before a write must not put the old row back: it stores
-// under the generation it read first, which the write has moved past.
+// under the version it read first, which the write has moved past.
 func TestLoadRacingInvalidateDoesNotResurrectOldRow(t *testing.T) {
 	s := useMemStore(t)
-	genBeforeQuery := generation(7) // loader reads the generation, then queries the DB...
-
-	models.TenantChanged(7) // ...meanwhile the tenant is disabled and invalidated...
-
-	stale := &models.Tenant{Code: "acme", Status: models.TenantStatusActive}
-	stale.ID = 7
-	putRow(t, s, genBeforeQuery, stale) // ...then the loader stores what it read.
-
-	if _, ok := get(rowKey(7, generation(7))); ok {
-		t.Fatal("a stale load must not be visible after the invalidation")
+	for name, inval := range map[string]func(){"one": func() { Invalidate(7) }, "all": InvalidateAll} {
+		verBeforeQuery := version(7)                         // loader reads the version, then queries the DB...
+		inval()                                              // ...meanwhile the tenant is disabled and invalidated...
+		cacheRow(t, s, verBeforeQuery, tenantRow(7, "acme")) // ...then the loader stores what it read.
+		if IsCached(7) {
+			t.Fatalf("%s: a stale load must not be visible after the invalidation", name)
+		}
 	}
 }
 
-func TestGenerationReadsEveryStoreEncoding(t *testing.T) {
+func TestCounterReadsEveryStoreEncoding(t *testing.T) {
 	s := useMemStore(t)
 	n := int64(5)
 	for _, v := range []any{"5", &n, int64(5), 5} {
 		_ = s.Put(genKey(1), v, time.Minute)
-		if got := generation(1); got != "5" {
-			t.Fatalf("generation(%T) = %q, want 5", v, got)
+		if got := counter(genKey(1)); got != "5" {
+			t.Fatalf("counter(%T) = %q, want 5", v, got)
 		}
 	}
 	_ = s.Forget(genKey(1))
-	if got := generation(1); got != "0" {
-		t.Fatalf("missing generation = %q, want 0", got)
+	if got := counter(genKey(1)); got != "0" {
+		t.Fatalf("missing counter = %q, want 0", got)
 	}
 }
 
 func TestCorruptEntryIsDropped(t *testing.T) {
 	s := useMemStore(t)
-	_ = s.Put(rowKey(9, "0"), "not-base64-gob", time.Minute)
-	if _, ok := get(rowKey(9, "0")); ok {
+	_ = s.Put(rowKey(9, "0.0"), "not-base64-gob", time.Minute)
+	if _, ok := get(rowKey(9, "0.0")); ok {
 		t.Fatal("corrupt entry must be a miss")
 	}
-	if s.GetString(rowKey(9, "0")) != "" {
+	if s.GetString(rowKey(9, "0.0")) != "" {
 		t.Fatal("corrupt entry must be removed")
 	}
+}
+
+func stmt(table string, model any) *gorm.DB {
+	return &gorm.DB{Statement: &gorm.Statement{Table: table, Model: model}}
+}
+
+func TestWriteHookInvalidatesTheRightRows(t *testing.T) {
+	s := useMemStore(t)
+	reset := func() {
+		cacheRow(t, s, version(7), tenantRow(7, "a"))
+		cacheRow(t, s, version(8), tenantRow(8, "b"))
+	}
+
+	reset()
+	afterWrite(stmt("tenants", tenantRow(7, "a"))) // Model(t).Update / Save(t) / Delete(t)
+	if IsCached(7) || !IsCached(8) {
+		t.Fatal("a write with the tenant model must invalidate only that tenant")
+	}
+
+	reset()
+	afterWrite(stmt("tenants", &models.Tenant{})) // Where("id", x).Delete(&models.Tenant{})
+	if IsCached(7) || IsCached(8) {
+		t.Fatal("a bulk write must invalidate every tenant")
+	}
+
+	reset()
+	afterWrite(stmt("tenant_domains", &models.TenantDomain{})) // another table
+	failed := stmt("tenants", &models.Tenant{})
+	failed.Error = gorm.ErrInvalidData
+	afterWrite(failed) // failed write
+	if !IsCached(7) || !IsCached(8) {
+		t.Fatal("other tables and failed writes must not invalidate")
+	}
+}
+
+func TestRawHookMatchesTenantsWritesOnly(t *testing.T) {
+	s := useMemStore(t)
+	for sql, want := range map[string]bool{
+		"UPDATE tenants SET name = ? WHERE id = ?":          true,
+		"update `tenants` set status = 0":                   true,
+		"  DELETE FROM platform.tenants WHERE id = 3":       true,
+		"INSERT INTO tenants (code) VALUES (?)":             true,
+		"UPDATE tenant_domains SET status = 0":              false,
+		"SELECT * FROM tenants":                             false,
+		"DELETE FROM tenant_op_logs WHERE tenant_id = ?":    false,
+		"UPDATE admins SET nickname = 'tenants' WHERE id=1": true, // false positive: extra invalidation only
+	} {
+		cacheRow(t, s, version(7), tenantRow(7, "a"))
+		tx := &gorm.DB{Statement: &gorm.Statement{}}
+		tx.Statement.SQL.WriteString(sql)
+		afterRaw(tx)
+		if got := !IsCached(7); got != want {
+			t.Fatalf("%q: invalidated=%v, want %v", sql, got, want)
+		}
+	}
+}
+
+func TestTenantsTableMatchingIgnoresQuotingAndSchema(t *testing.T) {
+	withTableName(t, "tenants")
+	for name, want := range map[string]bool{
+		"tenants": true, "`tenants`": true, `"public"."tenants"`: true, "platform.tenants": true,
+		"tenants AS t": true, "TENANTS": true,
+		"tenant_domains": false, "pre_tenants": false, "": false,
+	} {
+		if got := isTenantsTable(name); got != want {
+			t.Fatalf("isTenantsTable(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// With a table prefix the hooks must follow the real table name.
+func TestHooksFollowTablePrefix(t *testing.T) {
+	s := useMemStore(t)
+	withTableName(t, "pre_tenants")
+
+	cacheRow(t, s, version(7), tenantRow(7, "a"))
+	afterWrite(stmt("tenants", &models.Tenant{})) // unprefixed name is another table now
+	if !IsCached(7) {
+		t.Fatal("unprefixed table must not match when a prefix is configured")
+	}
+	afterWrite(stmt("pre_tenants", &models.Tenant{}))
+	if IsCached(7) {
+		t.Fatal("the prefixed tenants table must invalidate")
+	}
+
+	cacheRow(t, s, version(7), tenantRow(7, "a"))
+	tx := &gorm.DB{Statement: &gorm.Statement{}}
+	tx.Statement.SQL.WriteString("UPDATE pre_tenants SET status = 0")
+	afterRaw(tx)
+	if IsCached(7) {
+		t.Fatal("raw SQL on the prefixed table must invalidate")
+	}
+}
+
+func TestResetHooksDisablesAndDropsCache(t *testing.T) {
+	s := useMemStore(t)
+	cacheRow(t, s, version(7), tenantRow(7, "a"))
+	ResetHooks()
+	if ttl() != 0 {
+		t.Fatal("cache must be off until hooks are installed again")
+	}
+	hooksInstalled.Store(true)
+	if IsCached(7) {
+		t.Fatal("rows cached before the reset must not be served afterwards")
+	}
+}
+
+func withTableName(t *testing.T, name string) {
+	t.Helper()
+	prev, _ := tableName.Load().(string)
+	setTable(name)
+	t.Cleanup(func() { setTable(prev) })
 }

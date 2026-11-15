@@ -13,7 +13,6 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/tenancy"
-	"goravel/app/tenantcache"
 )
 
 // TenantOverview is a quick health snapshot of a tenant database.
@@ -109,8 +108,6 @@ func (s *TenantAdminService) DeleteTenant(id uint, confirmCode string, opts Tena
 	if _, err := appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).Delete(&models.Tenant{}); err != nil {
 		return nil, err
 	}
-	// Bulk delete fires no model event: drop the cached row so the tenant stops resolving now.
-	tenantcache.Invalidate(tenant.ID)
 	return &TenantDeleteResult{
 		ID:           tenant.ID,
 		Code:         tenant.Code,
@@ -201,7 +198,6 @@ func (s *TenantAdminService) ForceDeleteTenant(id uint, confirmCode string) erro
 	if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
 		return err
 	}
-	tenantcache.Invalidate(tenant.ID)
 	return nil
 }
 
@@ -244,7 +240,6 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", t.ID).ForceDelete(&models.Tenant{}); err != nil {
 			continue
 		}
-		tenantcache.Invalidate(t.ID)
 		removed++
 	}
 	return removed, nil
