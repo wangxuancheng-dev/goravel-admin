@@ -71,5 +71,9 @@ func init() {
 		"domain_verify_prefix": config.Env("TENANCY_DOMAIN_VERIFY_PREFIX", "_goravel-tenant"),
 		// Cache TTL seconds for host -> tenant code (0 = 60)
 		"domain_cache_ttl": config.Env("TENANCY_DOMAIN_CACHE_TTL", 60),
+		// Cache TTL seconds for tenants rows read on every tenant request (0 = no cache).
+		// Every ORM write of a tenant row invalidates it on all nodes; the TTL only bounds
+		// rows changed outside the app (manual SQL).
+		"tenant_cache_ttl": config.Env("TENANCY_TENANT_CACHE_TTL", 60),
 	})
 }

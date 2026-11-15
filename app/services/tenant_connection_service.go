@@ -21,6 +21,7 @@ import (
 	"goravel/app/models"
 	"goravel/app/tenancy"
 	"goravel/app/tenancyctx"
+	"goravel/app/tenantcache"
 	"goravel/app/tenantdb"
 )
 
@@ -548,26 +549,22 @@ func quotePGIdent(name string) string {
 	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
 
-// FindTenantByIDOrCode 平台库查找租户
+// FindTenantByIDOrCode 平台库查找租户（未删除）。经 tenantcache 缓存：每个租户请求都会调用，
+// 写租户行会立即失效（全部节点），返回的是调用方可修改的副本。
 func (s *TenantConnectionService) FindTenantByIDOrCode(idOrCode string) (*models.Tenant, error) {
-	var tenant models.Tenant
-	q := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{})
+	var (
+		tenant *models.Tenant
+		err    error
+	)
 	if id := cast.ToUint(idOrCode); id > 0 && fmt.Sprintf("%d", id) == idOrCode {
-		if err := q.Where("id", id).First(&tenant); err != nil {
-			return nil, apperrors.ErrTenantNotFound.WithError(err)
-		}
-		if tenant.ID == 0 {
-			return nil, apperrors.ErrTenantNotFound
-		}
-		return &tenant, nil
+		tenant, err = tenantcache.ByID(id)
+	} else {
+		tenant, err = tenantcache.ByCode(idOrCode)
 	}
-	if err := q.Where("code", strings.ToLower(strings.TrimSpace(idOrCode))).First(&tenant); err != nil {
+	if err != nil {
 		return nil, apperrors.ErrTenantNotFound.WithError(err)
 	}
-	if tenant.ID == 0 {
-		return nil, apperrors.ErrTenantNotFound
-	}
-	return &tenant, nil
+	return tenant, nil
 }
 
 // BindHTTP 解析租户、注册连接并写入 HTTP context。

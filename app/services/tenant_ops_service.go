@@ -11,6 +11,7 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/tenantcache"
 	"goravel/app/utils"
 )
 
@@ -24,14 +25,14 @@ type TenantOpActor struct {
 
 // TenantOpsArgs is the queue payload for platform tenant maintenance jobs.
 type TenantOpsArgs struct {
-	TenantID     uint   `json:"tenant_id"`
-	Op           string `json:"op"` // migrate|seed|backup|restore|purge|rollback
-	WithSeed     bool   `json:"with_seed,omitempty"`
-	BackupName   string `json:"backup_name,omitempty"`
-	Keep         int    `json:"keep,omitempty"`
+	TenantID   uint   `json:"tenant_id"`
+	Op         string `json:"op"` // migrate|seed|backup|restore|purge|rollback
+	WithSeed   bool   `json:"with_seed,omitempty"`
+	BackupName string `json:"backup_name,omitempty"`
+	Keep       int    `json:"keep,omitempty"`
 	// Step / MigBatch: migration rollback (Migrator.Rollback). 0/0 = last batch.
-	Step    int `json:"step,omitempty"`
-	MigBatch int `json:"mig_batch,omitempty"`
+	Step         int    `json:"step,omitempty"`
+	MigBatch     int    `json:"mig_batch,omitempty"`
 	OpLogID      uint   `json:"op_log_id,omitempty"`
 	BatchID      string `json:"batch_id,omitempty"`
 	OperatorID   uint   `json:"operator_id,omitempty"`
@@ -430,6 +431,7 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 			facades.Log().Errorf("tenant_ops purge force-delete failed id=%d: %v", tenant.ID, err)
 			return err
 		}
+		tenantcache.Invalidate(tenant.ID)
 	}
 	return nil
 }

@@ -13,20 +13,21 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/tenantcache"
 )
 
 // TenantOverview is a quick health snapshot of a tenant database.
 type TenantOverview struct {
-	Database       string `json:"database"`
-	Driver         string `json:"driver"`
-	TableCount     int64  `json:"table_count"`
-	DatabaseBytes  int64  `json:"database_bytes"`
-	AdminsCount    int64  `json:"admins_count"`
-	MigrationsCount int64 `json:"migrations_count"`
+	Database        string `json:"database"`
+	Driver          string `json:"driver"`
+	TableCount      int64  `json:"table_count"`
+	DatabaseBytes   int64  `json:"database_bytes"`
+	AdminsCount     int64  `json:"admins_count"`
+	MigrationsCount int64  `json:"migrations_count"`
 	ProvisionStatus string `json:"provision_status"`
-	PingOK         bool   `json:"ping_ok"`
-	PingMs         int64  `json:"ping_ms"`
-	Error          string `json:"error,omitempty"`
+	PingOK          bool   `json:"ping_ok"`
+	PingMs          int64  `json:"ping_ms"`
+	Error           string `json:"error,omitempty"`
 }
 
 // TenantPingDetail is an extended connectivity check.
@@ -108,6 +109,8 @@ func (s *TenantAdminService) DeleteTenant(id uint, confirmCode string, opts Tena
 	if _, err := appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).Delete(&models.Tenant{}); err != nil {
 		return nil, err
 	}
+	// Bulk delete fires no model event: drop the cached row so the tenant stops resolving now.
+	tenantcache.Invalidate(tenant.ID)
 	return &TenantDeleteResult{
 		ID:           tenant.ID,
 		Code:         tenant.Code,
@@ -198,6 +201,7 @@ func (s *TenantAdminService) ForceDeleteTenant(id uint, confirmCode string) erro
 	if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
 		return err
 	}
+	tenantcache.Invalidate(tenant.ID)
 	return nil
 }
 
@@ -240,6 +244,7 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", t.ID).ForceDelete(&models.Tenant{}); err != nil {
 			continue
 		}
+		tenantcache.Invalidate(t.ID)
 		removed++
 	}
 	return removed, nil

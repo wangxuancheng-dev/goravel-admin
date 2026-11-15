@@ -9,6 +9,7 @@ import (
 	"goravel/app/models"
 	"goravel/app/tenancy"
 	"goravel/app/tenancyctx"
+	"goravel/app/tenantcache"
 )
 
 // TenantQuotaSnapshot is used by platform overview / JSON.
@@ -17,10 +18,10 @@ type TenantQuotaSnapshot struct {
 	StorageUsedBytes  int64 `json:"storage_used_bytes"`
 }
 
-// LoadPlatformTenantStorageLimit loads storage quota from the landlord tenants row.
+// LoadPlatformTenantStorageLimit loads storage quota from the landlord tenants row (cached).
 func LoadPlatformTenantStorageLimit(tenantID uint) (int64, error) {
-	var t models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", tenantID).First(&t); err != nil {
+	t, err := tenantcache.ByID(tenantID)
+	if err != nil {
 		return 0, apperrors.ErrTenantNotFound
 	}
 	return t.StorageLimitBytes, nil

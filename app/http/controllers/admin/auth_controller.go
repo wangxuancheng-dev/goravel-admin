@@ -20,6 +20,7 @@ import (
 	"goravel/app/search"
 	"goravel/app/services"
 	"goravel/app/tenancy"
+	"goravel/app/tenantcache"
 	"goravel/app/utils"
 )
 
@@ -556,8 +557,8 @@ func currentTenantInfoForAdmin(ctx http.Context) http.Json {
 		}
 		return nil
 	}
-	var tenant models.Tenant
-	if err := appfacades.PlatformOrmQuery(ctx).Where("id", tenantID).First(&tenant); err != nil || tenant.ID == 0 {
+	tenant, err := tenantcache.ByID(tenantID)
+	if err != nil {
 		if code, ok := helpers.GetTenantCodeFromContext(ctx); ok {
 			return http.Json{"id": tenantID, "code": code}
 		}
