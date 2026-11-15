@@ -1,10 +1,13 @@
 package services
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/goravel/framework/facades"
+
+	"goravel/app/tenantdb"
 )
 
 func TestResolveScopeBatch(t *testing.T) {
@@ -40,10 +43,8 @@ func TestResolveScopeBatch(t *testing.T) {
 	}
 }
 
-func TestRegisteredConnEviction(t *testing.T) {
-	ResetRegisteredConnsForTest()
-	t.Cleanup(ResetRegisteredConnsForTest)
-
+// Eviction itself is covered in app/tenantdb; these check the config wiring.
+func TestRegisteredLimitsFromConfig(t *testing.T) {
 	prevMax := facades.Config().GetInt("tenancy.registered_max", 0)
 	prevTTL := facades.Config().GetInt("tenancy.registered_idle_ttl", 900)
 	t.Cleanup(func() {
@@ -52,54 +53,31 @@ func TestRegisteredConnEviction(t *testing.T) {
 	})
 
 	facades.Config().Add("tenancy.registered_max", 2)
+	facades.Config().Add("tenancy.registered_idle_ttl", 60)
+	if registeredMax() != 2 || registeredIdleTTL() != time.Minute {
+		t.Fatalf("max=%d ttl=%v", registeredMax(), registeredIdleTTL())
+	}
 	facades.Config().Add("tenancy.registered_idle_ttl", 0)
-
-	registeredMu.Lock()
-	markRegisteredLocked("tenant_1")
-	registeredAt["tenant_1"] = time.Now().Add(-time.Hour)
-	markRegisteredLocked("tenant_2")
-	registeredAt["tenant_2"] = time.Now().Add(-time.Minute)
-	evicted := evictRegisteredLocked("tenant_3")
-	registeredMu.Unlock()
-
-	if !evicted {
-		t.Fatal("expected eviction when at max")
-	}
-	if RegisteredConnCount() >= 2 {
-		// after eviction for room, count should be < max so tenant_3 can be added
-		t.Fatalf("expected count < 2 after eviction for new slot, got %d", RegisteredConnCount())
-	}
-	if _, ok := registeredAt["tenant_1"]; ok {
-		t.Fatal("oldest tenant_1 should be evicted")
+	if registeredIdleTTL() != 0 {
+		t.Fatalf("ttl 0 must disable idle eviction, got %v", registeredIdleTTL())
 	}
 }
 
-func TestRegisteredIdleTTL(t *testing.T) {
-	ResetRegisteredConnsForTest()
-	t.Cleanup(ResetRegisteredConnsForTest)
-
-	prevMax := facades.Config().GetInt("tenancy.registered_max", 0)
-	prevTTL := facades.Config().GetInt("tenancy.registered_idle_ttl", 900)
-	t.Cleanup(func() {
-		facades.Config().Add("tenancy.registered_max", prevMax)
-		facades.Config().Add("tenancy.registered_idle_ttl", prevTTL)
-	})
-
-	facades.Config().Add("tenancy.registered_max", 0)
-	facades.Config().Add("tenancy.registered_idle_ttl", 60)
-
-	registeredMu.Lock()
-	markRegisteredLocked("tenant_old")
-	registeredAt["tenant_old"] = time.Now().Add(-2 * time.Minute)
-	markRegisteredLocked("tenant_new")
-	_ = evictRegisteredLocked("")
-	registeredMu.Unlock()
-
-	if _, ok := registeredAt["tenant_old"]; ok {
-		t.Fatal("idle tenant_old should be evicted")
+func TestTenantConnectionNameParsing(t *testing.T) {
+	for name, want := range map[string]uint{"tenant_12": 12, "tenant_1": 1} {
+		if id, ok := tenantIDFromConnectionName(name); !ok || id != want {
+			t.Fatalf("%s -> %d %v", name, id, ok)
+		}
 	}
-	if _, ok := registeredAt["tenant_new"]; !ok {
-		t.Fatal("fresh tenant_new should remain")
+	// Platform and maintenance connections are not tenant connections: the resolver
+	// must reject them without querying the tenants table.
+	for _, name := range []string{"mysql", "postgres", "tenant_", "tenant_0", "tenant_12_maint", "tenant_maint_acme", "tenant_x"} {
+		if _, ok := tenantIDFromConnectionName(name); ok {
+			t.Fatalf("%s must not parse as a tenant connection", name)
+		}
+		if _, err := resolveTenantConnection(name); !errors.Is(err, tenantdb.ErrUnknownConnection) {
+			t.Fatalf("resolve %s: %v, want ErrUnknownConnection", name, err)
+		}
 	}
 }
 

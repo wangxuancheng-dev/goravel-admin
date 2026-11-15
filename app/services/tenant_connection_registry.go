@@ -1,21 +1,37 @@
 package services
 
 import (
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/goravel/framework/facades"
 
-	appfacades "goravel/app/facades"
+	"goravel/app/tenantdb"
 )
 
-// Process-local tenant connection registry with optional idle TTL and max size.
-// Small fleets: defaults leave behavior close to "keep forever".
-// Large fleets: set TENANCY_REGISTERED_MAX / TENANCY_REGISTERED_IDLE_TTL (or rely on idle TTL default).
-var (
-	registeredMu   sync.Mutex
-	registeredAt   = map[string]time.Time{} // connection_name -> lastUsed
-)
+// Tenant connections live in tenantdb.Default (app-owned pools, lock-free lookups).
+// This file wires it to the tenancy config and the platform tenants table.
+
+var configureTenantDBOnce sync.Once
+
+// configureTenantDB applies TENANCY_REGISTERED_* limits and installs the resolver
+// that rebuilds an evicted connection from the tenants table on demand.
+func configureTenantDB() {
+	configureTenantDBOnce.Do(func() {
+		tenantdb.Default.SetOptions(tenantdb.Options{
+			MaxConns:    registeredMax,
+			IdleTTL:     registeredIdleTTL,
+			CloseGrace:  2 * time.Minute,
+			PingTimeout: 5 * time.Second,
+		})
+		tenantdb.Default.SetResolver(resolveTenantConnection)
+	})
+}
+
+// InstallTenantConnectionResolver configures the registry (called at boot).
+func InstallTenantConnectionResolver() { configureTenantDB() }
 
 func registeredMax() int {
 	return facades.Config().GetInt("tenancy.registered_max", 0)
@@ -29,119 +45,47 @@ func registeredIdleTTL() time.Duration {
 	return time.Duration(sec) * time.Second
 }
 
+// tenantIDFromConnectionName parses tenant_<id> (TenantConnectionName).
+func tenantIDFromConnectionName(name string) (uint, bool) {
+	rest, ok := strings.CutPrefix(name, "tenant_")
+	if !ok || rest == "" {
+		return 0, false
+	}
+	id, err := strconv.ParseUint(rest, 10, 64)
+	if err != nil || id == 0 {
+		return 0, false
+	}
+	return uint(id), true
+}
+
+// resolveTenantConnection rebuilds the Spec of tenant_<id> from the tenants table.
+// Status is not checked here: binding (BindHTTP / BindBackground) gates access; this
+// only keeps an already-bound ctx working after its connection was evicted.
+func resolveTenantConnection(name string) (tenantdb.Spec, error) {
+	id, ok := tenantIDFromConnectionName(name)
+	if !ok {
+		return tenantdb.Spec{}, tenantdb.ErrUnknownConnection
+	}
+	s := NewTenantConnectionService()
+	tenant, err := s.FindTenantByIDOrCode(strconv.FormatUint(uint64(id), 10))
+	if err != nil {
+		return tenantdb.Spec{}, err
+	}
+	if tenant.ConnectionName == "" {
+		tenant.ConnectionName = TenantConnectionName(tenant.ID)
+	}
+	if tenant.ConnectionName != name {
+		return tenantdb.Spec{}, tenantdb.ErrUnknownConnection
+	}
+	return s.buildSpec(tenant)
+}
+
 // RegisteredConnCount returns how many tenant pools are registered in this process.
 func RegisteredConnCount() int {
-	registeredMu.Lock()
-	defer registeredMu.Unlock()
-	return len(registeredAt)
+	return tenantdb.Default.Count()
 }
 
-// ResetRegisteredConnsForTest clears the in-process registry (unit tests only).
+// ResetRegisteredConnsForTest closes and clears every tenant connection (tests only).
 func ResetRegisteredConnsForTest() {
-	registeredMu.Lock()
-	defer registeredMu.Unlock()
-	registeredAt = map[string]time.Time{}
-}
-
-func touchRegisteredLocked(connectionName string) {
-	if connectionName == "" {
-		return
-	}
-	registeredAt[connectionName] = time.Now()
-}
-
-func isRegisteredLocked(connectionName string) bool {
-	_, ok := registeredAt[connectionName]
-	return ok
-}
-
-func markRegisteredLocked(connectionName string) {
-	touchRegisteredLocked(connectionName)
-}
-
-// forgetRegisteredLocked drops registry state for connectionName.
-// teardown=true closes the pool and clears config (Forget / DropStorage).
-// teardown=false only evicts the Orm query cache (idle/max eviction) so a later
-// EnsureRegistered can rebuild without a process-wide Orm.Fresh().
-func forgetRegisteredLocked(connectionName string, teardown bool) {
-	if connectionName == "" {
-		return
-	}
-	delete(registeredAt, connectionName)
-	if teardown {
-		teardownTenantConnectionLocked(connectionName)
-		return
-	}
-	appfacades.EvictOrmConnectionCache(connectionName)
-}
-
-// teardownTenantConnectionLocked closes the pool and clears config for name.
-// Does not take registeredMu. Avoids Orm.Fresh() which breaks later feature
-// tests when DropStorage runs mid-suite.
-func teardownTenantConnectionLocked(connectionName string) {
-	appfacades.LockOrmConnectionBuild()
-	defer appfacades.UnlockOrmConnectionBuild()
-
-	// Close while DSN still present (DropStorage calls Forget before DROP DATABASE).
-	if facades.Config().GetString("database.connections."+connectionName+".database", "") != "" {
-		if to := appfacades.BuildOrmConnectionLocked(connectionName); to != nil {
-			if db, err := to.DB(); err == nil && db != nil {
-				_ = db.Close()
-			}
-		}
-	}
-	appfacades.EvictOrmConnectionCacheLocked(connectionName)
-	// Empty map (not nil): prevents driver init with a stale DSN after drop.
-	facades.Config().Add("database.connections."+connectionName, map[string]any{})
-	facades.Config().Add("database.connections."+connectionName+"_maint", map[string]any{})
-}
-
-// evictRegisteredLocked drops idle and/or oldest entries so a new registration can proceed.
-// protect is never evicted. Returns whether any entry was removed.
-func evictRegisteredLocked(protect string) (evicted bool) {
-	now := time.Now()
-	if ttl := registeredIdleTTL(); ttl > 0 {
-		for name, last := range registeredAt {
-			if name == protect {
-				continue
-			}
-			if now.Sub(last) >= ttl {
-				forgetRegisteredLocked(name, false)
-				evicted = true
-			}
-		}
-	}
-
-	max := registeredMax()
-	if max <= 0 {
-		return evicted
-	}
-	for len(registeredAt) >= max {
-		oldestName := ""
-		var oldestTime time.Time
-		for name, last := range registeredAt {
-			if name == protect {
-				continue
-			}
-			if oldestName == "" || last.Before(oldestTime) {
-				oldestName = name
-				oldestTime = last
-			}
-		}
-		if oldestName == "" {
-			break
-		}
-		forgetRegisteredLocked(oldestName, false)
-		evicted = true
-	}
-	return evicted
-}
-
-func freshORMIfNeeded(evicted bool) {
-	if !evicted {
-		return
-	}
-	if o := appfacades.Orm(); o != nil {
-		o.Fresh()
-	}
+	tenantdb.Default.CloseAll()
 }

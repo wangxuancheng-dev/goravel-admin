@@ -2,6 +2,7 @@ package facades
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/tenancy"
 	"goravel/app/tenancyctx"
+	"goravel/app/tenantdb"
 )
 
 func Orm() orm.Orm {
@@ -41,6 +43,42 @@ func OrmQuery(ctx context.Context) orm.Query {
 		}
 	}
 	return o.WithContext(ctx).Query()
+}
+
+// BuildOrmConnection returns the Orm of a named connection. Tenant connections come
+// from the app-owned registry (tenantdb), built on demand; other names (the platform
+// connection) from the framework. Returns nil when the connection cannot be opened.
+// Lookups of registered connections take no process-wide lock.
+func BuildOrmConnection(name string) orm.Orm {
+	if c, err := tenantdb.Default.Conn(name); err == nil {
+		return c.Orm()
+	} else if !errors.Is(err, tenantdb.ErrUnknownConnection) {
+		logTenantConnError(name, err)
+		return nil
+	}
+	o := Orm()
+	if o == nil {
+		return nil
+	}
+	if r, ok := o.(*ormRouter); ok {
+		return r.base.Connection(name)
+	}
+	return o.Connection(name)
+}
+
+// ConnectionDatabaseName returns the database a connection points at: the tenant
+// database for a tenant connection, else database.connections.<name>.database.
+func ConnectionDatabaseName(name string) string {
+	if c, err := tenantdb.Default.Conn(name); err == nil {
+		return c.DatabaseName()
+	}
+	return facades.Config().GetString("database.connections." + name + ".database")
+}
+
+func logTenantConnError(name string, err error) {
+	if l := facades.Log(); l != nil {
+		l.Errorf("tenant connection %s: %v", name, err)
+	}
 }
 
 // OrmTransaction runs fn inside a DB transaction on the same connection OrmQuery(ctx) would use.

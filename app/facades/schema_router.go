@@ -1,11 +1,15 @@
 package facades
 
 import (
+	"errors"
+
 	contractsbinding "github.com/goravel/framework/contracts/binding"
 	"github.com/goravel/framework/contracts/database/driver"
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/database/schema"
 	"github.com/goravel/framework/contracts/foundation"
+
+	"goravel/app/tenantdb"
 )
 
 // schemaRouter delegates to a goroutine-bound tenant Schema when set
@@ -39,11 +43,22 @@ func InstallTenantAwareSchema(app foundation.Application) {
 	app.Fresh(contractsbinding.Schema)
 }
 
+// Connection returns an independent Schema for name: a fresh one over the app-owned
+// pool for tenant connections, the framework's for others.
 func (r *schemaRouter) Connection(name string) schema.Schema {
-	// Always create from the real singleton so callers get an independent Schema.
-	// Serialize BuildQuery — framework MySQL config maps are not concurrent-safe.
-	ormConnectionMu.Lock()
-	defer ormConnectionMu.Unlock()
+	c, err := tenantdb.Default.Conn(name)
+	if err == nil {
+		s, schemaErr := c.NewSchema()
+		if schemaErr != nil {
+			logTenantConnError(name, schemaErr)
+			return nil
+		}
+		return s
+	}
+	if !errors.Is(err, tenantdb.ErrUnknownConnection) {
+		logTenantConnError(name, err)
+		return nil
+	}
 	return r.base.Connection(name)
 }
 
@@ -172,9 +187,6 @@ func (r *schemaRouter) Rename(from, to string) error {
 }
 
 func (r *schemaRouter) SetConnection(name string) {
-	// SetConnection rebuilds via Orm.Connection — serialize like Connection().
-	ormConnectionMu.Lock()
-	defer ormConnectionMu.Unlock()
 	if s := BoundTenantSchema(); s != nil {
 		s.SetConnection(name)
 		return

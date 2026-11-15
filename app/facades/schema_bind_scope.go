@@ -6,14 +6,15 @@ import (
 	"github.com/goravel/framework/contracts/database/schema"
 )
 
-// WithBoundTenantSchema runs fn with sch (and sch.Orm()) bound to the current
-// goroutine, so facades.Schema() / facades.Orm() and code built on them (migrations,
-// seeders, OrmQuery without a tenant ctx) hit the tenant connection — without
-// touching any process-wide state that concurrent requests read.
+// WithBoundTenantSchema runs fn with sch bound to the current goroutine, so
+// facades.Schema() / facades.Orm() (migrations, seeders, OrmQuery without a tenant
+// ctx) hit the tenant database — without touching any process-wide state that
+// concurrent requests read.
 //
 // The previous binding of this goroutine is restored afterwards, so calls nest.
 // Work fn hands to other goroutines is NOT covered: pass a tenant-bound ctx and use
-// OrmQuery(ctx) there.
+// OrmQuery(ctx) there. sch must not be shared with other goroutines (the migrator
+// mutates the Schema it runs on): use a fresh one, e.g. tenantdb.Conn.NewSchema.
 func WithBoundTenantSchema(sch schema.Schema, fn func() error) error {
 	if fn == nil {
 		return nil
@@ -21,29 +22,19 @@ func WithBoundTenantSchema(sch schema.Schema, fn func() error) error {
 	if sch == nil {
 		return fmt.Errorf("tenant schema is nil")
 	}
-	gid := goroutineID()
-	prevSchema, hadSchema := tenantSchemaBinds.Load(gid)
-	prevOrm, hadOrm := tenantOrmBinds.Load(gid)
-
-	tenantSchemaBinds.Store(gid, sch)
-	if o := sch.Orm(); o != nil {
-		tenantOrmBinds.Store(gid, o)
-	} else {
-		tenantOrmBinds.Delete(gid)
+	if !TenantRoutersInstalled() {
+		return fmt.Errorf("tenant-aware Schema/Orm routers are not installed (DatabaseServiceProvider.Boot)")
 	}
+	gid := goroutineID()
+	prev, had := tenantSchemaBinds.Load(gid)
+	bindSchema(gid, sch)
 	defer func() {
-		if hadSchema {
-			tenantSchemaBinds.Store(gid, prevSchema)
+		if had {
+			bindSchema(gid, prev.(schema.Schema))
 		} else {
-			tenantSchemaBinds.Delete(gid)
-		}
-		if hadOrm {
-			tenantOrmBinds.Store(gid, prevOrm)
-		} else {
-			tenantOrmBinds.Delete(gid)
+			unbindSchema(gid)
 		}
 	}()
-
 	return fn()
 }
 

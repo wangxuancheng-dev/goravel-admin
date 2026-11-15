@@ -10,20 +10,23 @@ import (
 	"github.com/goravel/framework/contracts/foundation"
 )
 
-// ormRouter delegates to a goroutine-bound tenant Orm when set (parallel seed),
-// otherwise to the framework singleton.
+// ormRouter delegates to the Orm of the goroutine-bound tenant Schema when set
+// (migrate / seed, see WithBoundTenantSchema), otherwise to the framework singleton.
 type ormRouter struct {
 	base orm.Orm
 }
 
 func (r *ormRouter) active() orm.Orm {
-	if o := BoundTenantOrm(); o != nil {
-		return o
+	if s := BoundTenantSchema(); s != nil {
+		if o := s.Orm(); o != nil {
+			return o
+		}
 	}
 	return r.base
 }
 
-// InstallTenantAwareOrm wraps the container Orm so facades.Orm() honors BindTenantOrm.
+// InstallTenantAwareOrm wraps the container Orm so facades.Orm() honors the
+// goroutine-bound tenant Schema and resolves tenant connection names via tenantdb.
 func InstallTenantAwareOrm(app foundation.Application) {
 	if app == nil {
 		return
@@ -49,10 +52,10 @@ func (r *ormRouter) Config() database.Config {
 	return r.active().Config()
 }
 
+// Connection routes tenant connection names to the app-owned registry, so they never
+// enter the framework's connection cache; other names go to the framework.
 func (r *ormRouter) Connection(name string) orm.Orm {
-	ormConnectionMu.Lock()
-	defer ormConnectionMu.Unlock()
-	return r.base.Connection(name)
+	return BuildOrmConnection(name)
 }
 
 func (r *ormRouter) DB() (*sql.DB, error) {
@@ -84,11 +87,7 @@ func (r *ormRouter) Fresh() {
 }
 
 func (r *ormRouter) SetQuery(query orm.Query) {
-	if o := BoundTenantOrm(); o != nil {
-		o.SetQuery(query)
-		return
-	}
-	r.base.SetQuery(query)
+	r.active().SetQuery(query)
 }
 
 func (r *ormRouter) Transaction(txFunc func(tx orm.Query) error) error {

@@ -8,6 +8,7 @@ import (
 	"github.com/goravel/framework/contracts/foundation"
 
 	"goravel/app/facades"
+	"goravel/app/services"
 )
 
 type DatabaseServiceProvider struct {
@@ -20,9 +21,12 @@ func (receiver *DatabaseServiceProvider) Register(app foundation.Application) {
 func (receiver *DatabaseServiceProvider) Boot(app foundation.Application) {
 	// Migrations and seeders are now registered in bootstrap/app.go via WithMigrations and WithSeeders
 	ensureDefaultDatabaseReachable()
-	// Wrap Schema/Orm so parallel tenant migrate/seed can bind per-goroutine without global flips.
+	// Wrap Schema/Orm so tenant connection names resolve through the app-owned registry
+	// (tenantdb) and migrate/seed can bind a tenant Schema per goroutine.
 	facades.InstallTenantAwareSchema(app)
 	facades.InstallTenantAwareOrm(app)
+	// Tenancy pool limits + rebuilding evicted tenant connections from the tenants table.
+	services.InstallTenantConnectionResolver()
 }
 
 // ensureDefaultDatabaseReachable 在应用启动阶段检测默认数据库是否可连，避免 ORM Query 为 nil 或后续才出现隐蔽错误。

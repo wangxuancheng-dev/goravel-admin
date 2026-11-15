@@ -5,18 +5,14 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/goravel/framework/contracts/database/driver"
 	"github.com/goravel/framework/contracts/database/orm"
 	schemaContract "github.com/goravel/framework/contracts/database/schema"
 	contractsseeder "github.com/goravel/framework/contracts/database/seeder"
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/database/migration"
 	"github.com/goravel/framework/facades"
-	mysqlfacades "github.com/goravel/mysql/facades"
-	postgresfacades "github.com/goravel/postgres/facades"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
@@ -25,13 +21,10 @@ import (
 	"goravel/app/models"
 	"goravel/app/tenancy"
 	"goravel/app/tenancyctx"
+	"goravel/app/tenantdb"
 )
 
-var (
-	tenantIdentPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
-	registerMu         sync.Mutex // serializes EnsureRegistered / Forget with registry
-	migrateMu          sync.Mutex
-)
+var tenantIdentPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 
 // NormalizeTenantCode 校验并规范化租户短码（小写字母开头，仅 a-z0-9_）
 func NormalizeTenantCode(code string) (string, error) {
@@ -99,113 +92,42 @@ func NewTenantConnectionService() *TenantConnectionService {
 	return &TenantConnectionService{}
 }
 
-// EnsureRegistered 将租户连接写入 config 并可供 Orm.Connection 使用。
-// Touches lastUsed on hit; may evict idle/oldest pools when TENANCY_REGISTERED_* is set.
+// EnsureRegistered makes the tenant's connection available (tenantdb.Default) and
+// returns once it answers a ping. A registered connection built from the same
+// host/database/credentials is reused without any process-wide lock; a new or changed
+// one is built and pinged outside any lock, so a slow tenant database never stalls
+// requests of other tenants.
 func (s *TenantConnectionService) EnsureRegistered(tenant *models.Tenant) error {
+	_, err := s.ensureConn(tenant)
+	return err
+}
+
+func (s *TenantConnectionService) ensureConn(tenant *models.Tenant) (*tenantdb.Conn, error) {
 	if tenant == nil {
-		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+		return nil, apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
 	if tenant.ConnectionName == "" {
 		tenant.ConnectionName = TenantConnectionName(tenant.ID)
 	}
-
-	registerMu.Lock()
-	defer registerMu.Unlock()
-
-	registeredMu.Lock()
-	if isRegisteredLocked(tenant.ConnectionName) {
-		configuredDB := facades.Config().GetString("database.connections."+tenant.ConnectionName+".database", "")
-		// Rebind when config was cleared (Forget) or points at another tenant DB
-		// (connection name reuse after DropStorage without a full Orm.Fresh).
-		if configuredDB != "" && (tenant.Database == "" || configuredDB == tenant.Database) {
-			touchRegisteredLocked(tenant.ConnectionName)
-			registeredMu.Unlock()
-			return nil
-		}
-		delete(registeredAt, tenant.ConnectionName)
-		registeredMu.Unlock()
-		teardownTenantConnectionLocked(tenant.ConnectionName)
-		registeredMu.Lock()
-	}
-	evicted := evictRegisteredLocked(tenant.ConnectionName)
-	registeredMu.Unlock()
-	freshORMIfNeeded(evicted)
-
-	cfg, err := s.buildConnectionConfig(tenant)
+	configureTenantDB()
+	spec, err := s.buildSpec(tenant)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// Config.Add + Connection must share ormConnectionMu with parallel openTenantSchema.
-	appfacades.LockOrmConnectionBuild()
-	facades.Config().Add("database.connections."+tenant.ConnectionName, cfg)
-	warmErr := s.warmConnectionLocked(tenant.ConnectionName)
-	if warmErr != nil {
-		appfacades.EvictOrmConnectionCacheLocked(tenant.ConnectionName)
-		appfacades.UnlockOrmConnectionBuild()
-		return apperrors.ErrTenantConnectionFailed.WithError(warmErr)
-	}
-	appfacades.UnlockOrmConnectionBuild()
-	registeredMu.Lock()
-	markRegisteredLocked(tenant.ConnectionName)
-	registeredMu.Unlock()
-	return nil
-}
-
-// warmConnectionLocked assumes LockOrmConnectionBuild is held.
-func (s *TenantConnectionService) warmConnectionLocked(connectionName string) error {
-	to := appfacades.BuildOrmConnectionLocked(connectionName)
-	return s.finishWarm(to, connectionName)
-}
-
-func (s *TenantConnectionService) finishWarm(to orm.Orm, connectionName string) error {
-	if to == nil || to.Query() == nil {
-		return fmt.Errorf("init %s connection failed", connectionName)
-	}
-	db, err := to.DB()
+	c, err := tenantdb.Default.Ensure(tenant.ConnectionName, spec)
 	if err != nil {
-		return err
+		return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
-	applyTenantPoolLimits(db)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return db.PingContext(ctx)
+	return c, nil
 }
 
-func applyTenantPoolLimits(db interface {
-	SetMaxIdleConns(n int)
-	SetMaxOpenConns(n int)
-	SetConnMaxIdleTime(d time.Duration)
-	SetConnMaxLifetime(d time.Duration)
-}) {
-	idle := facades.Config().GetInt("tenancy.pool_max_idle_conns", 10)
-	open := facades.Config().GetInt("tenancy.pool_max_open_conns", 20)
-	idleSec := facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300)
-	lifeSec := facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800)
-	if idle < 0 {
-		idle = 0
-	}
-	if open < 1 {
-		open = 1
-	}
-	db.SetMaxIdleConns(idle)
-	db.SetMaxOpenConns(open)
-	db.SetConnMaxIdleTime(time.Duration(idleSec) * time.Second)
-	db.SetConnMaxLifetime(time.Duration(lifeSec) * time.Second)
-}
-
-// Forget drops a cached tenant connection registration and closes its sql.DB pool when possible.
+// Forget unregisters the tenant connection and closes its pool now (e.g. before
+// DROP DATABASE). A later EnsureRegistered builds a new pool.
 func (s *TenantConnectionService) Forget(connectionName string) {
 	if connectionName == "" {
 		return
 	}
-	registerMu.Lock()
-	defer registerMu.Unlock()
-	registeredMu.Lock()
-	delete(registeredAt, connectionName)
-	registeredMu.Unlock()
-	// Close pool + clear config. Do not Orm.Fresh() — that mid-suite wipe left
-	// stale DSNs (e.g. tenant_txrb*) and broke later feature tests.
-	teardownTenantConnectionLocked(connectionName)
+	tenantdb.Default.Forget(connectionName)
 }
 
 // ValidateTenantCredentials enforces dedicated DB users for remote hosts.
@@ -246,14 +168,16 @@ func (s *TenantConnectionService) SetProvisionStatus(tenant *models.Tenant, stat
 	return nil
 }
 
-func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (map[string]any, error) {
+// buildSpec resolves how to reach the tenant database (empty host / credentials fall
+// back to the platform connection's).
+func (s *TenantConnectionService) buildSpec(tenant *models.Tenant) (tenantdb.Spec, error) {
 	driverName := NormalizeTenantDriver(tenant.Driver)
 	if driverName == "" {
 		driverName = facades.Config().GetString("database.default", "mysql")
 	}
 	isolation, err := ResolveTenantIsolation(driverName, tenant.Isolation)
 	if err != nil {
-		return nil, err
+		return tenantdb.Spec{}, err
 	}
 
 	host := tenant.Host
@@ -272,7 +196,7 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 	if password != "" {
 		plain, err := RevealTenantPassword(password)
 		if err != nil {
-			return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
+			return tenantdb.Spec{}, apperrors.ErrTenantConnectionFailed.WithError(err)
 		}
 		password = plain
 	}
@@ -281,64 +205,54 @@ func (s *TenantConnectionService) buildConnectionConfig(tenant *models.Tenant) (
 	}
 	database := tenant.Database
 	if database == "" {
-		return nil, apperrors.ErrInvalidArgument.WithMessage("tenant database name is required")
+		return tenantdb.Spec{}, apperrors.ErrInvalidArgument.WithMessage("tenant database name is required")
 	}
 
-	connName := tenant.ConnectionName
-	pool := tenantPoolConfig()
+	spec := tenantdb.Spec{
+		Host:     host,
+		Port:     port,
+		Database: database,
+		Username: username,
+		Password: password,
+		Pool:     tenantPoolLimits(),
+	}
 	switch driverName {
 	case models.TenantDriverMySQL:
-		return map[string]any{
-			"host":      host,
-			"port":      port,
-			"database":  database,
-			"username":  username,
-			"password":  password,
-			"charset":   "utf8mb4",
-			"collation": "utf8mb4_unicode_ci",
-			"prefix":    "",
-			"singular":  false,
-			"pool":      pool,
-			"via": func() (driver.Driver, error) {
-				return mysqlfacades.Mysql(connName)
-			},
-		}, nil
+		spec.Driver = tenantdb.DriverMySQL
+		return spec, nil
 	case models.TenantDriverPostgres:
 		schemaName := "public"
 		if isolation == models.TenantIsolationSchema {
 			schemaName = tenant.Schema
 			if schemaName == "" {
-				return nil, apperrors.ErrInvalidArgument.WithMessage("postgres schema isolation requires schema name")
+				return tenantdb.Spec{}, apperrors.ErrInvalidArgument.WithMessage("postgres schema isolation requires schema name")
 			}
 		} else if tenant.Schema != "" {
 			schemaName = tenant.Schema
 		}
-		return map[string]any{
-			"host":     host,
-			"port":     port,
-			"database": database,
-			"username": username,
-			"password": password,
-			"sslmode":  tenantPostgresSSLMode(),
-			"singular": false,
-			"prefix":   "",
-			"schema":   schemaName,
-			"pool":     pool,
-			"via": func() (driver.Driver, error) {
-				return postgresfacades.Postgres(connName)
-			},
-		}, nil
+		spec.Driver = tenantdb.DriverPostgres
+		spec.Schema = schemaName
+		spec.SSLMode = tenantPostgresSSLMode()
+		return spec, nil
 	default:
-		return nil, apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")
+		return tenantdb.Spec{}, apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")
 	}
 }
 
-func tenantPoolConfig() map[string]any {
-	return map[string]any{
-		"max_idle_conns":    facades.Config().GetInt("tenancy.pool_max_idle_conns", 10),
-		"max_open_conns":    facades.Config().GetInt("tenancy.pool_max_open_conns", 20),
-		"conn_max_idletime": facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300),
-		"conn_max_lifetime": facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800),
+func tenantPoolLimits() tenantdb.PoolLimits {
+	idle := facades.Config().GetInt("tenancy.pool_max_idle_conns", 10)
+	open := facades.Config().GetInt("tenancy.pool_max_open_conns", 20)
+	if idle < 0 {
+		idle = 0
+	}
+	if open < 1 {
+		open = 1
+	}
+	return tenantdb.PoolLimits{
+		MaxIdleConns:    idle,
+		MaxOpenConns:    open,
+		ConnMaxIdleTime: time.Duration(facades.Config().GetInt("tenancy.pool_conn_max_idletime", 300)) * time.Second,
+		ConnMaxLifetime: time.Duration(facades.Config().GetInt("tenancy.pool_conn_max_lifetime", 1800)) * time.Second,
 	}
 }
 
@@ -390,44 +304,41 @@ func (s *TenantConnectionService) withMaintenanceOrmQuery(tenant *models.Tenant,
 		maintName = fmt.Sprintf("tenant_maint_%s", tenant.Code)
 	}
 
-	var cfg map[string]any
+	spec := tenantdb.Spec{
+		Host:     host,
+		Port:     port,
+		Username: username,
+		Password: password,
+		Pool:     tenantdb.PoolLimits{MaxIdleConns: 0, MaxOpenConns: 2},
+	}
 	switch driverName {
 	case models.TenantDriverMySQL:
-		cfg = map[string]any{
-			"host":      host,
-			"port":      port,
-			"database":  "mysql",
-			"username":  username,
-			"password":  password,
-			"charset":   "utf8mb4",
-			"collation": "utf8mb4_unicode_ci",
-			"prefix":    "",
-			"singular":  false,
-			"via": func() (driver.Driver, error) {
-				return mysqlfacades.Mysql(maintName)
-			},
-		}
+		spec.Driver, spec.Database = tenantdb.DriverMySQL, "mysql"
 	case models.TenantDriverPostgres:
-		cfg = map[string]any{
-			"host":     host,
-			"port":     port,
-			"database": "postgres",
-			"username": username,
-			"password": password,
-			"sslmode":  tenantPostgresSSLMode(),
-			"singular": false,
-			"prefix":   "",
-			"schema":   "public",
-			"via": func() (driver.Driver, error) {
-				return postgresfacades.Postgres(maintName)
-			},
-		}
+		spec.Driver, spec.Database, spec.Schema = tenantdb.DriverPostgres, "postgres", "public"
+		spec.SSLMode = tenantPostgresSSLMode()
 	default:
 		return apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")
 	}
 
-	facades.Config().Add("database.connections."+maintName, cfg)
-	return fn(appfacades.Orm().Connection(maintName).Query())
+	// Short-lived and unregistered: closed as soon as fn returns.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c, err := tenantdb.Open(ctx, maintName, spec)
+	if err != nil {
+		return apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+	defer func() { _ = c.Close() }()
+	return fn(c.Orm().Query())
+}
+
+// tenantQuery returns a query on the tenant's own database (registering it first).
+func (s *TenantConnectionService) tenantQuery(tenant *models.Tenant) (orm.Query, error) {
+	c, err := s.ensureConn(tenant)
+	if err != nil {
+		return nil, err
+	}
+	return c.Orm().Query(), nil
 }
 
 // CreateStorage 在目标库所在主机上 CREATE DATABASE / SCHEMA。
@@ -504,10 +415,11 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 			return err
 		}
 		// Schema on a dedicated / remote database: connect to that database then create schema.
-		if err := s.EnsureRegistered(tenant); err != nil {
+		q, err := s.tenantQuery(tenant)
+		if err != nil {
 			return err
 		}
-		_, err := appfacades.Orm().Connection(tenant.ConnectionName).Query().Exec(schemaSQL)
+		_, err = q.Exec(schemaSQL)
 		return err
 	default:
 		return apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")
@@ -578,10 +490,13 @@ func (s *TenantConnectionService) DropStorage(tenant *models.Tenant) error {
 			_, err := appfacades.PlatformOrmQuery(nil).Exec(schemaSQL)
 			return err
 		}
-		if err := s.EnsureRegistered(tenant); err != nil {
+		q, err := s.tenantQuery(tenant)
+		if err != nil {
 			return err
 		}
-		_, err := appfacades.Orm().Connection(tenant.ConnectionName).Query().Exec(schemaSQL)
+		_, err = q.Exec(schemaSQL)
+		// The connection was only opened to drop the schema; do not keep it registered.
+		s.Forget(tenant.ConnectionName)
 		return err
 	default:
 		return apperrors.ErrInvalidArgument.WithMessage("unsupported tenant driver")
@@ -786,105 +701,16 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 // WithTenantConnection runs fn with facades.Schema() / facades.Orm() (and OrmQuery
 // without a tenant ctx) pointed at the tenant, on the current goroutine only.
 //
-// It binds an independent, verified tenant Schema+Orm to this goroutine instead of
-// flipping the global Schema / root Orm query / database.default, so requests running
-// concurrently in the same process can never be routed to this tenant's database.
+// A fresh tenant Schema (over the shared, app-owned pool) is bound to this goroutine;
+// nothing process-wide changes, so requests running concurrently in the same process
+// are never routed to this tenant and calls for different tenants run in parallel.
 // Work fn hands to other goroutines must carry a tenant-bound ctx (OrmQuery(ctx)).
 func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn func() error) error {
-	if tenant == nil {
-		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
-	}
-	if !appfacades.TenantRoutersInstalled() {
-		return s.withGlobalTenantConnection(tenant, fn)
-	}
-	sch, err := s.openTenantSchema(tenant) // EnsureRegistered + DATABASE() check + pool limits
+	sch, err := s.openTenantSchema(tenant)
 	if err != nil {
 		return err
 	}
 	return appfacades.WithBoundTenantSchema(sch, fn)
-}
-
-// withGlobalTenantConnection is the legacy path (routers not installed): it flips
-// the global Schema, root Orm query and database.default, serialized by migrateMu.
-// Concurrent unbound queries can observe the flip, so it is only a fallback.
-func (s *TenantConnectionService) withGlobalTenantConnection(tenant *models.Tenant, fn func() error) error {
-	if err := s.EnsureRegistered(tenant); err != nil {
-		return err
-	}
-	migrateMu.Lock()
-	defer migrateMu.Unlock()
-	schemaMu := appfacades.SchemaConnLock()
-	schemaMu.Lock()
-	defer schemaMu.Unlock()
-
-	// Pin platform connection before flipping default so first PlatformOrmQuery wins the pin.
-	_ = appfacades.PlatformConnectionName()
-
-	prevDefault := facades.Config().GetString("database.default")
-	appfacades.LockOrmConnectionBuild()
-	facades.Config().Add("database.default", tenant.ConnectionName)
-	appfacades.UnlockOrmConnectionBuild()
-	defer func() {
-		appfacades.LockOrmConnectionBuild()
-		facades.Config().Add("database.default", prevDefault)
-		appfacades.UnlockOrmConnectionBuild()
-	}()
-
-	schema := facades.Schema()
-	prevConn := schema.GetConnection()
-	platformConn := appfacades.PlatformConnectionName()
-	restoreConn := prevConn
-	if restoreConn == "" {
-		restoreConn = platformConn
-	} else if strings.HasPrefix(restoreConn, "tenant_") &&
-		facades.Config().GetString("database.connections."+restoreConn+".database", "") == "" {
-		// Never restore onto a tenant_* name after Forget cleared its DSN —
-		// that re-inits dropped DBs (e.g. tenant_txrb*) and breaks later tests.
-		restoreConn = platformConn
-	}
-	// Always evict: Orm.Connection cache can report tenant DatabaseName while
-	// Query still uses the platform default DB (unqualified CREATE hits platform).
-	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
-	schema.SetConnection(tenant.ConnectionName)
-	if tenant.Isolation != models.TenantIsolationSchema {
-		want := tenant.Database
-		if want == "" {
-			want = facades.Config().GetString("database.connections."+tenant.ConnectionName+".database", "")
-		}
-		got := schemaSessionDatabaseName(schema)
-		if got == "" {
-			got = schema.Orm().DatabaseName()
-		}
-		if want != "" && got != want {
-			appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
-			schema.SetConnection(tenant.ConnectionName)
-			got = schemaSessionDatabaseName(schema)
-			if got == "" {
-				got = schema.Orm().DatabaseName()
-			}
-			if want != "" && got != want {
-				schema.SetConnection(restoreConn)
-				return fmt.Errorf("tenant schema DATABASE()=%s want %s (orm connection cache)", got, want)
-			}
-		}
-	}
-	defer schema.SetConnection(restoreConn)
-
-	if db, err := schema.Orm().DB(); err == nil && db != nil {
-		applyTenantPoolLimits(db)
-	}
-
-	// Seeders (and some migrate helpers) call facades.Orm().Query() on the root
-	// Orm. Flipping database.default does not rebind that query — point it at the
-	// tenant connection for the duration of fn.
-	// WARNING: this is process-global; migrateMu + SchemaConnLock serialize
-	// maintenance, but avoid concurrent facades.Orm().Query() outside OrmQuery(ctx).
-	rootOrm := facades.Orm()
-	prevQuery := rootOrm.Query()
-	rootOrm.SetQuery(schema.Orm().Query())
-	defer rootOrm.SetQuery(prevQuery)
-
-	return fn()
 }
 
 // SeedTenant runs db:seed on the tenant connection.
@@ -896,12 +722,7 @@ func (s *TenantConnectionService) SeedTenant(tenant *models.Tenant, seeders ...s
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
-	var runErr error
-	if appfacades.TenantAwareSchemaInstalled() && appfacades.TenantAwareOrmInstalled() {
-		runErr = s.seedTenantParallel(tenant, seeders...)
-	} else {
-		runErr = s.seedTenantSerial(tenant, seeders...)
-	}
+	runErr := s.seedTenant(tenant, seeders...)
 	s.markSeedOpResult(tenant, runErr)
 	return runErr
 }
@@ -942,45 +763,25 @@ func (s *TenantConnectionService) markSeedOpResult(tenant *models.Tenant, runErr
 	tenant.LastOpAt = &now
 }
 
-func (s *TenantConnectionService) seedTenantParallel(tenant *models.Tenant, seeders ...string) error {
+// seedTenant runs the seeders on this goroutine with a fresh tenant Schema bound, so
+// seeders' facades.Orm() / facades.Schema() hit the tenant database.
+func (s *TenantConnectionService) seedTenant(tenant *models.Tenant, seeders ...string) error {
 	sch, err := s.openTenantSchema(tenant)
 	if err != nil {
 		return err
 	}
-	appfacades.BindTenantSchemaAndOrm(sch)
-	defer appfacades.UnbindTenantSchemaAndOrm()
-
-	if appfacades.BoundTenantSchema() == nil || appfacades.BoundTenantOrm() == nil {
-		appfacades.UnbindTenantSchemaAndOrm()
-		return s.seedTenantSerial(tenant, seeders...)
-	}
-
-	// Call seeders on this goroutine. Artisan.Call runs Handle in a NEW goroutine
-	// (framework console), which would not see BindTenantSchemaAndOrm.
-	if err := runTenantSeeders(seeders...); err != nil {
-		return err
-	}
-	n, err := sch.Orm().Query().Table("admins").Count()
-	if err != nil {
-		return fmt.Errorf("seed verify failed: %w", err)
-	}
-	if n == 0 {
-		return fmt.Errorf("seed failed: admins empty on %s", sch.Orm().DatabaseName())
-	}
-	return nil
-}
-
-func (s *TenantConnectionService) seedTenantSerial(tenant *models.Tenant, seeders ...string) error {
-	return s.WithTenantConnection(tenant, func() error {
+	return appfacades.WithBoundTenantSchema(sch, func() error {
+		// Call seeders on this goroutine. Artisan.Call runs Handle in a NEW goroutine
+		// (framework console), which would not see the binding.
 		if err := runTenantSeeders(seeders...); err != nil {
 			return err
 		}
-		n, err := facades.Orm().Query().Table("admins").Count()
+		n, err := sch.Orm().Query().Table("admins").Count()
 		if err != nil {
 			return fmt.Errorf("seed verify failed: %w", err)
 		}
 		if n == 0 {
-			return fmt.Errorf("seed failed: admins empty on %s (orm still on platform?)", facades.Schema().Orm().DatabaseName())
+			return fmt.Errorf("seed failed: admins empty on %s", sch.Orm().DatabaseName())
 		}
 		return nil
 	})
@@ -1024,7 +825,7 @@ func runTenantSeeders(names ...string) error {
 // concurrency and long-running workers can run true parallel DDL.
 func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	var migCount int64
-	err := s.migrateTenantParallel(tenant, &migCount)
+	err := s.migrateTenant(tenant, &migCount)
 	now := time.Now()
 	if err != nil {
 		_ = s.SetProvisionStatus(tenant, models.TenantProvisionFailed)
@@ -1079,7 +880,7 @@ func (s *TenantConnectionService) RollbackTenant(tenant *models.Tenant, step, mi
 		migBatch = 0
 	}
 	var migCount int64
-	err := s.rollbackTenantParallel(tenant, step, migBatch, &migCount)
+	err := s.rollbackTenant(tenant, step, migBatch, &migCount)
 	now := time.Now()
 	if err != nil {
 		msg := err.Error()
@@ -1134,186 +935,81 @@ func (s *TenantConnectionService) withTenantHasAdmins(tenant *models.Tenant) err
 	return nil
 }
 
-func (s *TenantConnectionService) rollbackTenantParallel(tenant *models.Tenant, step, migBatch int, migCount *int64) error {
-	if tenant == nil {
-		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
-	}
+// rollbackTenant rolls back on a fresh tenant Schema bound to this goroutine (so
+// migrations' Down() via facades.Schema() hit the tenant); safe to run in parallel.
+func (s *TenantConnectionService) rollbackTenant(tenant *models.Tenant, step, migBatch int, migCount *int64) error {
 	sch, err := s.openTenantSchema(tenant)
 	if err != nil {
 		return err
 	}
-	appfacades.BindTenantSchema(sch)
-	defer appfacades.UnbindTenantSchema()
-
-	if !appfacades.TenantAwareSchemaInstalled() || appfacades.BoundTenantSchema() == nil {
-		appfacades.UnbindTenantSchema()
-		return s.withTenantConnectionRollback(tenant, step, migBatch, migCount)
-	}
-
-	migrator := migration.NewMigrator(facades.Artisan(), sch, "migrations")
-	if err := migrator.Rollback(step, migBatch); err != nil {
-		return err
-	}
-	if sch.HasTable("migrations") {
-		n, countErr := sch.Orm().Query().Table("migrations").Count()
-		if countErr != nil {
-			return countErr
-		}
-		*migCount = n
-	}
-	return nil
-}
-
-func (s *TenantConnectionService) withTenantConnectionRollback(tenant *models.Tenant, step, migBatch int, migCount *int64) error {
-	return s.WithTenantConnection(tenant, func() error {
-		migrator := migration.NewMigrator(facades.Artisan(), facades.Schema(), "migrations")
+	return appfacades.WithBoundTenantSchema(sch, func() error {
+		migrator := migration.NewMigrator(facades.Artisan(), sch, "migrations")
 		if err := migrator.Rollback(step, migBatch); err != nil {
 			return err
 		}
-		if facades.Schema().HasTable("migrations") {
-			n, countErr := facades.Orm().Query().Table("migrations").Count()
-			if countErr != nil {
-				return countErr
-			}
-			*migCount = n
-		}
-		return nil
+		return countTenantMigrations(sch, migCount)
 	})
 }
 
-// migrateTenantParallel opens an independent Schema for the tenant connection, binds it for
-// this goroutine (so migration Up() via facades.Schema() hits the tenant DB), and runs Migrator.
-func (s *TenantConnectionService) migrateTenantParallel(tenant *models.Tenant, migCount *int64) error {
-	if tenant == nil {
-		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
-	}
+// migrateTenant migrates on a fresh tenant Schema bound to this goroutine (so
+// migrations' Up() via facades.Schema() hit the tenant); safe to run in parallel.
+func (s *TenantConnectionService) migrateTenant(tenant *models.Tenant, migCount *int64) error {
 	sch, err := s.openTenantSchema(tenant)
 	if err != nil {
 		return err
 	}
-	appfacades.BindTenantSchema(sch)
-	defer appfacades.UnbindTenantSchema()
-
-	// Without the router, migration Up() still hits the global Schema — use serial path.
-	if !appfacades.TenantAwareSchemaInstalled() || appfacades.BoundTenantSchema() == nil {
-		appfacades.UnbindTenantSchema()
-		return s.withTenantConnectionMigrate(tenant, migCount)
-	}
-
-	// Call Migrator.Run directly: Artisan migrate returns nil even on failure.
-	migrator := migration.NewMigrator(facades.Artisan(), sch, "migrations")
-	if err := migrator.Run(); err != nil {
-		return err
-	}
-	if !sch.HasTable("admins") {
-		return fmt.Errorf("migrate failed: admins table missing on %s", sch.Orm().DatabaseName())
-	}
-	if sch.HasTable("migrations") {
-		n, countErr := sch.Orm().Query().Table("migrations").Count()
-		if countErr != nil {
-			return countErr
-		}
-		*migCount = n
-	}
-	return nil
-}
-
-// withTenantConnectionMigrate is the legacy serial path (global Schema flip) used when the
-// tenant-aware Schema router is not installed.
-func (s *TenantConnectionService) withTenantConnectionMigrate(tenant *models.Tenant, migCount *int64) error {
-	return s.WithTenantConnection(tenant, func() error {
-		migrator := migration.NewMigrator(facades.Artisan(), facades.Schema(), "migrations")
+	return appfacades.WithBoundTenantSchema(sch, func() error {
+		// Call Migrator.Run directly: Artisan migrate returns nil even on failure.
+		migrator := migration.NewMigrator(facades.Artisan(), sch, "migrations")
 		if err := migrator.Run(); err != nil {
 			return err
 		}
-		if !facades.Schema().HasTable("admins") {
-			return fmt.Errorf("migrate failed: admins table missing on %s", facades.Schema().Orm().DatabaseName())
+		if !sch.HasTable("admins") {
+			return fmt.Errorf("migrate failed: admins table missing on %s", sch.Orm().DatabaseName())
 		}
-		if facades.Schema().HasTable("migrations") {
-			n, countErr := facades.Orm().Query().Table("migrations").Count()
-			if countErr != nil {
-				return countErr
-			}
-			*migCount = n
-		}
-		return nil
+		return countTenantMigrations(sch, migCount)
 	})
 }
 
-// openTenantSchema returns a Schema bound to the tenant connection (not the global singleton).
+func countTenantMigrations(sch schemaContract.Schema, migCount *int64) error {
+	if !sch.HasTable("migrations") {
+		return nil
+	}
+	n, err := sch.Orm().Query().Table("migrations").Count()
+	if err != nil {
+		return err
+	}
+	*migCount = n
+	return nil
+}
+
+// openTenantSchema registers the tenant connection and returns a fresh Schema on it.
+// Each caller gets its own instance: the migrator mutates the Schema it runs on.
 func (s *TenantConnectionService) openTenantSchema(tenant *models.Tenant) (schemaContract.Schema, error) {
-	if err := s.EnsureRegistered(tenant); err != nil {
+	c, err := s.ensureConn(tenant)
+	if err != nil {
 		return nil, err
 	}
-	_ = appfacades.PlatformConnectionName()
-	appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
-
-	root := facades.Schema()
-	if root == nil {
-		return nil, apperrors.ErrTenantConnectionFailed.WithMessage("schema facade unavailable")
-	}
-	sch := root.Connection(tenant.ConnectionName)
-	if sch == nil {
-		return nil, apperrors.ErrTenantConnectionFailed.WithMessage("tenant schema connection unavailable: " + tenant.ConnectionName)
-	}
-
-	if tenant.Isolation != models.TenantIsolationSchema {
-		want := tenant.Database
-		if want == "" {
-			want = facades.Config().GetString("database.connections."+tenant.ConnectionName+".database", "")
-		}
-		got := schemaSessionDatabaseName(sch)
-		if got == "" {
-			got = sch.Orm().DatabaseName()
-		}
-		if want != "" && got != want {
-			appfacades.EvictOrmConnectionCache(tenant.ConnectionName)
-			sch = root.Connection(tenant.ConnectionName)
-			if sch == nil {
-				return nil, apperrors.ErrTenantConnectionFailed.WithMessage("tenant schema reconnect failed")
-			}
-			got = schemaSessionDatabaseName(sch)
-			if got == "" {
-				got = sch.Orm().DatabaseName()
-			}
-			if want != "" && got != want {
-				return nil, fmt.Errorf("tenant schema DATABASE()=%s want %s (orm connection cache)", got, want)
-			}
-		}
-	}
-
-	if db, err := sch.Orm().DB(); err == nil && db != nil {
-		applyTenantPoolLimits(db)
+	sch, err := c.NewSchema()
+	if err != nil {
+		return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
 	return sch, nil
 }
 
-// Ping verifies the tenant database connection is reachable.
+// Ping verifies the tenant database connection is reachable. A failing connection is
+// unregistered so the next use rebuilds it.
 func (s *TenantConnectionService) Ping(tenant *models.Tenant, timeout time.Duration) error {
-	if tenant == nil {
-		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
-	}
-	if err := s.EnsureRegistered(tenant); err != nil {
+	c, err := s.ensureConn(tenant)
+	if err != nil {
 		return err
 	}
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	to := appfacades.BuildOrmConnection(tenant.ConnectionName)
-	// Failed BuildQuery yields Orm with nil query; DB() would nil-deref.
-	if to == nil || to.Query() == nil {
-		s.Forget(tenant.ConnectionName)
-		return apperrors.ErrTenantConnectionFailed.WithMessage("tenant orm query is nil")
-	}
-	db, err := to.DB()
-	if err != nil {
-		s.Forget(tenant.ConnectionName)
-		return apperrors.ErrTenantConnectionFailed.WithError(err)
-	}
-	applyTenantPoolLimits(db)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
+	if err := c.Ping(ctx); err != nil {
 		s.Forget(tenant.ConnectionName)
 		return apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
@@ -1329,23 +1025,4 @@ func tenantPostgresSSLMode() string {
 		return "disable"
 	}
 	return mode
-}
-
-// schemaSessionDatabaseName returns the live session database name.
-// MySQL: SELECT DATABASE(); PostgreSQL: SELECT current_database().
-// Prefer this over Orm.DatabaseName(), which can lie after a Connection cache hit.
-func schemaSessionDatabaseName(schema interface{ Orm() orm.Orm }) string {
-	if schema == nil || schema.Orm() == nil || schema.Orm().Query() == nil {
-		return ""
-	}
-	q := schema.Orm().Query()
-	var name string
-	if err := q.Raw("SELECT DATABASE()").Scan(&name); err == nil && strings.TrimSpace(name) != "" {
-		return name
-	}
-	name = ""
-	if err := q.Raw("SELECT current_database()").Scan(&name); err == nil {
-		return strings.TrimSpace(name)
-	}
-	return ""
 }

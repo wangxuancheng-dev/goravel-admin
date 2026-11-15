@@ -286,9 +286,10 @@ func resolveShardingDatabaseName(ctx context.Context) string {
 			return n
 		}
 	}
-	// Prefer connection name from ctx, then that connection's configured database.
+	// Prefer connection name from ctx, then the database that connection points at
+	// (tenant connections are not in the global config; ConnectionDatabaseName knows them).
 	if connKey := appfacades.SchemaConnectionKeyFrom(ctx); connKey != "" {
-		if n := facades.Config().GetString("database.connections." + connKey + ".database"); n != "" {
+		if n := appfacades.ConnectionDatabaseName(connKey); n != "" {
 			return n
 		}
 	}
