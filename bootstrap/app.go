@@ -33,17 +33,7 @@ func Boot() contractsfoundation.Application {
 			if facades.Config().GetString("app.env", "production") != "production" {
 				return nil
 			}
-			filtered := []string{
-				"about", "key:generate",
-				"schedule:*", "queue:*", "migrate*",
-				"db:*", "cache:*", "config:*", "lang:*",
-				"app:*", "order:*", "payment:*", "search:*", "token:*",
-				"tenant:*", "platform:*",
-			}
-			if !facades.Config().GetBool("app.allow_maintenance_commands", false) {
-				filtered = append([]string{"up", "down"}, filtered...)
-			}
-			return filtered
+			return ProductionCommandsAllowlist(facades.Config().GetBool("app.allow_maintenance_commands", false))
 		}).
 		WithConfig(config.Boot).
 		Create()
