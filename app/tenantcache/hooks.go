@@ -77,6 +77,7 @@ func setTable(name string) {
 func ResetHooks() {
 	hooksInstalled.Store(false)
 	InvalidateAll()
+	l1.reset()
 }
 
 // tenantsTableOf asks gorm for the tenants table name, so a configured table prefix

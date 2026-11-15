@@ -75,11 +75,13 @@ func useMemStore(t *testing.T) *memStore {
 	s := &memStore{m: map[string]any{}}
 	prev := cacheStore
 	cacheStore = func() store { return s }
+	l1.reset()
 	prevHooked := hooksInstalled.Load()
 	hooksInstalled.Store(true)
 	t.Cleanup(func() {
 		cacheStore = prev
 		hooksInstalled.Store(prevHooked)
+		l1.reset()
 	})
 	return s
 }
@@ -318,4 +320,55 @@ func withTableName(t *testing.T, name string) {
 	prev, _ := tableName.Load().(string)
 	setTable(name)
 	t.Cleanup(func() { setTable(prev) })
+}
+
+// countingStore counts reads that reach the shared store.
+type countingStore struct {
+	*memStore
+	reads int
+}
+
+func (c *countingStore) Get(key string, def ...any) any {
+	c.reads++
+	return c.memStore.Get(key, def...)
+}
+
+func (c *countingStore) GetString(key string, def ...string) string {
+	c.reads++
+	return c.memStore.GetString(key, def...)
+}
+
+// After the first read, a tenant lookup reads only its two version counters from the
+// shared store; the row (and the code mapping) come from the in-process copy.
+func TestLocalCopyCutsSharedStoreReads(t *testing.T) {
+	s := useMemStore(t)
+	cs := &countingStore{memStore: s}
+	cacheStore = func() store { return cs }
+	cacheRow(t, s, version(7), tenantRow(7, "acme"))
+	_ = s.Put(codeKey("acme"), "7", time.Minute)
+
+	_, _ = ByCode("acme") // warm: code mapping + versions + row from the shared store
+	cs.reads = 0
+	got, err := ByCode("acme")
+	if err != nil || got.ID != 7 {
+		t.Fatalf("ByCode: %v %+v", err, got)
+	}
+	if cs.reads != 2 {
+		t.Fatalf("warm ByCode read the shared store %d times, want 2 (the version counters)", cs.reads)
+	}
+	cs.reads = 0
+	_, _ = ByID(7)
+	if cs.reads != 2 {
+		t.Fatalf("warm ByID read the shared store %d times, want 2", cs.reads)
+	}
+
+	// An invalidation on any node moves the version, so the local copy is not used.
+	Invalidate(7)
+	disabled := tenantRow(7, "acme")
+	disabled.Status = models.TenantStatusDisabled
+	cacheRow(t, s, version(7), disabled)
+	got, err = ByID(7)
+	if err != nil || got.Status != models.TenantStatusDisabled {
+		t.Fatalf("after Invalidate the local copy must not be served: %v %+v", err, got)
+	}
 }

@@ -99,11 +99,20 @@ func ByID(id uint) (*models.Tenant, error) {
 		return loadByID(id, "", 0)
 	}
 	ver := version(id)
-	if t, ok := get(rowKey(id, ver)); ok {
+	key := rowKey(id, ver)
+	if t, ok := l1.row(key); ok {
 		return t, nil
 	}
-	v, err, _ := group.Do(rowKey(id, ver), func() (any, error) {
-		return loadByID(id, ver, d)
+	if t, ok := get(key); ok {
+		l1.putRow(key, t, d)
+		return t, nil
+	}
+	v, err, _ := group.Do(key, func() (any, error) {
+		t, err := loadByID(id, ver, d)
+		if err == nil {
+			l1.putRow(key, t, d)
+		}
+		return t, err
 	})
 	if err != nil {
 		return nil, err
@@ -121,11 +130,19 @@ func ByCode(code string) (*models.Tenant, error) {
 	if d > 0 {
 		// code -> id is cached separately; the row itself goes through ByID, so its
 		// version check also covers lookups by code.
-		if id, err := strconv.ParseUint(cacheStore().GetString(codeKey(code), ""), 10, 64); err == nil && id > 0 {
-			if t, err := ByID(uint(id)); err == nil && t.Code == code {
+		id, ok := l1.code(code)
+		if !ok {
+			if n, err := strconv.ParseUint(cacheStore().GetString(codeKey(code), ""), 10, 64); err == nil && n > 0 {
+				id, ok = uint(n), true
+			}
+		}
+		if ok {
+			if t, err := ByID(id); err == nil && t.Code == code {
+				l1.putCode(code, id, d)
 				return t, nil
 			}
 			// Mapping points at a deleted or re-coded tenant.
+			l1.forgetCode(code)
 			_ = cacheStore().Forget(codeKey(code))
 		}
 	}
