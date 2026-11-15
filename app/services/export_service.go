@@ -630,7 +630,11 @@ func (s *ExportServiceImpl) cloudDriverKind() string {
 }
 
 func (s *ExportServiceImpl) uploadToS3(localFilePath, key string) error {
-	cfg := facades.Config()
+	// Tenant BYOB disks keep their credentials out of the global config.
+	cfg, err := tenantstorage.DiskConfig(s.disk)
+	if err != nil {
+		return err
+	}
 	accessKeyId := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.key", s.disk))
 	accessKeySecret := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.secret", s.disk))
 	region := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.region", s.disk))
@@ -680,7 +684,11 @@ func (s *ExportServiceImpl) uploadToS3(localFilePath, key string) error {
 }
 
 func (s *ExportServiceImpl) uploadToMinio(localFilePath, key string) error {
-	cfg := facades.Config()
+	// Tenant BYOB disks keep their credentials out of the global config.
+	cfg, err := tenantstorage.DiskConfig(s.disk)
+	if err != nil {
+		return err
+	}
 	accessKeyId := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.key", s.disk))
 	accessKeySecret := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.secret", s.disk))
 	region := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.region", s.disk))
@@ -709,7 +717,11 @@ func (s *ExportServiceImpl) uploadToMinio(localFilePath, key string) error {
 }
 
 func (s *ExportServiceImpl) uploadToOss(localFilePath, key string) error {
-	cfg := facades.Config()
+	// Tenant BYOB disks keep their credentials out of the global config.
+	cfg, err := tenantstorage.DiskConfig(s.disk)
+	if err != nil {
+		return err
+	}
 	accessKeyId := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.key", s.disk))
 	accessKeySecret := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.secret", s.disk))
 	bucket := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.bucket", s.disk))
@@ -729,7 +741,11 @@ func (s *ExportServiceImpl) uploadToOss(localFilePath, key string) error {
 }
 
 func (s *ExportServiceImpl) uploadToCos(localFilePath, key string) error {
-	cfg := facades.Config()
+	// Tenant BYOB disks keep their credentials out of the global config.
+	cfg, err := tenantstorage.DiskConfig(s.disk)
+	if err != nil {
+		return err
+	}
 	accessKeyId := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.key", s.disk))
 	accessKeySecret := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.secret", s.disk))
 	cosUrl := cfg.GetString(fmt.Sprintf("filesystems.disks.%s.url", s.disk))

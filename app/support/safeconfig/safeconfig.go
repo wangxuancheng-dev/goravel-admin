@@ -3,10 +3,11 @@
 // The framework config is a thin wrapper over viper, which is not goroutine-safe:
 // Add (viper.Set) mutates nested maps in place, so an Add racing any Get anywhere
 // in the process can abort it with "fatal error: concurrent map read and map write"
-// (not recoverable). This app adds config at runtime (tenant connections,
-// database.default flips, tenant disks) while requests, queue workers and parallel
-// tenant migrations read it, so the container's config instance is replaced with a
-// wrapper guarded by an RWMutex.
+// (not recoverable). The app still adds config after boot (the pinned platform
+// connection on first use, tests), and any package may, so the container's config
+// instance is replaced with a wrapper guarded by an RWMutex. Tenant database
+// connections and storage disks are not written to config at all (app/tenantdb,
+// app/tenantstorage via app/support/configoverlay).
 //
 // Install runs from init, and goravel/config blank-imports this package, so the
 // wrapper is in place before any app config init() or service provider resolves
