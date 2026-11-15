@@ -783,14 +783,31 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 	return tenancyctx.WithTenant(ctx, tenant.ID, tenant.ConnectionName, tenant.Code), nil
 }
 
-// WithTenantConnection runs fn with Schema / database.default flipped to the tenant
-// (seed and other Artisan paths that still need the global facade). Serialized via
-// migrateMu. Prefer MigrateTenant for migrate — it uses BindTenantSchema and can run
-// in parallel with TENANCY_MIGRATE_CONCURRENCY.
+// WithTenantConnection runs fn with facades.Schema() / facades.Orm() (and OrmQuery
+// without a tenant ctx) pointed at the tenant, on the current goroutine only.
+//
+// It binds an independent, verified tenant Schema+Orm to this goroutine instead of
+// flipping the global Schema / root Orm query / database.default, so requests running
+// concurrently in the same process can never be routed to this tenant's database.
+// Work fn hands to other goroutines must carry a tenant-bound ctx (OrmQuery(ctx)).
 func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn func() error) error {
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
+	if !appfacades.TenantRoutersInstalled() {
+		return s.withGlobalTenantConnection(tenant, fn)
+	}
+	sch, err := s.openTenantSchema(tenant) // EnsureRegistered + DATABASE() check + pool limits
+	if err != nil {
+		return err
+	}
+	return appfacades.WithBoundTenantSchema(sch, fn)
+}
+
+// withGlobalTenantConnection is the legacy path (routers not installed): it flips
+// the global Schema, root Orm query and database.default, serialized by migrateMu.
+// Concurrent unbound queries can observe the flip, so it is only a fallback.
+func (s *TenantConnectionService) withGlobalTenantConnection(tenant *models.Tenant, fn func() error) error {
 	if err := s.EnsureRegistered(tenant); err != nil {
 		return err
 	}
