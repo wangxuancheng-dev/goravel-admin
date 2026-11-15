@@ -1,0 +1,97 @@
+name: Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    # Only when a frontend (or this workflow) changes.
+    paths:
+      - 'html/**'
+      - 'html-react/**'
+      - '.github/workflows/frontend.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'html/**'
+      - 'html-react/**'
+      - '.github/workflows/frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-vue:
+    name: Frontend Vue
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: html
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: html/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm install --no-save @rollup/rollup-linux-x64-gnu
+
+      - name: Run type check
+        run: npm run type-check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build:ci
+
+  frontend-react:
+    name: Frontend React
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: html-react
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: html-react/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm install --no-save @rollup/rollup-linux-x64-gnu
+
+      - name: Run type check
+        run: npm run type-check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build:ci

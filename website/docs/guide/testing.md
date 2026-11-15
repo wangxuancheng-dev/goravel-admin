@@ -179,15 +179,19 @@ func (s *TokenServiceTestSuite) TestHashToken() {
 
 ## CI/CD 集成
 
-真实工作流见 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)：
+工作流按改动的文件分开触发：
+
+- [`.github/workflows/backend.yml`](../.github/workflows/backend.yml)：只改前端（`html/`、`html-react/`）或文档（`website/`、`docs/`、`*.md`）时不跑。
+- [`.github/workflows/frontend.yml`](../.github/workflows/frontend.yml)：只在 `html/`、`html-react/` 变化时跑。
 
 | Job | 内容 |
 |-----|------|
-| `backend` | 排除 `tests/feature` 的快速 `go test` |
-| `backend-integration` | MySQL 8 + Redis 7 → `artisan migrate` → `go test ./tests/feature/...` |
-| `frontend-vue` / `frontend-react` | `type-check` + `build:ci` |
+| `backend` | 租户守卫脚本 + 排除 `tests/feature` 的快速 `go test` |
+| `lint` / `vulncheck` | golangci-lint / govulncheck（白名单见 `scripts/check-govulncheck.sh`） |
+| `backend-integration (heavy / rest)` | MySQL 8 + Redis 7 → `artisan migrate` → feature 测试，分两份并行：`heavy` 用 `-run` 跑最慢的几个租户测试，`rest` 用 `-skip` 跑其余全部（新测试自动落在 `rest`）。CI 里批量迁移测试用 3 个租户、2 个并发 |
+| `frontend-vue` / `frontend-react` | `type-check` + 单测 + `build:ci` |
 
-本地复现 integration：准备好 MySQL/Redis，配置 `.env` 后执行 migrate，再跑 feature 包。
+本地复现 integration：准备好 MySQL/Redis，配置 `.env` 后执行 migrate，再跑 feature 包。CI 用的是 `.env.example`（`TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`），新写租户测试需调用 `allowSharedTenantDBCredentials(t)`；建不了租户库时用 `skipWithoutTenantDB(t, err)`，它在 CI 里会判失败而不是跳过。
 
 ---
 

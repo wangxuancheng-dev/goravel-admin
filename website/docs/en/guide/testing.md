@@ -183,15 +183,19 @@ func (s *TokenServiceTestSuite) TestHashToken() {
 
 ## CI/CD 集成
 
-真实工作流见 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)：
+Workflows are triggered by the files a change touches:
 
-| Job | 内容 |
-|-----|------|
-| `backend` | Fast `go test` excluding `tests/feature` |
-| `backend-integration` | MySQL 8 + Redis 7 → `artisan migrate` → `go test ./tests/feature/...` |
-| `frontend-vue` / `frontend-react` | `type-check` + `build:ci` |
+- [`.github/workflows/backend.yml`](../.github/workflows/backend.yml): skipped when only frontends (`html/`, `html-react/`) or docs (`website/`, `docs/`, `*.md`) change.
+- [`.github/workflows/frontend.yml`](../.github/workflows/frontend.yml): runs only when `html/` or `html-react/` change.
 
-本地复现 integration：准备好 MySQL/Redis，配置 `.env` 后执行 migrate，再跑 feature 包。
+| Job | What it runs |
+|-----|--------------|
+| `backend` | Tenant guard scripts + fast `go test` excluding `tests/feature` |
+| `lint` / `vulncheck` | golangci-lint / govulncheck (allowlist in `scripts/check-govulncheck.sh`) |
+| `backend-integration (heavy / rest)` | MySQL 8 + Redis 7 → `artisan migrate` → feature tests in two parallel shards: `heavy` runs the slowest tenant tests by name (`-run`), `rest` runs everything else (`-skip`), so new tests land in `rest` automatically. CI runs the fleet migrate test with 3 tenants on 2 workers |
+| `frontend-vue` / `frontend-react` | `type-check` + unit tests + `build:ci` |
+
+To reproduce integration locally: start MySQL/Redis, configure `.env`, run migrate, then the feature package. CI builds `.env` from `.env.example` (`TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`): new tenant tests must call `allowSharedTenantDBCredentials(t)`, and use `skipWithoutTenantDB(t, err)` when a tenant database cannot be created — it fails in CI instead of skipping.
 
 ---
 
