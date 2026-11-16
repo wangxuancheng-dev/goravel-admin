@@ -17,8 +17,10 @@ func init() {
 		"drivers": map[string]any{
 			"gin": map[string]any{
 				// Request body limit in KB, enforced since v1.18 (oversized bodies get 413).
-				// Must cover the largest non-chunked upload (AI_LAB_MAX_UPLOAD_MB, default 10 MB) plus multipart overhead.
-				"body_limit":   config.Env("HTTP_BODY_LIMIT", 12288),
+				// Must cover the largest non-chunked upload: CSV imports and AI_LAB_MAX_UPLOAD_MB
+				// (default 10 MB), plus multipart overhead. Default 50 MB; nginx.conf allows 100m.
+				// The limit is checked while streaming, so a higher value costs no memory per request.
+				"body_limit":   config.Env("HTTP_BODY_LIMIT", 51200),
 				"header_limit": 4096,
 				"route": func() (route.Route, error) {
 					return ginfacades.Route("gin"), nil
