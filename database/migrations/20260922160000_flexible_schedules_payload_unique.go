@@ -43,14 +43,14 @@ func dedupeFlexibleSchedulesByHandlerTenant() error {
 		TenantID uint   `gorm:"column:tenant_id"`
 	}
 	var rows []row
-	if err := facades.Orm().Query().Table("flexible_schedules").Order("id asc").Get(&rows); err != nil {
+	if err := migrationQuery().Table("flexible_schedules").Order("id asc").Get(&rows); err != nil {
 		return err
 	}
 	seen := map[string]struct{}{}
 	for _, r := range rows {
 		key := r.Handler + "\x00" + strconv.FormatUint(uint64(r.TenantID), 10)
 		if _, ok := seen[key]; ok {
-			if _, err := facades.Orm().Query().Table("flexible_schedules").Where("id", r.ID).Delete(); err != nil {
+			if _, err := migrationQuery().Table("flexible_schedules").Where("id", r.ID).Delete(); err != nil {
 				return err
 			}
 			continue

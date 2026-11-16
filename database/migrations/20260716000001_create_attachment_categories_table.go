@@ -33,7 +33,7 @@ func (r *M20260716000001CreateAttachmentCategoriesTable) Up() error {
 	}
 
 	var existing models.AttachmentCategory
-	err := facades.Orm().Query().Where("slug", models.AttachmentCategorySlugUncategorized).First(&existing)
+	err := migrationQuery().Where("slug", models.AttachmentCategorySlugUncategorized).First(&existing)
 	if err != nil || existing.ID == 0 {
 		uncategorized := models.AttachmentCategory{
 			Name:     "未分类",
@@ -43,8 +43,8 @@ func (r *M20260716000001CreateAttachmentCategoriesTable) Up() error {
 			Sort:     0,
 			Remark:   "系统默认分类，不可删除",
 		}
-		if err := facades.Orm().Query().Create(&uncategorized); err != nil {
-			return err
+		if createErr := migrationQuery().Create(&uncategorized); createErr != nil {
+			return createErr
 		}
 		existing = uncategorized
 	}
@@ -65,7 +65,7 @@ func (r *M20260716000001CreateAttachmentCategoriesTable) Up() error {
 		}
 	}
 
-	_, err = facades.Orm().Query().Model(&models.Attachment{}).Where("category_id", 0).OrWhereNull("category_id").Update("category_id", existing.ID)
+	_, err = migrationQuery().Model(&models.Attachment{}).Where("category_id", 0).OrWhereNull("category_id").Update("category_id", existing.ID)
 	return err
 }
 

@@ -28,7 +28,7 @@ func (m *M20260912000001AddProvisionStatusToTenants) Up() error {
 		return err
 	}
 	// Existing rows become ready so current tenants keep accepting traffic.
-	_, err := facades.Orm().Query().Exec("UPDATE tenants SET provision_status = ? WHERE provision_status IS NULL OR provision_status = ''", "ready")
+	_, err := migrationQuery().Exec("UPDATE tenants SET provision_status = ? WHERE provision_status IS NULL OR provision_status = ''", "ready")
 	return err
 }
 

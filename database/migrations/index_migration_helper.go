@@ -54,7 +54,7 @@ func hasIndex(tableName, indexName string) (bool, error) {
 }
 
 func hasIndexInInformationSchema(tableName, indexName string) (bool, error) {
-	query := facades.Orm().Query()
+	query := migrationQuery()
 
 	dbType, err := detectDBType(query)
 	if err != nil || dbType == dbTypePostgres || dbType == dbTypeUnknown {
@@ -91,7 +91,7 @@ func detectDBType(query orm.Query) (string, error) {
 }
 
 func dropIndexCompatible(tableName, indexName string) error {
-	query := facades.Orm().Query()
+	query := migrationQuery()
 
 	dbType, err := detectDBType(query)
 	if err != nil {

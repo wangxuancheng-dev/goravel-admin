@@ -40,7 +40,7 @@ func (r *M20260926120000AddIsSystemToDictionaries) Up() error {
 }
 
 func (r *M20260926120000AddIsSystemToDictionaries) markBuiltinSystem() error {
-	_, err := facades.Orm().Query().Table("dictionaries").
+	_, err := migrationQuery().Table("dictionaries").
 		WhereIn("type", []any{"status", "menu_type"}).
 		Update(map[string]any{"is_system": 1})
 	return err

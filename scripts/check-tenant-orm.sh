@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Fail if business code calls facades.Orm().Query() (use appfacades.OrmQuery(ctx)).
-# Seeders / migrations / tests are out of scope. Tenant maintenance helpers are allowlisted.
+# Fail if business code calls facades.Orm().Query() (use appfacades.OrmQuery(ctx)), or a
+# migration does (use migrationQuery(): facades.Orm() is outside the migration's
+# transaction, which on PostgreSQL cannot see tables the migration just created).
+# Seeders / tests are out of scope. Tenant maintenance helpers are allowlisted.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 PATTERN='facades\.Orm\(\)\.Query\('
-DIRS=(app/services app/http app/jobs app/console)
+DIRS=(app/services app/http app/jobs app/console database/migrations)
 ALLOW=(
   app/services/tenant_connection_service.go
   app/services/tenant_platform_extra.go
@@ -44,7 +46,8 @@ done < <(find "${DIRS[@]}" -type f -name '*.go' -print0 2>/dev/null)
 
 if ((${#hits[@]} > 0)); then
   echo "ERROR: facades.Orm().Query() is forbidden in business dirs."
-  echo "Use appfacades.OrmQuery(ctx) (tenant) or PlatformOrmQuery(ctx) (platform)."
+  echo "Use appfacades.OrmQuery(ctx) (tenant) or PlatformOrmQuery(ctx) (platform);"
+  echo "in database/migrations use migrationQuery()."
   echo "Allowlist (tenant maintenance only):"
   printf '  - %s\n' "${ALLOW[@]}"
   echo
