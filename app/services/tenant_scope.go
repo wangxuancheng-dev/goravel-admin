@@ -195,7 +195,7 @@ func (s *TenantConnectionService) RunTenantScopeWithOptions(opts TenantScopeOpti
 	if hint != "" {
 		tenant, err := s.FindTenantByIDOrCode(hint)
 		if err != nil {
-			return apperrors.ErrTenantNotFound.WithError(err)
+			return err // tenant_not_found or tenant_lookup_failed
 		}
 		if tenant.Status != models.TenantStatusActive {
 			return apperrors.ErrTenantDisabled

@@ -655,7 +655,12 @@ func (s *TenantConnectionService) FindTenantByIDOrCode(idOrCode string) (*models
 		tenant, err = tenantcache.ByCode(idOrCode)
 	}
 	if err != nil {
-		return nil, apperrors.ErrTenantNotFound.WithError(err)
+		if errors.Is(err, tenantcache.ErrNotFound) {
+			return nil, apperrors.ErrTenantNotFound.WithError(err)
+		}
+		// The platform database could not answer: not "no such tenant" (404), which
+		// would tell clients and probes the tenant is gone while the database is down.
+		return nil, apperrors.ErrTenantLookupFailed.WithError(err)
 	}
 	return tenant, nil
 }
@@ -725,7 +730,7 @@ func (s *TenantConnectionService) hintsReferToSameTenant(a, b string) bool {
 func (s *TenantConnectionService) bindHTTPTenant(ctx http.Context, raw string) error {
 	tenant, err := s.FindTenantByIDOrCode(raw)
 	if err != nil {
-		return apperrors.ErrTenantNotFound.WithError(err)
+		return err // tenant_not_found or tenant_lookup_failed
 	}
 	if tenant.Status != models.TenantStatusActive {
 		return apperrors.ErrTenantDisabled
@@ -768,7 +773,7 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 	}
 	tenant, err := s.FindTenantByIDOrCode(fmt.Sprintf("%d", tenantID))
 	if err != nil {
-		return ctx, apperrors.ErrTenantNotFound.WithError(err)
+		return ctx, err // tenant_not_found or tenant_lookup_failed
 	}
 	if tenant.Status != models.TenantStatusActive {
 		return ctx, apperrors.ErrTenantDisabled

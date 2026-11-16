@@ -61,6 +61,9 @@ func WarnInsecureDefaults() {
 		if strings.EqualFold(facades.Config().GetString("tenancy.resolver", "header"), "header") {
 			warn("TENANCY_RESOLVER=header — public deployments should prefer subdomain")
 		}
+		if strings.TrimSpace(facades.Config().GetString("tenancy.base_domain", "")) == "" {
+			warn("TENANCY_BASE_DOMAIN is empty — no public host is locked against a client-supplied tenant (apex / www / platform accept X-Tenant-ID), and with TENANCY_RESOLVER=subdomain the first label of any host (crm.customer.com) is taken as a tenant code; set it to your public apex")
+		}
 		if disk := strings.TrimSpace(facades.Config().GetString("tenancy.backup_disk", "")); disk == "" {
 			warn("TENANT_BACKUP_DISK is empty — tenant backups stay in storage/backups on the host that ran them; with several instances set an object-storage disk (or share that directory)")
 		} else if err := utils.ValidateFilesystemDisk(disk); err != nil {

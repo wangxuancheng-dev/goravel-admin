@@ -38,14 +38,29 @@ func Tenant() http.Middleware {
 					response.Abort(ctx, http.StatusForbidden, businessErr.Code)
 				case apperrors.ErrTenantHintConflict.Code:
 					response.Abort(ctx, http.StatusBadRequest, businessErr.Code)
+				case apperrors.ErrTenantConnectionFailed.Code, apperrors.ErrTenantLookupFailed.Code:
+					// The tenant exists (or cannot be told yet): its database or the
+					// platform's is unreachable. 503 lets probes / CDNs / clients retry
+					// instead of treating it as a bug (500) or a missing tenant (404).
+					abortUnavailable(ctx, businessErr.Code)
 				default:
-					response.Abort(ctx, http.StatusInternalServerError, apperrors.ErrTenantConnectionFailed.Code)
+					// Misconfiguration (missing credentials, corrupt password ...): keep
+					// its own code so the log and the client say what is wrong.
+					response.Abort(ctx, http.StatusInternalServerError, businessErr.Code)
 				}
 				return
 			}
-			response.Abort(ctx, http.StatusInternalServerError, apperrors.ErrTenantConnectionFailed.Code)
+			abortUnavailable(ctx, apperrors.ErrTenantConnectionFailed.Code)
 			return
 		}
 		ctx.Request().Next()
 	})
+}
+
+// tenantRetryAfterSeconds is the Retry-After sent with a 503 for an unreachable tenant.
+const tenantRetryAfterSeconds = "5"
+
+func abortUnavailable(ctx http.Context, code string) {
+	ctx.Response().Header("Retry-After", tenantRetryAfterSeconds)
+	response.Abort(ctx, http.StatusServiceUnavailable, code)
 }

@@ -239,3 +239,54 @@ func TestPlatformForceDeleteDropsTenantDatabase(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, exists, "the tenant database must be dropped before the code is freed")
 }
+
+// An unreachable tenant database (or platform database) is a 503 with Retry-After —
+// not a 500 (a bug) and not a 404 (no such tenant) — so probes and clients retry.
+func TestTenantUnavailableIs503(t *testing.T) {
+	withTenancyDriver(t, "database")
+	allowSharedTenantDBCredentials(t)
+
+	admin := services.NewTenantAdminService()
+	conn := services.NewTenantConnectionService()
+	code := fmt.Sprintf("down%d", time.Now().UnixNano()%1000000)
+	tn, err := admin.Create(services.TenantCreateInput{Code: code, Name: code})
+	if err != nil {
+		skipWithoutTenantDB(t, err)
+	}
+	t.Cleanup(func() {
+		_, _ = appfacades.PlatformQuery().Model(&models.Tenant{}).Where("id", tn.ID).Update("port", 0)
+		conn.Forget(tn.ConnectionName)
+		_ = conn.DropStorage(tn)
+		_, _ = appfacades.PlatformQuery().WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
+	})
+	require.NoError(t, conn.MigrateTenant(tn))
+
+	get := func(tenantCode string) (int, string, string) {
+		resp, reqErr := (&tests.TestCase{}).Http(t).WithHeader("X-Tenant-ID", tenantCode).Get("/api/admin/login/branding")
+		require.NoError(t, reqErr)
+		body, _ := resp.Content()
+		payload, jsonErr := resp.Json()
+		require.NoError(t, jsonErr, body)
+		status, _ := payload["code"].(float64) // the HTTP status, mirrored in the body
+		return int(status), resp.Headers().Get("Retry-After"), body
+	}
+
+	// Tenant database unreachable (nothing listens on port 1).
+	_, err = appfacades.PlatformQuery().Model(&models.Tenant{}).Where("id", tn.ID).Update("port", 1)
+	require.NoError(t, err)
+	conn.Forget(tn.ConnectionName)
+	status, retry, body := get(code)
+	assert.Equal(t, 503, status, body)
+	assert.Equal(t, "5", retry)
+	assert.Contains(t, body, apperrors.ErrTenantConnectionFailed.Code)
+
+	// Platform database unreachable: an uncached code cannot be looked up.
+	withConfig(t, "tenancy.platform_connection", "no_such_connection")
+	appfacades.ResetPlatformConnectionNameForTest()
+	facades.Config().Add("tenancy.platform_connection", "no_such_connection")
+	t.Cleanup(appfacades.ResetPlatformConnectionNameForTest)
+	status, retry, body = get("nosuch" + code)
+	assert.Equal(t, 503, status, body)
+	assert.Equal(t, "5", retry)
+	assert.Contains(t, body, apperrors.ErrTenantLookupFailed.Code, "a platform outage is not \"tenant not found\"")
+}

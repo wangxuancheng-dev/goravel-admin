@@ -30,7 +30,11 @@ func (c *SystemLogController) bindTenantCode(ctx http.Context, code string) (*mo
 	svc := services.NewTenantConnectionService()
 	tenant, err := svc.FindTenantByIDOrCode(code)
 	if err != nil {
-		return nil, admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"code": code})
+		status := http.StatusNotFound
+		if be, ok := apperrors.GetBusinessError(err); ok && be.Code == apperrors.ErrTenantLookupFailed.Code {
+			status = http.StatusServiceUnavailable
+		}
+		return nil, admin.HandleGeneratedServiceError(ctx, "tenant", status, err, map[string]any{"code": code})
 	}
 	if err := svc.EnsureRegistered(tenant); err != nil {
 		return nil, admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusBadGateway, apperrors.ErrTenantConnectionFailed.WithError(err), map[string]any{

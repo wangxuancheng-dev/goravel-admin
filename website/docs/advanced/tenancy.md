@@ -610,6 +610,7 @@ go run . artisan tenant:orphans --drop   # 确认后删除（含配对的 t_<cod
 18. 平台表（`models.PlatformModel`）与 landlord-only 迁移建的表必须一致（`TestPlatformTablesMatchLandlordOnlyMigrations`）；租户连接对这些表的 ORM 读写一律拒绝。
 19. `TestEveryAdminRouteIsTenantIsolated` 在租户 A 写入标记，再以租户 B 调用全部 GET 接口，断言拿不到 A 的数据；新增接口自动纳入。`TestTenantResolutionSecurity` 覆盖子域与 Header 冲突、公网 apex 拒收客户端租户、平台 / 租户 token 不互通、停用 / 维护立即生效、复用 code 后旧 token 失效。
 20. **code 复用不继承任何东西**：永久删除先清掉库、存储、备份与索引才释放 code；开户遇到同名数据库 / schema 一律拒绝（`tenant_storage_exists`），不会接管；DBA 预建的空库用 `skip_create` 接管。开户失败直接物理删除租户行（并清掉本次建出的库与账号），code 立即可重用。
+21. **租户解析的状态码**：缺少租户标识 400；租户不存在 404；租户停用或尚未 ready 403；维护中 503；租户库或平台库暂时连不上 **503 + `Retry-After: 5`**（`tenant_connection_failed` / `tenant_lookup_failed`），平台库故障不会被报成 404；缺少凭据之类的配置问题 500，并返回各自的错误码。探活和 CDN 可以据此区分「租户不存在」和「库挂了」。
 
 ## Platform ops: domain board / onboard / health
 

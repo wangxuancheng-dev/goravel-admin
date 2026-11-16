@@ -222,6 +222,7 @@ var (
 	ErrTenantDisabled              = NewBusinessError("tenant_disabled", "租户已禁用")
 	ErrTenantMaintenance           = NewBusinessError("tenant_maintenance", "租户维护中，请稍后再试")
 	ErrTenantConnectionFailed      = NewBusinessError("tenant_connection_failed", "租户数据库连接失败")
+	ErrTenantLookupFailed          = NewBusinessError("tenant_lookup_failed", "暂时无法读取租户信息，请稍后重试")
 	ErrTenancyDisabled             = NewBusinessError("tenancy_disabled", "未开启多租户（TENANCY_DRIVER=database）")
 	ErrTenantExists                = NewBusinessError("tenant_exists", "租户编码已存在")
 	ErrTenantMigrateViaCLI         = NewBusinessError("tenant_migrate_via_cli", "开户请勿同步 migrate；请在平台控制台触发异步迁移，或使用 CLI：go run . artisan tenant:migrate {code}")

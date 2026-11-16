@@ -103,6 +103,7 @@
         "tenant_op_queue_failed": "租户运维任务入队失败",
         "tenant_storage_quota_exceeded": "租户对象存储配额已用尽（已用 {used} / 限额 {limit} 字节）",
         "tenant_storage_disk_locked": "多租户模式下文件存储驱动由平台统一配置，租户不可修改",
+        "tenant_lookup_failed": "暂时无法读取租户信息，请稍后重试",
         "tenant_code_in_recycle": "租户编码仍在回收站中，请先恢复或永久删除后再创建",
         "tenant_storage_exists": "目标数据库或 schema 已存在，不会复用；确认无用后由 DBA 删除，或指定其他库名，或用 skip_create 接管已建好的空库",
         "tenant_not_trashed": "仅回收站中的已删除租户可执行此操作",
