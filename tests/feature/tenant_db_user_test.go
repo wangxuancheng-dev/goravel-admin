@@ -155,3 +155,65 @@ func TestPlatformCredentialFallbackFollowsSetting(t *testing.T) {
 	_, _, _, _, _, err = services.ResolveTenantDSN(tn)
 	assert.ErrorContains(t, err, apperrors.ErrTenantCredentialsRequired.Code, "backups must not fall back either")
 }
+
+// What a permanent delete left behind before deletes erased storage (database and
+// dedicated account, row gone) is found by tenant:orphans and dropped; storage of a
+// live tenant is never listed.
+func TestOrphanTenantStorageFoundAndDropped(t *testing.T) {
+	withTenancyDriver(t, "database")
+	prev := facades.Config().GetBool("tenancy.db_dedicated_user", false)
+	facades.Config().Add("tenancy.db_dedicated_user", true)
+	t.Cleanup(func() { facades.Config().Add("tenancy.db_dedicated_user", prev) })
+
+	admin := services.NewTenantAdminService()
+	conn := services.NewTenantConnectionService()
+	suffix := fmt.Sprint(time.Now().UnixNano() % 1000000)
+	live, err := admin.Create(services.TenantCreateInput{Code: "live" + suffix, Name: "live"})
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "denied") {
+			t.Skipf("platform DB account cannot create users: %v", err)
+		}
+		skipWithoutTenantDB(t, err)
+	}
+	gone, err := admin.Create(services.TenantCreateInput{Code: "gone" + suffix, Name: "gone"})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		for _, tn := range []*models.Tenant{live, gone} {
+			_ = conn.DropStorage(tn)
+			_, _ = appfacades.PlatformQuery().WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
+		}
+	})
+	// The old way: the row goes, the database and the account stay.
+	conn.Forget(gone.ConnectionName)
+	_, err = appfacades.PlatformQuery().WithTrashed().Where("id", gone.ID).ForceDelete(&models.Tenant{})
+	require.NoError(t, err)
+
+	orphans, _, err := services.FindOrphanTenantStorage()
+	require.NoError(t, err)
+	var found *services.OrphanTenantStorage
+	for i := range orphans {
+		assert.NotEqual(t, live.Database, orphans[i].Name, "a live tenant's database is never an orphan")
+		if orphans[i].Name == gone.Database {
+			found = &orphans[i]
+		}
+	}
+	require.NotNil(t, found, "the leftover database %s must be listed", gone.Database)
+	assert.Equal(t, gone.Code, found.Code)
+	assert.Equal(t, gone.Username, found.Account, "its dedicated account is paired with it")
+
+	require.NoError(t, services.DropOrphanTenantStorage(*found))
+	exists, err := tenantDatabaseExists(gone.Database)
+	require.NoError(t, err)
+	assert.False(t, exists)
+	orphans, loose, err := services.FindOrphanTenantStorage()
+	require.NoError(t, err)
+	for _, o := range orphans {
+		assert.NotEqual(t, gone.Database, o.Name)
+	}
+	assert.NotContains(t, loose, gone.Username, "the account went with the database")
+
+	// The code is usable again.
+	again, err := admin.Create(services.TenantCreateInput{Code: gone.Code, Name: "again"})
+	require.NoError(t, err)
+	gone.ID = again.ID
+}

@@ -362,6 +362,17 @@ go run . artisan order:generate-test-data --tenant={code} --count=1000
 go run . artisan payment:generate-test-data --tenant={code} --count=1000
 ```
 
+### Orphaned databases (run once after upgrading)
+
+Permanent deletes used to remove only the tenant row: the database and dedicated account stayed on the server, and a new tenant with the same code is now refused with `tenant_storage_exists`. Find and remove them:
+
+```bash
+go run . artisan tenant:orphans          # list only: prefixed databases / schemas no tenant (recycle bin included) references
+go run . artisan tenant:orphans --drop   # drop them after confirmation (with their paired t_<code> account); irreversible, back up first
+```
+
+Only databases with the `TENANCY_DATABASE_PREFIX` / `TENANCY_SCHEMA_PREFIX` prefix are considered; the platform database and reserved schemas are never dropped. `t_` accounts without an orphaned database are listed, never dropped (a DBA may have created them).
+
 ### 建库与密码
 
 - `host` 空：在平台实例 `CREATE`

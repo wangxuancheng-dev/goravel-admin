@@ -97,6 +97,7 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.TenantBackupScheduled{},
 		&commands.TenantRestore{},
 		&commands.TenantCleanupDeleted{},
+		&commands.TenantOrphans{},
 		&commands.TenantHealthInspect{},
 		&commands.PlatformAdminCreate{},
 		&commands.PlatformInstall{},

@@ -493,6 +493,17 @@ go run . artisan order:generate-test-data --tenant={code} --count=1000
 go run . artisan payment:generate-test-data --tenant={code} --count=1000
 ```
 
+### 清理孤儿库（升级后执行一次）
+
+以前的永久删除只删租户行，库和专用账号会留在服务器上，导致同一 code 再开户时被 `tenant_storage_exists` 拒绝。用下面的命令查找并清理：
+
+```bash
+go run . artisan tenant:orphans          # 只列出：带租户前缀、但没有任何租户（含回收站）引用的库 / schema
+go run . artisan tenant:orphans --drop   # 确认后删除（含配对的 t_<code> 账号），不可恢复，先备份
+```
+
+只认带 `TENANCY_DATABASE_PREFIX` / `TENANCY_SCHEMA_PREFIX` 前缀的库，平台库和保留 schema 永远不会被删除。没有配对孤儿库的 `t_` 账号只列出、不删除（可能是 DBA 自建的）。
+
 ### 建库与密码
 
 - `host` 空：在平台实例 `CREATE`
