@@ -23,6 +23,7 @@ Put business logic in `app/services` by default (one package, domain-oriented fi
 | Data scope | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy` |
 | Order filters + JSON | `app/services/order_filters.go`, `order_json.go` | same package as CRUD |
 | Tenancy helpers | `app/tenancy` | hints / CacheKey / StoragePrefix |
+| Tenant connection / admin (same package, split files) | `app/services/tenant_connection_*.go`, `tenant_admin_*.go` | large files split by responsibility; still `package services` |
 | Import task center | services + controllers | no separate `app/imports` |
 
 When extracting a domain package later: move the module and keep the matching Provider as the blank-import / hook injection point; domain packages must not import `app/services`.

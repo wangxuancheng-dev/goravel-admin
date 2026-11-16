@@ -24,6 +24,7 @@
 | 数据权限 | `app/rbac` | `ApplyDataScope` / `CanAccessOwnedBy` 等 |
 | 订单筛选与 JSON | `app/services/order_filters.go`、`order_json.go` | 与 CRUD 同包 |
 | 租户解析 | `app/tenancy` | Hint / CacheKey / StoragePrefix 等 |
+| 租户连接 / 开户（同包多文件） | `app/services/tenant_connection_*.go`、`tenant_admin_*.go` | 大文件按职责拆文件，仍属 `services` 包 |
 | 导入任务中心 | services + controllers | 不必再拆 `app/imports` |
 
 域包可外迁时：搬模块代码 + 保留对应 Provider 作为 blank-import / 钩子注入点；不要让域包反向依赖 `app/services`。
