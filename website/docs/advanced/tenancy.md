@@ -310,6 +310,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 10 / open 20）；户多时按下方 [规模与推荐配置](/advanced/tenancy-scaling) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
+6. **`TENANCY_DB_DEDICATED_USER=true`**：每个租户一个只能访问自己库的 DB 账号，代码写错也跨不了库（见生产要点 5）。只影响此后新开的租户；存量租户继续用原账号，需要时在平台编辑租户凭据更换。
 
 
 

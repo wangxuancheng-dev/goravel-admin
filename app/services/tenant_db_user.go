@@ -105,7 +105,7 @@ func createDedicatedDBUser(tenant *models.Tenant) error {
 			fmt.Sprintf("ALTER USER %s IDENTIFIED BY '%s'", account, password),
 		} {
 			if err := execWithSecret(q, sql); err != nil {
-				return fmt.Errorf("create tenant DB user %s: %w", user, err)
+				return dedicatedUserErr("create tenant DB user "+user, err)
 			}
 		}
 		return nil
@@ -119,7 +119,7 @@ func createDedicatedDBUser(tenant *models.Tenant) error {
 			verb = "ALTER"
 		}
 		if err := execWithSecret(q, fmt.Sprintf("%s ROLE %s WITH LOGIN PASSWORD '%s'", verb, quotePGIdent(user), password)); err != nil {
-			return fmt.Errorf("create tenant DB role %s: %w", user, err)
+			return dedicatedUserErr("create tenant DB role "+user, err)
 		}
 		// CREATE DATABASE ... OWNER / CREATE SCHEMA ... AUTHORIZATION need the platform
 		// role to be able to act as the owner. A superuser already can; otherwise this
@@ -141,7 +141,7 @@ func grantDedicatedDBUser(tenant *models.Tenant) error {
 	}
 	sql := fmt.Sprintf("GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%s'", tenant.Database, tenant.Username, dedicatedDBUserHost())
 	if _, err := appfacades.PlatformQuery().Exec(sql); err != nil {
-		return fmt.Errorf("grant tenant DB user %s: %w", tenant.Username, err)
+		return dedicatedUserErr("grant tenant DB user "+tenant.Username, err)
 	}
 	return nil
 }
@@ -168,6 +168,15 @@ func dropDedicatedDBUser(tenant *models.Tenant) error {
 		return fmt.Errorf("drop tenant DB user %s: %w", tenant.Username, err)
 	}
 	return nil
+}
+
+// dedicatedUserErr adds what to do when the platform account may not manage accounts.
+func dedicatedUserErr(what string, err error) error {
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "denied") || strings.Contains(msg, "permission") || strings.Contains(msg, "privilege") {
+		return fmt.Errorf("%s: %w (TENANCY_DB_DEDICATED_USER needs a platform DB account with CREATE USER + GRANT OPTION on MySQL or CREATEROLE on PostgreSQL; grant it, or set TENANCY_DB_DEDICATED_USER=false and give tenants credentials)", what, err)
+	}
+	return fmt.Errorf("%s: %w", what, err)
 }
 
 // execWithSecret runs a statement that carries a password on q's connection pool

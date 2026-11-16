@@ -182,6 +182,7 @@ PLATFORM_ADMIN_NAME=平台管理员
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
 4. **Connection pool**: per-tenant `TENANCY_POOL_MAX_*` (default idle 10 / open 20); at higher tenant counts, tighten using [Scale and recommended settings](/en/advanced/tenancy-scaling) so MySQL is not exhausted.
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
+6. **`TENANCY_DB_DEDICATED_USER=true`**: one DB account per tenant that can only reach its own database, so even a coding mistake cannot cross databases (see production note 5). Applies to tenants created afterwards; existing tenants keep their credentials until changed on the platform.
 
 
 

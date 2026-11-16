@@ -3,6 +3,8 @@ package feature_test
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +94,20 @@ func TestDedicatedTenantDBUserIsolatedByServer(t *testing.T) {
 		err = appfacades.OrmQuery(ctx).Raw(fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`tenants`", platformDB)).Scan(&n)
 	}
 	require.Error(t, err, "the dedicated account read the platform database")
+
+	// Backup and restore run with the dedicated account (no PROCESS / SUPER).
+	if _, err := exec.LookPath(map[bool]string{true: "pg_dump", false: "mysqldump"}[postgres]); err == nil {
+		_, err := services.BackupTenant(tn, 0)
+		require.NoError(t, err, "backup with the dedicated account")
+		files, _, err := services.ListTenantBackups(tn)
+		require.NoError(t, err)
+		require.NotEmpty(t, files)
+		tmp, cleanup, err := services.FetchTenantBackup(tn, files[0].Name)
+		require.NoError(t, err)
+		require.NoError(t, services.RestoreTenantFromFile(tn, tmp), "restore with the dedicated account")
+		cleanup()
+		_ = os.RemoveAll(services.TenantBackupDir(tn.Code))
+	}
 
 	// Dropping the storage drops the account.
 	require.NoError(t, conn.DropStorage(tn))
