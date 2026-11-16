@@ -57,6 +57,13 @@ type SearchResult struct {
 	Hits  []map[string]any
 }
 
+// IndexDropper is implemented by engines that can delete a whole index (and forget
+// that they ensured it). Tenant indexes are dropped with the tenant: see
+// DropTenantIndexes.
+type IndexDropper interface {
+	DropIndex(ctx context.Context, index string) error
+}
+
 // QueryReadyEngine 可选能力：驱动声明全文/筛选检索是否已真正可用。
 type QueryReadyEngine interface {
 	QueryReady() bool

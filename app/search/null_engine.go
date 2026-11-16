@@ -21,5 +21,7 @@ func (nullEngine) Search(ctx context.Context, index string, req SearchRequest) (
 
 func (nullEngine) EnsureIndex(ctx context.Context, index string) error { return nil }
 
+func (nullEngine) DropIndex(ctx context.Context, index string) error { return nil }
+
 // NewNullEngine 供 provider / 测试使用。
 func NewNullEngine() Engine { return nullEngine{} }

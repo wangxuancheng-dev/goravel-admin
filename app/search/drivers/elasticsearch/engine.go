@@ -61,6 +61,25 @@ func (e *Engine) Delete(ctx context.Context, index, documentID string) error {
 	return deleteDocument(ctx, e.client, e.fullIndex(index), documentID)
 }
 
+// DropIndex deletes an index (a missing one is fine) and forgets it was ensured.
+func (e *Engine) DropIndex(ctx context.Context, index string) error {
+	full := e.fullIndex(index)
+	ensureIndexDone.Delete(full)
+	res, err := e.client.Indices.Delete([]string{full},
+		e.client.Indices.Delete.WithContext(ctx),
+		e.client.Indices.Delete.WithIgnoreUnavailable(true),
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.IsError() && res.StatusCode != 404 {
+		b, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("elasticsearch delete index %s: %s: %s", full, res.Status(), string(b))
+	}
+	return nil
+}
+
 func (e *Engine) EnsureIndex(ctx context.Context, index string) error {
 	if search.IsOrdersIndexShortName(index) {
 		return EnsureOrdersIndexNamed(ctx, e, index)

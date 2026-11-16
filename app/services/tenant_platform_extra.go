@@ -12,7 +12,9 @@ import (
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
+	"goravel/app/search"
 	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 )
 
 // TenantOverview is a quick health snapshot of a tenant database.
@@ -193,9 +195,26 @@ func (s *TenantAdminService) ForceDeleteTenant(id uint, confirmCode string) erro
 	if tenantOpBusy(tenant) {
 		return apperrors.ErrTenantOpInProgress
 	}
+	// The code becomes reusable below: its search indexes must go first.
+	if err := dropTenantSearchIndexes(tenant); err != nil {
+		return err
+	}
 	s.conn.Forget(tenant.ConnectionName)
 	_ = NewTenantDomainService().PurgeAllForTenant(tenant.ID)
 	if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// dropTenantSearchIndexes deletes the tenant's search indexes before its row (and with
+// it the code) is gone for good. Indexes are named after the code, so a later tenant
+// reusing the code would otherwise search the old tenant's documents. On failure the
+// caller keeps the tenant row, so the code stays taken until a retry succeeds.
+func dropTenantSearchIndexes(t *models.Tenant) error {
+	ctx := tenancyctx.WithTenant(context.Background(), t.ID, t.ConnectionName, t.Code)
+	if err := search.DropTenantIndexes(ctx); err != nil {
+		facades.Log().Errorf("drop search indexes of tenant %s: %v", t.Code, err)
 		return err
 	}
 	return nil
@@ -235,6 +254,9 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 		if withPurge {
 			_ = PurgeTenantObjectStorage(t.Code)
 			_ = PurgeTenantBackups(t.Code)
+		}
+		if err := dropTenantSearchIndexes(t); err != nil {
+			continue // keep the row (and code) until its indexes are gone
 		}
 		s.conn.Forget(t.ConnectionName)
 		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", t.ID).ForceDelete(&models.Tenant{}); err != nil {

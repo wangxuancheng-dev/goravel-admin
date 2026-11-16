@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/goravel/framework/facades"
@@ -17,8 +18,18 @@ import (
 
 var (
 	ensureIndexMu   sync.Mutex
-	ensureIndexDone sync.Map // full index name -> struct{}
+	ensureIndexDone sync.Map // full index name -> time.Time it was ensured
 )
+
+// ensureIndexTTL bounds how long an "index exists" note is trusted. Another instance
+// may drop the index (tenant deleted, code reused); a stale note would let the first
+// write auto-create it with dynamic mappings instead of the orders mapping.
+const ensureIndexTTL = 5 * time.Minute
+
+func indexEnsured(full string) bool {
+	v, ok := ensureIndexDone.Load(full)
+	return ok && time.Since(v.(time.Time)) < ensureIndexTTL
+}
 
 // EnsureOrdersIndex 创建配置短名订单索引（单库 / 未绑租户 ctx）。
 func EnsureOrdersIndex(ctx context.Context, e *Engine) error {
@@ -35,18 +46,18 @@ func EnsureOrdersIndexNamed(ctx context.Context, e *Engine, shortName string) er
 		return fmt.Errorf("orders index short name empty (tenant unbound under tenancy?)")
 	}
 	full := e.fullIndex(shortName)
-	if _, ok := ensureIndexDone.Load(full); ok {
+	if indexEnsured(full) {
 		return nil
 	}
 	ensureIndexMu.Lock()
 	defer ensureIndexMu.Unlock()
-	if _, ok := ensureIndexDone.Load(full); ok {
+	if indexEnsured(full) {
 		return nil
 	}
 	if err := initOrdersIndexNamed(ctx, e, shortName); err != nil {
 		return err
 	}
-	ensureIndexDone.Store(full, struct{}{})
+	ensureIndexDone.Store(full, time.Now())
 	return nil
 }
 

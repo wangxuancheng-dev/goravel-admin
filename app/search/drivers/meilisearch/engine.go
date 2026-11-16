@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/goravel/framework/contracts/config"
 	meili "github.com/meilisearch/meilisearch-go"
@@ -22,7 +23,25 @@ type Engine struct {
 	prefix string
 
 	ensureMu   sync.Mutex
-	ensureDone sync.Map // full index uid -> struct{}
+	ensureDone sync.Map // full index uid -> time.Time it was ensured
+}
+
+// ensureTTL bounds how long an "index exists with its settings" note is trusted:
+// another instance may drop the index (tenant deleted, code reused).
+const ensureTTL = 5 * time.Minute
+
+func (e *Engine) ensured(uid string) bool {
+	v, ok := e.ensureDone.Load(uid)
+	return ok && time.Since(v.(time.Time)) < ensureTTL
+}
+
+// DropIndex deletes an index and forgets it was ensured. Meilisearch deletes
+// asynchronously; a missing index only fails the server-side task.
+func (e *Engine) DropIndex(ctx context.Context, index string) error {
+	uid := e.fullIndex(strings.TrimSpace(index))
+	e.ensureDone.Delete(uid)
+	_, err := e.client.DeleteIndexWithContext(ctx, uid)
+	return err
 }
 
 // NewEngine creates a Meilisearch engine from config.
@@ -118,12 +137,12 @@ func (e *Engine) EnsureIndex(ctx context.Context, index string) error {
 		return fmt.Errorf("meilisearch index name empty")
 	}
 	uid := e.fullIndex(index)
-	if _, ok := e.ensureDone.Load(uid); ok {
+	if e.ensured(uid) {
 		return nil
 	}
 	e.ensureMu.Lock()
 	defer e.ensureMu.Unlock()
-	if _, ok := e.ensureDone.Load(uid); ok {
+	if e.ensured(uid) {
 		return nil
 	}
 
@@ -169,7 +188,7 @@ func (e *Engine) EnsureIndex(ctx context.Context, index string) error {
 			return fmt.Errorf("meilisearch update settings %s: %w", uid, err)
 		}
 	}
-	e.ensureDone.Store(uid, struct{}{})
+	e.ensureDone.Store(uid, time.Now())
 	return nil
 }
 

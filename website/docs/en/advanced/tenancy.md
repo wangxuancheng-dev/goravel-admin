@@ -623,7 +623,7 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 1. 业务用 `OrmQuery(ctx)`；平台路由**不**挂 `Tenant` 中间件；平台元数据用 `PlatformOrmQuery`（钉死平台连接）。
 2. 隔离是**切库/切 Schema**，不是行级 `tenant_id` GlobalScope。
 3. 缓存/上传（含 `chunks/`、导出、导入与附件临时目录）走租户前缀。
-4. 搜索索引绑定后为 `{code}_orders`；未绑定 fail-closed，禁止回退共享 `orders`。
+4. Search indexes are `{code}_orders` when bound (the full code, never truncated); unbound fails closed and never falls back to the shared `orders`. Before a tenant is deleted for good (platform force-delete / `tenant:cleanup-deleted` / delete after purge) all its search indexes are dropped; if that fails the tenant row stays and the code is not freed (a new tenant reusing the code must not read the old tenant's documents). Creating a tenant also clears indexes left under its code.
 5. 导出/搜索队列缺 `tenant_id` 时 fail-closed，禁止写到平台库。
 6. HTTP 手动跑定时任务自动带当前 `--tenant`，禁止扫全租户；cron 可遍历启用租户。
 7. 队列表 `jobs` / `failed_jobs` 读平台连接（`QUEUE_DATABASE_CONNECTION`）。

@@ -425,6 +425,9 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 		})
 	}
 	if args.ForceDeleteAfter && tenant.ID > 0 {
+		if err := dropTenantSearchIndexes(tenant); err != nil {
+			return err
+		}
 		sconn := NewTenantConnectionService()
 		sconn.Forget(tenant.ConnectionName)
 		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {

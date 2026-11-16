@@ -1,7 +1,8 @@
 package services
 
 import (
-	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"time"
 
@@ -82,6 +83,15 @@ func NormalizeTenantLastOpStatusFilter(raw string) string {
 	default:
 		return ""
 	}
+}
+
+// pendingConnectionName is the unique placeholder connection_name of a tenant row
+// until its id is known (tenant_<id> replaces it right after the insert). Derived
+// from a hash of the code: "tenant_pending_"+code overflowed the 64-char column for
+// codes over 49 chars (PostgreSQL rejected the insert, MySQL may truncate it).
+func pendingConnectionName(code string) string {
+	sum := sha256.Sum256([]byte(code))
+	return "tenant_pending_" + hex.EncodeToString(sum[:12])
 }
 
 // errCrossDriverEndpoint rejects a tenant on another driver than the platform database
@@ -273,6 +283,10 @@ func (s *TenantAdminService) GetByID(id uint) (*models.Tenant, error) {
 	if err := appfacades.PlatformOrmQuery(nil).Where("id", id).First(&tenant); err != nil {
 		return nil, apperrors.ErrTenantNotFound.WithError(err)
 	}
+	// Goravel's First reports no error for a missing row and leaves dest empty.
+	if tenant.ID == 0 {
+		return nil, apperrors.ErrTenantNotFound
+	}
 	return &tenant, nil
 }
 
@@ -284,6 +298,9 @@ func (s *TenantAdminService) GetByIDIncludingTrashed(id uint) (*models.Tenant, e
 	var tenant models.Tenant
 	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", id).First(&tenant); err != nil {
 		return nil, apperrors.ErrTenantNotFound.WithError(err)
+	}
+	if tenant.ID == 0 { // missing row: Goravel's First reports no error
+		return nil, apperrors.ErrTenantNotFound
 	}
 	return &tenant, nil
 }
@@ -363,7 +380,7 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		Schema:          schemaName,
 		Username:        strings.TrimSpace(input.Username),
 		Password:        sealedPassword,
-		ConnectionName:  fmt.Sprintf("tenant_pending_%s", code),
+		ConnectionName:  pendingConnectionName(code),
 	}
 	if input.StorageLimitBytes != nil && *input.StorageLimitBytes > 0 {
 		tenant.StorageLimitBytes = *input.StorageLimitBytes
@@ -375,6 +392,9 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		return nil, err
 	}
 	tenant.ConnectionName = TenantConnectionName(tenant.ID)
+	// Best effort: indexes a former tenant with this code left behind (deleted before
+	// indexes were dropped with tenants) must not serve the new tenant.
+	_ = dropTenantSearchIndexes(&tenant)
 	if _, err := appfacades.PlatformOrmQuery(nil).Model(&tenant).Update(map[string]any{
 		"connection_name": tenant.ConnectionName,
 	}); err != nil {

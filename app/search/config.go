@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -102,14 +103,45 @@ func IsOrdersIndexShortName(index string) bool {
 	return strings.HasSuffix(index, "_"+base) || strings.HasSuffix(index, "_orders")
 }
 
+// sanitizeIndexSegment maps a tenant code to an index-name segment. It must stay
+// one-to-one for valid codes (^[a-z][a-z0-9_]{0,62}$ maps to itself): truncating it
+// would let two tenants share an index. 63 chars plus the resource name stay far
+// below Elasticsearch's 255-byte index name limit.
 func sanitizeIndexSegment(code string) string {
 	s := strings.ToLower(strings.TrimSpace(code))
 	s = tenantIndexSegment.ReplaceAllString(s, "_")
-	s = strings.Trim(s, "_")
-	if len(s) > 48 {
-		s = s[:48]
+	return strings.Trim(s, "_")
+}
+
+// DropTenantIndexes deletes the search indexes of the tenant bound to ctx, for every
+// registered resource. Called when a tenant is deleted for good and before a tenant is
+// created: tenant codes can be reused once the old tenant is gone, and its index
+// (named after the code) would otherwise serve the old tenant's documents to the new
+// one. A no-op without tenancy, without a bound tenant (never touches a shared index),
+// with search off, or with an engine that cannot drop indexes.
+func DropTenantIndexes(ctx context.Context) error {
+	if !tenancy.Enabled() || !Enabled() {
+		return nil
 	}
-	return s
+	engine, err := Resolve()
+	if err != nil || engine == nil {
+		return err
+	}
+	dropper, ok := engine.(IndexDropper)
+	if !ok {
+		return nil
+	}
+	var errs []error
+	for _, resource := range RegisteredResources() {
+		name := ResourceIndexShortNameFor(ctx, resource)
+		if name == "" {
+			continue // unbound: fail closed
+		}
+		if err := dropper.DropIndex(ctx, name); err != nil {
+			errs = append(errs, fmt.Errorf("drop search index %s: %w", name, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // ShouldRunQueueWorker 是否启动搜索同步专用队列 Worker。
