@@ -249,7 +249,7 @@ func TestPostgresTenantLifecycle(t *testing.T) {
 
 	// Without a host the tenant would go on the platform server, which runs another
 	// driver here (MySQL): rejected up front instead of failing half-way.
-	if q := appfacades.PlatformOrmQuery(nil); q != nil && !isPostgres(q) {
+	if !isPostgres(appfacades.PlatformOrmQuery(nil)) {
 		_, err := services.NewTenantAdminService().Create(services.TenantCreateInput{
 			Code: "pgn" + suffix, Name: "no host", Driver: "postgres",
 		})

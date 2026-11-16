@@ -3,6 +3,7 @@ package facades
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -23,35 +24,42 @@ func Orm() orm.Orm {
 // When tenancy is enabled and ctx carries tenant_connection, uses that connection.
 // Business code should prefer OrmQuery(ctx) over Orm().Query().
 //
-// May return nil when Orm is unavailable or the tenant connection failed to init
-// (framework Connection returns an Orm with a nil query on BuildQuery error).
+// Never nil: when the Orm is unavailable or the connection could not be built (the
+// framework hands back an Orm with a nil query), it returns a stand-in whose calls
+// fail with that error (see QueryUnavailable). A tenant ctx never falls back to the
+// platform connection.
 func OrmQuery(ctx context.Context) orm.Query {
 	o := Orm()
 	if o == nil {
-		return nil
+		return newUnavailableQuery(ctx, errors.New("orm unavailable"))
 	}
 	if ctx == nil {
-		return o.Query()
+		return orUnavailable(ctx, o.Query(), "default")
 	}
 	if tenancy.Enabled() {
 		if conn, ok := tenancyctx.ConnectionFrom(ctx); ok {
 			to := BuildOrmConnection(conn)
 			if to == nil {
-				return nil
+				return newUnavailableQuery(ctx, apperrors.ErrTenantConnectionFailed.WithParams(map[string]any{"connection": conn}))
 			}
-			return to.WithContext(ctx).Query()
+			return orUnavailable(ctx, to.WithContext(ctx).Query(), conn)
 		}
 	}
-	return o.WithContext(ctx).Query()
+	return orUnavailable(ctx, o.WithContext(ctx).Query(), "default")
+}
+
+// orUnavailable returns q, or the unavailable stand-in when the framework built none.
+func orUnavailable(ctx context.Context, q orm.Query, conn string) orm.Query {
+	if q != nil {
+		return q
+	}
+	return newUnavailableQuery(ctx, fmt.Errorf("database connection %s unavailable", conn))
 }
 
 // OrmDriver returns the Goravel driver name of ctx's connection (mysql.Name "MySQL",
-// postgres.Name "PostgreSQL"), or "" when the connection is unavailable (OrmQuery nil).
+// postgres.Name "PostgreSQL"), or "" when the connection is unavailable.
 func OrmDriver(ctx context.Context) string {
-	if q := OrmQuery(ctx); q != nil {
-		return q.Driver()
-	}
-	return ""
+	return OrmQuery(ctx).Driver()
 }
 
 // BuildOrmConnection returns the Orm of a named connection. Tenant connections come
@@ -141,26 +149,30 @@ func PlatformConnectionName() string {
 
 // PlatformOrmQuery always uses the pinned platform (landlord) connection — tenants metadata / DDL only.
 // Safe to call while WithTenantConnection temporarily flips database.default for Artisan migrate/seed.
+// Never nil, like OrmQuery.
 func PlatformOrmQuery(ctx context.Context) orm.Query {
-	po := BuildOrmConnection(PlatformConnectionName())
+	name := PlatformConnectionName()
+	po := BuildOrmConnection(name)
 	if po == nil {
-		return nil
+		return newUnavailableQuery(ctx, fmt.Errorf("database connection %s unavailable", name))
 	}
 	if ctx == nil {
-		return po.Query()
+		return orUnavailable(ctx, po.Query(), name)
 	}
-	return po.WithContext(ctx).Query()
+	return orUnavailable(ctx, po.WithContext(ctx).Query(), name)
 }
 
 // SystemLogOrmQuery picks the DB for system_logs writes/reads.
 // Tenant-bound ctx -> tenant connection; otherwise landlord PlatformOrmQuery
 // (avoids writing into a flipped database.default during WithTenantConnection).
+// When the tenant connection is down, the log goes to the platform database: that
+// failure is exactly what the log should record.
 func SystemLogOrmQuery(ctx context.Context) orm.Query {
 	if tenancy.Enabled() && !tenancy.Bound(ctx) {
 		return PlatformOrmQuery(ctx)
 	}
 	q := OrmQuery(ctx)
-	if q == nil {
+	if down, _ := QueryUnavailable(q); down {
 		return PlatformOrmQuery(ctx)
 	}
 	return q

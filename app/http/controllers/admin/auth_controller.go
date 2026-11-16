@@ -263,7 +263,7 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	}
 
 	q := appfacades.OrmQuery(ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return response.Error(ctx, http.StatusInternalServerError, apperrors.ErrTenantConnectionFailed.Code)
 	}
 	var admin models.Admin

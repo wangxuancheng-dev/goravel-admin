@@ -838,8 +838,8 @@ func (s *CodeGeneratorServiceImpl) InstallModule(moduleName, tableName string, o
 func (s *CodeGeneratorServiceImpl) getGormDB() (*gorm.DB, error) {
 	// Prefer tenant connection from request/job ctx (OrmQuery), not platform default.
 	query := appfacades.OrmQuery(s.ctx)
-	if query == nil {
-		return nil, fmt.Errorf("Query() returned nil")
+	if down, err := appfacades.QueryUnavailable(query); down {
+		return nil, err
 	}
 
 	// Use reflection to call Instance() on Query object

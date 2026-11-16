@@ -75,7 +75,7 @@ func getMySQLInfoFromDB(ctx http.Context) map[string]any {
 	}
 
 	query := appfacades.OrmQuery(ctx)
-	if query == nil {
+	if down, _ := appfacades.QueryUnavailable(query); down {
 		return result
 	}
 
@@ -223,7 +223,7 @@ func getPostgreSQLInfoFromDB(ctx http.Context) map[string]any {
 	}
 
 	query := appfacades.OrmQuery(ctx)
-	if query == nil {
+	if down, _ := appfacades.QueryUnavailable(query); down {
 		return result
 	}
 

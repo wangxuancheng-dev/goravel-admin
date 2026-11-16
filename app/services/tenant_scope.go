@@ -94,7 +94,7 @@ func (s *TenantConnectionService) ListReadyActiveTenantsPage(afterID uint, limit
 
 func readyActiveTenantQuery() orm.Query {
 	q := appfacades.PlatformOrmQuery(nil)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return nil
 	}
 	// Legacy empty provision_status is treated as ready (see Tenant.IsProvisionReady).

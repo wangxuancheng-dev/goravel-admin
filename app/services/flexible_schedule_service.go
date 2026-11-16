@@ -76,7 +76,7 @@ func NewFlexibleScheduleService(ctx context.Context) *FlexibleScheduleService {
 
 // EnsureDefaults seeds whitelist SeedDefault rows for the current tenant.
 func (s *FlexibleScheduleService) EnsureDefaults() {
-	if appfacades.PlatformOrmQuery(s.ctx) == nil {
+	if down, _ := appfacades.QueryUnavailable(appfacades.PlatformOrmQuery(s.ctx)); down {
 		return
 	}
 	tid, err := s.scopeTenantID()
@@ -99,7 +99,7 @@ func (s *FlexibleScheduleService) scopeTenantID() (uint, error) {
 
 func (s *FlexibleScheduleService) ensureWhitelistRowsForTenant(tenantID uint) {
 	q := appfacades.PlatformOrmQuery(s.ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return
 	}
 	for _, h := range ListFlexibleHandlers() {
@@ -211,7 +211,7 @@ func (s *FlexibleScheduleService) List() ([]models.FlexibleSchedule, error) {
 		return nil, err
 	}
 	q := appfacades.PlatformOrmQuery(s.ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return nil, apperrors.ErrParamsError
 	}
 	var rows []models.FlexibleSchedule
@@ -228,7 +228,7 @@ func (s *FlexibleScheduleService) GetByID(id uint) (*models.FlexibleSchedule, er
 		return nil, err
 	}
 	q := appfacades.PlatformOrmQuery(s.ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return nil, apperrors.ErrParamsError
 	}
 	var row models.FlexibleSchedule
@@ -323,7 +323,7 @@ func (s *FlexibleScheduleService) RunNow(id uint, force bool) (*models.FlexibleS
 // Handlers run on the schedule queue workers, not inside the tick process.
 func (s *FlexibleScheduleService) TickDue(now time.Time) (dispatched int, err error) {
 	q := appfacades.PlatformOrmQuery(s.ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return 0, nil
 	}
 	nowUTC := now.UTC()
@@ -369,7 +369,7 @@ func (s *FlexibleScheduleService) TickDue(now time.Time) (dispatched int, err er
 
 func (s *FlexibleScheduleService) claimSlot(id uint, slot string) bool {
 	q := appfacades.PlatformOrmQuery(s.ctx)
-	if q == nil || slot == "" {
+	if down, _ := appfacades.QueryUnavailable(q); down || slot == "" {
 		return false
 	}
 	res, err := q.Model(&models.FlexibleSchedule{}).

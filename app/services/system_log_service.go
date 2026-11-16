@@ -238,7 +238,7 @@ func (s *SystemLogServiceImpl) RecordHTTP(ctx http.Context, level, module, messa
 	}
 
 	q := appfacades.SystemLogOrmQuery(ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return nil
 	}
 	if s.hasTraceIDColumnCtx(ctx) {
@@ -283,7 +283,7 @@ func (s *SystemLogServiceImpl) Record(ctx context.Context, level, module, messag
 	}
 
 	q := appfacades.SystemLogOrmQuery(ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return nil
 	}
 	if s.hasTraceIDColumnCtx(ctx) {

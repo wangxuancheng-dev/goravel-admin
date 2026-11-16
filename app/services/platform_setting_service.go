@@ -16,7 +16,7 @@ const PlatformSettingCaptchaType = "captcha_type"
 // (e.g. migration not applied yet), so login never breaks because of settings.
 func GetPlatformSetting(ctx context.Context, key, def string) string {
 	q := appfacades.PlatformOrmQuery(ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return def
 	}
 	var rows []models.PlatformSetting
@@ -29,7 +29,7 @@ func GetPlatformSetting(ctx context.Context, key, def string) string {
 // SetPlatformSetting upserts a landlord setting.
 func SetPlatformSetting(ctx context.Context, key, value string) error {
 	q := appfacades.PlatformOrmQuery(ctx)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return apperrors.ErrInvalidArgument
 	}
 	var rows []models.PlatformSetting

@@ -8,7 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	appfacades "goravel/app/facades"
+	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancyctx"
 )
 
 // createOrderWithCollision makes the first generated order number collide with an
@@ -41,6 +44,33 @@ func createOrderWithCollision(t *testing.T, ctx context.Context, label string) {
 	got, _, err := services.NewOrderService(ctx).GetOrderByOrderNo(second.OrderNo)
 	require.NoError(t, err, "%s: the retried order was committed", label)
 	assert.Equal(t, "collide b", got.Remark)
+}
+
+// TestOrmQueryUnavailableConnection: a ctx bound to a tenant connection that cannot be
+// built gets a query whose calls fail (no nil-pointer panic in a chain, and no
+// fallback to the platform database), while system logs still reach the platform.
+func TestOrmQueryUnavailableConnection(t *testing.T) {
+	withTenancyDriver(t, "database")
+	ctx := tenancyctx.WithTenant(context.Background(), 987654321, "tenant_987654321", "nosuchtenant")
+
+	q := appfacades.OrmQuery(ctx)
+	require.NotNil(t, q)
+	down, reason := appfacades.QueryUnavailable(q)
+	require.True(t, down, "the connection of a missing tenant cannot be built")
+	require.Error(t, reason)
+
+	var admin models.Admin
+	err := appfacades.OrmQuery(ctx).Where("id", 1).Where("status", 1).OrderBy("id").First(&admin)
+	require.Error(t, err, "a chained query on an unavailable connection fails")
+	assert.Zero(t, admin.ID, "nothing was read from another database")
+	n, err := appfacades.OrmQuery(ctx).Model(&models.Admin{}).Count()
+	assert.Error(t, err)
+	assert.Zero(t, n)
+	assert.Equal(t, "", appfacades.OrmDriver(ctx))
+
+	logQ := appfacades.SystemLogOrmQuery(ctx)
+	down, _ = appfacades.QueryUnavailable(logQ)
+	assert.False(t, down, "system logs of a broken tenant connection go to the platform database")
 }
 
 // TestOrderNoCollisionOnPlatform runs the retry on the platform database (MySQL in CI,

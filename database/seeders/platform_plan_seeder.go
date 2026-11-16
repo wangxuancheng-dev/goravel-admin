@@ -28,7 +28,7 @@ func (s *PlatformPlanSeeder) Run() error {
 		return nil
 	}
 	q := appfacades.PlatformOrmQuery(context.Background())
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return nil
 	}
 

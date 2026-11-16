@@ -195,8 +195,8 @@ func (s *TokenServiceImpl) DeleteTokensByUserExcept(tokenableType string, tokena
 func (s *TokenServiceImpl) GetTokensByUser(tokenableType string, tokenableID uint) ([]models.PersonalAccessToken, error) {
 	var tokens []models.PersonalAccessToken
 	q := s.query()
-	if q == nil {
-		return nil, apperrors.ErrQueryFailed.WithMessage("orm query is nil")
+	if down, err := appfacades.QueryUnavailable(q); down {
+		return nil, apperrors.ErrQueryFailed.WithError(err)
 	}
 	err := q.Model(&models.PersonalAccessToken{}).
 		Where("tokenable_type", tokenableType).

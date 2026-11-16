@@ -92,7 +92,7 @@ func loadActiveSubscriptionPicks(tenantIDs []uint) (map[uint]activeSubPick, []st
 	out := map[uint]activeSubPick{}
 	planCodes := []string{}
 	q := appfacades.PlatformOrmQuery(nil)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return out, planCodes, nil
 	}
 

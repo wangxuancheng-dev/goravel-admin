@@ -82,7 +82,7 @@ func TenantConnectionName(tenantID uint) string {
 // database server.
 func samePlatformDriver(driverName string) bool {
 	q := appfacades.PlatformOrmQuery(nil)
-	if q == nil {
+	if down, _ := appfacades.QueryUnavailable(q); down {
 		return true // cannot tell; CreateStorage reports the real error
 	}
 	// Query.Driver() reports the Goravel driver's name ("MySQL" / "PostgreSQL").

@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/goravel/framework/facades"
@@ -61,8 +60,8 @@ func RunFlexibleScheduleJob(ctx context.Context, scheduleID uint, slot string) e
 
 func loadFlexibleScheduleByID(id uint) (*models.FlexibleSchedule, error) {
 	q := appfacades.PlatformOrmQuery(nil)
-	if q == nil {
-		return nil, errors.New("platform orm unavailable")
+	if down, err := appfacades.QueryUnavailable(q); down {
+		return nil, err
 	}
 	var row models.FlexibleSchedule
 	if err := q.Where("id", id).First(&row); err != nil || row.ID == 0 {
