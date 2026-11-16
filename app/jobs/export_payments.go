@@ -156,6 +156,11 @@ func (r *ExportPayments) getTableNames(filters services.PaymentFilters) []string
 
 // Export one sharding table
 func (r *ExportPayments) exportTable(ctx context.Context, w *csv.Writer, tableName string, filters services.PaymentFilters, paymentMethodMap map[uint]models.PaymentMethod, lang, timezone, direction string, chunkSize int, shouldStop func() bool) error {
+	// A month with no payments has no shard table yet.
+	if !appfacades.SchemaHasTable(ctx, tableName) {
+		facades.Log().Warningf("payments sharding table missing, skip: table=%s", tableName)
+		return nil
+	}
 	lastTimeStr := ""
 	var lastID uint = 0
 	field := "created_at"
@@ -190,10 +195,6 @@ func (r *ExportPayments) exportTable(ctx context.Context, w *csv.Writer, tableNa
 
 		var payments []models.Payment
 		if err := query.Limit(chunkSize).Get(&payments); err != nil {
-			if IsTableNotExistsError(err) {
-				facades.Log().Warningf("payments sharding table missing, skip: table=%s", tableName)
-				return nil
-			}
 			return fmt.Errorf("query payments failed: %v", err)
 		}
 

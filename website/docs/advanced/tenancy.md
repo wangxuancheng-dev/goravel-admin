@@ -590,8 +590,14 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
 4. **登录限流**：`login` limiter 键含 body/query/header/`subdomain` 租户提示，避免跨租户互相锁号。
 5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
 6. **PG sslmode**：`TENANCY_POSTGRES_SSLMODE` 或 `DB_SSLMODE`。
+   - **跨驱动租户**：租户驱动与平台库不同（如平台 MySQL、租户 PostgreSQL）时必须填 host/port/账号，留空会被拒绝（空 host 表示建在平台库服务器上）。
+   - **PG schema 隔离**：同库多个租户各占一个 schema；表存在判断、表清单只看本租户 schema（框架原生实现会扫全库所有 schema），可安全并行迁移。
+   - 测试：设置 `TENANCY_TEST_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` 后 `TestPostgresTenantLifecycle` 会在平台库上创建 PG 租户（database + schema 隔离）跑全流程；CI 自带 postgres 服务。
 7. **迁移回滚**：`tenant:rollback` / `rollback-all`（及 UI/fleet）；默认建议 `--step=1`，避免 0/0 整批撤销首次 migrate。
-8. **备份/恢复**：`tenant:backup [--keep=N]`、`tenant:backup-all`（入队，非同步 dump 全舰队）、`tenant:backup-scheduled`（日批轮转）；PG schema 隔离备份用 `pg_dump -n`，恢复用 `PGOPTIONS=--search_path`。
+8. **备份/恢复**：`tenant:backup [--keep=N]`、`tenant:backup-all`（入队，非同步 dump 全舰队）、`tenant:backup-scheduled`（日批轮转）。
+   - PG 只导出租户自己的 schema（`pg_dump -n`；独立库租户为 `public`），不会带上同库的其他 schema 租户。
+   - PG 恢复在单个事务里先清空该 schema（`DROP SCHEMA ... CASCADE`，含备份后新建的分表）再重放 dump，失败整体回滚、租户保持原样；平台 UI 与 `tenant:restore` 走同一实现。
+   - 需要与服务端同大版本或更新的 `pg_dump` / `psql`。
 9. **CLI 范围**：`RunTenantScope` 仅遍历 **active + ready**；`tenant:migrate-all` 仍可覆盖 pending（单独查询）；并发见 `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`。
 10. **未绑定隔离**：tenancy 开启但 ctx 未绑定时，`CacheKey` → `t_unbound:*`，`StoragePrefix` → `tenants/_unbound_/`（不与共享根冲突）。
 
@@ -758,7 +764,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
 16. 商户独立域名用边缘改写 Host（见上文）；勿为每个独立域改应用 env、CORS 白名单或独立部署。
-17. 业务目录（`app/services` / `http` / `jobs` / `console`）禁止 `facades.Orm().Query()`；CI 跑 `bash scripts/check-tenant-orm.sh`（租户运维白名单除外）。
+17. 业务目录（`app/services` / `http` / `jobs` / `console`）禁止 `facades.Orm().Query()`；CI 跑 `bash scripts/check-tenant-orm.sh`（租户运维白名单除外）。迁移（`database/migrations`）里的数据操作用 `migrationQuery()`：它在迁移事务内，`facades.Orm()` 不在（PostgreSQL 下看不到本迁移刚建的表）。
 18. 租户业务缓存/锁须经 `tenancy.CacheKey` / `TenantCacheKey`；CI 跑 `bash scripts/check-tenant-cache.sh`（平台/全局 key 白名单除外，见脚本 ALLOW）。
 
 ## Platform ops: domain board / onboard / health

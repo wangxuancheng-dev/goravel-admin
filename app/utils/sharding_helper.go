@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
+	"sort"
 	"time"
-
-	"github.com/goravel/framework/facades"
 
 	appfacades "goravel/app/facades"
 
@@ -175,143 +173,25 @@ func GetAllExistingShardingTables(ctx context.Context, baseTableName string) ([]
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	var tableNames []string
-
-	// 构建表名匹配模式：orders_YYYYMM 或 order_details_YYYYMM
-	pattern := fmt.Sprintf("%s_%%", baseTableName)
-
-	query, args := buildShardingTableQuery(ctx, pattern)
-
-	// 执行查询，使用 Scan 获取结果
-	var rows []map[string]any
-	if err := appfacades.OrmQuery(ctx).Raw(query, args...).Scan(&rows); err != nil {
+	// The framework Schema of ctx's connection (tenant when bound) lists its tables;
+	// it knows how each database scopes them (database on MySQL, schema on PostgreSQL).
+	tables, err := appfacades.SchemaTables(ctx)
+	if err != nil {
 		errorlog.Record(ctx, "sharding", "查询分表失败", map[string]any{
-			"pattern": pattern,
-			"error":   err.Error(),
+			"base_table": baseTableName,
+			"error":      err.Error(),
 		}, "查询分表失败: %v", err)
 		return nil, fmt.Errorf("查询分表失败: %v", err)
 	}
 
-	// 验证表名格式（确保是有效的分表名称，格式为 baseTableName_YYYYMM）
-	// 从 pattern 中提取基础表名（移除末尾的 %）
-	baseTableNameFromPattern := strings.TrimSuffix(pattern, "_%")
-	patternRegex := regexp.MustCompile(fmt.Sprintf("^%s_\\d{6}$", regexp.QuoteMeta(baseTableNameFromPattern)))
-
-	for _, row := range rows {
-		// 尝试不同的字段名格式（MySQL 可能返回不同的大小写）
-		var tableName string
-		var ok bool
-
-		// 尝试 table_name (小写)
-		if tableName, ok = row["table_name"].(string); !ok {
-			// 尝试 TABLE_NAME (大写)
-			if tableName, ok = row["TABLE_NAME"].(string); !ok {
-				// 尝试 name / NAME（DM 查询中统一别名为 name）
-				if tableName, ok = row["name"].(string); !ok {
-					if tableName, ok = row["NAME"].(string); !ok {
-						// 尝试遍历所有键
-						for key, value := range row {
-							if (key == "table_name" || key == "TABLE_NAME" || key == "Table_Name" || key == "name" || key == "NAME") && value != nil {
-								if str, isStr := value.(string); isStr {
-									tableName = str
-									ok = true
-									break
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		if ok && tableName != "" {
-			// 验证表名格式
-			if patternRegex.MatchString(tableName) {
-				tableNames = append(tableNames, tableName)
-			}
-		}
-	}
-
-	return tableNames, nil
-}
-
-// GetAllExistingShardingTablesByPattern 通过表名模式获取所有已存在的分表
-// 这是一个更通用的方法，可以通过自定义模式匹配
-// pattern: 表名匹配模式，如 "orders_%" 或 "order_details_%"
-func GetAllExistingShardingTablesByPattern(ctx context.Context, pattern string) ([]string, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	// 仅保留 baseTableName_YYYYMM 格式的分表
+	patternRegex := regexp.MustCompile(fmt.Sprintf(`^%s_\d{6}$`, regexp.QuoteMeta(baseTableName)))
 	var tableNames []string
-	query, args := buildShardingTableQuery(ctx, pattern)
-
-	// 执行查询，使用 Scan 获取结果
-	var rows []map[string]any
-	if err := appfacades.OrmQuery(ctx).Raw(query, args...).Scan(&rows); err != nil {
-		errorlog.Record(ctx, "sharding", "查询分表失败", map[string]any{
-			"pattern": pattern,
-			"error":   err.Error(),
-		}, "查询分表失败: %v", err)
-		return nil, fmt.Errorf("查询分表失败: %v", err)
-	}
-
-	for _, row := range rows {
-		if tableName, ok := row["table_name"].(string); ok {
-			tableNames = append(tableNames, tableName)
-			continue
-		}
-		if tableName, ok := row["TABLE_NAME"].(string); ok {
-			tableNames = append(tableNames, tableName)
-			continue
-		}
-		if tableName, ok := row["name"].(string); ok {
-			tableNames = append(tableNames, tableName)
-			continue
-		}
-		if tableName, ok := row["NAME"].(string); ok {
-			tableNames = append(tableNames, tableName)
+	for _, name := range tables {
+		if patternRegex.MatchString(name) {
+			tableNames = append(tableNames, name)
 		}
 	}
-
+	sort.Strings(tableNames)
 	return tableNames, nil
-}
-
-func resolveShardingDatabaseName(ctx context.Context) string {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	// Prefer goroutine-bound tenant Schema (BindBackground / HTTP middleware).
-	if s := appfacades.BoundTenantSchema(); s != nil && s.Orm() != nil {
-		if n := s.Orm().DatabaseName(); n != "" {
-			return n
-		}
-	}
-	// Prefer connection name from ctx, then the database that connection points at
-	// (tenant connections are not in the global config; ConnectionDatabaseName knows them).
-	if connKey := appfacades.SchemaConnectionKeyFrom(ctx); connKey != "" {
-		if n := appfacades.ConnectionDatabaseName(connKey); n != "" {
-			return n
-		}
-	}
-	if s := facades.Schema(); s != nil && s.Orm() != nil {
-		if n := s.Orm().DatabaseName(); n != "" {
-			return n
-		}
-	}
-	if n := facades.Config().GetString("database.connections.mysql.database"); n != "" {
-		return n
-	}
-	return facades.Config().GetString("database.connections.postgresql.database")
-}
-
-func buildShardingTableQuery(ctx context.Context, pattern string) (string, []any) {
-	dbName := resolveShardingDatabaseName(ctx)
-
-	return `
-		SELECT table_name
-		FROM information_schema.tables
-		WHERE table_schema = ?
-		AND table_name LIKE ?
-		ORDER BY table_name
-	`, []any{dbName, pattern}
 }

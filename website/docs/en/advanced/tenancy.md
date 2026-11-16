@@ -462,7 +462,13 @@ There is **no built-in** `CELL_ID`, global tenant router, or one-click cross-reg
 4. **登录限流**：`login` limiter 键含 body/query/header/`subdomain` 租户提示，避免跨租户互相锁号。
 5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
 6. **PG sslmode**：`TENANCY_POSTGRES_SSLMODE` 或 `DB_SSLMODE`。
-7. **备份/恢复**：`tenant:backup [--keep=N]`, `tenant:backup-all` (enqueue, not sync dump-all), `tenant:backup-scheduled` (daily rotate);PG schema 隔离备份用 `pg_dump -n`，恢复用 `PGOPTIONS=--search_path`。
+   - **Cross-driver tenants**: when the tenant driver differs from the platform database (e.g. MySQL platform, PostgreSQL tenant), host/port/credentials are required; an empty host (meaning "on the platform server") is rejected.
+   - **PG schema isolation**: tenants sharing a database each own a schema; table existence checks and table listings only look at the tenant's schema (the framework's own implementation scans every schema in the database), so they migrate safely in parallel.
+   - Tests: with `TENANCY_TEST_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` set, `TestPostgresTenantLifecycle` creates PG tenants (database and schema isolation) on the platform and runs the full lifecycle; CI provides a postgres service.
+7. **Backup / restore**: `tenant:backup [--keep=N]`, `tenant:backup-all` (enqueue, not sync dump-all), `tenant:backup-scheduled` (daily rotate).
+   - PG dumps only the tenant's own schema (`pg_dump -n`; `public` for a database-isolated tenant), never other schema tenants in the same database.
+   - PG restore empties that schema (`DROP SCHEMA ... CASCADE`, including shards created after the backup) and replays the dump in one transaction: a failure rolls back and leaves the tenant as it was. The platform UI and `tenant:restore` share this implementation.
+   - Needs `pg_dump` / `psql` of the server's major version or newer.
 8. **CLI scope**: `RunTenantScope` walks **active + ready** only; `tenant:migrate-all` can still cover pending (separate query); concurrency via `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`.
 9. **未绑定隔离**：tenancy 开启但 ctx 未绑定时，`CacheKey` → `t_unbound:*`，`StoragePrefix` → `tenants/_unbound_/`（不与共享根冲突）。
 
@@ -627,7 +633,7 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
 16. Vanity domains: edge Host rewrite (see above); do not add per-domain app env, CORS allowlist entries, or separate deploys.
-17. Business dirs (`app/services` / `http` / `jobs` / `console`) must not call `facades.Orm().Query()`; CI runs `bash scripts/check-tenant-orm.sh` (tenant-maintenance allowlist excepted).
+17. Business dirs (`app/services` / `http` / `jobs` / `console`) must not call `facades.Orm().Query()`; CI runs `bash scripts/check-tenant-orm.sh` (tenant-maintenance allowlist excepted). Data statements in migrations (`database/migrations`) use `migrationQuery()`: it runs inside the migration's transaction, `facades.Orm()` does not (on PostgreSQL it cannot see a table the migration just created).
 18. Tenant business cache/locks must use `tenancy.CacheKey` / `TenantCacheKey`; CI runs `bash scripts/check-tenant-cache.sh` (global/platform allowlist in script ALLOW).
 
 ## Platform ops: domain board / onboard / health

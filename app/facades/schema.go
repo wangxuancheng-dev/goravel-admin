@@ -33,6 +33,24 @@ func SchemaHasColumn(ctx context.Context, table, column string) bool {
 	return s.HasColumn(table, column)
 }
 
+// SchemaTables lists the table names of ctx's connection (the tenant's when ctx is
+// bound), through the framework Schema.
+func SchemaTables(ctx context.Context) ([]string, error) {
+	s, err := schemaFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tables, err := s.GetTables()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(tables))
+	for _, t := range tables {
+		names = append(names, t.Name)
+	}
+	return names, nil
+}
+
 // SchemaConnectionKey returns the active schema connection name (for caches).
 func SchemaConnectionKey() string {
 	schema := Schema()

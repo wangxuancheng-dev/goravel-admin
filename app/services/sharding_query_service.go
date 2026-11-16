@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	goravelmysql "github.com/goravel/mysql"
 	"github.com/samber/lo"
 
 	apperrors "goravel/app/errors"
@@ -125,8 +126,8 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTables(tableNames []string, filt
 	// 为每个存在的表构建查询
 	unionQueries := lo.Map(existingTableNames, func(tableName string, _ int) string {
 		return fmt.Sprintf(
-			"(SELECT %s FROM `%s` WHERE %s ORDER BY `%s` %s LIMIT %d)",
-			columnsStr, tableName, whereClause, orderField, orderDir, limitPerTable,
+			"(SELECT %s FROM %s WHERE %s ORDER BY %s %s LIMIT %d)",
+			columnsStr, s.quote(tableName), whereClause, s.quote(orderField), orderDir, limitPerTable,
 		)
 	})
 
@@ -161,10 +162,10 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTables(tableNames []string, filt
 	// 注意：虽然每个分表已经排序，但合并后需要重新排序以确保全局顺序正确
 	// 但由于每个分表已经限制了数量，合并后的数据量大大减少，排序会快很多
 	paginatedSQL := fmt.Sprintf(
-		"SELECT %s FROM (%s) as combined ORDER BY `%s` %s LIMIT ? OFFSET ?",
+		"SELECT %s FROM (%s) as combined ORDER BY %s %s LIMIT ? OFFSET ?",
 		columnsStr,
 		unionSQL,
-		orderField,
+		s.quote(orderField),
 		orderDir,
 	)
 
@@ -218,8 +219,8 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTablesForExport(tableNames []str
 		// 使用子查询包装，确保每个分表先排序
 		// 注意：导出需要所有数据，所以不限制数量，但先排序可以优化合并后的排序性能
 		return fmt.Sprintf(
-			"(SELECT %s FROM `%s` WHERE %s ORDER BY `%s` %s)",
-			columnsStr, tableName, whereClause, orderField, orderDir,
+			"(SELECT %s FROM %s WHERE %s ORDER BY %s %s)",
+			columnsStr, s.quote(tableName), whereClause, s.quote(orderField), orderDir,
 		)
 	})
 
@@ -239,10 +240,10 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTablesForExport(tableNames []str
 	// 注意：虽然每个分表已经排序，但合并后需要重新排序以确保全局顺序正确
 	// 但由于每个分表已经排序，合并后的排序会更快（归并排序）
 	exportSQL := fmt.Sprintf(
-		"SELECT %s FROM (%s) as combined ORDER BY `%s` %s",
+		"SELECT %s FROM (%s) as combined ORDER BY %s %s",
 		columnsStr,
 		unionSQL,
-		orderField,
+		s.quote(orderField),
 		orderDir,
 	)
 
@@ -258,17 +259,21 @@ func (s *ShardingQueryServiceImpl) QueryMultipleTablesForExport(tableNames []str
 	return nil
 }
 
+// quote quotes a table / column name the way the current connection's dialect does.
+func (s *ShardingQueryServiceImpl) quote(name string) string {
+	return utils.QuoteIdent(appfacades.OrmQuery(s.ctx), name)
+}
+
 // getColumnsForUnion 获取用于 UNION 的列名（MySQL 时对字符串列添加 COLLATE，解决 "Illegal mix of collations" 错误）
 func (s *ShardingQueryServiceImpl) getColumnsForUnion() string {
 	columnsStr := s.config.GetColumns()
 	if columnsStr == "" {
 		return columnsStr
 	}
-	// 仅 MySQL 且配置了 UnionCollation 和 StringColumns 时，对字符串列添加 COLLATE
-	driver := strings.ToLower(appfacades.OrmQuery(s.ctx).Driver())
-	if driver != "mysql" || s.config.UnionCollation == "" || len(s.config.StringColumns) == 0 {
-		return columnsStr
-	}
+	// COLLATE is MySQL syntax (its shards may differ in collation); other databases
+	// get the quoted column list only.
+	collate := s.config.UnionCollation != "" && len(s.config.StringColumns) > 0 &&
+		appfacades.OrmQuery(s.ctx).Driver() == goravelmysql.Name
 	stringColSet := make(map[string]bool)
 	for _, col := range s.config.StringColumns {
 		stringColSet[strings.TrimSpace(col)] = true
@@ -276,12 +281,12 @@ func (s *ShardingQueryServiceImpl) getColumnsForUnion() string {
 	parts := strings.Split(columnsStr, ",")
 	var result []string
 	for _, p := range parts {
-		col := strings.TrimSpace(p)
-		col = strings.Trim(col, "`")
-		if stringColSet[col] {
-			result = append(result, fmt.Sprintf("`%s` COLLATE %s AS `%s`", col, s.config.UnionCollation, col))
+		col := strings.Trim(strings.TrimSpace(p), "`\"")
+		quoted := s.quote(col)
+		if collate && stringColSet[col] {
+			result = append(result, fmt.Sprintf("%s COLLATE %s AS %s", quoted, s.config.UnionCollation, quoted))
 		} else {
-			result = append(result, fmt.Sprintf("`%s`", col))
+			result = append(result, quoted)
 		}
 	}
 	return strings.Join(result, ", ")

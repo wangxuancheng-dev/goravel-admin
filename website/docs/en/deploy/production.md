@@ -103,6 +103,18 @@ Requirements: reachable Redis (`database.redis.default`). Disable with `WEBSOCKE
 
 Monitor **WS online admins / WS connections** aggregates cluster-wide from a Redis ZSET (`WEBSOCKET_REDIS_PRESENCE_KEY`, default `goravel:ws:presence`) when the bridge is on; stale entries expire ~45s after disconnect.
 
+## Database versions
+
+| Database | Tested | Notes |
+|---|---|---|
+| MySQL | 8.4 LTS (CI, local) | 8.0 reached end of life in 2026-04. New accounts use `caching_sha2_password` (supported by the Go driver); before MySQL 9, convert accounts still on `mysql_native_password` (9 removes that plugin) |
+| PostgreSQL | 16 (CI), 17 (local); 13+ required | `pg_dump` / `psql` must be the server's major version or newer; tenant databases are dropped with `DROP DATABASE ... WITH (FORCE)` (13+, every supported release) |
+
+- Dialect details are left to the framework where it offers them (gorm's dialector, see `app/utils/db_dialect.go`): identifier quoting, savepoints, duplicate-key detection (`gorm.ErrDuplicatedKey`); table existence and listings come from the framework Schema; driver checks use the driver packages' `Name` constants. Errors are never classified by parsing message text (PostgreSQL translates messages per `lc_messages`). Hand-written SQL remains only where the framework has nothing: creating / dropping tenant databases, backup / restore commands, and PostgreSQL table lookups scoped to one schema (`app/tenantdb/pgschema.go`; the framework's scans the whole database and can deadlock).
+- A tenant on another driver than the platform database needs host and port (no fallback to the platform's `DB_HOST` / `DB_PORT`).
+- Since PostgreSQL 15 only the database owner may create in `public`: when the platform account creates a tenant that has its own account, the database is created `OWNER <tenant account>` and a schema `AUTHORIZATION <tenant account>`. The platform account needs that right (superuser, or member of the role); otherwise tenant creation fails with the server's reason.
+- Data statements in migrations use `migrationQuery()` (inside the migration transaction); PostgreSQL DDL is transactional, so `facades.Orm()` cannot see a table the migration just created.
+
 ## Resource ownership (admin)
 
 - **Exports:** download / SSE progress / delete — owner or configured `admin.super_admin_id`  

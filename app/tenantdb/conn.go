@@ -25,6 +25,7 @@ type Conn struct {
 	name        string
 	fingerprint string
 	database    string
+	pgSchema    string // postgres only: the schema the connection's search_path points at
 
 	cfg      *configoverlay.Overlay
 	log      contractslog.Log
@@ -73,6 +74,9 @@ func (c *Conn) NewSchema() (contractsschema.Schema, error) {
 	s, err := frameworkschema.NewSchema(c.cfg, c.log, c.NewOrm(), c.driver, migrations)
 	if err != nil {
 		return nil, fmt.Errorf("tenantdb: schema for %s: %w", c.name, err)
+	}
+	if c.pgSchema != "" {
+		return newPgScopedSchema(s, c.name, c.pgSchema, c.dbConfig.Prefix), nil
 	}
 	return s, nil
 }

@@ -452,18 +452,6 @@ func (e *BaseExporter) finalizeExport(ctx context.Context, exportID uint, filePa
 	return nil
 }
 
-// IsTableNotExistsError 判断是否是表不存在错误
-func IsTableNotExistsError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	if strings.Contains(msg, "1146") || strings.Contains(msg, "42s02") {
-		return true
-	}
-	return strings.Contains(msg, "table") && (strings.Contains(msg, "doesn't exist") || strings.Contains(msg, "does not exist"))
-}
-
 // ParseOrderBy 解析排序字符串
 func ParseOrderBy(orderBy string) (field, direction string) {
 	parts := strings.Split(orderBy, ":")

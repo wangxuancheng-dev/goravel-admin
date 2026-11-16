@@ -13,6 +13,8 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/database/migration"
 	"github.com/goravel/framework/facades"
+	goravelmysql "github.com/goravel/mysql"
+	goravelpostgres "github.com/goravel/postgres"
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
@@ -73,6 +75,35 @@ func NormalizeTenantDriver(driverName string) string {
 // TenantConnectionName 生成运行时 connection 名
 func TenantConnectionName(tenantID uint) string {
 	return fmt.Sprintf("tenant_%d", tenantID)
+}
+
+// samePlatformDriver reports whether driverName (normalized tenant driver) is the
+// driver of the platform connection, i.e. whether the tenant can live on the platform
+// database server.
+func samePlatformDriver(driverName string) bool {
+	q := appfacades.PlatformOrmQuery(nil)
+	if q == nil {
+		return true // cannot tell; CreateStorage reports the real error
+	}
+	// Query.Driver() reports the Goravel driver's name ("MySQL" / "PostgreSQL").
+	platform := ""
+	switch q.Driver() {
+	case goravelmysql.Name:
+		platform = models.TenantDriverMySQL
+	case goravelpostgres.Name:
+		platform = models.TenantDriverPostgres
+	}
+	return platform == NormalizeTenantDriver(driverName)
+}
+
+// pgTenantOwner is the role that must own a postgres tenant database / schema created
+// with the platform account: the tenant's own account, or "" when it has none (it then
+// uses the platform account, which owns it anyway). Naming the creating role itself is
+// harmless. For another role the platform role needs the right to create objects it
+// owns (superuser, or membership / SET ROLE); without it the CREATE fails with the
+// server's reason instead of leaving a database the tenant account cannot write to.
+func pgTenantOwner(tenant *models.Tenant) string {
+	return strings.TrimSpace(tenant.Username)
 }
 
 // DefaultTenantDatabaseName 默认库名 = prefix + code
@@ -402,6 +433,12 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 				return err
 			}
 			if usePlatform {
+				// Created by the platform account but used by the tenant's: make the
+				// tenant account the owner, or (PostgreSQL 15+) it cannot create tables
+				// in the new database's public schema.
+				if owner := pgTenantOwner(tenant); owner != "" {
+					createSQL += " OWNER " + quotePGIdent(owner)
+				}
 				return checkAndCreate(appfacades.PlatformOrmQuery(nil))
 			}
 			return s.withMaintenanceOrmQuery(tenant, checkAndCreate)
@@ -412,6 +449,11 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 		schemaSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", quotePGIdent(tenant.Schema))
 		platformDB := facades.Config().GetString("database.connections."+tenant.Driver+".database", "")
 		if usePlatform && (tenant.Database == "" || tenant.Database == platformDB) {
+			// A schema the platform account creates is only writable by its owner:
+			// hand it to the tenant's account when that is a different one.
+			if owner := pgTenantOwner(tenant); owner != "" {
+				schemaSQL += " AUTHORIZATION " + quotePGIdent(owner)
+			}
 			_, err := appfacades.PlatformOrmQuery(nil).Exec(schemaSQL)
 			return err
 		}
@@ -470,15 +512,18 @@ func (s *TenantConnectionService) DropStorage(tenant *models.Tenant) error {
 			if err := rejectDroppingPlatformDatabase(tenant.Database, platformDB); err != nil {
 				return err
 			}
-			sql := fmt.Sprintf("DROP DATABASE IF EXISTS %s", quotePGIdent(tenant.Database))
-			if usePlatform {
-				_, err := appfacades.PlatformOrmQuery(nil).Exec(sql)
-				return err
-			}
-			return s.withMaintenanceOrmQuery(tenant, func(q orm.Query) error {
+			// Other app instances (and this one's retired pools) may still hold sessions
+			// on the database, which makes a plain DROP DATABASE fail on PostgreSQL.
+			// WITH (FORCE) terminates them (PostgreSQL 13+; every supported release).
+			sql := fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", quotePGIdent(tenant.Database))
+			drop := func(q orm.Query) error {
 				_, err := q.Exec(sql)
 				return err
-			})
+			}
+			if usePlatform {
+				return drop(appfacades.PlatformOrmQuery(nil))
+			}
+			return s.withMaintenanceOrmQuery(tenant, drop)
 		}
 		if err := validateSQLIdent(tenant.Schema); err != nil {
 			return err

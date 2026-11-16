@@ -164,9 +164,17 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 				Status:  models.OrderStatusPending,
 				Remark:  remark,
 			}
+			// A failed statement aborts a PostgreSQL transaction (every later statement
+			// is refused), so each attempt runs under a savepoint and a duplicate order
+			// number rolls back to it before retrying.
+			if err := utils.SavePoint(tx, "order_no_attempt"); err != nil {
+				return apperrors.ErrCreateOrderFailed.WithError(err)
+			}
 			if err := tx.Table(tableName).Create(candidate); err != nil {
-				errStr := err.Error()
-				if strings.Contains(errStr, "Duplicate entry") || strings.Contains(errStr, "1062") {
+				if utils.IsDuplicateKey(tx, err) {
+					if rbErr := utils.RollbackTo(tx, "order_no_attempt"); rbErr != nil {
+						return apperrors.ErrCreateOrderFailed.WithError(rbErr)
+					}
 					if i == maxRetries-1 {
 						errorlog.Record(s.ctx, "order", "生成唯一订单号失败", map[string]any{
 							"user_id":    userID,
@@ -799,6 +807,11 @@ func (s *OrderServiceImpl) DeleteOrderByOrderNo(orderNo string) error {
 // 例如：ORD20250101ARZ3S0K5M2X9P4Q6R8T1V3W5Y7Z9
 // 其中 202501 表示 2025年01月，用于快速定位分表
 func (s *OrderServiceImpl) generateOrderNo() string {
+	return GenerateOrderNoFn()
+}
+
+// GenerateOrderNoFn generates order numbers (replaceable in tests to force a collision).
+var GenerateOrderNoFn = func() string {
 	return utils.GenerateShardingNo(utils.OrderNoConfig)
 }
 

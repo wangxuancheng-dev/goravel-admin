@@ -25,8 +25,11 @@ type dbView struct {
 func observeDB(t *testing.T) dbView {
 	t.Helper()
 	var v dbView
-	require.NoError(t, facades.Orm().Query().Raw("SELECT DATABASE()").Scan(&v.ormDB))
-	require.NoError(t, appfacades.OrmQuery(context.Background()).Raw("SELECT DATABASE()").Scan(&v.ormQueryDB))
+	var err error
+	v.ormDB, err = currentDatabase(facades.Orm().Query())
+	require.NoError(t, err)
+	v.ormQueryDB, err = currentDatabase(appfacades.OrmQuery(context.Background()))
+	require.NoError(t, err)
 	v.schemaConn = facades.Schema().GetConnection()
 	v.defaultConn = facades.Config().GetString("database.default")
 	return v
@@ -67,7 +70,8 @@ func TestTenantScopeDoesNotLeakToOtherGoroutines(t *testing.T) {
 			var outside dbView
 			err := scope(func() error {
 				// Bound goroutine: facades route to the tenant.
-				if err := facades.Orm().Query().Raw("SELECT DATABASE()").Scan(&inside); err != nil {
+				var err error
+				if inside, err = currentDatabase(facades.Orm().Query()); err != nil {
 					return err
 				}
 				done := make(chan struct{})

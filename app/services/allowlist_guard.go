@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
@@ -75,13 +74,6 @@ func loadEnabledAllowlistPatterns(ctx context.Context) ([]string, error) {
 	}
 	var rows []models.Allowlist
 	if err := appfacades.OrmQuery(ctx).Where("status", 1).Get(&rows); err != nil {
-		msg := strings.ToLower(err.Error())
-		if strings.Contains(msg, "doesn't exist") ||
-			strings.Contains(msg, "does not exist") ||
-			strings.Contains(msg, "no such table") ||
-			strings.Contains(msg, "1146") {
-			return nil, nil
-		}
 		return nil, err
 	}
 	patterns := make([]string, 0, len(rows))

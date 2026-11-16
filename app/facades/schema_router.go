@@ -8,6 +8,7 @@ import (
 	"github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/contracts/database/schema"
 	"github.com/goravel/framework/contracts/foundation"
+	goravelpostgres "github.com/goravel/postgres"
 
 	"goravel/app/tenantdb"
 )
@@ -38,7 +39,7 @@ func InstallTenantAwareSchema(app foundation.Application) {
 	if _, ok := base.(*schemaRouter); ok {
 		return
 	}
-	app.Instance(contractsbinding.Schema, &schemaRouter{base: base})
+	app.Instance(contractsbinding.Schema, &schemaRouter{base: scopeIfPostgres(base)})
 	// Instance updates bindings only; clear the resolved singleton cache so MakeSchema returns the router.
 	app.Fresh(contractsbinding.Schema)
 }
@@ -59,7 +60,20 @@ func (r *schemaRouter) Connection(name string) schema.Schema {
 		logTenantConnError(name, err)
 		return nil
 	}
-	return r.base.Connection(name)
+	return scopeIfPostgres(r.base.Connection(name))
+}
+
+// scopeIfPostgres confines table lookups of a non-tenant postgres Schema (the
+// platform's) to its own schema: with schema isolation, tenants' schemas live in the
+// platform database by default, and the framework's HasTable / GetTables would report
+// their tables as the platform's.
+func scopeIfPostgres(s schema.Schema) schema.Schema {
+	if s == nil || s.Orm() == nil || s.Orm().Query().Driver() != goravelpostgres.Name {
+		return s
+	}
+	// The schema and prefix the framework itself applies for this connection.
+	cfg := s.Orm().Config()
+	return tenantdb.ScopePostgresSchema(s, s.GetConnection(), cfg.Schema, cfg.Prefix)
 }
 
 func (r *schemaRouter) Create(table string, callback func(table schema.Blueprint)) error {

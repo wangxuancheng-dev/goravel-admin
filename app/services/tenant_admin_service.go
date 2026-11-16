@@ -84,6 +84,11 @@ func NormalizeTenantLastOpStatusFilter(raw string) string {
 	}
 }
 
+// errCrossDriverEndpoint rejects a tenant on another driver than the platform database
+// without its own host and port (it cannot fall back to the platform server's).
+var errCrossDriverEndpoint = apperrors.ErrInvalidArgument.WithMessage(
+	"host and port are required when the tenant driver differs from the platform database driver")
+
 // TenantCreateInput create tenant from API / CLI shared fields.
 type TenantCreateInput struct {
 	Code                string
@@ -317,6 +322,11 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	if err != nil {
 		return nil, err
 	}
+	// An empty host / port means "the platform database server's", which only works
+	// for the platform's own driver: a postgres tenant cannot use a MySQL server's.
+	if !samePlatformDriver(driverName) && (strings.TrimSpace(input.Host) == "" || input.Port <= 0) {
+		return nil, errCrossDriverEndpoint
+	}
 
 	database := strings.TrimSpace(input.Database)
 	if database == "" {
@@ -512,6 +522,11 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 	}
 	if len(updates) == 0 {
 		return tenant, nil
+	}
+
+	if (input.Host != nil || input.Port != nil) && (tenant.Host == "" || tenant.Port <= 0) &&
+		!samePlatformDriver(NormalizeTenantDriver(tenant.Driver)) {
+		return nil, errCrossDriverEndpoint
 	}
 
 	checkHost := tenant.Host

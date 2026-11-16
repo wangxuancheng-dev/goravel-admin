@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/goravel/framework/facades"
 
@@ -74,9 +73,13 @@ func (s *ShardingServiceImpl) CreateShardingTable(tableName, baseTableName strin
 		return creator(tableName)
 	})
 	if err != nil {
-		// Concurrent create is OK only if the table exists on THIS tenant connection.
-		// Error 1050 on the platform DB must not be treated as success.
-		if isShardingTableAlreadyExistsError(err) && appfacades.SchemaHasTable(s.ctx, tableName) {
+		// A concurrent create of the same shard fails here but leaves the table: what
+		// counts is whether it now exists on THIS tenant connection (whatever the
+		// error code), not on the platform DB.
+		if appfacades.SchemaHasTable(s.ctx, tableName) {
+			// Still worth seeing: the error may also be a later step of the creator
+			// (an index) that failed after the table itself was created.
+			facades.Log().Warningf("sharding table %s exists after a create error: %v", tableName, err)
 			return nil
 		}
 		return err
@@ -123,16 +126,4 @@ func (s *ShardingServiceImpl) EnsureShardingTable(tableName, baseTableName strin
 		facades.Log().Infof("auto-created sharding table: %s", tableName)
 		return nil
 	})
-}
-
-// isShardingTableAlreadyExistsError detects concurrent/prebuilt CREATE races (MySQL 1050, etc.).
-func isShardingTableAlreadyExistsError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "already exists") ||
-		strings.Contains(msg, "1050") ||
-		strings.Contains(msg, "42s01") ||
-		strings.Contains(msg, "duplicate table")
 }

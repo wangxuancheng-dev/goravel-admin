@@ -52,8 +52,8 @@ func TestTenantRegistryOwnsConnections(t *testing.T) {
 	bound := tenancyctx.WithTenant(context.Background(), ta.ID, ta.ConnectionName, ta.Code)
 	countAdmins := func() int64 {
 		t.Helper()
-		var dbName string
-		require.NoError(t, appfacades.OrmQuery(bound).Raw("SELECT DATABASE()").Scan(&dbName))
+		dbName, err := currentDatabase(appfacades.OrmQuery(bound))
+		require.NoError(t, err)
 		require.Equal(t, ta.Database, dbName, "OrmQuery(tenant ctx) must hit the tenant database")
 		n, err := appfacades.OrmQuery(bound).Table("admins").Count()
 		require.NoError(t, err)

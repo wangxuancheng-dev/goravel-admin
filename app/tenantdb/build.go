@@ -131,6 +131,9 @@ func build(ctx context.Context, name string, spec Spec) (*Conn, error) {
 			return sqlDB.Close()
 		},
 	}
+	if spec.Driver == DriverPostgres {
+		c.pgSchema = writer.Schema // as the framework resolved it for the search_path
+	}
 	c.orm = frameworkorm.NewOrm(context.Background(), cfg, name, writer, query, queries, log, nil, noFresh, resolver)
 	c.touch()
 	return c, nil

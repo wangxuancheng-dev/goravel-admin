@@ -148,6 +148,18 @@ Runner 名是连字符 `queue-*`（见 `bootstrap/runners.go`），不是 `queue
 
 活跃商户量级对应多少台 API / Worker / DB：见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)。
 
+## 4.2 数据库版本
+
+| 数据库 | 已测试 | 说明 |
+|---|---|---|
+| MySQL | 8.4 LTS（CI、本地） | 8.0 已于 2026-04 停止维护。新账号用 `caching_sha2_password`（Go 驱动原生支持）；升到 MySQL 9 前把仍用 `mysql_native_password` 的账号改掉（9 已移除该插件） |
+| PostgreSQL | 16（CI）、17（本地），需 13+ | `pg_dump` / `psql` 须与服务端同大版本或更新；租户库删除用 `DROP DATABASE ... WITH (FORCE)`（13+，所有在维护期版本均支持） |
+
+- 与方言相关的细节优先交给框架（gorm 方言，见 `app/utils/db_dialect.go`）：标识符引号、SAVEPOINT、唯一键冲突识别（`gorm.ErrDuplicatedKey`）；表是否存在、表清单用框架 Schema；驱动判断用驱动包的 `Name` 常量。不靠解析报错文本判断错误（PostgreSQL 报错会随 `lc_messages` 变成中文）。仍需手写的只有框架不提供的部分：建库/删库、备份恢复命令，以及 PostgreSQL 下按 schema 限定的表查询（`app/tenantdb/pgschema.go`，框架原生实现会扫全库并可能死锁）。
+- 租户驱动与平台库不同时须填 host 与 port（不再回落到平台的 `DB_HOST` / `DB_PORT`）。
+- PostgreSQL 15 起只有库属主能在 `public` 建表：平台账号代建、但租户用独立账号时，库以 `OWNER 租户账号` 创建、schema 以 `AUTHORIZATION 租户账号` 创建；平台账号需有该权限（超级用户，或是该角色成员），否则建租户时直接报错。
+- 迁移里的数据操作用 `migrationQuery()`（在迁移事务内）；PostgreSQL 的 DDL 是事务性的，`facades.Orm()` 看不到本迁移刚建的表。
+
 ## 5. 上线最短路径
 
 ```bash

@@ -40,12 +40,20 @@ func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 	var cleanup func()
 	switch strings.ToLower(tenant.Driver) {
 	case models.TenantDriverPostgres, "pgsql", "postgresql":
-		args := []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-f", tmpFile}
-		if tenant.Isolation == models.TenantIsolationSchema && strings.TrimSpace(tenant.Schema) != "" {
-			args = append(args, "-n", tenant.Schema)
+		// --clean --if-exists: the dump drops each object before creating it, so a
+		// restore over the live tenant replaces it (mysqldump does the same with its
+		// DROP TABLE IF EXISTS); without it the restore stops at the first existing
+		// table. --no-owner --no-privileges: restorable under another role.
+		// -n: only the tenant's own schema. A database-isolated tenant's database may
+		// also hold schema-isolated tenants, which its backup must not capture (and its
+		// restore must not roll back).
+		args := []string{
+			"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-f", tmpFile,
+			"--clean", "--if-exists", "--no-owner", "--no-privileges",
+			"-n", tenantPGSchema(tenant),
 		}
 		cmd = exec.Command("pg_dump", args...)
-		cmd.Env = append(os.Environ(), "PGPASSWORD="+pass)
+		cmd.Env = pgToolEnv(pass)
 	default:
 		defaultsFile, err := WriteMySQLDefaultsFile(user, pass)
 		if err != nil {
@@ -155,6 +163,22 @@ func pruneTenantBackups(dir string, keep int) (int, error) {
 		removed++
 	}
 	return removed, nil
+}
+
+// tenantPGSchema is the schema a postgres tenant's tables live in (as the connection's
+// search_path is built): its own schema under schema isolation, otherwise "public"
+// unless a schema is set.
+func tenantPGSchema(tenant *models.Tenant) string {
+	if s := strings.TrimSpace(tenant.Schema); s != "" {
+		return s
+	}
+	return "public"
+}
+
+// pgToolEnv is the environment of pg_dump / psql: the password, and the sslmode the
+// app's own tenant connections use.
+func pgToolEnv(pass string) []string {
+	return append(os.Environ(), "PGPASSWORD="+pass, "PGSSLMODE="+tenantPostgresSSLMode())
 }
 
 func WriteMySQLDefaultsFile(user, pass string) (string, error) {
@@ -320,14 +344,26 @@ func RestoreTenantFromFile(tenant *models.Tenant, absFile string) error {
 	var cleanup func()
 	switch strings.ToLower(tenant.Driver) {
 	case models.TenantDriverPostgres, "pgsql", "postgresql":
-		args := []string{"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database, "-v", "ON_ERROR_STOP=1", "-f", absFile}
-		cmd = exec.Command("psql", args...)
-		env := append(os.Environ(), "PGPASSWORD="+pass)
-		if tenant.Isolation == models.TenantIsolationSchema {
-			if schema := strings.TrimSpace(tenant.Schema); schema != "" {
-				env = append(env, "PGOPTIONS=--search_path="+schema)
-			}
+		// Replace the tenant's schema with the dump, in one transaction (-1): empty the
+		// schema first (CASCADE also drops tables created after the backup, e.g. new
+		// shards, on which the dump's own DROP SCHEMA would fail), then replay the dump.
+		// A failure rolls everything back and leaves the tenant as it was.
+		schema := tenantPGSchema(tenant)
+		if identErr := validateSQLIdent(schema); identErr != nil {
+			return identErr
 		}
+		q := quotePGIdent(schema)
+		args := []string{
+			"-h", host, "-p", strconv.Itoa(port), "-U", user, "-d", database,
+			"-v", "ON_ERROR_STOP=1", "-1",
+			"-c", "DROP SCHEMA IF EXISTS " + q + " CASCADE",
+			"-c", "CREATE SCHEMA " + q,
+			"-f", absFile,
+		}
+		cmd = exec.Command("psql", args...)
+		env := pgToolEnv(pass)
+		// Older dumps (before -n) used unqualified names for schema tenants.
+		env = append(env, "PGOPTIONS=--search_path="+schema)
 		cmd.Env = env
 	default:
 		defaultsFile, err := WriteMySQLDefaultsFile(user, pass)
