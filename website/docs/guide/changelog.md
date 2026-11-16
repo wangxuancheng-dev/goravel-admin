@@ -21,6 +21,9 @@
 - 🔒 多租户防护：多租户开启时 `OrmQuery(nil)` 直接报错（不再悄悄落到平台库），平台查询改为显式的 `PlatformQuery()`；租户连接拒绝读写平台表（`models.PlatformModel`）；后台协程统一用 `tenancyctx.Go`（保留租户、兜底 panic）；新增可选的 `TENANCY_DB_DEDICATED_USER`，为每个租户自动创建只能访问自己库的 DB 账号
 - 🧪 `scripts/tenantlint` 取代 `check-tenant-orm.sh` / `check-tenant-cache.sh`，按调用点检查（例外须写明原因）；新增全接口跨租户扫描与租户解析安全测试
 - 🐛 关闭租户连接时，进行中查询的遥测回调不再因 nil 指针 panic
+- 🔒 永久删除租户（含平台异步清理与定时 `tenant:cleanup-deleted`）一律删除其库、对象存储、备份与搜索索引后才释放 code；开户不再接管同名已存在的库（`tenant_storage_exists`）；开户失败物理删除并清理本次所建，code 立即可重用
+- 🔒 多租户开启时，未绑定租户的 ctx（不只 nil）调用 `OrmQuery` 一律报 `ErrNoTenantContext`；队列统计命令改为显式读平台库，`token:create` 需 `--tenant` 并在租户库建 token
+- 🔒 租户无自有账号时回落平台账号，每次连接都受 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS` 约束（含备份）；`platform.` 主机不再接受客户端指定租户
 - 📚 多租户文档拆分：[业务开发须知](/advanced/tenancy-dev)、[规模与推荐配置](/advanced/tenancy-scaling)
 
 ## [1.0.0] - 2024-12-25

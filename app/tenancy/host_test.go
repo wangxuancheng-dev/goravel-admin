@@ -49,6 +49,9 @@ func TestIsLockedPublicApexHost(t *testing.T) {
 	if IsLockedPublicApexHost("www.example.com") != true {
 		t.Fatal("www apex should be locked")
 	}
+	if !IsLockedPublicApexHost("platform.example.com") {
+		t.Fatal("platform console host must be locked")
+	}
 	if IsLockedPublicApexHost("127.0.0.1") {
 		t.Fatal("loopback must not be locked")
 	}

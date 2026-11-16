@@ -200,7 +200,7 @@ func (r *QueuePeek) Handle(ctx console.Context) error {
 	}
 
 	// database driver
-	q := appfacades.OrmQuery(ctx).Table("jobs").Select("id", "queue", "payload", "attempts", "reserved_at", "available_at", "created_at")
+	q := appfacades.PlatformOrmQuery(ctx).Table("jobs").Select("id", "queue", "payload", "attempts", "reserved_at", "available_at", "created_at")
 	now := time.Now()
 
 	switch state {

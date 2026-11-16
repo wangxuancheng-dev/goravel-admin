@@ -124,19 +124,9 @@ func ResolveTenantDSN(tenant *models.Tenant) (host string, port int, user, pass,
 	if port == 0 {
 		port = facades.Config().GetInt("database.connections."+driver+".port", 3306)
 	}
-	user = strings.TrimSpace(tenant.Username)
-	if user == "" {
-		user = facades.Config().GetString("database.connections."+driver+".username", "root")
-	}
-	pass = tenant.Password
-	if pass != "" {
-		pass, err = RevealTenantPassword(pass)
-		if err != nil {
-			return "", 0, "", "", "", err
-		}
-	}
-	if pass == "" {
-		pass = facades.Config().GetString("database.connections."+driver+".password", "")
+	user, pass, err = tenantDBAccount(tenant, NormalizeTenantDriver(driver))
+	if err != nil {
+		return "", 0, "", "", "", err
 	}
 	database = tenant.Database
 	return host, port, user, pass, database, nil

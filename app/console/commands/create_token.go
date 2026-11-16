@@ -60,6 +60,7 @@ func (receiver *CreateToken) Extend() command.Extend {
 				Value:   "console-token",
 				Usage:   "token名称",
 			},
+			TenantScopeFlag(),
 		},
 	}
 }
@@ -96,28 +97,31 @@ func (receiver *CreateToken) Handle(ctx console.Context) error {
 		tokenName = "console-token"
 	}
 
+	// 多租户开启时管理员与 token 都在租户库：必须 --tenant，查询与写入都走该租户
+	return RunTenantScopedRequire(ctx, func(_ *models.Tenant, bound context.Context) error {
+		return createAdminToken(ctx, bound, userIdentifier, userType, tokenName, expiresAt)
+	})
+}
+
+func createAdminToken(ctx console.Context, bound context.Context, userIdentifier, userType, tokenName string, expiresAt *time.Time) error {
 	// 查询管理员
 	var admin models.Admin
 	var err error
 	// 尝试作为ID解析
 	if id, parseErr := strconv.ParseUint(userIdentifier, 10, 32); parseErr == nil {
-		// 作为ID查询
-		err = appfacades.OrmQuery(ctx).Where("id", uint(id)).First(&admin)
+		err = appfacades.OrmQuery(bound).Where("id", uint(id)).First(&admin)
 	} else {
-		// 作为用户名查询
-		err = appfacades.OrmQuery(ctx).Where("username", userIdentifier).First(&admin)
+		err = appfacades.OrmQuery(bound).Where("username", userIdentifier).First(&admin)
 	}
-
-	if err != nil {
+	if err != nil || admin.ID == 0 {
 		return errors.New("管理员不存在")
 	}
 
 	userID := admin.ID
 	username := admin.Username
 
-	// 创建token
-	tokenService := services.NewTokenServiceImpl(context.Background())
-	// 命令行创建token时，浏览器、IP、操作系统信息为空
+	// 创建token（命令行创建时浏览器、IP、操作系统信息为空）
+	tokenService := services.NewTokenServiceImpl(bound)
 	plainToken, accessToken, err := tokenService.CreateToken(userType, userID, tokenName, expiresAt, "", "", "", "")
 	if err != nil {
 		return errors.New("创建token失败: " + err.Error())

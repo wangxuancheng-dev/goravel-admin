@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -220,20 +221,9 @@ func (s *TenantConnectionService) buildSpec(tenant *models.Tenant) (tenantdb.Spe
 	if port <= 0 {
 		port = facades.Config().GetInt("database.connections."+driverName+".port", 0)
 	}
-	username := tenant.Username
-	if username == "" {
-		username = facades.Config().GetString("database.connections."+driverName+".username", "")
-	}
-	password := tenant.Password
-	if password != "" {
-		plain, err := RevealTenantPassword(password)
-		if err != nil {
-			return tenantdb.Spec{}, apperrors.ErrTenantConnectionFailed.WithError(err)
-		}
-		password = plain
-	}
-	if password == "" {
-		password = facades.Config().GetString("database.connections."+driverName+".password", "")
+	username, password, err := tenantDBAccount(tenant, driverName)
+	if err != nil {
+		return tenantdb.Spec{}, err
 	}
 	database := tenant.Database
 	if database == "" {
@@ -307,21 +297,39 @@ func (s *TenantConnectionService) resolveEndpoint(tenant *models.Tenant) (driver
 	if port <= 0 {
 		port = facades.Config().GetInt("database.connections."+driverName+".port", 0)
 	}
+	username, password, err = tenantDBAccount(tenant, driverName)
+	if err != nil {
+		return "", "", 0, "", "", err
+	}
+	return driverName, host, port, username, password, nil
+}
+
+// tenantDBAccount returns the account a tenant connects with: its own, or — only on
+// the platform's database server and only with TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS
+// =true — the platform account. It is checked on every connection, not only when the
+// tenant is created, so turning the setting off stops tenants without credentials of
+// their own from running as the platform account (they fail with
+// ErrTenantCredentialsRequired until credentials are set).
+func tenantDBAccount(tenant *models.Tenant, driverName string) (username, password string, err error) {
 	username = strings.TrimSpace(tenant.Username)
+	if tenant.Password != "" {
+		if password, err = RevealTenantPassword(tenant.Password); err != nil {
+			return "", "", apperrors.ErrTenantConnectionFailed.WithError(err)
+		}
+	}
+	if username != "" && password != "" {
+		return username, password, nil
+	}
+	if TenantUsesCustomHost(tenant) || !facades.Config().GetBool("tenancy.allow_platform_db_credentials", false) {
+		return "", "", apperrors.ErrTenantCredentialsRequired
+	}
 	if username == "" {
 		username = facades.Config().GetString("database.connections."+driverName+".username", "")
-	}
-	password = tenant.Password
-	if password != "" {
-		password, err = RevealTenantPassword(password)
-		if err != nil {
-			return "", "", 0, "", "", err
-		}
 	}
 	if password == "" {
 		password = facades.Config().GetString("database.connections."+driverName+".password", "")
 	}
-	return driverName, host, port, username, password, nil
+	return username, password, nil
 }
 
 // withMaintenanceOrmQuery opens a short-lived connection to the tenant endpoint's
@@ -394,7 +402,31 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 	return grantDedicatedDBUser(tenant)
 }
 
+// createStorage creates the tenant's database (or schema). An existing one is never
+// adopted: it is usually what a former tenant with the same code left behind, and the
+// new tenant would inherit its admins and data. ErrTenantStorageExists says so; a
+// database prepared on purpose is taken over with skip_create instead.
 func (s *TenantConnectionService) createStorage(tenant *models.Tenant) error {
+	err := s.createStorageOnce(tenant)
+	if err != nil && isAlreadyExistsErr(err) {
+		return apperrors.ErrTenantStorageExists.WithError(err)
+	}
+	return err
+}
+
+// isAlreadyExistsErr matches MySQL 1007 (database exists) and PostgreSQL 42P04
+// (duplicate_database) / 42P06 (duplicate_schema).
+func isAlreadyExistsErr(err error) bool {
+	if errors.Is(err, errStorageExists) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "1007") || strings.Contains(msg, "42P04") || strings.Contains(msg, "42P06")
+}
+
+var errStorageExists = errors.New("database already exists")
+
+func (s *TenantConnectionService) createStorageOnce(tenant *models.Tenant) error {
 	isolation, err := ResolveTenantIsolation(tenant.Driver, tenant.Isolation)
 	if err != nil {
 		return err
@@ -409,7 +441,7 @@ func (s *TenantConnectionService) createStorage(tenant *models.Tenant) error {
 			return err
 		}
 		sql := fmt.Sprintf(
-			"CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
+			"CREATE DATABASE `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
 			tenant.Database,
 		)
 		if usePlatform {
@@ -435,7 +467,7 @@ func (s *TenantConnectionService) createStorage(tenant *models.Tenant) error {
 					return err
 				}
 				if len(rows) > 0 {
-					return nil
+					return errStorageExists
 				}
 				_, err := q.Exec(createSQL)
 				return err
@@ -454,7 +486,7 @@ func (s *TenantConnectionService) createStorage(tenant *models.Tenant) error {
 		if err := validateSQLIdent(tenant.Schema); err != nil {
 			return err
 		}
-		schemaSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", quotePGIdent(tenant.Schema))
+		schemaSQL := fmt.Sprintf("CREATE SCHEMA %s", quotePGIdent(tenant.Schema))
 		platformDB := facades.Config().GetString("database.connections."+tenant.Driver+".database", "")
 		if usePlatform && (tenant.Database == "" || tenant.Database == platformDB) {
 			// A schema the platform account creates is only writable by its owner:

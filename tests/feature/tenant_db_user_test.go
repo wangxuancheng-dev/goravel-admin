@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/services"
@@ -122,4 +123,35 @@ func TestDedicatedTenantDBUserIsolatedByServer(t *testing.T) {
 	require.NoError(t, appfacades.PlatformQuery().Raw(countSQL, tn.Username).Scan(&rows))
 	require.Len(t, rows, 1)
 	assert.Zero(t, rows[0].N, "account %s left behind", tn.Username)
+}
+
+// A tenant without credentials of its own runs as the platform account only while
+// TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true: turning it off stops it at once, not
+// only for tenants created afterwards.
+func TestPlatformCredentialFallbackFollowsSetting(t *testing.T) {
+	withTenancyDriver(t, "database")
+	allowSharedTenantDBCredentials(t)
+
+	code := fmt.Sprintf("shared%d", time.Now().UnixNano()%1000000)
+	admin := services.NewTenantAdminService()
+	conn := services.NewTenantConnectionService()
+	tn, err := admin.Create(services.TenantCreateInput{Code: code, Name: "Shared", Migrate: false})
+	if err != nil {
+		skipWithoutTenantDB(t, err)
+	}
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.allow_platform_db_credentials", true)
+		_ = conn.DropStorage(tn)
+		_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
+	})
+	require.Empty(t, tn.Username, "precondition: no credentials of its own")
+	_, err = conn.TenantContext(tn)
+	require.NoError(t, err)
+
+	facades.Config().Add("tenancy.allow_platform_db_credentials", false)
+	conn.Forget(tn.ConnectionName)
+	_, err = conn.TenantContext(tn)
+	assert.ErrorContains(t, err, apperrors.ErrTenantCredentialsRequired.Code)
+	_, _, _, _, _, err = services.ResolveTenantDSN(tn)
+	assert.ErrorContains(t, err, apperrors.ErrTenantCredentialsRequired.Code, "backups must not fall back either")
 }

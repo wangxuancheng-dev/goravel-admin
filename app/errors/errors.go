@@ -243,6 +243,7 @@ var (
 	ErrEntitlementLimitExceeded    = NewBusinessError("entitlement_limit_exceeded", "已超出租户额度")
 	ErrTenantNotTrashed            = NewBusinessError("tenant_not_trashed", "仅回收站中的已删除租户可执行此操作")
 	ErrTenantCodeInRecycle         = NewBusinessError("tenant_code_in_recycle", "租户编码仍在回收站中，请先恢复或永久删除后再创建")
+	ErrTenantStorageExists         = NewBusinessError("tenant_storage_exists", "目标数据库或 schema 已存在，不会复用；确认无用后由 DBA 删除，或指定其他库名，或用 skip_create 接管已建好的空库")
 	ErrTenantDomainInvalid         = NewBusinessError("tenant_domain_invalid", "invalid custom domain")
 	ErrTenantDomainTaken           = NewBusinessError("tenant_domain_taken", "custom domain already bound")
 	ErrTenantDomainNotFound        = NewBusinessError("tenant_domain_not_found", "custom domain not found")

@@ -2,6 +2,7 @@ package feature_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -28,7 +29,12 @@ func observeDB(t *testing.T) dbView {
 	var err error
 	v.ormDB, err = currentDatabase(facades.Orm().Query())
 	require.NoError(t, err)
+	// An unbound OrmQuery on an unbound goroutine is refused (tenancy on), never
+	// routed to the platform database or to a tenant some other goroutine is bound to.
 	v.ormQueryDB, err = currentDatabase(appfacades.OrmQuery(context.Background()))
+	if errors.Is(err, appfacades.ErrNoTenantContext) {
+		v.ormQueryDB, err = "refused: no tenant", nil
+	}
 	require.NoError(t, err)
 	v.schemaConn = facades.Schema().GetConnection()
 	v.defaultConn = facades.Config().GetString("database.default")
@@ -36,7 +42,8 @@ func observeDB(t *testing.T) dbView {
 }
 
 // While one goroutine works inside a tenant scope (WithSchemaContext),
-// other goroutines' unbound queries must keep hitting the platform database.
+// other goroutines' unbound queries must not reach that tenant (facades.Orm() keeps
+// hitting the platform database; OrmQuery without a tenant is refused).
 // The previous implementation flipped the root Orm query, the global Schema and
 // database.default for the duration, leaking concurrent requests into the tenant DB.
 func TestTenantScopeDoesNotLeakToOtherGoroutines(t *testing.T) {

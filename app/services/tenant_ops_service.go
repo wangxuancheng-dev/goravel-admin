@@ -431,11 +431,13 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 		})
 	}
 	if args.ForceDeleteAfter && tenant.ID > 0 {
-		if err := dropTenantSearchIndexes(tenant); err != nil {
+		// Same as ForceDeleteTenant: nothing of the tenant may stay under its code
+		// (database included) before the code is freed; on failure the row stays.
+		if err := NewTenantAdminService().eraseTenantData(tenant); err != nil {
+			facades.Log().Errorf("tenant_ops purge erase failed id=%d (kept): %v", tenant.ID, err)
 			return err
 		}
-		sconn := NewTenantConnectionService()
-		sconn.Forget(tenant.ConnectionName)
+		_ = NewTenantDomainService().PurgeAllForTenant(tenant.ID)
 		if _, err := appfacades.PlatformQuery().WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
 			facades.Log().Errorf("tenant_ops purge force-delete failed id=%d: %v", tenant.ID, err)
 			return err

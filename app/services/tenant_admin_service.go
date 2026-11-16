@@ -411,13 +411,18 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	if _, err := appfacades.PlatformQuery().Model(&tenant).Update(map[string]any{
 		"connection_name": tenant.ConnectionName,
 	}); err != nil {
-		_, _ = appfacades.PlatformQuery().Delete(&tenant)
+		s.discardFailedCreate(&tenant, false)
 		return nil, err
 	}
 	if err := s.conn.CreateStorageWithOptions(&tenant, input.SkipCreate); err != nil {
-		s.conn.Forget(tenant.ConnectionName)
-		_ = dropDedicatedDBUser(&tenant)
-		_, _ = appfacades.PlatformQuery().Delete(&tenant)
+		if be, ok := apperrors.GetBusinessError(err); ok && be.Code == apperrors.ErrTenantStorageExists.Code {
+			// Not ours: the existing database stays untouched.
+			s.discardFailedCreate(&tenant, false)
+			return nil, err
+		}
+		// Anything under this name was created by this attempt (an existing database is
+		// refused above), so it goes too; skip_create storage belongs to the DBA.
+		s.discardFailedCreate(&tenant, !input.SkipCreate)
 		return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
 	if input.Migrate {
@@ -435,6 +440,22 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		}
 	}
 	return &tenant, nil
+}
+
+// discardFailedCreate undoes a Create that failed before the tenant was usable: the row
+// is removed for good (a soft delete would keep the code in the recycle bin and block
+// the retry), with the database / schema this attempt created when dropStorage, and the
+// dedicated DB account.
+func (s *TenantAdminService) discardFailedCreate(tenant *models.Tenant, dropStorage bool) {
+	s.conn.Forget(tenant.ConnectionName)
+	if dropStorage {
+		if err := s.conn.DropStorage(tenant); err != nil {
+			facades.Log().Warningf("tenant create %s failed; dropping its storage: %v", tenant.Code, err)
+		}
+	} else {
+		_ = dropDedicatedDBUser(tenant)
+	}
+	_, _ = appfacades.PlatformQuery().WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{})
 }
 
 func (s *TenantAdminService) SetStatus(id uint, status uint8) (*models.Tenant, error) {

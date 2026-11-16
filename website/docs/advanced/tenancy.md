@@ -293,7 +293,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
 3. **连接回收**：`Forget` 立即关闭该租户的连接池；空闲（`TENANCY_REGISTERED_IDLE_TTL`）或超上限（`TENANCY_REGISTERED_MAX`）淘汰的连接在 2 分钟宽限期后关闭，再次访问时自动重建。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试（防永久卡住）。
-5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。推荐开启 `TENANCY_DB_DEDICATED_USER=true`：开户时用平台账号为租户创建 `t_<code>` 账号（随机密码，APP_KEY 加密保存），只授权该租户的库（MySQL `GRANT ALL ON tenant_x.*`；PostgreSQL 由该角色拥有库或 schema），删库时一并删除。这样即使代码写错，数据库服务器也会拒绝跨库访问。平台账号需要 `CREATE USER` + `GRANT OPTION`（MySQL）或 `CREATEROLE`（PostgreSQL）；PostgreSQL 共库 schema 模式下，建议对平台库执行 `REVOKE ALL ON SCHEMA public FROM PUBLIC`。
+5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。没有自己账号的租户每次建连接都会检查该开关，关闭后立即无法再用平台账号连接（报 `tenant_credentials_required`），备份同样如此。推荐开启 `TENANCY_DB_DEDICATED_USER=true`：开户时用平台账号为租户创建 `t_<code>` 账号（随机密码，APP_KEY 加密保存），只授权该租户的库（MySQL `GRANT ALL ON tenant_x.*`；PostgreSQL 由该角色拥有库或 schema），删库时一并删除。这样即使代码写错，数据库服务器也会拒绝跨库访问。平台账号需要 `CREATE USER` + `GRANT OPTION`（MySQL）或 `CREATEROLE`（PostgreSQL）；PostgreSQL 共库 schema 模式下，建议对平台库执行 `REVOKE ALL ON SCHEMA public FROM PUBLIC`。
 6. **异步运维**：单户 migrate / seed / backup / restore / rollback 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` / `rollback-all` 仍可用 CLI：`backup-all` 改为入队 long-running（分页扇出），定时 `backup-scheduled` 按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` 户。
 7. **全舰队 migrate/seed 并发**：`TENANCY_MIGRATE_CONCURRENCY`（默认 2）控制 CLI `tenant:migrate-all` / `seed-all` / `rollback-all` **以及**平台 UI 批量 migrate/seed/rollback（`tenant_ops_fleet`）；CLI `--concurrency=N` 可临时覆盖。与 `QUEUE_LONG_RUNNING_CONCURRENT`（单户/backup）、`QUEUE_SCHEDULE_CONCURRENT`（采集）**不是同一旋钮**；见 [并发旋钮对照](/advanced/tenancy-scaling#并发旋钮对照与队列一起调)。
 8. **全舰队 schema 回滚**：`tenant:rollback` / `tenant:rollback-all` 与平台 UI 单户/批量 rollback 共用 `TENANCY_MIGRATE_CONCURRENCY`（`tenant_ops_fleet`）。`--step=N` 回滚最近 N 个迁移文件；`--batch=N` 回滚 `migrations.batch=N`；二者为 0 时回滚上一批次。**首次 migrate 常把全部文件记为 batch 1**，默认 0/0 会整批撤销——生产请优先 `--step=1`，并先备份。
@@ -305,7 +305,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 
 ## 公网部署（推荐）
 
-1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
+1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex、`www.`、`platform.` **不接受** Header/Query 指定租户（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。`api.` 等 API 主机、IP、其他主机仍接受（前后端分离与公开 `<img ?tenant_code=>` 需要）；选中租户不等于能访问它，token 只在该租户自己的库里有效。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 10 / open 20）；户多时按下方 [规模与推荐配置](/advanced/tenancy-scaling) 下调，避免打满 MySQL。
@@ -405,7 +405,7 @@ shop.customer-b.com.     CNAME  tenants.example.com.
   - 代码里打开磁盘用 `utils.StorageDisk(disk)`；需要读取磁盘配置（如流式上传）用 `tenantstorage.DiskConfig(disk)`，不要直接读 `facades.Config()` 的 `filesystems.disks.tenant_byob_*`（那里没有）。
 - **切换**：shared ↔ custom **只影响新上传**。旧文件仍按 `attachments.disk` 读取。切回共享后请保留自有桶密钥，否则历史自定义文件可能无法访问。永久清理会删平台前缀，若仍有凭证也会清理自有桶前缀。
 - **删除租户**：平台元数据**软删**入回收站；drop_database 仅 DROP 库/Schema；**此时不清理对象存储**。
-- **回收站 / 永久删除**：GET /tenants?trashed=only；POST .../undelete 恢复；POST .../purge 可单独重试清理；DELETE .../force 默认异步清理对象+备份后再硬删并释放 code。保留 TENANCY_DELETED_RETENTION_DAYS；定时 tenant:cleanup-deleted。
+- **回收站 / 永久删除**：GET /tenants?trashed=only；POST .../undelete 恢复；POST .../purge 可单独重试清理；DELETE .../force 默认异步清理后再硬删并释放 code。永久删除（含定时 tenant:cleanup-deleted）一律清除搜索索引、对象存储、备份、数据库 / schema 与专用 DB 账号，任一步失败则保留在回收站、code 不释放，可重试。保留 TENANCY_DELETED_RETENTION_DAYS；定时 tenant:cleanup-deleted。
 - **存储限额** `storage_limit_bytes`（0=不限）：按租户库 `attachments.size` 汇总，上传前校验。
 
 
@@ -567,7 +567,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | API | 用途 |
 |-----|------|
 | `tenancy.Enabled()` | 是否一户一库 |
-| `OrmQuery(ctx)` / `OrmTransaction(ctx, fn)` | 租户业务默认入口；多租户开启时 ctx 为 nil 直接报 `ErrNilQueryContext` |
+| `OrmQuery(ctx)` / `OrmTransaction(ctx, fn)` | 租户业务默认入口；多租户开启时 ctx 为 nil 或没绑定租户直接报 `ErrNoTenantContext`（迁移 / seed 的 goroutine 绑定除外） |
 | `PlatformOrmQuery(ctx)` / `PlatformQuery()` | 平台数据（有 ctx / 无 ctx）；禁止 `PlatformOrmQuery(nil)` |
 | `tenancyctx.Go(ctx, name, fn)` | 启动后台协程：保留租户、去掉请求取消、兜底 panic |
 | `tenancy.CacheKey` / `StoragePrefix` | 缓存键 / 对象存储路径前缀 |
@@ -598,6 +598,7 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 17. CI 跑 `go run ./scripts/tenantlint`，按调用点检查四条规则：`orm`（`app/` 下禁止 `facades.Orm().Query/Transaction/WithContext/Connection`）、`nilctx`（禁止 `OrmQuery(nil)` / `PlatformOrmQuery(nil)` 等）、`cache`（`facades.Cache()` 所在函数须经 `tenancy.CacheKey`，可通过同包的 key 辅助函数）、`goctx`（`go` 语句不得捕获请求 ctx，改用 `tenancyctx.Go`）。确属例外的，在调用处或函数注释里写 `//tenantlint:allow <rule>: <原因>`。迁移（`database/migrations`）里的数据操作用 `migrationQuery()`：它在迁移事务内，`facades.Orm()` 不在（PostgreSQL 下看不到本迁移刚建的表）。
 18. 平台表（`models.PlatformModel`）与 landlord-only 迁移建的表必须一致（`TestPlatformTablesMatchLandlordOnlyMigrations`）；租户连接对这些表的 ORM 读写一律拒绝。
 19. `TestEveryAdminRouteIsTenantIsolated` 在租户 A 写入标记，再以租户 B 调用全部 GET 接口，断言拿不到 A 的数据；新增接口自动纳入。`TestTenantResolutionSecurity` 覆盖子域与 Header 冲突、公网 apex 拒收客户端租户、平台 / 租户 token 不互通、停用 / 维护立即生效、复用 code 后旧 token 失效。
+20. **code 复用不继承任何东西**：永久删除先清掉库、存储、备份与索引才释放 code；开户遇到同名数据库 / schema 一律拒绝（`tenant_storage_exists`），不会接管；DBA 预建的空库用 `skip_create` 接管。开户失败直接物理删除租户行（并清掉本次建出的库与账号），code 立即可重用。
 
 ## Platform ops: domain board / onboard / health
 

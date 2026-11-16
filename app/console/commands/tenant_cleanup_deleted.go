@@ -34,7 +34,7 @@ func (r *TenantCleanupDeleted) Extend() command.Extend {
 			&command.BoolFlag{
 				Name:  "with-purge",
 				Value: true,
-				Usage: "Purge object storage and local backups before force-delete",
+				Usage: "Ignored: the database, object storage and backups are always removed (kept for old scripts)",
 			},
 			&command.IntFlag{
 				Name:  "limit",
@@ -58,12 +58,11 @@ func (r *TenantCleanupDeleted) Handle(ctx console.Context) error {
 		ctx.Info("deleted_retention_days=0; auto cleanup disabled")
 		return nil
 	}
-	withPurge := ctx.OptionBool("with-purge")
 	limit := ctx.OptionInt("limit")
-	n, err := services.NewTenantAdminService().CleanupExpiredDeletedTenants(days, withPurge, limit)
+	n, err := services.NewTenantAdminService().CleanupExpiredDeletedTenants(days, limit)
 	if err != nil {
 		return err
 	}
-	ctx.Info(fmt.Sprintf("force-deleted %d soft-deleted tenant(s) older than %d day(s) (with_purge=%v)", n, days, withPurge))
+	ctx.Info(fmt.Sprintf("permanently deleted %d tenant(s) soft-deleted more than %d day(s) ago (database, storage and backups included)", n, days))
 	return nil
 }

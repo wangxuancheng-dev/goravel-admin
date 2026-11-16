@@ -82,7 +82,7 @@ func TestCacheAndStorageUnboundDoNotShareRoot(t *testing.T) {
 	assert.Equal(t, "tenants/_unbound_/", tenancy.StoragePrefix(context.Background()))
 }
 
-// A forgotten ctx must not silently read or write the platform database.
+// A forgotten (nil) or unbound ctx must not silently read or write the platform database.
 //
 //nolint:staticcheck // SA1012: passing nil is the point of the test.
 func TestOrmQueryNilContextFailsClosedWithTenancy(t *testing.T) {
@@ -91,10 +91,16 @@ func TestOrmQueryNilContextFailsClosedWithTenancy(t *testing.T) {
 
 	_, err := appfacades.OrmQuery(nil).Table("admins").Count()
 	require.Error(t, err)
-	assert.ErrorIs(t, err, appfacades.ErrNilQueryContext)
+	assert.ErrorIs(t, err, appfacades.ErrNoTenantContext)
 
 	err = appfacades.OrmTransaction(nil, func(orm.Query) error { return nil })
-	assert.ErrorIs(t, err, appfacades.ErrNilQueryContext)
+	assert.ErrorIs(t, err, appfacades.ErrNoTenantContext)
+
+	// A non-nil ctx bound to no tenant is the same mistake.
+	_, err = appfacades.OrmQuery(context.Background()).Table("admins").Count()
+	assert.ErrorIs(t, err, appfacades.ErrNoTenantContext)
+	err = appfacades.OrmTransaction(context.Background(), func(orm.Query) error { return nil })
+	assert.ErrorIs(t, err, appfacades.ErrNoTenantContext)
 
 	// Platform code says so explicitly.
 	_, err = appfacades.PlatformQuery().Table("tenants").Count()

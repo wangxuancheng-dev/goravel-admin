@@ -29,20 +29,15 @@ func Orm() orm.Orm {
 // fail with that error (see QueryUnavailable). A tenant ctx never falls back to the
 // platform connection.
 //
-// A nil ctx with tenancy on is a bug (a forgotten ctx would silently read and write
-// the platform database), so it fails closed with ErrNilQueryContext — unless the
-// goroutine is bound to a tenant Schema (migrations / seeders), which routes it.
-// Platform code uses PlatformQuery / PlatformOrmQuery.
+// With tenancy on, a ctx bound to no tenant (nil, context.Background(), the platform
+// console's request) would silently read and write the platform database, so it fails
+// closed with ErrNoTenantContext — unless the goroutine is bound to a tenant Schema
+// (migrations / seeders), which routes it. Platform data goes through PlatformQuery /
+// PlatformOrmQuery, which say so.
 func OrmQuery(ctx context.Context) orm.Query {
 	o := Orm()
 	if o == nil {
 		return newUnavailableQuery(ctx, errors.New("orm unavailable"))
-	}
-	if ctx == nil {
-		if err := nilContextGuard("OrmQuery"); err != nil {
-			return newUnavailableQuery(ctx, err)
-		}
-		return orUnavailable(ctx, o.Query(), "default")
 	}
 	if tenancy.Enabled() {
 		if conn, ok := tenancyctx.ConnectionFrom(ctx); ok {
@@ -52,6 +47,12 @@ func OrmQuery(ctx context.Context) orm.Query {
 			}
 			return orUnavailable(ctx, to.WithContext(ctx).Query(), conn)
 		}
+		if err := noTenantGuard("OrmQuery"); err != nil {
+			return newUnavailableQuery(ctx, err)
+		}
+	}
+	if ctx == nil {
+		return orUnavailable(ctx, o.Query(), "default")
 	}
 	return orUnavailable(ctx, o.WithContext(ctx).Query(), "default")
 }
@@ -109,10 +110,14 @@ func logTenantConnError(name string, err error) {
 // OrmTransaction runs fn inside a DB transaction on the same connection OrmQuery(ctx) would use.
 // When ctx carries a tenant connection, never falls back to the platform DB (fail-closed).
 func OrmTransaction(ctx context.Context, fn func(tx orm.Query) error) error {
-	if ctx == nil {
-		if err := nilContextGuard("OrmTransaction"); err != nil {
-			return err
+	if tenancy.Enabled() {
+		if _, ok := tenancyctx.ConnectionFrom(ctx); !ok {
+			if err := noTenantGuard("OrmTransaction"); err != nil {
+				return err
+			}
 		}
+	}
+	if ctx == nil {
 		return Orm().Transaction(fn)
 	}
 	if tenancy.Enabled() {
@@ -140,21 +145,20 @@ func ResetPlatformConnectionNameForTest() {
 	facades.Config().Add("tenancy.platform_connection", "")
 }
 
-// ErrNilQueryContext is returned by OrmQuery / OrmTransaction for a nil ctx while
-// tenancy is on and the goroutine is not bound to a tenant (see OrmQuery).
-var ErrNilQueryContext = errors.New("OrmQuery(nil) with tenancy on: pass the request/job ctx (tenant data) or use PlatformQuery() (platform data)")
+// ErrNoTenantContext is returned by OrmQuery / OrmTransaction, with tenancy on, for a
+// ctx bound to no tenant on a goroutine bound to none (see OrmQuery).
+var ErrNoTenantContext = errors.New("OrmQuery without a tenant (tenancy on): pass the request/job ctx bound to the tenant, or use PlatformQuery() / PlatformOrmQuery(ctx) for platform data")
 
-// nilContextGuard returns ErrNilQueryContext (and logs the caller) when a nil ctx
-// would silently reach the platform database: tenancy on and no goroutine-bound
-// tenant Schema. Single-database mode and migrate/seed goroutines pass.
-func nilContextGuard(fn string) error {
-	if !tenancy.Enabled() || BoundTenantSchema() != nil {
+// noTenantGuard returns ErrNoTenantContext (and logs the caller) unless the goroutine
+// is bound to a tenant Schema (migrate / seed). Callers check tenancy and the ctx.
+func noTenantGuard(fn string) error {
+	if BoundTenantSchema() != nil {
 		return nil
 	}
 	if l := facades.Log(); l != nil {
-		l.Errorf("%s: %v", fn, ErrNilQueryContext)
+		l.Errorf("%s: %v", fn, ErrNoTenantContext)
 	}
-	return ErrNilQueryContext
+	return ErrNoTenantContext
 }
 
 // PlatformConnectionName returns the fixed landlord connection name.

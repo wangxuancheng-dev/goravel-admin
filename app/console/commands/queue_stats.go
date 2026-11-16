@@ -154,11 +154,11 @@ func (r *QueueStats) Handle(ctx console.Context) error {
 	var pendingCount, reservedCount int64
 	var err error
 
-	pendingQuery := appfacades.OrmQuery(ctx).Table("jobs").
+	pendingQuery := appfacades.PlatformOrmQuery(ctx).Table("jobs").
 		Where("available_at <= ?", time.Now()).
 		Where("reserved_at IS NULL")
 
-	reservedQuery := appfacades.OrmQuery(ctx).Table("jobs").
+	reservedQuery := appfacades.PlatformOrmQuery(ctx).Table("jobs").
 		Where("reserved_at IS NOT NULL")
 
 	if queueName != "" {
@@ -178,7 +178,7 @@ func (r *QueueStats) Handle(ctx console.Context) error {
 		return err
 	}
 
-	failedQuery := appfacades.OrmQuery(ctx).Table("failed_jobs")
+	failedQuery := appfacades.PlatformOrmQuery(ctx).Table("failed_jobs")
 	if queueName != "" {
 		failedQuery = failedQuery.Where("queue = ?", queueName)
 	}

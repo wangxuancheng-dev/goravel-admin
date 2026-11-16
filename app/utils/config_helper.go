@@ -7,13 +7,22 @@ import (
 
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
+	"goravel/app/tenancy"
+
+	"github.com/goravel/framework/contracts/database/orm"
 )
 
-func configCtx(ctx context.Context) context.Context {
+// configQuery is where the configs table is read: the tenant's database for a tenant
+// ctx (or a migrate / seed goroutine bound to a tenant), otherwise — the platform
+// console, with tenancy on — the platform database, which keeps configs of its own.
+func configQuery(ctx context.Context) orm.Query {
 	if ctx == nil {
-		return context.Background()
+		ctx = context.Background()
 	}
-	return ctx
+	if tenancy.Enabled() && !tenancy.Bound(ctx) && appfacades.BoundTenantSchema() == nil {
+		return appfacades.PlatformOrmQuery(ctx)
+	}
+	return appfacades.OrmQuery(ctx)
 }
 
 // GetConfigGroupMap loads all key/value pairs for a configs group.
@@ -28,7 +37,7 @@ func GetConfigGroupMap(ctx context.Context, group string) map[string]string {
 		return out
 	}
 	var configs []models.Config
-	if err := appfacades.OrmQuery(configCtx(ctx)).Where("group", group).Get(&configs); err != nil {
+	if err := configQuery(ctx).Where("group", group).Get(&configs); err != nil {
 		return out
 	}
 	for _, c := range configs {
@@ -65,7 +74,7 @@ func GetConfigValue(ctx context.Context, group, key string, defaultValue string)
 	}
 
 	var config models.Config
-	err := appfacades.OrmQuery(configCtx(ctx)).Where("group", group).Where("key", key).First(&config)
+	err := configQuery(ctx).Where("group", group).Where("key", key).First(&config)
 	if err != nil {
 		return defaultValue
 	}
@@ -93,7 +102,7 @@ func GetConfigValueInt(ctx context.Context, group, key string, defaultValue int)
 	}
 
 	var config models.Config
-	err := appfacades.OrmQuery(configCtx(ctx)).Where("group", group).Where("key", key).First(&config)
+	err := configQuery(ctx).Where("group", group).Where("key", key).First(&config)
 	if err != nil {
 		return defaultValue
 	}
@@ -126,7 +135,7 @@ func GetConfigValueBool(ctx context.Context, group, key string, defaultValue boo
 	}
 
 	var config models.Config
-	err := appfacades.OrmQuery(configCtx(ctx)).Where("group", group).Where("key", key).First(&config)
+	err := configQuery(ctx).Where("group", group).Where("key", key).First(&config)
 	if err != nil {
 		return defaultValue
 	}

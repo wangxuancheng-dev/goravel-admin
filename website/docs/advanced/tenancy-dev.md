@@ -54,7 +54,7 @@ key 不经 `tenancy.CacheKey`，所有租户会读到同一份。把 key 拼装�
 
 | 写错的方式 | 结果 |
 |---|---|
-| 忘传 ctx：`OrmQuery(nil)` | 多租户开启时直接报 `ErrNilQueryContext`，不会悄悄落到平台库 |
+| 忘传 ctx 或传了没绑定租户的 ctx：`OrmQuery(nil)` / `OrmQuery(context.Background())` | 多租户开启时直接报 `ErrNoTenantContext`，不会悄悄落到平台库 |
 | 用租户 ctx 读写平台表：`OrmQuery(ctx).Model(&models.Tenant{})` | 租户连接拒绝执行，报 `tenantdb.ErrPlatformTable`，提示改用 `PlatformQuery()` |
 | `facades.Orm().Query()`、`PlatformOrmQuery(nil)`、缓存不加前缀、`go func` 里用请求 ctx | CI 的 `tenantlint` 不通过 |
 | 某个接口把 A 租户的数据返回给 B 租户 | `TestEveryAdminRouteIsTenantIsolated` 会逐个扫描所有 GET 接口，新增的接口也自动纳入 |

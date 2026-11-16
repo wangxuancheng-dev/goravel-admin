@@ -177,7 +177,9 @@ func (s *TenantAdminService) UndeleteTenant(id uint) (*models.Tenant, error) {
 	return restored, nil
 }
 
-// ForceDeleteTenant permanently removes soft-deleted landlord metadata (frees code).
+// ForceDeleteTenant permanently removes a soft-deleted tenant: its data first (see
+// eraseTenantData), then its row, which frees the code. When any part of the data
+// cannot be removed the tenant stays in the recycle bin and the error is returned.
 func (s *TenantAdminService) ForceDeleteTenant(id uint, confirmCode string) error {
 	if err := s.requireEnabled(); err != nil {
 		return err
@@ -195,14 +197,35 @@ func (s *TenantAdminService) ForceDeleteTenant(id uint, confirmCode string) erro
 	if tenantOpBusy(tenant) {
 		return apperrors.ErrTenantOpInProgress
 	}
-	// The code becomes reusable below: its search indexes must go first.
-	if err := dropTenantSearchIndexes(tenant); err != nil {
+	// The code becomes reusable below: nothing of this tenant may be left under it.
+	if err := s.eraseTenantData(tenant); err != nil {
 		return err
 	}
-	s.conn.Forget(tenant.ConnectionName)
 	_ = NewTenantDomainService().PurgeAllForTenant(tenant.ID)
 	if _, err := appfacades.PlatformQuery().WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
 		return err
+	}
+	return nil
+}
+
+// eraseTenantData removes everything kept under a tenant's code before the code can be
+// reused: a new tenant with the same code gets the same database name, storage prefix,
+// backup directory and index names, so anything left over would be handed to it (a
+// leftover database is even reused as is). Order: search indexes, object storage and
+// backups (their lookup needs the tenant row), then the database / schema and its
+// dedicated account. Each step is idempotent, so a failed run can simply be retried.
+func (s *TenantAdminService) eraseTenantData(t *models.Tenant) error {
+	if err := dropTenantSearchIndexes(t); err != nil {
+		return fmt.Errorf("drop search indexes: %w", err)
+	}
+	if err := PurgeTenantObjectStorage(t.Code); err != nil {
+		return fmt.Errorf("purge object storage: %w", err)
+	}
+	if err := PurgeTenantBackups(t.Code); err != nil {
+		return fmt.Errorf("purge backups: %w", err)
+	}
+	if err := s.conn.DropStorage(t); err != nil {
+		return apperrors.ErrTenantConnectionFailed.WithError(fmt.Errorf("drop database: %w", err))
 	}
 	return nil
 }
@@ -220,9 +243,10 @@ func dropTenantSearchIndexes(t *models.Tenant) error {
 	return nil
 }
 
-// CleanupExpiredDeletedTenants hard-deletes soft-deleted rows older than days.
-// When withPurge is true, object storage + local backups are removed first (sync).
-func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bool, limit int) (int, error) {
+// CleanupExpiredDeletedTenants permanently deletes tenants soft-deleted more than days
+// ago, like ForceDeleteTenant: data first, and a tenant whose data cannot be removed
+// is kept (and retried on the next run).
+func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, limit int) (int, error) {
 	if err := s.requireEnabled(); err != nil {
 		return 0, err
 	}
@@ -251,14 +275,11 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 		if tenantOpBusy(t) {
 			continue
 		}
-		if withPurge {
-			_ = PurgeTenantObjectStorage(t.Code)
-			_ = PurgeTenantBackups(t.Code)
+		if err := s.eraseTenantData(t); err != nil {
+			facades.Log().Warningf("tenant cleanup: keep %s (code not freed): %v", t.Code, err)
+			continue // keep the row (and code) until everything is gone
 		}
-		if err := dropTenantSearchIndexes(t); err != nil {
-			continue // keep the row (and code) until its indexes are gone
-		}
-		s.conn.Forget(t.ConnectionName)
+		_ = NewTenantDomainService().PurgeAllForTenant(t.ID)
 		if _, err := appfacades.PlatformQuery().WithTrashed().Where("id", t.ID).ForceDelete(&models.Tenant{}); err != nil {
 			continue
 		}

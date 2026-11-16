@@ -119,10 +119,12 @@ func IsReservedOrPlatformHost(host string) bool {
 	return false
 }
 
-// IsLockedPublicApexHost reports marketing/apex hosts where client-supplied
-// tenant (Header/Query) must stay gated by TENANCY_ALLOW_HEADER_FALLBACK.
-// Loopback, API hosts, and unknown hosts are not locked so public <img>
-// ?tenant_code= works behind Vite changeOrigin / split SPA-API deploys.
+// IsLockedPublicApexHost reports public hosts that belong to no tenant — the apex, www.
+// and the platform console's platform. — where a client-supplied tenant (Header /
+// Query) is accepted only with TENANCY_ALLOW_HEADER_FALLBACK=true.
+// Loopback, IPs, API hosts (api.) and unknown hosts are not locked, so split SPA / API
+// deploys and public <img ?tenant_code=> keep working there. Choosing a tenant is not
+// access to it: tokens are checked against the chosen tenant's own database.
 func IsLockedPublicApexHost(host string) bool {
 	host = NormalizeHost(host)
 	if host == "" || host == "localhost" || net.ParseIP(host) != nil {
@@ -132,5 +134,5 @@ func IsLockedPublicApexHost(host string) bool {
 	if base == "" {
 		return false
 	}
-	return host == base || host == "www."+base
+	return host == base || host == "www."+base || host == "platform."+base
 }

@@ -54,7 +54,7 @@ None of this relies on memory. Mistakes show up while you develop:
 
 | Mistake | Result |
 |---|---|
-| Forgotten ctx: `OrmQuery(nil)` | With tenancy on: `ErrNilQueryContext`, never a silent platform query |
+| Forgotten or unbound ctx: `OrmQuery(nil)` / `OrmQuery(context.Background())` | With tenancy on: `ErrNoTenantContext`, never a silent platform query |
 | Platform table through a tenant ctx: `OrmQuery(ctx).Model(&models.Tenant{})` | Refused by the tenant connection with `tenantdb.ErrPlatformTable`, naming `PlatformQuery()` |
 | `facades.Orm().Query()`, `PlatformOrmQuery(nil)`, unprefixed cache keys, request ctx inside `go func` | CI fails in `tenantlint` |
 | An endpoint returns tenant A's data to tenant B | `TestEveryAdminRouteIsTenantIsolated` scans every GET route, including new ones |

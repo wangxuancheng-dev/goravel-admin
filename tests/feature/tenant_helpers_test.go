@@ -61,3 +61,19 @@ func withTenantSchema(conn *services.TenantConnectionService, tn *models.Tenant,
 	}
 	return appfacades.WithSchemaContext(ctx, fn)
 }
+
+// tenantDatabaseExists reports whether a database of that name exists on the platform server.
+func tenantDatabaseExists(name string) (bool, error) {
+	q := appfacades.PlatformQuery()
+	sql := "SELECT COUNT(*) AS n FROM information_schema.schemata WHERE schema_name = ?"
+	if isPostgres(q) {
+		sql = "SELECT COUNT(*) AS n FROM pg_database WHERE datname = ?"
+	}
+	var rows []struct {
+		N int64 `gorm:"column:n"`
+	}
+	if err := q.Raw(sql, name).Scan(&rows); err != nil {
+		return false, err
+	}
+	return len(rows) > 0 && rows[0].N > 0, nil
+}
