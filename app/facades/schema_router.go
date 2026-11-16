@@ -68,7 +68,12 @@ func (r *schemaRouter) Connection(name string) schema.Schema {
 // platform database by default, and the framework's HasTable / GetTables would report
 // their tables as the platform's.
 func scopeIfPostgres(s schema.Schema) schema.Schema {
-	if s == nil || s.Orm() == nil || s.Orm().Query().Driver() != goravelpostgres.Name {
+	if s == nil || s.Orm() == nil {
+		return s
+	}
+	// Query() is nil when the framework could not build the connection: leave the
+	// Schema as it is, its own calls report that error (do not panic here).
+	if q := s.Orm().Query(); q == nil || q.Driver() != goravelpostgres.Name {
 		return s
 	}
 	// The schema and prefix the framework itself applies for this connection.

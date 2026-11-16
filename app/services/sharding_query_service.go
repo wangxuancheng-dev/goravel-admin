@@ -273,7 +273,7 @@ func (s *ShardingQueryServiceImpl) getColumnsForUnion() string {
 	// COLLATE is MySQL syntax (its shards may differ in collation); other databases
 	// get the quoted column list only.
 	collate := s.config.UnionCollation != "" && len(s.config.StringColumns) > 0 &&
-		appfacades.OrmQuery(s.ctx).Driver() == goravelmysql.Name
+		appfacades.OrmDriver(s.ctx) == goravelmysql.Name
 	stringColSet := make(map[string]bool)
 	for _, col := range s.config.StringColumns {
 		stringColSet[strings.TrimSpace(col)] = true

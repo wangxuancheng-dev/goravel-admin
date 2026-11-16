@@ -333,7 +333,7 @@ func (r *MonitorController) getProcessesInfo(ctx http.Context) map[string]any {
 	var driver string
 	var connectionName string
 	if facades.Orm() != nil {
-		driver = strings.ToLower(appfacades.OrmQuery(ctx).Driver())
+		driver = strings.ToLower(appfacades.OrmDriver(ctx))
 		connectionName = monitorDBConnectionName(ctx, driver)
 	} else {
 		driver = ""

@@ -45,6 +45,15 @@ func OrmQuery(ctx context.Context) orm.Query {
 	return o.WithContext(ctx).Query()
 }
 
+// OrmDriver returns the Goravel driver name of ctx's connection (mysql.Name "MySQL",
+// postgres.Name "PostgreSQL"), or "" when the connection is unavailable (OrmQuery nil).
+func OrmDriver(ctx context.Context) string {
+	if q := OrmQuery(ctx); q != nil {
+		return q.Driver()
+	}
+	return ""
+}
+
 // BuildOrmConnection returns the Orm of a named connection. Tenant connections come
 // from the app-owned registry (tenantdb), built on demand; other names (the platform
 // connection) from the framework. Returns nil when the connection cannot be opened.

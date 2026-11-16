@@ -58,7 +58,7 @@ func getMySQLInfoFromDB(ctx http.Context) map[string]any {
 	}()
 
 	// 获取数据库连接配置（租户绑定后看租户库）
-	driver := strings.ToLower(appfacades.OrmQuery(ctx).Driver())
+	driver := strings.ToLower(appfacades.OrmDriver(ctx))
 	connectionName := monitorDBConnectionName(ctx, driver)
 	dbHost := facades.Config().GetString(fmt.Sprintf("database.connections.%s.host", connectionName), "127.0.0.1")
 	dbPort := facades.Config().GetInt(fmt.Sprintf("database.connections.%s.port", connectionName), 3306)
@@ -208,7 +208,7 @@ func getPostgreSQLInfoFromDB(ctx http.Context) map[string]any {
 	}()
 
 	// 获取数据库连接配置（租户绑定后看租户库）
-	driver := strings.ToLower(appfacades.OrmQuery(ctx).Driver())
+	driver := strings.ToLower(appfacades.OrmDriver(ctx))
 	connectionName := monitorDBConnectionName(ctx, driver)
 	dbHost := facades.Config().GetString(fmt.Sprintf("database.connections.%s.host", connectionName), "127.0.0.1")
 	dbPort := facades.Config().GetInt(fmt.Sprintf("database.connections.%s.port", connectionName), 5432)

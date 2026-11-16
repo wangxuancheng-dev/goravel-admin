@@ -69,7 +69,7 @@ func (r *OptimizeTables) Handle(ctx console.Context) error {
 	}
 
 	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
-		driver := strings.ToLower(appfacades.OrmQuery(bound).Driver())
+		driver := strings.ToLower(appfacades.OrmDriver(bound))
 		rows := make([][]string, 0, len(tables))
 
 		execOptimize := func(table string) error {

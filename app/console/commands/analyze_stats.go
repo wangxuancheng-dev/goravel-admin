@@ -87,7 +87,7 @@ func (r *AnalyzeStats) Handle(ctx console.Context) error {
 	}
 
 	return RunTenantScoped(ctx, func(_ *models.Tenant, bound context.Context) error {
-		driver := strings.ToLower(appfacades.OrmQuery(bound).Driver())
+		driver := strings.ToLower(appfacades.OrmDriver(bound))
 		ctx.Info("开始执行 ANALYZE...")
 
 		rows := make([][]string, 0, 16)
