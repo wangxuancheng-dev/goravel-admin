@@ -16,6 +16,31 @@ Full Chinese detail: [生产清单](/deploy/production).
 7. Set `PAYMENT_GATEWAYS_ENABLED` explicitly; omit `mock` unless intentionally testing  
 8. After upgrades that add Task Center / CSV import: re-seed menus/permissions (next section)
 
+## Minimal tenancy path
+
+When enabling DB-per-tenant in public production, turn on the whole block in `.env.production.example` (“Minimal DB-per-tenant production path”), not only `TENANCY_DRIVER`:
+
+| Setting | Value |
+|---------|--------|
+| `TENANCY_RESOLVER` | `subdomain` |
+| `TENANCY_BASE_DOMAIN` | your public apex |
+| `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS` | `false` |
+| `TENANCY_DB_DEDICATED_USER` | `true` |
+| `TENANCY_MYSQL_TLS` / `TENANCY_POSTGRES_SSLMODE` | `true` / `require` |
+| `CACHE_STORE` / `QUEUE_CONNECTION` | `redis` (+ `queue-long-running` worker) |
+| `TRUSTED_FORWARDED_HOST_ONLY` | `true` after `TRUSTED_PROXIES` is correct |
+
+Backfill existing same-host tenants (created before dedicated users):
+
+```bash
+go run . artisan tenant:ensure-db-user --all --dry-run
+go run . artisan tenant:ensure-db-user --all
+# already-dedicated tenants are skipped; add --rotate to change their passwords
+# optional: --force replaces a custom same-host username (old DB account is kept)
+```
+
+Full Chinese detail: [生产清单 §1.0](/deploy/production#10-最小生产默认路径一户一库).
+
 ## Task Center + import permissions
 
 After shipping versions with import/export Task Center, confirm menu + permissions exist (otherwise no sidebar entry or 403 on import APIs).

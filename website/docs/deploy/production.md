@@ -13,9 +13,37 @@
 7. `migrate`（平台库）；租户库用平台 UI 异步迁移或 `tenant:migrate` / `tenant:migrate-all [--concurrency=N]`（默认 `TENANCY_MIGRATE_CONCURRENCY`，见 [多租户 · 并发旋钮对照](/advanced/tenancy-scaling#并发旋钮对照与队列一起调)）；异步运维需 `long-running` worker
 8. 修改默认管理员密码；平台管理员用 `platform:install`
 
+
 应用在 `APP_ENV=production` 时会对不安全默认项打 **Warning** 日志（不阻断启动），见 `app/production/warn.go`。
 
-## 1.1 任务中心与导入权限（升级后必查）
+## 1.0 最小生产默认路径（一户一库）
+
+公网开启多租户时，优先整段采用下列组合（与 `.env.production.example` 中「Minimal DB-per-tenant production path」一致），不要只开 `TENANCY_DRIVER` 而其余仍用本地演示值：
+
+| 项 | 推荐值 | 说明 |
+|----|--------|------|
+| `TENANCY_DRIVER` | `database` | 一户一库 |
+| `TENANCY_RESOLVER` | `subdomain` | 租户走 `code.base` |
+| `TENANCY_BASE_DOMAIN` | 公网 apex | 锁定 apex / www / platform |
+| `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS` | `false` | 禁止空账号回落平台 root |
+| `TENANCY_DB_DEDICATED_USER` | `true` | 新户自动专用库账号 |
+| `TENANCY_MYSQL_TLS` / `TENANCY_POSTGRES_SSLMODE` | `true` / `require` | 远程库加密 |
+| `CACHE_STORE` / `QUEUE_CONNECTION` | `redis` | 生产强制；须跑 `queue-long-running` Worker |
+| `TRUSTED_FORWARDED_HOST_ONLY` | `true` | 仅在 `TRUSTED_PROXIES` 配齐后开启 |
+
+存量同机租户（开户时未建专用账号）在打开 `TENANCY_DB_DEDICATED_USER` 后执行回填：
+
+```bash
+go run . artisan tenant:ensure-db-user --all --dry-run
+go run . artisan tenant:ensure-db-user --all
+# 已是专用账号默认跳过；要轮换密码加 --rotate
+# 若个别户曾手填同机 username，需显式替换：加 --force（旧账号不会自动删除）
+```
+
+平台账号需要 MySQL `CREATE USER` + `GRANT OPTION`，或 PostgreSQL `CREATEROLE`。
+
+## 1.1 任务中心
+与导入权限（升级后必查）
 
 升级含「导入导出 / 任务中心」的版本后，确认菜单与权限已落库，否则侧边栏无入口或导入相关按钮 403。
 

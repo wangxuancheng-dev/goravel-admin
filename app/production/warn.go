@@ -58,6 +58,9 @@ func WarnInsecureDefaults() {
 		if facades.Config().GetBool("tenancy.allow_platform_db_credentials", false) {
 			warn("TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true — prefer dedicated DB users on public deployments")
 		}
+		if !facades.Config().GetBool("tenancy.db_dedicated_user", false) {
+			warn("TENANCY_DB_DEDICATED_USER=false — enable for new tenants; backfill existing with artisan tenant:ensure-db-user --all (see production.md minimal tenancy path)")
+		}
 		if strings.EqualFold(facades.Config().GetString("tenancy.resolver", "header"), "header") {
 			warn("TENANCY_RESOLVER=header — public deployments should prefer subdomain")
 		}

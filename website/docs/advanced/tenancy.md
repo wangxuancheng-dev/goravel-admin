@@ -211,7 +211,7 @@ TENANCY_SCHEMA_PREFIX=tenant_
 TENANCY_PLATFORM_CONNECTION=       # 可选；钉死平台连接名，默认取 database.default
 TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发可 true
                                           # 远程 host 始终要求独立 username/password
-TENANCY_DB_DEDICATED_USER=false           # true：同机开户且未填账号时自动建专用 DB 账号（只授权本库），删库时一并删除
+TENANCY_DB_DEDICATED_USER=false           # true：同机开户未填账号时自动建专用 DB 账号；存量用 tenant:ensure-db-user --all
 TENANCY_DB_USER_HOST=%                    # MySQL 专用账号的 host 部分；应用与库不同机时可收紧，如 10.0.%
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
 TENANCY_MYSQL_TLS=                        # 租户 MySQL TLS：空=明文；远程库用 true（校验证书）或 skip-verify
@@ -294,7 +294,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
 3. **连接回收**：`Forget` 立即关闭该租户的连接池；空闲（`TENANCY_REGISTERED_IDLE_TTL`）或超上限（`TENANCY_REGISTERED_MAX`）淘汰的连接在 2 分钟宽限期后关闭，再次访问时自动重建。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试（防永久卡住）。
-5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。没有自己账号的租户每次建连接都会检查该开关，关闭后立即无法再用平台账号连接（报 `tenant_credentials_required`），备份同样如此。推荐开启 `TENANCY_DB_DEDICATED_USER=true`：开户时用平台账号为租户创建 `t_<code>` 账号（随机密码，APP_KEY 加密保存），只授权该租户的库（MySQL `GRANT ALL ON tenant_x.*`；PostgreSQL 由该角色拥有库或 schema），删库时一并删除。这样即使代码写错，数据库服务器也会拒绝跨库访问。平台账号需要 `CREATE USER` + `GRANT OPTION`（MySQL）或 `CREATEROLE`（PostgreSQL）；PostgreSQL 共库 schema 模式下，建议对平台库执行 `REVOKE ALL ON SCHEMA public FROM PUBLIC`。
+5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。没有自己账号的租户每次建连接都会检查该开关，关闭后立即无法再用平台账号连接（报 `tenant_credentials_required`），备份同样如此。推荐开启 `TENANCY_DB_DEDICATED_USER=true`：开户时用平台账号为租户创建 `t_<code>` 账号（随机密码，APP_KEY 加密保存），只授权该租户的库（MySQL `GRANT ALL ON tenant_x.*`；PostgreSQL 由该角色拥有库或 schema），删库时一并删除。存量同机租户：`go run . artisan tenant:ensure-db-user --all`（先 `--dry-run`；已专用账号默认跳过，轮换密码加 `--rotate`）。这样即使代码写错，数据库服务器也会拒绝跨库访问。平台账号需要 `CREATE USER` + `GRANT OPTION`（MySQL）或 `CREATEROLE`（PostgreSQL）；PostgreSQL 共库 schema 模式下，建议对平台库执行 `REVOKE ALL ON SCHEMA public FROM PUBLIC`。
 6. **异步运维**：单户 migrate / seed / backup / restore / rollback 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` / `rollback-all` 仍可用 CLI：`backup-all` 改为入队 long-running（分页扇出），定时 `backup-scheduled` 按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` 户。
 7. **全舰队 migrate/seed 并发**：`TENANCY_MIGRATE_CONCURRENCY`（默认 2）控制 CLI `tenant:migrate-all` / `seed-all` / `rollback-all` **以及**平台 UI 批量 migrate/seed/rollback（`tenant_ops_fleet`）；CLI `--concurrency=N` 可临时覆盖。与 `QUEUE_LONG_RUNNING_CONCURRENT`（单户/backup）、`QUEUE_SCHEDULE_CONCURRENT`（采集）**不是同一旋钮**；见 [并发旋钮对照](/advanced/tenancy-scaling#并发旋钮对照与队列一起调)。
 8. **全舰队 schema 回滚**：`tenant:rollback` / `tenant:rollback-all` 与平台 UI 单户/批量 rollback 共用 `TENANCY_MIGRATE_CONCURRENCY`（`tenant_ops_fleet`）。`--step=N` 回滚最近 N 个迁移文件；`--batch=N` 回滚 `migrations.batch=N`；二者为 0 时回滚上一批次。**首次 migrate 常把全部文件记为 batch 1**，默认 0/0 会整批撤销——生产请优先 `--step=1`，并先备份。
@@ -311,7 +311,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 10 / open 20）；户多时按下方 [规模与推荐配置](/advanced/tenancy-scaling) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
-6. **`TENANCY_DB_DEDICATED_USER=true`**：每个租户一个只能访问自己库的 DB 账号，代码写错也跨不了库（见生产要点 5）。只影响此后新开的租户；存量租户继续用原账号，需要时在平台编辑租户凭据更换。
+6. **`TENANCY_DB_DEDICATED_USER=true`**：每个租户一个只能访问自己库的 DB 账号，代码写错也跨不了库（见生产要点 5）。新开户自动建账号；存量同机租户用 `tenant:ensure-db-user --all` 回填（见 [生产清单 · 最小生产默认路径](/deploy/production#10-最小生产默认路径一户一库)）。
 7. **反代与库 TLS**：默认任何对端的 `X-Forwarded-Host` 都会被采信（与旧版一致）；确认反代 / CDN 回源地址都在 `TRUSTED_PROXIES` 内后，建议设 `TRUSTED_FORWARDED_HOST_ONLY=true`，只采信这些对端，防止客户端伪造 Host 选租户（token 仍按租户库校验，不会越权）。远程租户库建议 `TENANCY_MYSQL_TLS=true`、`TENANCY_POSTGRES_SSLMODE=require`。
 
 

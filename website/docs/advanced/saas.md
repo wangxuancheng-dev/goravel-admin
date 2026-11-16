@@ -21,7 +21,8 @@
 
 - [ ] `APP_DEBUG=false`，强 `APP_KEY` / `JWT_SECRET`
 - [ ] 全局安全头已启用（`SecurityHeaders`）；HTTPS 后设 `SECURITY_HSTS_MAX_AGE=31536000`
-- [ ] 一户一库公网：`TENANCY_RESOLVER=subdomain`，`TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`
+- [ ] 一户一库公网按 [最小生产默认路径](/deploy/production#10-最小生产默认路径一户一库)：`subdomain` + `DEDICATED_USER` + TLS + redis 队列
+- [ ] `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`；存量已 `tenant:ensure-db-user --all`
 - [ ] 子域名与 Header 冲突返回 `tenant_hint_conflict`；未 migrate 返回 `tenant_not_ready`（403）
 - [ ] 关闭 Swagger / 代码生成器 / pprof；默认管理员已改密
 

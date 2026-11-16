@@ -36,6 +36,62 @@ func DedicatedTenantDBUserEnabled() bool {
 	return facades.Config().GetBool("tenancy.db_dedicated_user", false)
 }
 
+// EnsureDedicatedDBUser outcomes (also used by tenant:ensure-db-user).
+const (
+	DedicatedDBUserActionCreated = "created"
+	DedicatedDBUserActionRotated = "rotated"
+	DedicatedDBUserActionSkipped = "skipped"
+)
+
+// DedicatedDBUserEnsureResult is one tenant's ensure / rotate outcome.
+type DedicatedDBUserEnsureResult struct {
+	TenantID uint   `json:"tenant_id"`
+	Code     string `json:"code"`
+	Action   string `json:"action"`
+	Detail   string `json:"detail"`
+}
+
+// DedicatedDBUserEnsureOpts controls EnsureDedicatedDBUser / ClassifyDedicatedDBUserEnsure.
+type DedicatedDBUserEnsureOpts struct {
+	// ForceReplaceCustom replaces an operator-supplied same-host username with the
+	// reserved dedicated account (the old DB account is left in place).
+	ForceReplaceCustom bool
+	// RotatePassword rotates the password when the tenant already uses the dedicated
+	// account. Without it, already-dedicated tenants are skipped (safe for --all backfill).
+	RotatePassword bool
+	// DryRun only classifies; no CREATE / ALTER / row update.
+	DryRun bool
+}
+
+// ClassifyDedicatedDBUserEnsure decides what EnsureDedicatedDBUser would do without
+// touching the database.
+func ClassifyDedicatedDBUserEnsure(tenant *models.Tenant, opts DedicatedDBUserEnsureOpts) (action, detail string) {
+	if tenant == nil || tenant.ID == 0 {
+		return DedicatedDBUserActionSkipped, "tenant is nil"
+	}
+	if TenantIsTrashed(tenant) {
+		return DedicatedDBUserActionSkipped, "tenant is soft-deleted"
+	}
+	if TenantUsesCustomHost(tenant) {
+		return DedicatedDBUserActionSkipped, "remote host: set dedicated credentials on the tenant row (or on that server)"
+	}
+	want := DedicatedTenantDBUsername(tenant.Code)
+	user := strings.TrimSpace(tenant.Username)
+	switch {
+	case user == want:
+		if opts.RotatePassword {
+			return DedicatedDBUserActionRotated, "already dedicated; rotate password"
+		}
+		return DedicatedDBUserActionSkipped, "already dedicated; pass --rotate to change password"
+	case user == "":
+		return DedicatedDBUserActionCreated, "assign dedicated account and grant existing storage"
+	case opts.ForceReplaceCustom:
+		return DedicatedDBUserActionCreated, "replace custom username with dedicated account (old account kept)"
+	default:
+		return DedicatedDBUserActionSkipped, "custom username " + user + "; pass --force to replace with " + want
+	}
+}
+
 // DedicatedTenantDBUsername is the account name created for tenant code: t_<code>,
 // shortened with a hash suffix to fit MySQL's 32 characters.
 func DedicatedTenantDBUsername(code string) string {
@@ -131,7 +187,7 @@ func createDedicatedDBUser(tenant *models.Tenant) error {
 }
 
 // grantDedicatedDBUser gives tenant's account its database (MySQL). PostgreSQL needs
-// nothing: the account owns the database / schema it is created with.
+// nothing on first create: the account owns the database / schema it is created with.
 func grantDedicatedDBUser(tenant *models.Tenant) error {
 	if !usesDedicatedDBUser(tenant) || NormalizeTenantDriver(tenant.Driver) != models.TenantDriverMySQL {
 		return nil
@@ -144,6 +200,35 @@ func grantDedicatedDBUser(tenant *models.Tenant) error {
 		return dedicatedUserErr("grant tenant DB user "+tenant.Username, err)
 	}
 	return nil
+}
+
+// reclaimDedicatedDBOwnership hands an already-existing PostgreSQL database / schema
+// to the dedicated role (used by EnsureDedicatedDBUser; CreateStorage sets OWNER at
+// CREATE time instead).
+func reclaimDedicatedDBOwnership(tenant *models.Tenant) error {
+	if !usesDedicatedDBUser(tenant) || NormalizeTenantDriver(tenant.Driver) != models.TenantDriverPostgres {
+		return nil
+	}
+	isolation, err := ResolveTenantIsolation(tenant.Driver, tenant.Isolation)
+	if err != nil {
+		return err
+	}
+	q := appfacades.PlatformQuery()
+	owner := quotePGIdent(tenant.Username)
+	switch isolation {
+	case models.TenantIsolationSchema:
+		if err := validateSQLIdent(tenant.Schema); err != nil {
+			return err
+		}
+		_, err = q.Exec(fmt.Sprintf("ALTER SCHEMA %s OWNER TO %s", quotePGIdent(tenant.Schema), owner))
+		return dedicatedUserErr("reclaim schema owner "+tenant.Username, err)
+	default:
+		if err := validateSQLIdent(tenant.Database); err != nil {
+			return err
+		}
+		_, err = q.Exec(fmt.Sprintf("ALTER DATABASE %s OWNER TO %s", quotePGIdent(tenant.Database), owner))
+		return dedicatedUserErr("reclaim database owner "+tenant.Username, err)
+	}
 }
 
 // dropDedicatedDBUser drops tenant's account, after its database / schema.
@@ -172,6 +257,9 @@ func dropDedicatedDBUser(tenant *models.Tenant) error {
 
 // dedicatedUserErr adds what to do when the platform account may not manage accounts.
 func dedicatedUserErr(what string, err error) error {
+	if err == nil {
+		return nil
+	}
 	msg := strings.ToLower(err.Error())
 	if strings.Contains(msg, "denied") || strings.Contains(msg, "permission") || strings.Contains(msg, "privilege") {
 		return fmt.Errorf("%s: %w (TENANCY_DB_DEDICATED_USER needs a platform DB account with CREATE USER + GRANT OPTION on MySQL or CREATEROLE on PostgreSQL; grant it, or set TENANCY_DB_DEDICATED_USER=false and give tenants credentials)", what, err)

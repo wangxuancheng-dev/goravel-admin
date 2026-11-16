@@ -620,6 +620,64 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 	return tenant, nil
 }
 
+// EnsureDedicatedDBUser creates or rotates a same-host dedicated DB account for an
+// existing tenant (backfill for tenants created before TENANCY_DB_DEDICATED_USER, or
+// password rotation with opts.RotatePassword). Does not require the config flag: the
+// CLI / operator opts in.
+func (s *TenantAdminService) EnsureDedicatedDBUser(id uint, opts DedicatedDBUserEnsureOpts) (DedicatedDBUserEnsureResult, error) {
+	out := DedicatedDBUserEnsureResult{}
+	if err := s.requireEnabled(); err != nil {
+		return out, err
+	}
+	tenant, err := s.GetByID(id)
+	if err != nil {
+		return out, err
+	}
+	out.TenantID = tenant.ID
+	out.Code = tenant.Code
+	action, detail := ClassifyDedicatedDBUserEnsure(tenant, opts)
+	out.Action = action
+	out.Detail = detail
+	if action == DedicatedDBUserActionSkipped || opts.DryRun {
+		return out, nil
+	}
+
+	password, err := generateDBPassword()
+	if err != nil {
+		return out, apperrors.ErrPasswordEncryptFailed.WithError(err)
+	}
+	sealed, err := SealTenantPassword(password)
+	if err != nil {
+		return out, apperrors.ErrPasswordEncryptFailed.WithError(err)
+	}
+	wantUser := DedicatedTenantDBUsername(tenant.Code)
+	tenant.Username = wantUser
+	tenant.Password = sealed
+
+	if err := createDedicatedDBUser(tenant); err != nil {
+		return out, apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+	if err := grantDedicatedDBUser(tenant); err != nil {
+		return out, apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+	if err := reclaimDedicatedDBOwnership(tenant); err != nil {
+		return out, apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+
+	// ALTER / CREATE before the row update, then Forget, so rebuilds use the new secret.
+	s.conn.Forget(tenant.ConnectionName)
+	if _, err := appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
+		"username": wantUser,
+		"password": sealed,
+	}); err != nil {
+		return out, err
+	}
+	if err := s.conn.Ping(tenant, 5*time.Second); err != nil {
+		return out, apperrors.ErrTenantConnectionFailed.WithError(err)
+	}
+	return out, nil
+}
+
 func (s *TenantAdminService) ListAll() ([]models.Tenant, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, err

@@ -156,6 +156,68 @@ func TestPlatformCredentialFallbackFollowsSetting(t *testing.T) {
 	assert.ErrorContains(t, err, apperrors.ErrTenantCredentialsRequired.Code, "backups must not fall back either")
 }
 
+// tenant:ensure-db-user backfills a dedicated account onto a same-host tenant that
+// previously shared the platform credentials.
+func TestEnsureDedicatedDBUserBackfill(t *testing.T) {
+	withTenancyDriver(t, "database")
+	allowSharedTenantDBCredentials(t)
+
+	code := fmt.Sprintf("ensu%d", time.Now().UnixNano()%1000000)
+	admin := services.NewTenantAdminService()
+	conn := services.NewTenantConnectionService()
+	tn, err := admin.Create(services.TenantCreateInput{Code: code, Name: "Ensure", Migrate: false})
+	if err != nil {
+		skipWithoutTenantDB(t, err)
+	}
+	t.Cleanup(func() {
+		facades.Config().Add("tenancy.allow_platform_db_credentials", true)
+		_ = conn.DropStorage(tn)
+		_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
+	})
+	require.Empty(t, tn.Username)
+
+	dry, err := admin.EnsureDedicatedDBUser(tn.ID, services.DedicatedDBUserEnsureOpts{DryRun: true})
+	require.NoError(t, err)
+	assert.Equal(t, services.DedicatedDBUserActionCreated, dry.Action)
+
+	res, err := admin.EnsureDedicatedDBUser(tn.ID, services.DedicatedDBUserEnsureOpts{})
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "denied") {
+			t.Skipf("platform DB account cannot create users: %v", err)
+		}
+		require.NoError(t, err)
+	}
+	assert.Equal(t, services.DedicatedDBUserActionCreated, res.Action)
+
+	fresh, err := admin.GetByID(tn.ID)
+	require.NoError(t, err)
+	tn = fresh
+	assert.Equal(t, services.DedicatedTenantDBUsername(code), tn.Username)
+
+	facades.Config().Add("tenancy.allow_platform_db_credentials", false)
+	conn.Forget(tn.ConnectionName)
+	ctx, err := conn.TenantContext(tn)
+	require.NoError(t, err)
+	var who []struct {
+		U string `gorm:"column:u"`
+	}
+	whoSQL := "SELECT CURRENT_USER() AS u"
+	if isPostgres(appfacades.PlatformQuery()) {
+		whoSQL = "SELECT current_user AS u"
+	}
+	require.NoError(t, appfacades.OrmQuery(ctx).Raw(whoSQL).Scan(&who))
+	require.Len(t, who, 1)
+	assert.True(t, strings.HasPrefix(who[0].U, tn.Username), "current user %q", who[0].U)
+
+	skipRot, err := admin.EnsureDedicatedDBUser(tn.ID, services.DedicatedDBUserEnsureOpts{})
+	require.NoError(t, err)
+	assert.Equal(t, services.DedicatedDBUserActionSkipped, skipRot.Action)
+
+	rot, err := admin.EnsureDedicatedDBUser(tn.ID, services.DedicatedDBUserEnsureOpts{RotatePassword: true})
+	require.NoError(t, err)
+	assert.Equal(t, services.DedicatedDBUserActionRotated, rot.Action)
+}
+
 // What a permanent delete left behind before deletes erased storage (database and
 // dedicated account, row gone) is found by tenant:orphans and dropped; storage of a
 // live tenant is never listed.
