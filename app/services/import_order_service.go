@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cast"
 
 	apperrors "goravel/app/errors"
-	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
@@ -29,41 +28,6 @@ type ImportOrderService struct {
 
 func NewImportOrderService(ctx context.Context) *ImportOrderService {
 	return &ImportOrderService{ctx: ctx}
-}
-
-// ImportUploadedCSV 校验并读取上传的 CSV，再导入订单（临时文件自动清理）。
-func (s *ImportOrderService) ImportUploadedCSV(file filesystem.File) (*ImportResult, string, error) {
-	if file == nil {
-		return nil, "", apperrors.ErrFileRequired
-	}
-
-	filename := file.GetClientOriginalName()
-	if !strings.HasSuffix(strings.ToLower(filename), ".csv") {
-		return nil, filename, apperrors.ErrInvalidFileType
-	}
-
-	storage := facades.Storage().Disk("local")
-	tmpDir := strings.TrimSuffix(helpers.TenantStoragePrefix(s.ctx), "/")
-	if tmpDir == "" {
-		tmpDir = "imports"
-	} else {
-		tmpDir = tmpDir + "/imports"
-	}
-	savedPath, err := storage.PutFile(tmpDir, file)
-	if err != nil {
-		return nil, filename, err
-	}
-	defer func() {
-		_ = storage.Delete(savedPath)
-	}()
-
-	csvContent, err := storage.Get(savedPath)
-	if err != nil {
-		return nil, filename, err
-	}
-
-	result, err := s.ImportOrders(csvContent)
-	return result, filename, err
 }
 
 // SaveUploadedCSVForAsync persists the upload for a background import job (not deleted).

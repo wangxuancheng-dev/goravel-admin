@@ -79,13 +79,3 @@ func resolveTenantConnection(name string) (tenantdb.Spec, error) {
 	}
 	return s.buildSpec(tenant)
 }
-
-// RegisteredConnCount returns how many tenant pools are registered in this process.
-func RegisteredConnCount() int {
-	return tenantdb.Default.Count()
-}
-
-// ResetRegisteredConnsForTest closes and clears every tenant connection (tests only).
-func ResetRegisteredConnsForTest() {
-	tenantdb.Default.CloseAll()
-}

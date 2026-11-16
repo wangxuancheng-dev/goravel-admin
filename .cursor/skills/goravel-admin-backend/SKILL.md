@@ -87,7 +87,7 @@ These admin modules follow the code generator pattern end-to-end:
 | `user` | CRUD + UpdateBalance/ResetPassword/Export use shared helper |
 | `user_balance_log` | List/statistics use shared error helper; `Store` remains hand-written (sharding) |
 | `payment` | Index/Show thin + `PaymentToJSON` + `BuildPaymentFiltersFromHTTP`; gateway is `PaymentGatewayService`; export/queue remain hand-written |
-| `order` | Index/Show/Store/Update/Destroy thin + `BuildOrderFiltersFromHTTP` + `OrderCreate`/`OrderUpdate` requests; Import via `ImportUploadedCSV`; export orchestration uses shared error helper |
+| `order` | Index/Show/Store/Update/Destroy thin + `BuildOrderFiltersFromHTTP` + `OrderCreate`/`OrderUpdate` requests; Import via `SaveUploadedCSVForAsync` + `ImportOrders` (sync below `AsyncImportRowThreshold`, else queued); export orchestration uses shared error helper |
 | `attachment` | Index filters/`AttachmentToJSON` + shared error helper; upload/chunk/stream stay HTTP-layer |
 | `online_admin` | Full list/kick via `online_admin_service` |
 | `config` | GetByGroup/Save/TestEmail via `config_service` |

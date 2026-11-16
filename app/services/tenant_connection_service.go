@@ -373,13 +373,9 @@ func (s *TenantConnectionService) tenantQuery(tenant *models.Tenant) (orm.Query,
 	return c.Orm().Query(), nil
 }
 
-// CreateStorage 在目标库所在主机上 CREATE DATABASE / SCHEMA。
+// CreateStorageWithOptions 在目标库所在主机上 CREATE DATABASE / SCHEMA。
 // host 为空：在平台库所在实例执行；host 有值：用租户凭据连该主机的系统库执行。
-func (s *TenantConnectionService) CreateStorage(tenant *models.Tenant) error {
-	return s.CreateStorageWithOptions(tenant, false)
-}
-
-// CreateStorageWithOptions skipCreate=true 时假定库已由 DBA 建好，仅登记元数据。
+// skipCreate=true 时假定库已由 DBA 建好，仅登记元数据。
 func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant, skipCreate bool) error {
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")

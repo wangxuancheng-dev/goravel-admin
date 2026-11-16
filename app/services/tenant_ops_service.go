@@ -434,12 +434,8 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 	return nil
 }
 
-// BeginQueuedPurge records an op-log row for async file cleanup after tenant soft-delete.
-func (s *TenantOpsService) BeginQueuedPurge(tenantID uint, code string, purgeObjects, purgeBackups bool, actor TenantOpActor) (TenantOpsArgs, error) {
-	return s.BeginQueuedPurgeEx(tenantID, code, purgeObjects, purgeBackups, false, actor)
-}
-
-// BeginQueuedPurgeEx is BeginQueuedPurge with optional force-delete after successful purge.
+// BeginQueuedPurgeEx records an op-log row for async file cleanup after tenant
+// soft-delete, optionally force-deleting the tenant after a successful purge.
 func (s *TenantOpsService) BeginQueuedPurgeEx(tenantID uint, code string, purgeObjects, purgeBackups, forceDeleteAfter bool, actor TenantOpActor) (TenantOpsArgs, error) {
 	if err := s.requireEnabled(); err != nil {
 		return TenantOpsArgs{}, err

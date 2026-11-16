@@ -331,13 +331,6 @@ func entryFor(t *models.Tenant) (*diskEntry, error) {
 	return e, nil
 }
 
-// CachedDriverCount returns how many tenant BYOB drivers are kept (tests, metrics).
-func CachedDriverCount() int {
-	disksMu.RLock()
-	defer disksMu.RUnlock()
-	return len(disks)
-}
-
 // fingerprint identifies the credentials a driver was built from (hashed, so the
 // secret is not kept in memory in plain text).
 func fingerprint(t *models.Tenant, secret string) string {

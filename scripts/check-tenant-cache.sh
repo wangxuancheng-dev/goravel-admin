@@ -26,7 +26,6 @@ ALLOW=(
   app/health/queue_backlog_alert.go
   app/http/controllers/admin/notification_ws_controller.go
   app/http/controllers/api/queue_test_controller.go
-  app/utils/lock_helper.go
 )
 
 is_allowed() {

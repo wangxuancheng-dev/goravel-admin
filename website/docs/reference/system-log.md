@@ -142,10 +142,6 @@
 ### 8. 基础设施相关
 
 #### ✅ 需要记录
-- `providers/database_service_provider.go`: `fmt.Errorf("获取 GORM DB 实例失败: %v", err)` - 系统服务异常
-- `providers/database_service_provider.go`: `fmt.Errorf("注册 GORM Sharding 插件失败: %v", err)` - 系统服务异常
-- `utils/gorm_sharding.go`: `fmt.Errorf("ORM 未初始化")` - 系统服务异常
-- `utils/gorm_sharding.go`: `fmt.Errorf("无法通过反射获取原生 GORM DB 实例...")` - 系统服务异常
 - `utils/sharding_helper.go`: `fmt.Errorf("查询分表失败: %v", err)` - 系统服务异常（多次出现）
 - `services/sharding_service.go`: `fmt.Errorf("创建分表 %s 失败: %v", tableName, err)` - 系统服务异常
 - `console/commands/create_order_sharding_tables.go`: `fmt.Errorf("创建分表 %s 失败: %v", tableName, err)` - 系统服务异常（多次出现）

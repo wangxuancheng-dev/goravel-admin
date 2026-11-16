@@ -164,13 +164,6 @@ func (r *Registry) Forget(name string) {
 	}
 }
 
-// Count returns how many connections are registered.
-func (r *Registry) Count() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return len(r.conns)
-}
-
 // Names returns the registered connection names, sorted.
 func (r *Registry) Names() []string {
 	r.mu.RLock()
@@ -181,17 +174,6 @@ func (r *Registry) Names() []string {
 	r.mu.RUnlock()
 	sort.Strings(names)
 	return names
-}
-
-// CloseAll unregisters and closes every connection (shutdown / tests).
-func (r *Registry) CloseAll() {
-	r.mu.Lock()
-	all := r.conns
-	r.conns = map[string]*Conn{}
-	r.mu.Unlock()
-	for _, c := range all {
-		_ = c.Close()
-	}
 }
 
 // evictLocked removes idle connections and, over MaxConns, the least recently used
