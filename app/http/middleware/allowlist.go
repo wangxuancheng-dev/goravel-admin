@@ -14,7 +14,7 @@ import (
 // Allowlist enforces tenant IP allowlist when enabled entries exist (empty = allow all).
 func Allowlist() http.Middleware {
 	return newMiddleware("allowlist", func(ctx http.Context) {
-		if tenancy.Enabled() && !helpers.TenantBound(ctx) {
+		if tenancy.Enabled() && !tenancy.Bound(ctx) {
 			ctx.Request().Next()
 			return
 		}

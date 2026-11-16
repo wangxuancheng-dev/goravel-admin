@@ -65,7 +65,7 @@ func TestTenantCreateWithMigrateAndSeed(t *testing.T) {
 
 	var adminCount int64
 	var hasAdmin bool
-	err = conn.WithTenantConnection(tn, func() error {
+	err = withTenantSchema(conn, tn, func() error {
 		bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 		var qErr error
 		adminCount, qErr = appfacades.OrmQuery(bound).Table("admins").Count()

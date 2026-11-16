@@ -66,7 +66,7 @@ func TestTenantBackupOnDisk(t *testing.T) {
 
 	bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 	setMarker := func(k string) {
-		require.NoError(t, conn.WithTenantConnection(tn, func() error {
+		require.NoError(t, withTenantSchema(conn, tn, func() error {
 			return appfacades.OrmQuery(bound).Table("configs").Create(map[string]any{
 				"key": k, "value": "x", "group": "test", "type": "string", "remark": "backup disk",
 			})
@@ -74,7 +74,7 @@ func TestTenantBackupOnDisk(t *testing.T) {
 	}
 	hasMarker := func(k string) bool {
 		var n int64
-		require.NoError(t, conn.WithTenantConnection(tn, func() error {
+		require.NoError(t, withTenantSchema(conn, tn, func() error {
 			var countErr error
 			n, countErr = appfacades.OrmQuery(bound).Table("configs").Where("key", k).Count()
 			return countErr

@@ -15,9 +15,10 @@ func WithTenant(ctx context.Context, tenantID uint, connectionName, code string)
 	return ctx
 }
 
-// Detach copies tenant routing keys onto a fresh Background context.
-// Use before goroutines / after the HTTP request context may be cancelled.
-func Detach(from context.Context) context.Context {
+// detach copies tenant routing keys onto a fresh Background context: the tenant stays,
+// the cancellation (and deadline) of from does not. Only Go uses it: background work
+// starts through Go, which also recovers panics.
+func detach(from context.Context) context.Context {
 	bg := context.Background()
 	if from == nil {
 		return bg

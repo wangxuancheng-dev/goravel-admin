@@ -64,7 +64,7 @@ func TestDualTenantDatabaseIsolation(t *testing.T) {
 	require.NoError(t, conn.MigrateTenant(tb))
 
 	markerKey := "iso_marker_" + suffix
-	err = conn.WithTenantConnection(ta, func() error {
+	err = withTenantSchema(conn, ta, func() error {
 		bound := tenancyctx.WithTenant(context.Background(), ta.ID, ta.ConnectionName, ta.Code)
 		return appfacades.OrmQuery(bound).Table("configs").Create(map[string]any{
 			"key":    markerKey,
@@ -77,7 +77,7 @@ func TestDualTenantDatabaseIsolation(t *testing.T) {
 	require.NoError(t, err)
 
 	var foundInA int64
-	err = conn.WithTenantConnection(ta, func() error {
+	err = withTenantSchema(conn, ta, func() error {
 		bound := tenancyctx.WithTenant(context.Background(), ta.ID, ta.ConnectionName, ta.Code)
 		var n int64
 		n, err = appfacades.OrmQuery(bound).Table("configs").Where("key", markerKey).Count()
@@ -88,7 +88,7 @@ func TestDualTenantDatabaseIsolation(t *testing.T) {
 	assert.Equal(t, int64(1), foundInA, "marker should exist in tenant A")
 
 	var foundInB int64
-	err = conn.WithTenantConnection(tb, func() error {
+	err = withTenantSchema(conn, tb, func() error {
 		bound := tenancyctx.WithTenant(context.Background(), tb.ID, tb.ConnectionName, tb.Code)
 		var n int64
 		n, err = appfacades.OrmQuery(bound).Table("configs").Where("key", markerKey).Count()
@@ -115,7 +115,7 @@ func TestDualTenantDatabaseIsolation(t *testing.T) {
 	})
 	require.Error(t, err)
 	var txCount int64
-	err = conn.WithTenantConnection(ta, func() error {
+	err = withTenantSchema(conn, ta, func() error {
 		var qErr error
 		txCount, qErr = appfacades.OrmQuery(boundA).Table("configs").Where("key", txKey).Count()
 		return qErr

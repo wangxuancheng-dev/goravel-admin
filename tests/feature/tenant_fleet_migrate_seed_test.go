@@ -105,7 +105,7 @@ func TestFleetTenantMigrateAndSeed(t *testing.T) {
 	// Empty before seed.
 	for _, tn := range tenants {
 		var count int64
-		err := conn.WithTenantConnection(tn, func() error {
+		err := withTenantSchema(conn, tn, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 			var qErr error
 			count, qErr = appfacades.OrmQuery(bound).Table("admins").Count()
@@ -130,7 +130,7 @@ func TestFleetTenantMigrateAndSeed(t *testing.T) {
 	for _, tn := range tenants {
 		var adminCount int64
 		var hasAdmin bool
-		err := conn.WithTenantConnection(tn, func() error {
+		err := withTenantSchema(conn, tn, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 			var qErr error
 			adminCount, qErr = appfacades.OrmQuery(bound).Table("admins").Count()
@@ -145,7 +145,7 @@ func TestFleetTenantMigrateAndSeed(t *testing.T) {
 		assert.True(t, hasAdmin, "%s has username=admin", tn.Code)
 
 		marker := "fleet_iso_" + tn.Code
-		err = conn.WithTenantConnection(tn, func() error {
+		err = withTenantSchema(conn, tn, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 			return appfacades.OrmQuery(bound).Table("configs").Create(map[string]any{
 				"key":    marker,
@@ -168,7 +168,7 @@ func TestFleetTenantMigrateAndSeed(t *testing.T) {
 		other := tenants[pair[1]]
 		marker := "fleet_iso_" + other.Code
 		var count int64
-		err := conn.WithTenantConnection(tn, func() error {
+		err := withTenantSchema(conn, tn, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 			var qErr error
 			count, qErr = appfacades.OrmQuery(bound).Table("configs").Where("key", marker).Count()

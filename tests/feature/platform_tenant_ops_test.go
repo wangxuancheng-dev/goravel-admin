@@ -322,7 +322,7 @@ func TestPlatformTenantCustomDomainLifecycle(t *testing.T) {
 func tenantConfigValue(t *testing.T, conn *services.TenantConnectionService, tn *models.Tenant, key string) (string, bool) {
 	t.Helper()
 	var row models.Config
-	err := conn.WithTenantConnection(tn, func() error {
+	err := withTenantSchema(conn, tn, func() error {
 		bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 		return appfacades.OrmQuery(bound).Where("key", key).First(&row)
 	})
@@ -332,7 +332,7 @@ func tenantConfigValue(t *testing.T, conn *services.TenantConnectionService, tn 
 
 func execTenantSQL(t *testing.T, conn *services.TenantConnectionService, tn *models.Tenant, fn func(ctx context.Context) error) {
 	t.Helper()
-	require.NoError(t, conn.WithTenantConnection(tn, func() error {
+	require.NoError(t, withTenantSchema(conn, tn, func() error {
 		return fn(tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code))
 	}))
 }

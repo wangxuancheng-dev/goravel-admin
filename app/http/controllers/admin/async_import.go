@@ -13,6 +13,7 @@ import (
 	"goravel/app/jobs"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils"
 )
 
@@ -80,7 +81,7 @@ func EnqueueAsyncImport(ctx http.Context, in EnqueueAsyncImportInput) EnqueueAsy
 		Language: utils.GetCurrentLanguage(ctx),
 		Timezone: helpers.GetCurrentTimezone(ctx),
 	}
-	if conn, ok := helpers.GetTenantConnectionFromContext(ctx); ok {
+	if conn, ok := tenancyctx.ConnectionFrom(ctx); ok {
 		args.TenantConnection = conn
 	}
 

@@ -19,6 +19,7 @@ import (
 	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils"
 )
 
@@ -169,12 +170,12 @@ func (s *OIDCServiceImpl) AuthURL(ctx http.Context) (string, error) {
 
 	payload := oidcStatePayload{}
 	if tenancy.Enabled() {
-		id, ok := helpers.GetTenantIDFromContext(ctx)
+		id, ok := tenancyctx.IDFrom(ctx)
 		if !ok || id == 0 {
 			return "", apperrors.ErrTenantRequired
 		}
 		payload.TenantID = id
-		if code, ok := helpers.GetTenantCodeFromContext(ctx); ok {
+		if code, ok := tenancyctx.CodeFrom(ctx); ok {
 			payload.TenantCode = code
 		}
 	}
@@ -216,8 +217,8 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 		}
 	}
 	if tenantCode == "" {
-		if code, ok := helpers.GetTenantCodeFromContext(ctx); ok {
-			tenantCode = code
+		if boundCode, ok := tenancyctx.CodeFrom(ctx); ok {
+			tenantCode = boundCode
 		}
 	}
 

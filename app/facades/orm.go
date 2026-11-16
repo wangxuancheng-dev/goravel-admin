@@ -159,7 +159,7 @@ func nilContextGuard(fn string) error {
 
 // PlatformConnectionName returns the fixed landlord connection name.
 // It is pinned on first use, so it never follows a tenant Schema bound to the
-// goroutine during tenant migrate/seed (WithTenantConnection).
+// goroutine during tenant migrate/seed (WithSchemaContext).
 func PlatformConnectionName() string {
 	platformConnOnce.Do(func() {
 		name := strings.TrimSpace(facades.Config().GetString("tenancy.platform_connection", ""))
@@ -184,7 +184,7 @@ func PlatformQuery() orm.Query {
 }
 
 // PlatformOrmQuery always uses the pinned platform (landlord) connection — tenants metadata / DDL only.
-// Safe to call inside WithTenantConnection (a tenant Schema bound to the goroutine for migrate/seed).
+// Safe to call inside WithSchemaContext (a tenant Schema bound to the goroutine for migrate/seed).
 // Never nil, like OrmQuery.
 func PlatformOrmQuery(ctx context.Context) orm.Query {
 	name := PlatformConnectionName()

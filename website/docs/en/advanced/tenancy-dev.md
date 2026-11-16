@@ -92,4 +92,4 @@ The checks above cover routine tenant code. These areas involve both the platfor
 - Tenant resolution: `middleware/tenant.go`, `BindHTTP`, subdomain / custom-domain lookup.
 - Platform operations: `tenant_ops_*`, backup / restore, fleet batches (they cross tenants by design).
 - Shared resources outside the database: search index names, queue payloads, object storage buckets.
-- `WithTenantConnection` / `WithSchemaContext`: only for code that cannot take a ctx (migrations, seeders), never for business code.
+- `WithSchemaContext`: only for code that cannot take a ctx (migrations, seeders), never for business code.

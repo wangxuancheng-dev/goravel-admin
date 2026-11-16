@@ -21,7 +21,7 @@ func Blacklist() http.Middleware {
 		}
 
 		// tenancy 开启且尚未绑定租户时跳过（全局中间件早于 Tenant）；路由组内 Tenant 之后会再跑一遍。
-		if tenancy.Enabled() && !helpers.TenantBound(ctx) {
+		if tenancy.Enabled() && !tenancy.Bound(ctx) {
 			ctx.Request().Next()
 			return
 		}

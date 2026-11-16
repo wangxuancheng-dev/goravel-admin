@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	appfacades "goravel/app/facades"
+	"goravel/app/tenancyctx"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/clients"
-	"goravel/app/http/helpers"
 )
 
 // isLocalHost 检查地址是否为本地地址
@@ -23,7 +23,7 @@ func isLocalHost(host string) bool {
 
 // monitorDBConnectionName resolves which database.connections.* entry to read host/port from.
 func monitorDBConnectionName(ctx http.Context, driver string) string {
-	if conn, ok := helpers.GetTenantConnectionFromContext(ctx); ok && conn != "" {
+	if conn, ok := tenancyctx.ConnectionFrom(ctx); ok && conn != "" {
 		return conn
 	}
 	connectionName := facades.Config().GetString("database.default", "")

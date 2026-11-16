@@ -3,10 +3,10 @@ package admin
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/helpers"
 	"goravel/app/http/response"
 	"goravel/app/services"
 	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 )
 
 // EntitlementController exposes the tenant-facing, read-only plan summary.
@@ -22,7 +22,7 @@ func (c *EntitlementController) Me(ctx http.Context) http.Response {
 	if !tenancy.Enabled() {
 		return response.Success(ctx, map[string]any{"enabled": false})
 	}
-	tenantID, ok := helpers.GetTenantIDFromContext(ctx)
+	tenantID, ok := tenancyctx.IDFrom(ctx)
 	if !ok || tenantID == 0 {
 		return response.Success(ctx, map[string]any{"enabled": false})
 	}

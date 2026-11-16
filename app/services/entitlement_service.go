@@ -14,9 +14,9 @@ import (
 	"goravel/app/entitlement"
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
-	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 )
 
 const (
@@ -741,7 +741,7 @@ func (s *EntitlementService) RuntimeCan(ctx http.Context, featureKey string, cha
 	if !tenancy.Enabled() {
 		return true, nil
 	}
-	tenantID, ok := helpers.GetTenantIDFromContext(ctx)
+	tenantID, ok := tenancyctx.IDFrom(ctx)
 	if !ok || tenantID == 0 {
 		return false, nil
 	}
@@ -1002,7 +1002,7 @@ func EntitlementDisabledMenuSlugs(ctx http.Context) map[string]bool {
 	if !tenancy.Enabled() {
 		return map[string]bool{}
 	}
-	tenantID, ok := helpers.GetTenantIDFromContext(ctx)
+	tenantID, ok := tenancyctx.IDFrom(ctx)
 	if !ok || tenantID == 0 {
 		return map[string]bool{}
 	}

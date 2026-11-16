@@ -759,31 +759,16 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 // TenantContext returns a background ctx bound to tenant, for platform code that
 // reads or writes one tenant's data (OrmQuery(ctx), tenancy.CacheKey(ctx, ...)).
 // Unlike BindBackground it does not refuse disabled / maintenance / unready tenants:
-// the platform inspects those too. Prefer it to WithTenantConnection.
+// the platform inspects those too.
+//
+// Code that cannot take a ctx (written against facades.Orm() / facades.Schema())
+// runs inside appfacades.WithSchemaContext(ctx, fn), which binds the tenant's Schema
+// to the current goroutine only.
 func (s *TenantConnectionService) TenantContext(tenant *models.Tenant) (context.Context, error) {
 	if err := s.EnsureRegistered(tenant); err != nil {
 		return nil, err
 	}
 	return tenancyctx.WithTenant(context.Background(), tenant.ID, tenant.ConnectionName, tenant.Code), nil
-}
-
-// WithTenantConnection runs fn with facades.Schema() / facades.Orm() (and OrmQuery
-// without a tenant ctx) pointed at the tenant, on the current goroutine only.
-//
-// For code that cannot take a ctx: migrations, seeders, and the tenant-scope runner
-// that hosts console work written that way. Everything else uses TenantContext and
-// OrmQuery(ctx).
-//
-// A fresh tenant Schema (over the shared, app-owned pool) is bound to this goroutine;
-// nothing process-wide changes, so requests running concurrently in the same process
-// are never routed to this tenant and calls for different tenants run in parallel.
-// Work fn hands to other goroutines must carry a tenant-bound ctx (OrmQuery(ctx)).
-func (s *TenantConnectionService) WithTenantConnection(tenant *models.Tenant, fn func() error) error {
-	sch, err := s.openTenantSchema(tenant)
-	if err != nil {
-		return err
-	}
-	return appfacades.WithBoundTenantSchema(sch, fn)
 }
 
 // SeedTenant runs db:seed on the tenant connection.

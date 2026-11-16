@@ -93,7 +93,7 @@ func updateOutboxByID(ctx context.Context, id uint, data map[string]any) {
 	_, _ = appfacades.OrmQuery(ctx).Table(OutboxTable).Where("id", id).Update(data)
 }
 
-// ListOutboxRetryable 列出可重试 outbox（CLI 在 WithTenantConnection 下调用时走当前 default）。
+// ListOutboxRetryable 列出可重试 outbox（CLI 在租户 scope（WithSchemaContext）下调用时走当前 default）。
 func ListOutboxRetryable(limit, maxAttempts int) ([]OutboxRecord, error) {
 	return ListOutboxRetryableCtx(context.Background(), limit, maxAttempts)
 }

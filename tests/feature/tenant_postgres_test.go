@@ -71,7 +71,7 @@ func pgCreateTenant(t *testing.T, base services.TenantCreateInput, code, isolati
 
 func pgWithTenant(t *testing.T, tn *models.Tenant, fn func(q orm.Query) error) {
 	t.Helper()
-	err := services.NewTenantConnectionService().WithTenantConnection(tn, func() error {
+	err := withTenantSchema(services.NewTenantConnectionService(), tn, func() error {
 		return fn(appfacades.OrmQuery(tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)))
 	})
 	require.NoError(t, err, "tenant %s", tn.Code)

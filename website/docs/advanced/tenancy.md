@@ -33,7 +33,7 @@ TENANCY_DRIVER=database
 - 请求路径查找已注册连接只取读锁；新建或重建连接（含 ping，超时 5s）在锁外进行并按连接名去重，一个慢库或连不上的库不会拖住其他租户。
 - `OrmQuery(ctx)` 按 ctx 中的连接名取连接；连接被淘汰后再次访问，会按 `tenants` 表自动重建。
 - 每个租户请求都要读 `tenants` 行（识别租户、建连接、存储），所以缓存在共享缓存里（`app/tenantcache`，生产为 Redis，`TENANCY_TENANT_CACHE_TTL` 默认 60s）。失效是**自动**的：平台连接上任何成功写 `tenants` 表的语句（`Model(t).Update`、`Save`、`Delete`、`Where(...).Delete` 批量写，乃至应用内 `Exec("UPDATE tenants ...")`）都会**立即在所有节点失效**；能识别出租户的只失效该租户，识别不出的失效全部。停用、维护、删除不受缓存延迟影响，不需要手动调用任何失效函数。只有在应用之外手工改库（如 mysql 客户端）才会最多延迟一个 TTL。失效回调没挂上时缓存自动关闭。进程内另有一份本地副本，以带版本号的 key 存放，命中时每个请求只需从 Redis 读两个版本号；版本号一变本地副本就自然失效，不会读到旧数据。**多进程部署（API 与 worker 分开、多台机器）必须用共享缓存（`CACHE_STORE=redis`）**：`memory` 驱动只在本进程内失效，其他进程最多延迟一个 TTL。
-- 迁移和 seeder 只能通过 `facades.Schema()` / `facades.Orm()` 访问数据库（不接收参数），所以 migrate / seed / `WithTenantConnection` 在**当前 goroutine** 上绑定一份独立的租户 Schema（`WithBoundTenantSchema`），不改任何全局状态，其他请求不受影响。后台协程一律用 `tenancyctx.Go(ctx, name, fn)` 启动（保留租户、去掉请求取消、兜底 panic），在其中用 `OrmQuery(ctx)`。
+- 迁移和 seeder 只能通过 `facades.Schema()` / `facades.Orm()` 访问数据库（不接收参数），所以 migrate / seed / `WithSchemaContext(ctx, fn)` 在**当前 goroutine** 上绑定一份独立的租户 Schema（`WithBoundTenantSchema`），不改任何全局状态，其他请求不受影响。后台协程一律用 `tenancyctx.Go(ctx, name, fn)` 启动（保留租户、去掉请求取消、兜底 panic），在其中用 `OrmQuery(ctx)`。
 
 ## 租户权益 / 模块套餐
 
@@ -573,8 +573,8 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | `models.PlatformModel` | 平台表模型标记；租户连接拒绝访问这些表（`tenantdb.ErrPlatformTable`） |
 | `TenantConnectionService.TenantContext(t)` | 平台代码读写某个租户的数据：拿到绑定该租户的 ctx |
 | `RunTenantScope` / `--tenant` | CLI 按租户执行 |
-| `SchemaHasTable` / `WithSchemaContext` | 按 ctx 取租户 Schema（不改全局状态） |
-| `WithTenantConnection` | 在当前 goroutine 上以租户身份运行（仅迁移、seeder 这类无法接收 ctx 的代码） |
+| `SchemaHasTable` | 按 ctx 查租户表是否存在 |
+| `WithSchemaContext(ctx, fn)` | 在当前 goroutine 上以 ctx 所属租户运行 `facades.Orm()` / `facades.Schema()`（仅迁移式代码、seeder 这类无法接收 ctx 的代码） |
 
 ### 硬性规则
 

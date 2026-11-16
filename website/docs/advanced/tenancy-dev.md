@@ -92,4 +92,4 @@ func AlertQueueBacklogIfNeeded(...) { ... }
 - 租户解析：`middleware/tenant.go`、`BindHTTP`、子域 / 独立域名解析。
 - 平台运维：`tenant_ops_*`、备份恢复、fleet 批量操作。它们本来就是跨租户的。
 - 数据库以外的共享资源：搜索索引名、队列 payload、对象存储 bucket。
-- `WithTenantConnection` / `WithSchemaContext`：只用于迁移、seeder 这类无法接收 ctx 的代码，业务代码不要用。
+- `WithSchemaContext`：只用于迁移、seeder 这类无法接收 ctx 的代码，业务代码不要用。

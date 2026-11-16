@@ -14,7 +14,6 @@ import (
 	appfacades "goravel/app/facades"
 	"goravel/app/models"
 	"goravel/app/tenancy"
-	"goravel/app/tenancyctx"
 )
 
 // TenantWork runs under the tenant DB (or single default DB when tenancy is off / tenant is nil).
@@ -204,10 +203,7 @@ func (s *TenantConnectionService) RunTenantScopeWithOptions(opts TenantScopeOpti
 		if !tenant.IsProvisionReady() {
 			return apperrors.ErrTenantNotReady
 		}
-		return s.WithTenantConnection(tenant, func() error {
-			bound := tenancyctx.WithTenant(context.Background(), tenant.ID, tenant.ConnectionName, tenant.Code)
-			return work(tenant, bound)
-		})
+		return s.runTenantWork(tenant, work)
 	}
 
 	fleetSize := 0
@@ -283,6 +279,19 @@ func (s *TenantConnectionService) RunTenantScopeWithOptions(opts TenantScopeOpti
 	return runErr
 }
 
+// runTenantWork runs work for one tenant: with a ctx bound to it and, for console
+// code written against facades.Orm() / facades.Schema() (it takes no ctx), with the
+// tenant's Schema bound to this goroutine.
+func (s *TenantConnectionService) runTenantWork(tenant *models.Tenant, work TenantWork) error {
+	ctx, err := s.TenantContext(tenant)
+	if err != nil {
+		return err
+	}
+	return appfacades.WithSchemaContext(ctx, func() error {
+		return work(tenant, ctx)
+	})
+}
+
 func (s *TenantConnectionService) runTenantWorkList(tenants []models.Tenant, work TenantWork) error {
 	if len(tenants) == 0 {
 		return nil
@@ -293,11 +302,7 @@ func (s *TenantConnectionService) runTenantWorkList(tenants []models.Tenant, wor
 	)
 	for i := range tenants {
 		tenant := &tenants[i]
-		err := s.WithTenantConnection(tenant, func() error {
-			bound := tenancyctx.WithTenant(context.Background(), tenant.ID, tenant.ConnectionName, tenant.Code)
-			return work(tenant, bound)
-		})
-		if err != nil {
+		if err := s.runTenantWork(tenant, work); err != nil {
 			failed++
 			if firstErr == nil {
 				firstErr = err

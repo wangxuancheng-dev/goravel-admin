@@ -107,7 +107,7 @@ func TestUIBatchMigrateFleet(t *testing.T) {
 		require.Equal(t, models.TenantOpStatusSuccess, fresh.LastOpStatus, "%s last_op_status=%s msg=%s", tn.Code, fresh.LastOpStatus, fresh.LastOpMessage)
 		require.Greater(t, fresh.SchemaMigrationCount, int64(0))
 
-		// Prefer OrmQuery(bound) over WithTenantConnection: no global schema/default flip.
+		// Prefer OrmQuery(bound) over a goroutine-bound Schema (WithSchemaContext).
 		require.NoError(t, conn.EnsureRegistered(fresh))
 		bound := tenancyctx.WithTenant(context.Background(), fresh.ID, fresh.ConnectionName, fresh.Code)
 		adminCount, err := appfacades.OrmQuery(bound).Table("admins").Count()

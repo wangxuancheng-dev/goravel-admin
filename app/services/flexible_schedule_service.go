@@ -13,9 +13,9 @@ import (
 
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
-	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 	"goravel/app/utils/errorlog"
 )
 
@@ -90,7 +90,7 @@ func (s *FlexibleScheduleService) scopeTenantID() (uint, error) {
 	if !tenancy.Enabled() {
 		return 0, nil
 	}
-	tid, ok := helpers.GetTenantIDFromAnyContext(s.ctx)
+	tid, ok := tenancyctx.IDFrom(s.ctx)
 	if !ok || tid == 0 {
 		return 0, apperrors.ErrParamsError
 	}

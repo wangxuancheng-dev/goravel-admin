@@ -20,6 +20,7 @@ import (
 	"goravel/app/search"
 	"goravel/app/services"
 	"goravel/app/tenancy"
+	"goravel/app/tenancyctx"
 	"goravel/app/tenantcache"
 	"goravel/app/utils"
 )
@@ -421,7 +422,7 @@ func (r *AuthController) Branding(ctx http.Context) http.Response {
 		"oidc":     oidcInfo,
 	}
 	// Vanity hosts cannot derive tenant_code in the SPA; echo bound code for SSO redirect query.
-	if code, ok := helpers.GetTenantCodeFromContext(ctx); ok && strings.TrimSpace(code) != "" {
+	if code, ok := tenancyctx.CodeFrom(ctx); ok && strings.TrimSpace(code) != "" {
 		data["tenant_code"] = strings.TrimSpace(code)
 	}
 	return response.Success(ctx, data)
@@ -538,7 +539,7 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 		if tenantInfo := currentTenantInfoForAdmin(ctx); tenantInfo != nil {
 			payload["tenant"] = tenantInfo
 		}
-		if tenantID, ok := helpers.GetTenantIDFromContext(ctx); ok && tenantID > 0 {
+		if tenantID, ok := tenancyctx.IDFrom(ctx); ok && tenantID > 0 {
 			if view, err := services.NewEntitlementServiceFromHTTP(ctx).ClientViewForTenant(tenantID, "admin"); err == nil {
 				payload["entitlements"] = view
 			}
@@ -550,16 +551,16 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 
 // currentTenantInfoForAdmin returns platform tenant id/code/name for the bound request.
 func currentTenantInfoForAdmin(ctx http.Context) http.Json {
-	tenantID, ok := helpers.GetTenantIDFromContext(ctx)
+	tenantID, ok := tenancyctx.IDFrom(ctx)
 	if !ok || tenantID == 0 {
-		if code, ok := helpers.GetTenantCodeFromContext(ctx); ok {
+		if code, ok := tenancyctx.CodeFrom(ctx); ok {
 			return http.Json{"code": code}
 		}
 		return nil
 	}
 	tenant, err := tenantcache.ByID(tenantID)
 	if err != nil {
-		if code, ok := helpers.GetTenantCodeFromContext(ctx); ok {
+		if code, ok := tenancyctx.CodeFrom(ctx); ok {
 			return http.Json{"id": tenantID, "code": code}
 		}
 		return http.Json{"id": tenantID}

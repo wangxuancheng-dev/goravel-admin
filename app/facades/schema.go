@@ -74,7 +74,7 @@ func SchemaConnectionKeyFrom(ctx context.Context) string {
 // connection from ctx (for code that cannot take a Schema, e.g. migration-style table
 // creators). A fresh tenant Schema is bound to the current goroutine only; nothing
 // process-wide changes, so concurrent requests are never routed to this tenant.
-// Already bound to the same connection (e.g. inside WithTenantConnection) → fn runs as is.
+// Already bound to the same connection (e.g. a migrate / seed goroutine) → fn runs as is.
 func WithSchemaContext(ctx context.Context, fn func() error) error {
 	if fn == nil {
 		return nil

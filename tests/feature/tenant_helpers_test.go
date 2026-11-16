@@ -1,6 +1,9 @@
 package feature_test
 
 import (
+	appfacades "goravel/app/facades"
+	"goravel/app/models"
+	"goravel/app/services"
 	"os"
 	"testing"
 
@@ -47,4 +50,14 @@ func skipWithoutTenantDB(t *testing.T, err error) {
 		t.Fatalf("cannot create tenant DB in CI: %v", err)
 	}
 	t.Skipf("skip: cannot create tenant DB (need CREATE privilege): %v", err)
+}
+
+// withTenantSchema runs fn with tn's Schema bound to this goroutine (facades.Orm() /
+// facades.Schema() hit the tenant), the way migrate / seed / the scope runner do.
+func withTenantSchema(conn *services.TenantConnectionService, tn *models.Tenant, fn func() error) error {
+	ctx, err := conn.TenantContext(tn)
+	if err != nil {
+		return err
+	}
+	return appfacades.WithSchemaContext(ctx, fn)
 }

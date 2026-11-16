@@ -10,7 +10,7 @@ import (
 // Go runs fn on a new goroutine — the one way to start background work from a request
 // or job (tenantlint rejects a `go` statement that captures a ctx).
 //
-// fn receives Detach(ctx): the same tenant routing (OrmQuery / cache keys / storage
+// fn receives detach(ctx): the same tenant routing (OrmQuery / cache keys / storage
 // prefix still hit ctx's tenant) but not ctx's cancellation, which ends with the HTTP
 // request. Values fn needs from an http.Context (admin id, headers, ...) must be read
 // before calling Go: Goravel recycles the http.Context once the request returns.
@@ -20,7 +20,7 @@ func Go(ctx context.Context, name string, fn func(ctx context.Context)) {
 	if fn == nil {
 		return
 	}
-	detached := Detach(ctx)
+	detached := detach(ctx)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {

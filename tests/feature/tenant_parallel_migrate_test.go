@@ -92,7 +92,7 @@ func TestParallelTenantMigrate(t *testing.T) {
 	// Write a marker in each tenant DB and ensure no cross-leak.
 	for _, tn := range tenants {
 		marker := "parallel_mig_" + tn.Code
-		err := conn.WithTenantConnection(tn, func() error {
+		err := withTenantSchema(conn, tn, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 			return appfacades.OrmQuery(bound).Table("configs").Create(map[string]any{
 				"key":    marker,
@@ -109,7 +109,7 @@ func TestParallelTenantMigrate(t *testing.T) {
 		for _, other := range tenants {
 			marker := "parallel_mig_" + other.Code
 			var n int64
-			err := conn.WithTenantConnection(tn, func() error {
+			err := withTenantSchema(conn, tn, func() error {
 				bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 				var count int64
 				var qErr error

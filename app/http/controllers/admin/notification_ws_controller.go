@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	appfacades "goravel/app/facades"
+	"goravel/app/tenancyctx"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,7 +24,6 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	apperrors "goravel/app/errors"
-	"goravel/app/http/helpers"
 	appmiddleware "goravel/app/http/middleware"
 	"goravel/app/http/response"
 	"goravel/app/models"
@@ -61,7 +61,7 @@ func (r *NotificationWsController) Ticket(ctx apphttp.Context) apphttp.Response 
 		return response.Error(ctx, http.StatusUnauthorized, "token_required")
 	}
 
-	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
+	tenantID, _ := tenancyctx.IDFrom(ctx)
 	if tenancy.Enabled() && tenantID == 0 {
 		logger.WarnfHTTP(ctx, "WebSocket ticket refused: tenant not bound (send X-Tenant-ID when calling api.* host)")
 		return response.Error(ctx, http.StatusBadRequest, "tenant_required")
@@ -111,8 +111,8 @@ func (r *NotificationWsController) ClientLog(ctx apphttp.Context) apphttp.Respon
 	return response.Success(ctx)
 }
 
-//tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
 //
+//tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
 //tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
 func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response {
 	upgrade := ctx.Request().Header("Upgrade", "")
@@ -162,7 +162,7 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	}
 
 	if tenancy.Enabled() {
-		if _, ok := helpers.GetTenantIDFromContext(ctx); !ok {
+		if _, ok := tenancyctx.IDFrom(ctx); !ok {
 			if err := services.NewTenantConnectionService().BindHTTP(ctx, ""); err != nil {
 				logger.WarnfHTTP(ctx, "WebSocket tenant bind failed: %v", err)
 				if businessErr, ok := apperrors.GetBusinessError(err); ok {
@@ -198,7 +198,7 @@ func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response 
 	_ = r.tokenService(ctx).UpdateLastUsedAt(token)
 
 	req := ctx.Request().Origin()
-	tenantID, _ := helpers.GetTenantIDFromContext(ctx)
+	tenantID, _ := tenancyctx.IDFrom(ctx)
 	if !r.isOriginAllowed(req, tenantID, ticketOriginHost, fromTicket) {
 		logger.WarnfHTTP(ctx, "WebSocket connection rejected: origin_not_allowed origin=%s host=%s tenant_id=%d ticket_origin=%s from_ticket=%v",
 			origin, req.Host, tenantID, ticketOriginHost, fromTicket)
@@ -256,8 +256,8 @@ func (r *NotificationWsController) extractToken(ctx apphttp.Context) (token stri
 	return "", false, "", "", ""
 }
 
-//tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
 //
+//tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
 //tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
 func (r *NotificationWsController) loadTicket(ctx apphttp.Context, ticket string) (token, ticketOriginHost, ticketID, errCode string) {
 	// Preferred: HMAC-signed ticket (works across API nodes without shared memory cache).

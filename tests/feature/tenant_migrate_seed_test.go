@@ -104,7 +104,7 @@ func TestTenantMigrateAndSeed(t *testing.T) {
 	// After migrate, admins table exists but should be empty before seed.
 	for _, tn := range tenants {
 		var n int64
-		err := conn.WithTenantConnection(tn, func() error {
+		err := withTenantSchema(conn, tn, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 			var qErr error
 			n, qErr = appfacades.OrmQuery(bound).Table("admins").Count()
@@ -135,7 +135,7 @@ func TestTenantMigrateAndSeed(t *testing.T) {
 	for _, tn := range tenants {
 		var adminCount int64
 		var hasAdmin bool
-		err := conn.WithTenantConnection(tn, func() error {
+		err := withTenantSchema(conn, tn, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 			var qErr error
 			adminCount, qErr = appfacades.OrmQuery(bound).Table("admins").Count()
@@ -150,7 +150,7 @@ func TestTenantMigrateAndSeed(t *testing.T) {
 		assert.True(t, hasAdmin, "%s should have username=admin", tn.Code)
 
 		marker := "seed_iso_" + tn.Code
-		err = conn.WithTenantConnection(tn, func() error {
+		err = withTenantSchema(conn, tn, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 			return appfacades.OrmQuery(bound).Table("configs").Create(map[string]any{
 				"key":    marker,
@@ -167,7 +167,7 @@ func TestTenantMigrateAndSeed(t *testing.T) {
 		for _, other := range tenants {
 			marker := "seed_iso_" + other.Code
 			var n int64
-			err := conn.WithTenantConnection(tn, func() error {
+			err := withTenantSchema(conn, tn, func() error {
 				bound := tenancyctx.WithTenant(context.Background(), tn.ID, tn.ConnectionName, tn.Code)
 				var qErr error
 				n, qErr = appfacades.OrmQuery(bound).Table("configs").Where("key", marker).Count()

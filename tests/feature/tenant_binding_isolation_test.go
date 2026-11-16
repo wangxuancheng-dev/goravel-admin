@@ -35,7 +35,7 @@ func observeDB(t *testing.T) dbView {
 	return v
 }
 
-// While one goroutine works inside a tenant scope (WithTenantConnection / WithSchemaContext),
+// While one goroutine works inside a tenant scope (WithSchemaContext),
 // other goroutines' unbound queries must keep hitting the platform database.
 // The previous implementation flipped the root Orm query, the global Schema and
 // database.default for the duration, leaking concurrent requests into the tenant DB.
@@ -90,15 +90,12 @@ func TestTenantScopeDoesNotLeakToOtherGoroutines(t *testing.T) {
 		})
 	}
 
-	runScoped("WithTenantConnection", func(inner func() error) error {
-		return conn.WithTenantConnection(ta, inner)
-	})
 	runScoped("WithSchemaContext", func(inner func() error) error {
 		bound := tenancyctx.WithTenant(context.Background(), ta.ID, ta.ConnectionName, ta.Code)
 		return appfacades.WithSchemaContext(bound, inner)
 	})
 	runScoped("nested", func(inner func() error) error {
-		return conn.WithTenantConnection(ta, func() error {
+		return withTenantSchema(conn, ta, func() error {
 			bound := tenancyctx.WithTenant(context.Background(), ta.ID, ta.ConnectionName, ta.Code)
 			if !appfacades.SchemaHasTable(bound, "admins") {
 				return fmt.Errorf("admins missing on tenant via nested SchemaHasTable")

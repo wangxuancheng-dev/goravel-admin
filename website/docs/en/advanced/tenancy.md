@@ -92,7 +92,7 @@ TENANCY_DRIVER=database
 - Looking up a registered connection on the request path takes only a read lock. Building or rebuilding one (including the ping, 5s timeout) happens outside any lock and is deduplicated per name, so one slow or unreachable tenant database never stalls other tenants.
 - `OrmQuery(ctx)` picks the connection named in ctx; an evicted connection is rebuilt from the `tenants` table on its next use.
 - Every tenant request reads the `tenants` row (resolution, connection, storage), so rows are cached in the shared cache (`app/tenantcache`; Redis in production; `TENANCY_TENANT_CACHE_TTL`, default 60s). Invalidation is **automatic**: any successful write to the `tenants` table on the platform connection (`Model(t).Update`, `Save`, `Delete`, bulk `Where(...).Delete`, even an in-app `Exec("UPDATE tenants ...")`) **invalidates on every node at once** — only that tenant when the write identifies it, every tenant otherwise. Disabling, maintenance and deletion are never delayed by the cache, and no code has to call an invalidation function. Only edits made outside the app (e.g. a mysql client) may lag by up to one TTL. If the invalidation hooks are not installed, the cache stays off. Each process also keeps a local copy keyed by the versioned key, so a warm lookup reads only the two version counters from Redis; a version change makes the local copy unreachable, so it never serves stale data. **Multi-process deployments (separate API and worker processes, several machines) need a shared cache (`CACHE_STORE=redis`)**: the `memory` store only invalidates within its own process, so other processes may lag by up to one TTL.
-- Migrations and seeders can only reach the database through `facades.Schema()` / `facades.Orm()` (they take no arguments), so migrate / seed / `WithTenantConnection` bind a dedicated tenant Schema to the **current goroutine** (`WithBoundTenantSchema`). No global state changes and other requests are unaffected. Background goroutines are started with `tenancyctx.Go(ctx, name, fn)` (keeps the tenant, drops the request cancellation, recovers panics) and use `OrmQuery(ctx)`.
+- Migrations and seeders can only reach the database through `facades.Schema()` / `facades.Orm()` (they take no arguments), so migrate / seed / `WithSchemaContext(ctx, fn)` bind a dedicated tenant Schema to the **current goroutine** (`WithBoundTenantSchema`). No global state changes and other requests are unaffected. Background goroutines are started with `tenancyctx.Go(ctx, name, fn)` (keeps the tenant, drops the request cancellation, recovers panics) and use `OrmQuery(ctx)`.
 
 ## Tenant entitlements (developer)
 
@@ -442,8 +442,8 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 | `models.PlatformModel` | Marks platform-table models; tenant connections refuse their tables (`tenantdb.ErrPlatformTable`) |
 | `TenantConnectionService.TenantContext(t)` | Platform code reading one tenant's data: a ctx bound to that tenant |
 | `RunTenantScope` / `--tenant` | CLI per tenant |
-| `SchemaHasTable` / `WithSchemaContext` | Tenant Schema from ctx (no global state) |
-| `WithTenantConnection` | Run as the tenant on the current goroutine (only code that takes no ctx: migrations, seeders) |
+| `SchemaHasTable` | Does the ctx tenant have this table? |
+| `WithSchemaContext(ctx, fn)` | Run `facades.Orm()` / `facades.Schema()` as the ctx tenant on the current goroutine (only code that takes no ctx: migration-style code, seeders) |
 
 ### 硬性规则
 
