@@ -199,9 +199,12 @@ func TestPlatformTenantBackupFileGuards(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// hostGate makes a tenant-side request as if it arrived on host (no explicit tenant hint).
+// hostGate makes a tenant-side request as if it arrived on host (no explicit tenant hint)
+// through the reverse proxy: X-Forwarded-Host only counts from a trusted peer, so the
+// test client is trusted for the request.
 func hostGate(t *testing.T, host string) string {
 	t.Helper()
+	withConfig(t, "http.trusted_proxies", "*")
 	testCase := tests.TestCase{}
 	resp, err := testCase.Http(t).
 		WithHeader("Authorization", "Bearer unused").

@@ -214,6 +214,7 @@ TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发
 TENANCY_DB_DEDICATED_USER=false           # true：同机开户且未填账号时自动建专用 DB 账号（只授权本库），删库时一并删除
 TENANCY_DB_USER_HOST=%                    # MySQL 专用账号的 host 部分；应用与库不同机时可收紧，如 10.0.%
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
+TENANCY_MYSQL_TLS=                        # 租户 MySQL TLS：空=明文；远程库用 true（校验证书）或 skip-verify
 TENANT_BACKUP_KEEP=10                     # tenant:backup 保留份数；0=不清理（旧名 TENANCY_BACKUP_KEEP 仍兼容）
 TENANT_BACKUP_DISK=                       # 备份所在磁盘（s3/oss/cos/minio）；空=存于执行备份那台机器
 TENANCY_MIGRATE_CONCURRENCY=2             # tenant:migrate-all / seed-all 并发；可用 --concurrency 覆盖；上限 100
@@ -311,6 +312,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 10 / open 20）；户多时按下方 [规模与推荐配置](/advanced/tenancy-scaling) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 6. **`TENANCY_DB_DEDICATED_USER=true`**：每个租户一个只能访问自己库的 DB 账号，代码写错也跨不了库（见生产要点 5）。只影响此后新开的租户；存量租户继续用原账号，需要时在平台编辑租户凭据更换。
+7. **反代与库 TLS**：仅当 TCP 对端在 `http.trusted_proxies` 内时才采信 `X-Forwarded-Host`（防伪造子域选租户）。远程租户库建议 `TENANCY_MYSQL_TLS=true`、`TENANCY_POSTGRES_SSLMODE=require`。
 
 
 

@@ -127,7 +127,7 @@ func (c *TenantController) DestroyDomain(ctx http.Context) http.Response {
 func (c *TenantController) TLSAllow(ctx http.Context) http.Response {
 	host := strings.TrimSpace(ctx.Request().Query("host", ""))
 	if host == "" {
-		host = tenancy.RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
+		host = tenancy.RequestHostFromContext(ctx)
 	}
 	host = tenancy.NormalizeHost(host)
 	allow := services.NewTenantDomainService().TLSAllow(host)

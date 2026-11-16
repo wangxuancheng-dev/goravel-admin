@@ -11,8 +11,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/goravel/framework/facades"
 )
 
 // Supported drivers.
@@ -40,6 +43,9 @@ type Spec struct {
 	// Postgres only.
 	Schema  string
 	SSLMode string
+	// MySQL only: go-sql-driver tls= value (true | skip-verify | preferred | custom).
+	// Empty disables TLS (plain TCP), matching local Docker defaults.
+	TLSMode string
 
 	Pool PoolLimits
 }
@@ -50,7 +56,7 @@ func (s Spec) Fingerprint() string {
 	h := sha256.New()
 	for _, part := range []string{
 		strings.ToLower(s.Driver), s.Host, fmt.Sprint(s.Port), s.Database,
-		s.Username, s.Password, s.Schema, s.SSLMode,
+		s.Username, s.Password, s.Schema, s.SSLMode, s.TLSMode,
 	} {
 		h.Write([]byte(part))
 		h.Write([]byte{0})
@@ -88,6 +94,10 @@ func (s Spec) connectionValues() map[string]any {
 	case DriverMySQL:
 		values["charset"] = "utf8mb4"
 		values["collation"] = "utf8mb4_unicode_ci"
+		// Goravel's mysql DSN builder has no tls= field; set a full DSN when TLS is on.
+		if mode := strings.TrimSpace(s.TLSMode); mode != "" {
+			values["dsn"] = s.mysqlDSN(mode)
+		}
 	case DriverPostgres:
 		schema := s.Schema
 		if schema == "" {
@@ -97,4 +107,21 @@ func (s Spec) connectionValues() map[string]any {
 		values["sslmode"] = s.SSLMode
 	}
 	return values
+}
+
+// mysqlDSN matches github.com/goravel/mysql's default DSN shape, plus tls=.
+// loc follows database.connections.mysql.loc, then app.timezone (same as the driver).
+func (s Spec) mysqlDSN(tlsMode string) string {
+	loc := "UTC"
+	if facades.Config() != nil {
+		loc = strings.TrimSpace(facades.Config().GetString("database.connections.mysql.loc", ""))
+		if loc == "" {
+			loc = strings.TrimSpace(facades.Config().GetString("app.timezone", "UTC"))
+		}
+		if loc == "" {
+			loc = "UTC"
+		}
+	}
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=true&loc=%s&multiStatements=true&tls=%s",
+		s.Username, s.Password, s.Host, s.Port, s.Database, url.QueryEscape(loc), url.QueryEscape(tlsMode))
 }

@@ -64,6 +64,17 @@ func WarnInsecureDefaults() {
 		if strings.TrimSpace(facades.Config().GetString("tenancy.base_domain", "")) == "" {
 			warn("TENANCY_BASE_DOMAIN is empty — no public host is locked against a client-supplied tenant (apex / www / platform accept X-Tenant-ID), and with TENANCY_RESOLVER=subdomain the first label of any host (crm.customer.com) is taken as a tenant code; set it to your public apex")
 		}
+		mysqlTLS := strings.ToLower(strings.TrimSpace(facades.Config().GetString("tenancy.mysql_tls", "")))
+		if mysqlTLS == "" || mysqlTLS == "false" || mysqlTLS == "disable" || mysqlTLS == "off" {
+			warn("TENANCY_MYSQL_TLS is empty/off — tenant MySQL connections use plain TCP; set true (or skip-verify) when tenants reach MySQL over the network")
+		}
+		pgSSL := strings.ToLower(strings.TrimSpace(facades.Config().GetString("tenancy.postgres_sslmode", "")))
+		if pgSSL == "" {
+			pgSSL = strings.ToLower(strings.TrimSpace(facades.Config().GetString("database.connections.postgres.sslmode", "disable")))
+		}
+		if pgSSL == "" || pgSSL == "disable" || pgSSL == "allow" {
+			warn("PostgreSQL sslmode is disable/allow (TENANCY_POSTGRES_SSLMODE / DB_SSLMODE) — prefer require (or verify-full) for remote tenant databases")
+		}
 		if disk := strings.TrimSpace(facades.Config().GetString("tenancy.backup_disk", "")); disk == "" {
 			warn("TENANT_BACKUP_DISK is empty — tenant backups stay in storage/backups on the host that ran them; with several instances set an object-storage disk (or share that directory)")
 		} else if err := utils.ValidateFilesystemDisk(disk); err != nil {

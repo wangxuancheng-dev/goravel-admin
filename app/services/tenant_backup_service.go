@@ -69,8 +69,9 @@ func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 			"--single-transaction",
 			"--routines",
 			"--triggers",
-			database,
 		}
+		args = append(args, mysqlClientSSLArgs()...)
+		args = append(args, database)
 		cmd = exec.Command("mysqldump", args...)
 	}
 	if cleanup != nil {
@@ -180,6 +181,19 @@ func tenantPGSchema(tenant *models.Tenant) string {
 // app's own tenant connections use.
 func pgToolEnv(pass string) []string {
 	return append(os.Environ(), "PGPASSWORD="+pass, "PGSSLMODE="+tenantPostgresSSLMode())
+}
+
+// mysqlClientSSLArgs mirrors TENANCY_MYSQL_TLS for mysqldump / mysql CLI.
+func mysqlClientSSLArgs() []string {
+	mode := tenantMySQLTLSMode()
+	if mode == "" {
+		return nil
+	}
+	sslMode := "REQUIRED"
+	if mode == "preferred" {
+		sslMode = "PREFERRED"
+	}
+	return []string{"--ssl-mode=" + sslMode}
 }
 
 func WriteMySQLDefaultsFile(user, pass string) (string, error) {
@@ -383,12 +397,14 @@ func RestoreTenantFromFile(tenant *models.Tenant, absFile string) error {
 			return err
 		}
 		defer f.Close()
-		cmd = exec.Command("mysql",
-			"--defaults-extra-file="+defaultsFile,
+		mysqlArgs := []string{
+			"--defaults-extra-file=" + defaultsFile,
 			"-h", host,
 			"-P", strconv.Itoa(port),
-			database,
-		)
+		}
+		mysqlArgs = append(mysqlArgs, mysqlClientSSLArgs()...)
+		mysqlArgs = append(mysqlArgs, database)
+		cmd = exec.Command("mysql", mysqlArgs...)
 		cmd.Stdin = f
 	}
 	if cleanup != nil {
@@ -400,5 +416,3 @@ func RestoreTenantFromFile(tenant *models.Tenant, absFile string) error {
 	}
 	return nil
 }
-
-

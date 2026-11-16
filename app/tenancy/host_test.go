@@ -29,6 +29,16 @@ func TestRequestHostPrefersForwarded(t *testing.T) {
 	}
 }
 
+func TestRequestHostFromContextIgnoresForwardedWithoutHook(t *testing.T) {
+	// Without TrustedForwardedHost wired, RequestHostFromContext must not read a spoofable header.
+	prev := TrustedForwardedHost
+	t.Cleanup(func() { TrustedForwardedHost = prev })
+	TrustedForwardedHost = nil
+	if got := RequestHostFromContext(nil); got != "" {
+		t.Fatalf("nil ctx: %q", got)
+	}
+}
+
 func TestOriginHost(t *testing.T) {
 	if got := OriginHost("https://Acme.Example.COM"); got != "acme.example.com" {
 		t.Fatalf("got %q", got)

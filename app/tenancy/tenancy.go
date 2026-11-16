@@ -108,10 +108,10 @@ func ResolveHint(ctx http.Context, clientHint string) (string, error) {
 	host := ""
 	sub := ""
 	if ctx != nil {
-		host = RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
+		// X-Forwarded-Host only when the TCP peer is in http.trusted_proxies.
+		host = RequestHostFromContext(ctx)
 	}
 	if Resolver() == "subdomain" && host != "" {
-		// Prefer X-Forwarded-Host so reverse proxies that rewrite Host still bind by public hostname.
 		sub = SubdomainHint(host)
 	}
 	allow := AllowHeaderFallback()

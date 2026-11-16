@@ -241,6 +241,7 @@ func (s *TenantConnectionService) buildSpec(tenant *models.Tenant) (tenantdb.Spe
 	switch driverName {
 	case models.TenantDriverMySQL:
 		spec.Driver = tenantdb.DriverMySQL
+		spec.TLSMode = tenantMySQLTLSMode()
 		return spec, nil
 	case models.TenantDriverPostgres:
 		schemaName := "public"
@@ -354,6 +355,7 @@ func (s *TenantConnectionService) withMaintenanceOrmQuery(tenant *models.Tenant,
 	switch driverName {
 	case models.TenantDriverMySQL:
 		spec.Driver, spec.Database = tenantdb.DriverMySQL, "mysql"
+		spec.TLSMode = tenantMySQLTLSMode()
 	case models.TenantDriverPostgres:
 		spec.Driver, spec.Database, spec.Schema = tenantdb.DriverPostgres, "postgres", "public"
 		spec.SSLMode = tenantPostgresSSLMode()
@@ -678,7 +680,7 @@ func (s *TenantConnectionService) BindHTTP(ctx http.Context, hint string) error 
 	raw := ""
 	var err error
 	if ctx != nil {
-		reqHost := tenancy.RequestHost(ctx.Request().Host(), ctx.Request().Header("X-Forwarded-Host", ""))
+		reqHost := tenancy.RequestHostFromContext(ctx)
 		raw = tenancy.PickTenantHostCode(reqHost, ctx.Request().Header("Origin", ""), s.tenantCodeFromHost)
 		// Host/Origin often yield a tenant code while X-Tenant-ID / WS tickets pass a numeric id.
 		if raw != "" && clientHint != "" && !strings.EqualFold(clientHint, raw) {
@@ -1120,4 +1122,22 @@ func tenantPostgresSSLMode() string {
 		return "disable"
 	}
 	return mode
+}
+
+// tenantMySQLTLSMode is the go-sql-driver tls= value for tenant MySQL connections.
+// Empty / false / disable → plain TCP. true / required → tls=true. skip-verify → insecure.
+func tenantMySQLTLSMode() string {
+	mode := strings.ToLower(strings.TrimSpace(facades.Config().GetString("tenancy.mysql_tls", "")))
+	switch mode {
+	case "", "false", "disable", "off", "0", "no":
+		return ""
+	case "true", "required", "1", "yes", "on":
+		return "true"
+	case "skip-verify", "skip_verify", "insecure":
+		return "skip-verify"
+	case "preferred":
+		return "preferred"
+	default:
+		return mode
+	}
 }

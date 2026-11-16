@@ -32,6 +32,8 @@ func init() {
 		"db_user_host": config.Env("TENANCY_DB_USER_HOST", "%"),
 		// PostgreSQL 租户连接 sslmode（也可由 database.connections.postgres.sslmode / DB_SSLMODE 提供）
 		"postgres_sslmode": config.Env("TENANCY_POSTGRES_SSLMODE", ""),
+		// MySQL 租户连接 TLS（空=明文；true|required；skip-verify；preferred；或已 RegisterTLSConfig 的名字）
+		"mysql_tls": config.Env("TENANCY_MYSQL_TLS", ""),
 		// tenant:backup keep count (0 = never prune). TENANCY_BACKUP_KEEP is the name the
 		// docs used to give; it is still honoured when TENANT_BACKUP_KEEP is unset.
 		"backup_keep": config.Env("TENANT_BACKUP_KEEP", config.Env("TENANCY_BACKUP_KEEP", 10)),

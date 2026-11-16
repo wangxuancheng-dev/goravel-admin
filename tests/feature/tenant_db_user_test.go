@@ -217,3 +217,44 @@ func TestOrphanTenantStorageFoundAndDropped(t *testing.T) {
 	require.NoError(t, err)
 	gone.ID = again.ID
 }
+
+// Changing a dedicated account's password from the platform changes it on the server
+// too (ALTER USER), so the tenant keeps working with the new one.
+func TestDedicatedTenantDBPasswordChange(t *testing.T) {
+	withTenancyDriver(t, "database")
+	prev := facades.Config().GetBool("tenancy.db_dedicated_user", false)
+	facades.Config().Add("tenancy.db_dedicated_user", true)
+	t.Cleanup(func() { facades.Config().Add("tenancy.db_dedicated_user", prev) })
+
+	admin := services.NewTenantAdminService()
+	conn := services.NewTenantConnectionService()
+	code := fmt.Sprintf("pwchg%d", time.Now().UnixNano()%1000000)
+	tn, err := admin.Create(services.TenantCreateInput{Code: code, Name: code})
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "denied") {
+			t.Skipf("platform DB account cannot create users: %v", err)
+		}
+		skipWithoutTenantDB(t, err)
+	}
+	t.Cleanup(func() {
+		_ = conn.DropStorage(tn)
+		_, _ = appfacades.PlatformQuery().WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
+	})
+	require.NoError(t, conn.MigrateTenant(tn))
+
+	newPassword := "Rotated" + code + "X9"
+	updated, err := admin.UpdateConnection(tn.ID, services.TenantUpdateInput{Password: &newPassword})
+	require.NoError(t, err)
+	plain, err := services.RevealTenantPassword(updated.Password)
+	require.NoError(t, err)
+	require.Equal(t, newPassword, plain)
+
+	ctx, err := conn.TenantContext(updated)
+	require.NoError(t, err, "the tenant connects with the new password")
+	_, err = appfacades.OrmQuery(ctx).Table("admins").Count()
+	require.NoError(t, err)
+
+	bad := "not-alnum!"
+	_, err = admin.UpdateConnection(tn.ID, services.TenantUpdateInput{Password: &bad})
+	assert.Error(t, err, "dedicated passwords must stay alphanumeric")
+}

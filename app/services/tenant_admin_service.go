@@ -597,10 +597,25 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 		return nil, err
 	}
 
+	// Dedicated accounts: ALTER USER before updating the row, then Forget the pool, so
+	// no request rebuilds a connection with a password the server does not have yet.
+	syncDedicatedPassword := input.Password != nil && usesDedicatedDBUser(tenant)
+	if syncDedicatedPassword {
+		if !isAlnum(*input.Password) {
+			return nil, apperrors.ErrInvalidArgument.WithMessage("dedicated tenant DB password must be alphanumeric")
+		}
+		if err := createDedicatedDBUser(tenant); err != nil {
+			return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
+		}
+		s.conn.Forget(tenant.ConnectionName)
+	}
+
 	if _, err := appfacades.PlatformQuery().Model(tenant).Update(updates); err != nil {
 		return nil, err
 	}
-	s.conn.Forget(tenant.ConnectionName)
+	if !syncDedicatedPassword {
+		s.conn.Forget(tenant.ConnectionName)
+	}
 	tenantstorage.Invalidate(tenant.ID)
 	return tenant, nil
 }

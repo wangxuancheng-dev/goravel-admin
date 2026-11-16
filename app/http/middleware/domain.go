@@ -9,6 +9,7 @@ import (
 
 	"goravel/app/http/response"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 )
 
 // Domain host allowlist middleware (platform console; does not auto-allow tenant vanity hosts).
@@ -109,18 +110,11 @@ func domainMiddleware(allowTenantVanity bool, configValueOrDomains ...any) http.
 			return
 		}
 
-		host := ctx.Request().Header("X-Forwarded-Host", "")
-		if host == "" {
-			host = ctx.Request().Host()
-		}
-
-		if host != "" && strings.Contains(host, ",") {
-			host = strings.TrimSpace(strings.Split(host, ",")[0])
-		}
+		// Same trust rule as tenant binding: X-Forwarded-Host only from trusted proxies.
+		host := tenancy.RequestHostFromContext(ctx)
 
 		if facades.Config().GetBool("app.debug", false) {
-			facades.Log().Debugf("Domain middleware: Host detection - X-Forwarded-Host: %s, Host(): %s, Final host: %s",
-				ctx.Request().Header("X-Forwarded-Host", ""),
+			facades.Log().Debugf("Domain middleware: Host detection - Host(): %s, Final host: %s",
 				ctx.Request().Host(),
 				host)
 		}

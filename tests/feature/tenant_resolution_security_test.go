@@ -84,7 +84,14 @@ func TestTenantResolutionSecurity(t *testing.T) {
 		assert.False(t, resp.IsSuccessful(), "a tenant token must not open the platform API: %s", body)
 	})
 
+	// The test client stands in for a reverse proxy here: only a trusted peer's
+	// X-Forwarded-Host counts (see the forged-host subtest below).
+	trustTestClient := func(t *testing.T) {
+		withConfig(t, "http.trusted_proxies", "*")
+	}
+
 	t.Run("host and header naming different tenants conflict", func(t *testing.T) {
+		trustTestClient(t)
 		withConfig(t, "tenancy.resolver", "subdomain")
 		withConfig(t, "tenancy.base_domain", "example.test")
 		code, msg := tenantGET(t, asA(map[string]string{"X-Forwarded-Host": tb.Code + ".example.test"}), "/api/admin/info")
@@ -102,6 +109,7 @@ func TestTenantResolutionSecurity(t *testing.T) {
 	})
 
 	t.Run("public apex ignores a client-supplied tenant", func(t *testing.T) {
+		trustTestClient(t)
 		withConfig(t, "tenancy.resolver", "subdomain")
 		withConfig(t, "tenancy.base_domain", "example.test")
 		withConfig(t, "tenancy.allow_header_fallback", "false")
@@ -113,6 +121,24 @@ func TestTenantResolutionSecurity(t *testing.T) {
 		// API hosts accept it (split SPA / API), and the token still decides access.
 		code, _ := tenantGET(t, asA(map[string]string{"X-Forwarded-Host": "api.example.test"}), "/api/admin/info")
 		assert.Equal(t, 200, code)
+	})
+
+	t.Run("a forged X-Forwarded-Host from an untrusted peer is ignored", func(t *testing.T) {
+		withConfig(t, "http.trusted_proxies", "10.255.255.254/32") // not the test client
+		withConfig(t, "tenancy.resolver", "subdomain")
+		withConfig(t, "tenancy.base_domain", "example.test")
+		// Claims tenant B's host: ignored, so the request stays tenant A (its header)
+		// instead of conflicting or switching to B.
+		code, _ := tenantGET(t, asA(map[string]string{"X-Forwarded-Host": tb.Code + ".example.test"}), "/api/admin/info")
+		assert.Equal(t, 200, code)
+		// Claims the locked apex to dodge nothing: also ignored.
+		code, _ = tenantGET(t, asA(map[string]string{"X-Forwarded-Host": "example.test"}), "/api/admin/info")
+		assert.Equal(t, 200, code)
+		// A's token with only B's forged host: no tenant is selected from it.
+		code, _ = tenantGET(t, map[string]string{
+			"X-Forwarded-Host": tb.Code + ".example.test", "Authorization": "Bearer " + tokenA,
+		}, "/api/admin/info")
+		assert.NotEqual(t, 200, code)
 	})
 
 	t.Run("disabling a tenant shuts out tokens already issued", func(t *testing.T) {

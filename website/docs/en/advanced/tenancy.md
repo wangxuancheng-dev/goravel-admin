@@ -144,6 +144,7 @@ TENANCY_DB_DEDICATED_USER=false           # true: same-host tenants without cred
 TENANCY_DB_USER_HOST=%                    # host part of the MySQL account; tighten when app and DB are on different hosts, e.g. 10.0.%
                                           # 远程 host 始终要求独立 username/password
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
+TENANCY_MYSQL_TLS=                       # empty=plain TCP; true|skip-verify for remote MySQL
 TENANT_BACKUP_KEEP=10                     # tenant:backup keep count; 0=never prune (old name TENANCY_BACKUP_KEEP still honoured)
 TENANT_BACKUP_DISK=                       # disk for backups (s3/oss/cos/minio); empty = the host that ran them
 TENANCY_MIGRATE_CONCURRENCY=2             # tenant:migrate-all / seed-all parallelism; --concurrency overrides; max 100
@@ -288,7 +289,7 @@ Moved to [Multi-tenancy: scale and recommended settings](/en/advanced/tenancy-sc
 3. **Ping / async ops**：`POST .../ping`；`.../migrate|seed|backup` enqueue `tenant_ops`.
 4. **登录限流**：`login` limiter 键含 body/query/header/`subdomain` 租户提示，避免跨租户互相锁号。
 5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
-6. **PG sslmode**：`TENANCY_POSTGRES_SSLMODE` 或 `DB_SSLMODE`。
+6. **DB TLS**: `TENANCY_POSTGRES_SSLMODE` / `DB_SSLMODE` for PostgreSQL; `TENANCY_MYSQL_TLS` (`true` / `skip-verify`) for tenant MySQL. `X-Forwarded-Host` is honoured only from `http.trusted_proxies` peers.
    - **Cross-driver tenants**: when the tenant driver differs from the platform database (e.g. MySQL platform, PostgreSQL tenant), host/port/credentials are required; an empty host (meaning "on the platform server") is rejected.
    - **PG schema isolation**: tenants sharing a database each own a schema; table existence checks and table listings only look at the tenant's schema (the framework's own implementation scans every schema in the database), so they migrate safely in parallel.
    - Tests: with `TENANCY_TEST_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` set, `TestPostgresTenantLifecycle` creates PG tenants (database and schema isolation) on the platform and runs the full lifecycle; CI provides a postgres service.

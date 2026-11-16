@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
 )
 
@@ -32,7 +33,10 @@ func NormalizeHost(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-// RequestHost prefers X-Forwarded-Host then Request.Host.
+// RequestHost prefers a trusted forwardedHost then Request.Host.
+// Callers must only pass X-Forwarded-Host when the TCP peer is a trusted proxy
+// (see TrustedForwardedHost / http.trusted_proxies); otherwise spoofed Hosts
+// would select another tenant's subdomain.
 func RequestHost(hostHeader, forwardedHost string) string {
 	host := strings.TrimSpace(forwardedHost)
 	if host != "" && strings.Contains(host, ",") {
@@ -42,6 +46,23 @@ func RequestHost(hostHeader, forwardedHost string) string {
 		host = strings.TrimSpace(hostHeader)
 	}
 	return NormalizeHost(host)
+}
+
+// TrustedForwardedHost returns X-Forwarded-Host when the request's TCP peer is a
+// trusted proxy. Default is empty (do not trust) until the HTTP layer wires it
+// (helpers.TrustedForwardedHost) so unit tests and non-HTTP callers stay fail-closed.
+var TrustedForwardedHost func(ctx http.Context) string
+
+// RequestHostFromContext resolves the public Host for tenant binding.
+func RequestHostFromContext(ctx http.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	forwarded := ""
+	if TrustedForwardedHost != nil {
+		forwarded = TrustedForwardedHost(ctx)
+	}
+	return RequestHost(ctx.Request().Host(), forwarded)
 }
 
 // OriginHost extracts the host from a browser Origin header (https://acme.example.com).

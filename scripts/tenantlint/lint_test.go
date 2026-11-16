@@ -46,7 +46,16 @@ func f() { facades.Orm().Query().Count() }
 func g() { appfacades.Orm().Connection("x") }
 func h(ctx context.Context) { appfacades.OrmQuery(ctx).Count() }
 func k() bool { return appfacades.Orm() == nil }
-`), "orm", "orm")
+func assigned() {
+	o := facades.Orm()
+	if o == nil { return }
+	o.Query().Count()
+}
+func varAssigned() {
+	var o = facades.Orm()
+	o.Query().Count()
+}
+`), "orm", "orm", "orm", "orm")
 }
 
 func TestNilCtxRule(t *testing.T) {

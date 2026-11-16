@@ -233,11 +233,17 @@ func (l *fileLint) pkgCall(call *ast.CallExpr, name string, paths ...string) boo
 func (l *fileLint) lintFunc(fn *ast.FuncDecl) {
 	var cacheCalls []*ast.CallExpr
 	usesCacheKey := false
+	ormLocals := map[string]bool{} // locals assigned from facades.Orm() / appfacades.Orm()
 
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		switch n := n.(type) {
+		case *ast.AssignStmt:
+			l.noteOrmAssign(n, ormLocals)
+		case *ast.DeclStmt:
+			l.noteOrmVarDecl(n, ormLocals)
 		case *ast.CallExpr:
 			l.checkOrm(n, fn)
+			l.checkOrmViaLocal(n, fn, ormLocals)
 			l.checkNilCtx(n, fn)
 			if l.pkgCall(n, "Cache", pathFrameworkFacades, pathAppFacades) {
 				cacheCalls = append(cacheCalls, n)
@@ -256,6 +262,63 @@ func (l *fileLint) lintFunc(fn *ast.FuncDecl) {
 			l.report("cache", c, fn, "facades.Cache() without tenancy.CacheKey(ctx, key) in %s: tenant keys need the tenant prefix", fn.Name.Name)
 		}
 	}
+}
+
+// noteOrmAssign records o := facades.Orm() / o = appfacades.Orm() locals.
+func (l *fileLint) noteOrmAssign(as *ast.AssignStmt, locals map[string]bool) {
+	if len(as.Rhs) != 1 || len(as.Lhs) == 0 {
+		return
+	}
+	call, ok := as.Rhs[0].(*ast.CallExpr)
+	if !ok || !l.pkgCall(call, "Orm", pathFrameworkFacades, pathAppFacades) {
+		return
+	}
+	for _, lhs := range as.Lhs {
+		if id, ok := lhs.(*ast.Ident); ok && id.Name != "_" {
+			locals[id.Name] = true
+		}
+	}
+}
+
+// noteOrmVarDecl records var o = facades.Orm() (ValueSpec) locals.
+func (l *fileLint) noteOrmVarDecl(ds *ast.DeclStmt, locals map[string]bool) {
+	gen, ok := ds.Decl.(*ast.GenDecl)
+	if !ok || gen.Tok != token.VAR {
+		return
+	}
+	for _, spec := range gen.Specs {
+		vs, ok := spec.(*ast.ValueSpec)
+		if !ok || len(vs.Values) == 0 {
+			continue
+		}
+		for i, name := range vs.Names {
+			if name.Name == "_" || i >= len(vs.Values) {
+				continue
+			}
+			call, ok := vs.Values[i].(*ast.CallExpr)
+			if !ok || !l.pkgCall(call, "Orm", pathFrameworkFacades, pathAppFacades) {
+				continue
+			}
+			locals[name.Name] = true
+		}
+	}
+}
+
+// checkOrmViaLocal catches o := facades.Orm(); o.Query() (and Transaction / WithContext / Connection).
+func (l *fileLint) checkOrmViaLocal(call *ast.CallExpr, fn *ast.FuncDecl, locals map[string]bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || !ormQueryMethods[sel.Sel.Name] {
+		return
+	}
+	id, ok := sel.X.(*ast.Ident)
+	if !ok || !locals[id.Name] {
+		return
+	}
+	hint := "use appfacades.OrmQuery(ctx) for tenant data, PlatformQuery() / PlatformOrmQuery(ctx) for platform data"
+	if strings.HasPrefix(l.path, "database/migrations/") {
+		hint = "use migrationQuery(): facades.Orm() runs outside the migration's transaction"
+	}
+	l.report("orm", call, fn, "%s.%s() after facades.Orm() assign: %s", id.Name, sel.Sel.Name, hint)
 }
 
 // callsKeyFunc reports whether call calls one of the package's key-building helpers.
