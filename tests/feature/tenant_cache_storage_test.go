@@ -33,9 +33,9 @@ func newMetaTenant(t *testing.T, prefix string) *models.Tenant {
 		ConnectionName:  "tenant_meta_" + code,
 		StorageMode:     models.TenantStorageModeShared,
 	}
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).Create(tn))
+	require.NoError(t, appfacades.PlatformQuery().Create(tn))
 	t.Cleanup(func() {
-		_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		tenantcache.Invalidate(tn.ID)
 		tenantstorage.Invalidate(tn.ID)
 	})
@@ -72,15 +72,15 @@ func TestTenantRowCacheInvalidatesOnWrites(t *testing.T) {
 		check func(*models.Tenant) bool
 	}{
 		{"Model(t).Update", func() error {
-			_, err := appfacades.PlatformOrmQuery(nil).Model(tn).Update(map[string]any{"status": models.TenantStatusDisabled})
+			_, err := appfacades.PlatformQuery().Model(tn).Update(map[string]any{"status": models.TenantStatusDisabled})
 			return err
 		}, func(r *models.Tenant) bool { return r.Status == models.TenantStatusDisabled }},
 		{"bulk Where(id).Update", func() error {
-			_, err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).Where("id", tn.ID).Update(map[string]any{"status": models.TenantStatusActive})
+			_, err := appfacades.PlatformQuery().Model(&models.Tenant{}).Where("id", tn.ID).Update(map[string]any{"status": models.TenantStatusActive})
 			return err
 		}, func(r *models.Tenant) bool { return r.Status == models.TenantStatusActive }},
 		{"raw Exec UPDATE", func() error {
-			_, err := appfacades.PlatformOrmQuery(nil).Exec("UPDATE tenants SET maintenance = ? WHERE id = ?", true, tn.ID)
+			_, err := appfacades.PlatformQuery().Exec("UPDATE tenants SET maintenance = ? WHERE id = ?", true, tn.ID)
 			return err
 		}, func(r *models.Tenant) bool { return r.Maintenance }},
 	} {
@@ -91,7 +91,7 @@ func TestTenantRowCacheInvalidatesOnWrites(t *testing.T) {
 	}
 
 	// Soft delete through the platform service (a bulk Where(...).Delete).
-	_, err := appfacades.PlatformOrmQuery(nil).Model(tn).Update(map[string]any{"maintenance": false})
+	_, err := appfacades.PlatformQuery().Model(tn).Update(map[string]any{"maintenance": false})
 	require.NoError(t, err)
 	read()
 	_, err = services.NewTenantAdminService().DeleteTenant(tn.ID, tn.Code, services.TenantDeleteOptions{})
@@ -110,7 +110,7 @@ func TestTenantByobDiskDriverLifecycle(t *testing.T) {
 
 	sealed, err := tenantstorage.SealSecret("first-secret")
 	require.NoError(t, err)
-	_, err = appfacades.PlatformOrmQuery(nil).Model(tn).Update(map[string]any{
+	_, err = appfacades.PlatformQuery().Model(tn).Update(map[string]any{
 		"storage_mode":     models.TenantStorageModeCustom,
 		"storage_driver":   "minio",
 		"storage_key":      "key-1",
@@ -137,7 +137,7 @@ func TestTenantByobDiskDriverLifecycle(t *testing.T) {
 	assert.Equal(t, "first-secret", cfg.GetString("filesystems.disks."+disk+".secret"))
 
 	// Rotating the credentials (ORM write -> row cache invalidated) gives a new driver.
-	_, err = appfacades.PlatformOrmQuery(nil).Model(tn).Update(map[string]any{"storage_key": "key-2"})
+	_, err = appfacades.PlatformQuery().Model(tn).Update(map[string]any{"storage_key": "key-2"})
 	require.NoError(t, err)
 	third, err := tenantstorage.OpenDisk(disk)
 	require.NoError(t, err)
@@ -208,7 +208,7 @@ func TestTenantRowCacheStillInvalidatesAfterOrmFresh(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, tenantcache.IsCached(tn.ID), "the cache must be back on after Fresh")
 
-	_, err = appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).Where("id", tn.ID).Update(map[string]any{"status": models.TenantStatusDisabled})
+	_, err = appfacades.PlatformQuery().Model(&models.Tenant{}).Where("id", tn.ID).Update(map[string]any{"status": models.TenantStatusDisabled})
 	require.NoError(t, err)
 	assert.False(t, tenantcache.IsCached(tn.ID), "writes after Fresh must still invalidate")
 	got, err := conn.FindTenantByIDOrCode(tn.Code)

@@ -90,6 +90,8 @@ func CollectRedisQueueBacklog(ctx context.Context) (*QueueBacklogSnapshot, error
 
 // AlertQueueBacklogIfNeeded POSTs a webhook when Redis pending exceeds threshold.
 // Debounced via cache (1 hour). Returns whether an alert was sent (or would send).
+//
+//tenantlint:allow cache: process-wide alert debounce on the platform queue, not tenant data
 func AlertQueueBacklogIfNeeded(ctx context.Context) (sent bool, snap *QueueBacklogSnapshot, err error) {
 	url := ResolveQueueAlertWebhookURL()
 	if url == "" {

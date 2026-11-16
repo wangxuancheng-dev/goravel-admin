@@ -52,11 +52,10 @@ jobs:
       - name: Download modules
         run: go mod download
 
-      - name: Tenant ORM guard (no Orm().Query in business dirs)
-        run: bash scripts/check-tenant-orm.sh
-
-      - name: Tenant Cache guard (CacheKey or allowlisted global)
-        run: bash scripts/check-tenant-cache.sh
+      # orm / nilctx / cache / goctx rules; intended exceptions carry a
+      # //tenantlint:allow <rule>: <reason> comment at the call site.
+      - name: Tenant guard (tenantlint)
+        run: go run ./scripts/tenantlint
 
       - name: Unit tests (no external services)
         run: |

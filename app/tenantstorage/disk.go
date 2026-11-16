@@ -186,7 +186,7 @@ func LoadTenant(tenantID uint, withTrashed bool) (*models.Tenant, error) {
 		return nil, apperrors.ErrTenantNotFound.WithError(err)
 	}
 	var trashed models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenantID).First(&trashed); err != nil {
+	if err := appfacades.PlatformQuery().WithTrashed().Where("id", tenantID).First(&trashed); err != nil {
 		return nil, apperrors.ErrTenantNotFound.WithError(err)
 	}
 	if trashed.ID == 0 {

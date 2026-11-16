@@ -38,16 +38,11 @@ func DispatchAuditWebhook(ctx context.Context, event string, payload map[string]
 	if id, ok := tenancyctx.IDFrom(ctx); ok && id > 0 {
 		body["tenant_id"] = id
 	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				facades.Log().Errorf("audit webhook panic: %v", r)
-			}
-		}()
+	tenancyctx.Go(ctx, "audit_webhook", func(context.Context) {
 		if err := postAuditJSON(url, body); err != nil {
 			facades.Log().Warningf("audit webhook failed event=%s err=%v", event, err)
 		}
-	}()
+	})
 }
 
 func postAuditJSON(url string, payload map[string]any) error {

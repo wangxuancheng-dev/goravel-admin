@@ -26,7 +26,7 @@ import (
 func TestTenantBackupOnDisk(t *testing.T) {
 	withTenancyDriver(t, "database")
 	allowSharedTenantDBCredentials(t)
-	if !isPostgres(appfacades.PlatformOrmQuery(nil)) {
+	if !isPostgres(appfacades.PlatformQuery()) {
 		for _, tool := range []string{"mysqldump", "mysql"} {
 			if _, err := exec.LookPath(tool); err != nil {
 				if os.Getenv("CI") != "" {
@@ -60,7 +60,7 @@ func TestTenantBackupOnDisk(t *testing.T) {
 	t.Cleanup(func() {
 		_ = services.PurgeTenantBackups(tn.Code)
 		_ = conn.DropStorage(tn)
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 	})
 	require.NoError(t, conn.MigrateTenant(tn))
 

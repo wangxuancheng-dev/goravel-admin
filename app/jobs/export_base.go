@@ -20,7 +20,6 @@ import (
 	"goravel/app/desensitize"
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
-	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/tenancy"
@@ -306,7 +305,7 @@ func (e *BaseExporter) Execute(args ExportArgs) error {
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("%s_%d_%s.%s", e.config.FilePrefix, args.ExportID, timestamp, exportFormat)
 	filePath := path.Join("exports", filename)
-	if p := helpers.TenantStoragePrefix(ctx); p != "" {
+	if p := tenancy.StoragePrefix(ctx); p != "" {
 		filePath = path.Join(strings.TrimSuffix(p, "/"), filePath)
 	}
 

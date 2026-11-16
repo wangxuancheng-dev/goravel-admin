@@ -111,6 +111,9 @@ func (r *NotificationWsController) ClientLog(ctx apphttp.Context) apphttp.Respon
 	return response.Success(ctx)
 }
 
+//tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
+//
+//tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
 func (r *NotificationWsController) Server(ctx apphttp.Context) apphttp.Response {
 	upgrade := ctx.Request().Header("Upgrade", "")
 	connection := ctx.Request().Header("Connection", "")
@@ -253,6 +256,9 @@ func (r *NotificationWsController) extractToken(ctx apphttp.Context) (token stri
 	return "", false, "", "", ""
 }
 
+//tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
+//
+//tenantlint:allow cache: ticket nonces are random and the signed ticket carries the tenant
 func (r *NotificationWsController) loadTicket(ctx apphttp.Context, ticket string) (token, ticketOriginHost, ticketID, errCode string) {
 	// Preferred: HMAC-signed ticket (works across API nodes without shared memory cache).
 	if strings.HasPrefix(ticket, wsTicketVersion+".") {

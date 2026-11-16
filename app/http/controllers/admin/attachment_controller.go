@@ -11,6 +11,7 @@ import (
 	"goravel/app/http/response"
 	"goravel/app/models"
 	"goravel/app/services"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 	"goravel/app/utils/errorlog"
 
@@ -25,7 +26,7 @@ func NewAttachmentController() *AttachmentController {
 }
 
 func attachmentTempDir(ctx http.Context) string {
-	prefix := strings.TrimSuffix(helpers.TenantStoragePrefix(ctx), "/")
+	prefix := strings.TrimSuffix(tenancy.StoragePrefix(ctx), "/")
 	if prefix == "" {
 		return "tmp"
 	}

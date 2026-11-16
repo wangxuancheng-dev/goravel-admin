@@ -1,12 +1,29 @@
 ---
 name: goravel-admin-backend
-description: Implements backend features in this Goravel admin project using code-generator CRUD patterns (article_controller), HTTP response helpers (response.Success/Error/ValidationError/ErrorWithLog), BusinessError with i18n, and service-layer logic. Use when adding or modifying controllers, requests, services, auth/permissions, exports, uploads, or fixing API response/error handling.
+description: Implements backend features in this Goravel admin project using code-generator CRUD patterns (article_controller), tenancy-safe OrmQuery/PlatformQuery/tenancyctx.Go/CacheKey, HTTP response helpers, BusinessError with i18n, and service-layer logic. Use when adding or modifying controllers, requests, services, auth/permissions, exports, uploads, tenancy, or fixing API response/error handling.
 ---
 
 # Goravel Admin Backend
 
 ## Comments language
 Write new/edited code comments and Go docstrings in **English (ASCII)**. Put user-facing Chinese only in `lang/` i18n JSON. See `.cursor/rules/utf8-encoding.mdc`.
+
+## Tenancy hard rules (always — even when TENANCY_DRIVER=off)
+
+Source of truth for business code: `website/docs/advanced/tenancy-dev.md` (EN: `website/docs/en/advanced/tenancy-dev.md`). Architecture/ops: `tenancy.md`. Local check: `go run ./scripts/tenantlint`.
+
+| Do | Do not |
+|----|--------|
+| `appfacades.OrmQuery(ctx)` / `OrmTransaction(ctx, …)` for tenant business data | `facades.Orm().Query()` / `.Transaction()` / `.Connection()` in business dirs |
+| `appfacades.PlatformOrmQuery(ctx)` or `PlatformQuery()` for platform tables (`models.PlatformModel`) | `OrmQuery(ctx)` on tenants / platform_* / plans; `PlatformOrmQuery(nil)` / `OrmQuery(nil)` |
+| `tenancyctx.Go(ctx, name, fn)` for background work | `go func` that captures request `ctx` / `http.Context` |
+| `tenancy.CacheKey(ctx, key)` / `tenancy.StoragePrefix(ctx)` | bare cache/storage keys without tenant prefix |
+| New CRUD from code generator / `article_*` | copy legacy payment/controller Orm patterns |
+| `//tenantlint:allow <orm\|nilctx\|cache\|goctx>: <reason>` only for real exceptions | silently bypass lint |
+
+Do not touch tenant resolution, `tenant_ops_*`, fleet backup/restore, or search-index lifecycle unless the user explicitly asked. Those need tenancy-experienced review.
+
+Services take `context.Context` and keep `s.ctx`. Controllers pass request ctx into `NewXxxService(ctx)`.
 
 ## Canonical response format (must match)
 All API responses are JSON and use the helpers in `app/http/response/response.go`.
@@ -150,7 +167,9 @@ When implementing changes, include:
 
 ## References
 - `website/docs/guide/getting-started.md` — local + Docker quick start
-- `website/docs/advanced/tenancy.md` — multi-tenant (off vs database-per-tenant); prefer `OrmQuery(ctx)` / `tenancy.CacheKey`; CI: `scripts/check-tenant-orm.sh` + `scripts/check-tenant-cache.sh`
+- `website/docs/advanced/tenancy-dev.md` — **business tenancy rules** (OrmQuery / PlatformQuery / Go / CacheKey); CI: `go run ./scripts/tenantlint`
+- `website/docs/advanced/tenancy.md` — tenancy architecture, deploy, platform ops
+- `website/docs/advanced/tenancy-scaling.md` — pool / fleet sizing
 - `website/docs/advanced/sharding.md` / `sharding-query.md` — sharding strategies and shared query service
 - `website/docs/reference/drivers.md` — optional DM / queue driver modules (remote; no vendored `driver/` tree)
 - `website/docs/advanced/ai-module.md` — AI codegen prompt notes

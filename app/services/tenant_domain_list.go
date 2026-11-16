@@ -45,7 +45,7 @@ func LoadTenantDomainListMeta(tenantIDs []uint) map[uint]TenantDomainListMeta {
 		return out
 	}
 	var rows []models.TenantDomain
-	_ = appfacades.PlatformOrmQuery(nil).
+	_ = appfacades.PlatformQuery().
 		Where("tenant_id IN ?", tenantIDs).
 		Order("is_primary desc, id asc").
 		Find(&rows)

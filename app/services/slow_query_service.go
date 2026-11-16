@@ -60,6 +60,7 @@ func NewSlowQueryService(ctx context.Context) SlowQueryService {
 	return &SlowQueryServiceImpl{ctx: ctx}
 }
 
+//tenantlint:allow cache: read offset of this host's log file, not tenant data
 func (s *SlowQueryServiceImpl) CollectFromLatestLog(minDurationMS float64) error {
 	// Shared process log mixes all tenants; ingesting into the caller's tenant DB would leak SQL.
 	// Cron/platform tooling can collect later; tenant HTTP observability only reads its own table.

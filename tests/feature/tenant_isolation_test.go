@@ -49,15 +49,15 @@ func TestDualTenantDatabaseIsolation(t *testing.T) {
 	})
 	if err != nil {
 		_ = conn.DropStorage(ta)
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", ta.ID).Delete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", ta.ID).Delete(&models.Tenant{})
 		skipWithoutTenantDB(t, err)
 	}
 
 	t.Cleanup(func() {
 		_ = conn.DropStorage(ta)
 		_ = conn.DropStorage(tb)
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", ta.ID).ForceDelete(&models.Tenant{})
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tb.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", ta.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", tb.ID).ForceDelete(&models.Tenant{})
 	})
 
 	require.NoError(t, conn.MigrateTenant(ta))

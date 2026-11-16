@@ -168,7 +168,7 @@ func (s *TenantAdminService) GetList(filters TenantAdminFilters, page, pageSize 
 	if err := s.requireEnabled(); err != nil {
 		return nil, 0, err
 	}
-	query := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{})
+	query := appfacades.PlatformQuery().Model(&models.Tenant{})
 	trashed := strings.ToLower(strings.TrimSpace(filters.Trashed))
 	switch trashed {
 	case "only":
@@ -280,7 +280,7 @@ func (s *TenantAdminService) GetByID(id uint) (*models.Tenant, error) {
 		return nil, err
 	}
 	var tenant models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", id).First(&tenant); err != nil {
+	if err := appfacades.PlatformQuery().Where("id", id).First(&tenant); err != nil {
 		return nil, apperrors.ErrTenantNotFound.WithError(err)
 	}
 	// Goravel's First reports no error for a missing row and leaves dest empty.
@@ -296,7 +296,7 @@ func (s *TenantAdminService) GetByIDIncludingTrashed(id uint) (*models.Tenant, e
 		return nil, err
 	}
 	var tenant models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", id).First(&tenant); err != nil {
+	if err := appfacades.PlatformQuery().WithTrashed().Where("id", id).First(&tenant); err != nil {
 		return nil, apperrors.ErrTenantNotFound.WithError(err)
 	}
 	if tenant.ID == 0 { // missing row: Goravel's First reports no error
@@ -324,7 +324,7 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	}
 
 	var existing models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("code", code).First(&existing); err == nil && existing.ID > 0 {
+	if appfacades.PlatformQuery().WithTrashed().Where("code", code).First(&existing) == nil && existing.ID > 0 {
 		if TenantIsTrashed(&existing) {
 			return nil, apperrors.ErrTenantCodeInRecycle
 		}
@@ -358,11 +358,24 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		schemaName = DefaultTenantSchemaName(code)
 	}
 
-	if err := ValidateTenantCredentials(input.Host, input.Username, input.Password); err != nil {
+	username, password := strings.TrimSpace(input.Username), input.Password
+	if username != "" && username == DedicatedTenantDBUsername(code) {
+		// Reserved: an account with this name is created and dropped with the tenant.
+		return nil, apperrors.ErrInvalidArgument.WithMessage("username " + username + " is reserved for the tenant's dedicated database account")
+	}
+	if DedicatedTenantDBUserEnabled() && !input.SkipCreate && strings.TrimSpace(input.Host) == "" &&
+		username == "" && strings.TrimSpace(password) == "" {
+		// An account of its own (created with the storage): see tenant_db_user.go.
+		username = DedicatedTenantDBUsername(code)
+		if password, err = generateDBPassword(); err != nil {
+			return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
+		}
+	}
+	if err = ValidateTenantCredentials(input.Host, username, password); err != nil {
 		return nil, err
 	}
 
-	sealedPassword, err := SealTenantPassword(input.Password)
+	sealedPassword, err := SealTenantPassword(password)
 	if err != nil {
 		return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
 	}
@@ -378,7 +391,7 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		Port:            input.Port,
 		Database:        database,
 		Schema:          schemaName,
-		Username:        strings.TrimSpace(input.Username),
+		Username:        username,
 		Password:        sealedPassword,
 		ConnectionName:  pendingConnectionName(code),
 	}
@@ -388,22 +401,23 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 	if err := applyTenantStorageOnCreate(&tenant, input); err != nil {
 		return nil, err
 	}
-	if err := appfacades.PlatformOrmQuery(nil).Create(&tenant); err != nil {
+	if err := appfacades.PlatformQuery().Create(&tenant); err != nil {
 		return nil, err
 	}
 	tenant.ConnectionName = TenantConnectionName(tenant.ID)
 	// Best effort: indexes a former tenant with this code left behind (deleted before
 	// indexes were dropped with tenants) must not serve the new tenant.
 	_ = dropTenantSearchIndexes(&tenant)
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(&tenant).Update(map[string]any{
+	if _, err := appfacades.PlatformQuery().Model(&tenant).Update(map[string]any{
 		"connection_name": tenant.ConnectionName,
 	}); err != nil {
-		_, _ = appfacades.PlatformOrmQuery(nil).Delete(&tenant)
+		_, _ = appfacades.PlatformQuery().Delete(&tenant)
 		return nil, err
 	}
 	if err := s.conn.CreateStorageWithOptions(&tenant, input.SkipCreate); err != nil {
 		s.conn.Forget(tenant.ConnectionName)
-		_, _ = appfacades.PlatformOrmQuery(nil).Delete(&tenant)
+		_ = dropDedicatedDBUser(&tenant)
+		_, _ = appfacades.PlatformQuery().Delete(&tenant)
 		return nil, apperrors.ErrTenantConnectionFailed.WithError(err)
 	}
 	if input.Migrate {
@@ -412,7 +426,7 @@ func (s *TenantAdminService) Create(input TenantCreateInput) (*models.Tenant, er
 		}
 		if err := s.conn.SeedTenant(&tenant); err != nil {
 			_ = s.conn.SetProvisionStatus(&tenant, models.TenantProvisionFailed)
-			_, _ = appfacades.PlatformOrmQuery(nil).Model(&tenant).Update(map[string]any{
+			_, _ = appfacades.PlatformQuery().Model(&tenant).Update(map[string]any{
 				"last_op":         models.TenantOpSeed,
 				"last_op_status":  models.TenantOpStatusFailed,
 				"last_op_message": err.Error(),
@@ -437,7 +451,7 @@ func (s *TenantAdminService) SetStatus(id uint, status uint8) (*models.Tenant, e
 	if status == models.TenantStatusActive && !tenant.IsProvisionReady() {
 		return nil, apperrors.ErrTenantNotReady
 	}
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	if _, err := appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"status": status,
 	}); err != nil {
 		return nil, err
@@ -466,7 +480,7 @@ func (s *TenantAdminService) SetMaintenance(id uint, enabled bool, message strin
 	if !enabled {
 		msg = ""
 	}
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	if _, err := appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"maintenance":         enabled,
 		"maintenance_message": msg,
 	}); err != nil {
@@ -562,7 +576,7 @@ func (s *TenantAdminService) UpdateConnection(id uint, input TenantUpdateInput) 
 		return nil, err
 	}
 
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(updates); err != nil {
+	if _, err := appfacades.PlatformQuery().Model(tenant).Update(updates); err != nil {
 		return nil, err
 	}
 	s.conn.Forget(tenant.ConnectionName)
@@ -575,7 +589,7 @@ func (s *TenantAdminService) ListAll() ([]models.Tenant, error) {
 		return nil, err
 	}
 	var list []models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).Order("id asc").Find(&list); err != nil {
+	if err := appfacades.PlatformQuery().Model(&models.Tenant{}).Order("id asc").Find(&list); err != nil {
 		return nil, err
 	}
 	return list, nil
@@ -620,7 +634,7 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 		return nil, err
 	}
 	var tenants []models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).
+	if err := appfacades.PlatformQuery().Model(&models.Tenant{}).
 		Select("id", "provision_status", "last_op", "last_op_status", "last_migrate_error", "schema_migration_count", "maintenance", "health_status").
 		Get(&tenants); err != nil {
 		return nil, err
@@ -692,9 +706,9 @@ func (s *TenantAdminService) OpsSummary() (*TenantOpsSummary, error) {
 		}
 	}
 
-	deleted, _ := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).WithTrashed().Where("deleted_at IS NOT NULL").Count()
+	deleted, _ := appfacades.PlatformQuery().Model(&models.Tenant{}).WithTrashed().Where("deleted_at IS NOT NULL").Count()
 	sum.Deleted = deleted
-	failedPurge, _ := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).WithTrashed().
+	failedPurge, _ := appfacades.PlatformQuery().Model(&models.Tenant{}).WithTrashed().
 		Where("deleted_at IS NOT NULL").
 		Where("last_op", models.TenantOpPurge).
 		Where("last_op_status", models.TenantOpStatusFailed).
@@ -724,7 +738,7 @@ func (s *TenantAdminService) ListForBatchMigrate(ids []uint, provisionStatus str
 	if limit > 100 {
 		limit = 100
 	}
-	query := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{})
+	query := appfacades.PlatformQuery().Model(&models.Tenant{})
 	if len(ids) > 0 {
 		query = query.Where("id IN ?", ids)
 	}

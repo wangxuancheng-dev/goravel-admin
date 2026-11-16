@@ -54,13 +54,11 @@ func ApiMetric() http.Middleware {
 
 		appmetrics.ObserveHTTP(method, routeTemplate, statusCode, time.Since(startAt))
 
-		persistCtx := tenancyctx.Detach(ctx)
-		go func(data models.ApiEndpointMetric, dbCtx context.Context) {
-			// 请求返回后 HTTP ctx 会被取消；保留租户连接键并落库。
-			if err := appfacades.OrmQuery(dbCtx).Create(&data); err != nil {
+		tenancyctx.Go(ctx, "api_metric", func(dbCtx context.Context) {
+			if err := appfacades.OrmQuery(dbCtx).Create(&metric); err != nil {
 				logger.ErrorfContext(dbCtx, "persist api endpoint metric failed: %v", err)
 			}
-		}(metric, persistCtx)
+		})
 	})
 }
 

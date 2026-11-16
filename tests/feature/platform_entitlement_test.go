@@ -26,7 +26,7 @@ func cleanupTenantEntitlementRows(t *testing.T, tenantID uint) {
 			&models.TenantUsageCounter{},
 			&models.PlatformEntitlementAuditLog{},
 		} {
-			_, _ = appfacades.PlatformOrmQuery(nil).Where("tenant_id", tenantID).ForceDelete(m)
+			_, _ = appfacades.PlatformQuery().Where("tenant_id", tenantID).ForceDelete(m)
 		}
 	})
 }
@@ -74,11 +74,11 @@ func TestPlatformTenantEntitlementLifecycle(t *testing.T) {
 	planCode := fmt.Sprintf("zz_test_plan_%d", nonce)
 	t.Cleanup(func() {
 		var plan models.PlatformPlan
-		if err := appfacades.PlatformOrmQuery(nil).Where("code", planCode).First(&plan); err == nil && plan.ID > 0 {
-			_, _ = appfacades.PlatformOrmQuery(nil).Where("plan_id", plan.ID).ForceDelete(&models.PlatformPlanEntitlement{})
-			_, _ = appfacades.PlatformOrmQuery(nil).Where("id", plan.ID).ForceDelete(&models.PlatformPlan{})
+		if err := appfacades.PlatformQuery().Where("code", planCode).First(&plan); err == nil && plan.ID > 0 {
+			_, _ = appfacades.PlatformQuery().Where("plan_id", plan.ID).ForceDelete(&models.PlatformPlanEntitlement{})
+			_, _ = appfacades.PlatformQuery().Where("id", plan.ID).ForceDelete(&models.PlatformPlan{})
 		}
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("key", featureKey).ForceDelete(&models.PlatformFeature{})
+		_, _ = appfacades.PlatformQuery().Where("key", featureKey).ForceDelete(&models.PlatformFeature{})
 		// Creating the feature refreshed every stored snapshot; refresh again so none keep the temp key.
 		_ = services.NewEntitlementService(context.Background()).RecomputeAllSnapshots()
 	})

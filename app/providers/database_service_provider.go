@@ -10,8 +10,10 @@ import (
 	"gorm.io/gorm"
 
 	"goravel/app/facades"
+	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/tenantcache"
+	"goravel/app/tenantdb"
 )
 
 type DatabaseServiceProvider struct {
@@ -30,6 +32,9 @@ func (receiver *DatabaseServiceProvider) Boot(app foundation.Application) {
 	facades.InstallTenantAwareOrm(app)
 	// Tenancy pool limits + rebuilding evicted tenant connections from the tenants table.
 	services.InstallTenantConnectionResolver()
+	// Platform-only tables (models.PlatformModel) are refused on tenant connections, so
+	// OrmQuery(tenantCtx).Model(&models.Tenant{}) fails loudly instead of misrouting.
+	tenantdb.ForbidTables(models.PlatformTables())
 	// Every write to the tenants table invalidates the cached rows automatically.
 	installTenantCacheHooks()
 	// Orm().Fresh() replaces the gorm instance the hooks live on: re-attach them.
@@ -40,7 +45,7 @@ func (receiver *DatabaseServiceProvider) Boot(app foundation.Application) {
 }
 
 func installTenantCacheHooks() {
-	q, ok := facades.PlatformOrmQuery(nil).(interface{ Instance() *gorm.DB })
+	q, ok := facades.PlatformQuery().(interface{ Instance() *gorm.DB })
 	if !ok || q.Instance() == nil {
 		// Without the hooks, writes would not invalidate: tenantcache stays disabled.
 		frameworkfacades.Log().Warning("tenantcache: platform gorm instance unavailable; tenant row cache disabled")

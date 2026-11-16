@@ -369,7 +369,7 @@ func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, usernam
 		return err
 	}
 
-	DispatchAuditWebhook(tenancyctx.Detach(ctx), "login_log", map[string]any{
+	DispatchAuditWebhook(ctx, "login_log", map[string]any{
 		"id":       loginLog.ID,
 		"admin_id": adminID,
 		"username": username,
@@ -380,16 +380,8 @@ func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, usernam
 
 	// 异步查询 IP 地理位置信息并更新日志记录
 	// 这样不会阻塞登录流程
-	persistCtx := tenancyctx.Detach(ctx)
-	go func() {
-		// 添加 panic 恢复机制
-		defer func() {
-			if r := recover(); r != nil {
-				facades.Log().Errorf("Recovered from panic in IP location update: %v", r)
-			}
-		}()
-
-		// 添加上下文超时控制（5秒超时）；Detach 保留租户连接，避免写到平台库
+	tenancyctx.Go(ctx, "login_log_location", func(persistCtx context.Context) {
+		// 5 秒超时；persistCtx 保留租户连接，避免写到平台库
 		bg, cancel := context.WithTimeout(persistCtx, 5*time.Second)
 		defer cancel()
 
@@ -412,7 +404,7 @@ func (s *AuthServiceImpl) RecordLoginLog(ctx http.Context, adminID uint, usernam
 			}
 		default:
 		}
-	}()
+	})
 
 	return nil
 }

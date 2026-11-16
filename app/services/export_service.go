@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	appfacades "goravel/app/facades"
+	"goravel/app/tenancy"
 	"io"
 	stdhttp "net/http"
 	"net/url"
@@ -124,29 +125,65 @@ func newExportService(reqCtx context.Context, httpCtx http.Context, disk string)
 // exportRelPath builds a storage-relative path under exports/, with tenant prefix when bound.
 func (s *ExportServiceImpl) exportRelPath(filename string) string {
 	filePath := path.Join(s.path, filename)
-	if p := helpers.TenantStoragePrefix(s.reqCtx); p != "" {
+	if p := tenancy.StoragePrefix(s.reqCtx); p != "" {
 		return path.Join(strings.TrimSuffix(p, "/"), filePath)
 	}
 	return filePath
 }
 
-// persistCtx keeps tenant ORM routing after the HTTP request ends.
-func (s *ExportServiceImpl) persistCtx(timeout time.Duration) (context.Context, context.CancelFunc) {
-	base := tenancyctx.Detach(s.reqCtx)
-	return context.WithTimeout(base, timeout)
+// exportLogOwner is what an export log row takes from the HTTP request. It is read
+// before the row is written in the background: the http.Context is recycled once the
+// request returns, so the goroutine must not touch it.
+type exportLogOwner struct {
+	adminID    uint
+	exportType string
+}
+
+func (s *ExportServiceImpl) exportLogOwner() exportLogOwner {
+	var o exportLogOwner
+	if s.ctx == nil {
+		return o
+	}
+	if id, err := helpers.GetAdminIDFromContext(s.ctx); err == nil {
+		o.adminID = id
+	}
+	if typeStr, ok := s.ctx.Value("export_type").(string); ok {
+		o.exportType = typeStr
+	}
+	return o
+}
+
+// writeExportLogAsync records the export log row in the background, on the request's
+// tenant, without blocking or failing the export.
+func (s *ExportServiceImpl) writeExportLogAsync(row models.Export) {
+	owner := s.exportLogOwner()
+	row.AdminID, row.Type = owner.adminID, owner.exportType
+	tenancyctx.Go(s.reqCtx, "export_log", func(ctx context.Context) {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := appfacades.OrmQuery(ctx).Create(&row); err != nil {
+			facades.Log().Errorf("ExportService: failed to record export log: %v", err)
+		}
+	})
 }
 
 func (s *ExportServiceImpl) recordExportLogAsync(filePath string, absOrTmpPathForSize string) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				facades.Log().Errorf("ExportService: panic while recording export log: %v", r)
-			}
-		}()
-		ctx, cancel := s.persistCtx(5 * time.Second)
-		defer cancel()
-		s.recordExportLogWithContext(ctx, filePath, absOrTmpPathForSize)
-	}()
+	size := int64(0)
+	if fi, err := os.Stat(absOrTmpPathForSize); err == nil {
+		size = fi.Size()
+	}
+	ext := "csv"
+	if dot := strings.LastIndex(filePath, "."); dot != -1 && dot+1 < len(filePath) {
+		ext = strings.ToLower(filePath[dot+1:])
+	}
+	s.writeExportLogAsync(models.Export{
+		Disk:      s.disk,
+		Path:      filePath,
+		Filename:  path.Base(filePath),
+		Extension: ext,
+		Size:      size,
+		Status:    1,
+	})
 }
 
 // ExportToCSVStream 流式导出 CSV（仅 local/public）
@@ -421,55 +458,20 @@ func (s *ExportServiceImpl) ExportToCSV(headers []string, data [][]string, filen
 	// 如果 skipAutoCreate 为 true，则跳过自动创建（用于异步任务）
 	shouldSkip := len(skipAutoCreate) > 0 && skipAutoCreate[0]
 	if !shouldSkip {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					facades.Log().Errorf("ExportService: panic while recording export log: %v", r)
-				}
-			}()
-
-			ctx, cancel := s.persistCtx(5 * time.Second)
-			defer cancel()
-
-			adminID := uint(0)
-			if s.ctx != nil {
-				if id, err := helpers.GetAdminIDFromContext(s.ctx); err == nil {
-					adminID = id
-				}
-			}
-
-			ext := ""
-			if dot := strings.LastIndex(filename, "."); dot != -1 {
-				ext = filename[dot+1:]
-			} else if dot := strings.LastIndex(filePath, "."); dot != -1 {
-				ext = filePath[dot+1:]
-			}
-
-			// 尝试从 context 中获取导出类型
-			exportType := ""
-			if s.ctx != nil {
-				if typeValue := s.ctx.Value("export_type"); typeValue != nil {
-					if typeStr, ok := typeValue.(string); ok {
-						exportType = typeStr
-					}
-				}
-			}
-
-			exportRecord := models.Export{
-				AdminID:   adminID,
-				Type:      exportType,
-				Disk:      s.disk,
-				Path:      filePath,
-				Filename:  filepath.Base(filePath),
-				Extension: ext,
-				Size:      size,
-				Status:    1,
-			}
-
-			if err := appfacades.OrmQuery(ctx).Create(&exportRecord); err != nil {
-				facades.Log().Errorf("ExportService: failed to record export log: %v", err)
-			}
-		}()
+		ext := ""
+		if dot := strings.LastIndex(filename, "."); dot != -1 {
+			ext = filename[dot+1:]
+		} else if dot := strings.LastIndex(filePath, "."); dot != -1 {
+			ext = filePath[dot+1:]
+		}
+		s.writeExportLogAsync(models.Export{
+			Disk:      s.disk,
+			Path:      filePath,
+			Filename:  filepath.Base(filePath),
+			Extension: ext,
+			Size:      size,
+			Status:    1,
+		})
 	}
 
 	return filePath, nil
@@ -537,55 +539,6 @@ func (s *ExportServiceImpl) ExportToXLSXAt(headers []string, data [][]string, fi
 	}
 
 	return filePath, nil
-}
-
-// recordExportLogWithContext 使用指定的 context 记录导出日志（支持超时控制）
-func (s *ExportServiceImpl) recordExportLogWithContext(ctx context.Context, filePath string, absOrTmpPathForSize string) {
-	defer func() {
-		if r := recover(); r != nil {
-			facades.Log().Errorf("ExportService: panic while recording export log: %v", r)
-		}
-	}()
-
-	size := int64(0)
-	if fi, err := os.Stat(absOrTmpPathForSize); err == nil {
-		size = fi.Size()
-	}
-
-	adminID := uint(0)
-	if s.ctx != nil {
-		if id, err := helpers.GetAdminIDFromContext(s.ctx); err == nil {
-			adminID = id
-		}
-	}
-
-	ext := "csv"
-	if dot := strings.LastIndex(filePath, "."); dot != -1 && dot+1 < len(filePath) {
-		ext = strings.ToLower(filePath[dot+1:])
-	}
-	exportType := ""
-	if s.ctx != nil {
-		if typeValue := s.ctx.Value("export_type"); typeValue != nil {
-			if typeStr, ok := typeValue.(string); ok {
-				exportType = typeStr
-			}
-		}
-	}
-
-	exportRecord := models.Export{
-		AdminID:   adminID,
-		Type:      exportType,
-		Disk:      s.disk,
-		Path:      filePath,
-		Filename:  path.Base(filePath),
-		Extension: ext,
-		Size:      size,
-		Status:    1,
-	}
-
-	if err := appfacades.OrmQuery(ctx).Create(&exportRecord); err != nil {
-		facades.Log().Errorf("ExportService: failed to record export log: %v", err)
-	}
 }
 
 func (s *ExportServiceImpl) uploadLocalFileToCloudDisk(localFilePath string, destPath string) error {

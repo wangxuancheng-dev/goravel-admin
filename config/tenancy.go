@@ -25,6 +25,11 @@ func init() {
 		"platform_connection": config.Env("TENANCY_PLATFORM_CONNECTION", ""),
 		// 同机开户是否允许空账号回落平台 DB_*（公网默认 false；本地开发可 true）
 		"allow_platform_db_credentials": config.Env("TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS", false),
+		// 同机开户且未填账号时，自动为租户建专用 DB 账号（只授权自己的库/schema），删库时一并删除。
+		// 平台账号需 CREATE USER + GRANT OPTION（MySQL）或 CREATEROLE（PostgreSQL）。
+		"db_dedicated_user": config.Env("TENANCY_DB_DEDICATED_USER", false),
+		// MySQL 专用账号的 host 部分（'t_acme'@'<host>'）；应用与数据库不同机时按网段收紧，如 10.0.%
+		"db_user_host": config.Env("TENANCY_DB_USER_HOST", "%"),
 		// PostgreSQL 租户连接 sslmode（也可由 database.connections.postgres.sslmode / DB_SSLMODE 提供）
 		"postgres_sslmode": config.Env("TENANCY_POSTGRES_SSLMODE", ""),
 		// tenant:backup keep count (0 = never prune). TENANCY_BACKUP_KEEP is the name the

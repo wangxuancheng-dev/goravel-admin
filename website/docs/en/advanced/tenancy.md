@@ -1,6 +1,8 @@
 # Multi-tenancy
 
 > Chinese remains the full reference: [多租户](/advanced/tenancy). Key local Docker steps are below in English.
+>
+> Writing a business module? Read [Multi-tenancy: developer guide](/en/advanced/tenancy-dev). Production tuning: [Scale and recommended settings](/en/advanced/tenancy-scaling).
 
 ## Docker local setup
 
@@ -90,7 +92,7 @@ TENANCY_DRIVER=database
 - Looking up a registered connection on the request path takes only a read lock. Building or rebuilding one (including the ping, 5s timeout) happens outside any lock and is deduplicated per name, so one slow or unreachable tenant database never stalls other tenants.
 - `OrmQuery(ctx)` picks the connection named in ctx; an evicted connection is rebuilt from the `tenants` table on its next use.
 - Every tenant request reads the `tenants` row (resolution, connection, storage), so rows are cached in the shared cache (`app/tenantcache`; Redis in production; `TENANCY_TENANT_CACHE_TTL`, default 60s). Invalidation is **automatic**: any successful write to the `tenants` table on the platform connection (`Model(t).Update`, `Save`, `Delete`, bulk `Where(...).Delete`, even an in-app `Exec("UPDATE tenants ...")`) **invalidates on every node at once** — only that tenant when the write identifies it, every tenant otherwise. Disabling, maintenance and deletion are never delayed by the cache, and no code has to call an invalidation function. Only edits made outside the app (e.g. a mysql client) may lag by up to one TTL. If the invalidation hooks are not installed, the cache stays off. Each process also keeps a local copy keyed by the versioned key, so a warm lookup reads only the two version counters from Redis; a version change makes the local copy unreachable, so it never serves stale data. **Multi-process deployments (separate API and worker processes, several machines) need a shared cache (`CACHE_STORE=redis`)**: the `memory` store only invalidates within its own process, so other processes may lag by up to one TTL.
-- Migrations and seeders can only reach the database through `facades.Schema()` / `facades.Orm()` (they take no arguments), so migrate / seed / `WithTenantConnection` bind a dedicated tenant Schema to the **current goroutine** (`WithBoundTenantSchema`). No global state changes and other requests are unaffected. Work handed to other goroutines must carry `tenancyctx.Detach(ctx)` and use `OrmQuery(ctx)`.
+- Migrations and seeders can only reach the database through `facades.Schema()` / `facades.Orm()` (they take no arguments), so migrate / seed / `WithTenantConnection` bind a dedicated tenant Schema to the **current goroutine** (`WithBoundTenantSchema`). No global state changes and other requests are unaffected. Background goroutines are started with `tenancyctx.Go(ctx, name, fn)` (keeps the tenant, drops the request cancellation, recovers panics) and use `OrmQuery(ctx)`.
 
 ## Tenant entitlements (developer)
 
@@ -138,6 +140,8 @@ TENANCY_DATABASE_PREFIX=tenant_
 TENANCY_SCHEMA_PREFIX=tenant_
 TENANCY_PLATFORM_CONNECTION=       # 可选；钉死平台连接名，默认取 database.default
 TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发可 true
+TENANCY_DB_DEDICATED_USER=false           # true: same-host tenants without credentials get their own DB account (granted only their database), dropped with the storage
+TENANCY_DB_USER_HOST=%                    # host part of the MySQL account; tighten when app and DB are on different hosts, e.g. 10.0.%
                                           # 远程 host 始终要求独立 username/password
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
 TENANT_BACKUP_KEEP=10                     # tenant:backup keep count; 0=never prune (old name TENANCY_BACKUP_KEEP still honoured)
@@ -161,9 +165,9 @@ PLATFORM_ADMIN_NAME=平台管理员
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
 3. **Connection lifecycle**: `Forget` closes the tenant's pool immediately; connections evicted as idle (`TENANCY_REGISTERED_IDLE_TTL`) or over the cap (`TENANCY_REGISTERED_MAX`) are closed after a 2-minute grace period and rebuilt on their next use.
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试。
-5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
+5. **Account isolation**: remote tenant databases always need their own credentials; same-host tenants may share the platform account only with `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true` (**false by default**). Recommended: `TENANCY_DB_DEDICATED_USER=true`. Provisioning then creates a `t_<code>` account with the platform account (random password, sealed with APP_KEY), granted only that tenant's database (MySQL `GRANT ALL ON tenant_x.*`; on PostgreSQL the role owns the database or schema), and drops it with the storage. Even a coding mistake cannot cross databases: the server refuses it. The platform account needs `CREATE USER` + `GRANT OPTION` (MySQL) or `CREATEROLE` (PostgreSQL); with PostgreSQL schema isolation in a shared database, also `REVOKE ALL ON SCHEMA public FROM PUBLIC` on the platform database.
 6. **Async ops**: per-tenant migrate / seed / backup / restore via `tenant_ops` (`long-running`); production needs Redis + long-running worker. `migrate-all` / `backup-all` remain CLI: `backup-all` enqueues long-running (paged fan-out); scheduled `backup-scheduled` rotates `TENANT_BACKUP_SCHEDULE_BATCH` tenants/day.
-7. **Fleet migrate/seed concurrency**: `TENANCY_MIGRATE_CONCURRENCY` (default 2) limits CLI `tenant:migrate-all` / `seed-all` **and** platform UI batch migrate/seed (`tenant_ops_fleet`); CLI `--concurrency=N` overrides. Separate from `QUEUE_LONG_RUNNING_CONCURRENT` (per-tenant / backup) and `QUEUE_SCHEDULE_CONCURRENT` (collection); see [Concurrency knobs](#concurrency-knobs-tune-with-queue-workers).
+7. **Fleet migrate/seed concurrency**: `TENANCY_MIGRATE_CONCURRENCY` (default 2) limits CLI `tenant:migrate-all` / `seed-all` **and** platform UI batch migrate/seed (`tenant_ops_fleet`); CLI `--concurrency=N` overrides. Separate from `QUEUE_LONG_RUNNING_CONCURRENT` (per-tenant / backup) and `QUEUE_SCHEDULE_CONCURRENT` (collection); see [Concurrency knobs](/en/advanced/tenancy-scaling#concurrency-knobs-tune-with-queue-workers).
 8. **Daily full-fleet backup**: with `TENANT_BACKUP_SCHEDULE_MODE=full` (default), `tenant:backup-scheduled` enqueues **all** ready tenants; dumps run via `tenant_ops_fleet` + `TENANCY_BACKUP_CONCURRENCY` (default 2, max 50). `MODE=rotate` keeps `TENANT_BACKUP_SCHEDULE_BATCH` paging. CLI `backup-all` / UI batch backup use the same path. Wall clock ≈ ceil(tenants/concurrency)×per-tenant dump seconds; keep `QUEUE_LONG_RUNNING_CONCURRENT=1` (fleet uses one slot).
 
 
@@ -176,7 +180,7 @@ PLATFORM_ADMIN_NAME=平台管理员
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
-4. **Connection pool**: per-tenant `TENANCY_POOL_MAX_*` (default idle 10 / open 20); at higher tenant counts, tighten using [Scale and recommended settings](#scale-and-recommended-settings) so MySQL is not exhausted.
+4. **Connection pool**: per-tenant `TENANCY_POOL_MAX_*` (default idle 10 / open 20); at higher tenant counts, tighten using [Scale and recommended settings](/en/advanced/tenancy-scaling) so MySQL is not exhausted.
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
 
@@ -263,186 +267,7 @@ Legacy Nginx Host rewrite to `{code}.apex` still works; prefer `tenant_domains` 
 
 ## Scale and recommended settings
 
-These are **starting points**, not hard quotas — tune from monitoring. With many tenants the first bottleneck is usually the **per-tenant DB pool**, not Redis. Redis is shared cluster-wide (cache keys use `tenancy.CacheKey` → `t{id}:` prefix); size the instance up first. Split cache vs queue only if noisy-neighbor becomes real.
-
-### What defaults can hold
-
-"Active" means **recently trafficked tenants with a registered pool in-process**, not `COUNT(tenants)`.
-
-| Scenario | Guidance |
-|----------|----------|
-| **Stock pool + single host** | Comfortable for about **&lt; 50 active**; stretch **50–200** (tighten `OPEN` first) |
-| **Tuned pools + Redis queue + split API/Worker** | **Hundreds to ~1k active** |
-| **Plus `tenants.host` DB sharding + `queue-schedule` workers** | **A few thousand active** (this product's target band) |
-| **Plus regional multi-stack (cell) deployments** | **Beyond one fleet** — copy the stack (see below) |
-
-Defaults: `TENANCY_POOL_MAX_OPEN_CONNS=20`, `TENANCY_REGISTERED_MAX=0` (unlimited). **Do not ship stock defaults unchanged for thousands of merchants.**
-
-**Capacity formula (tenant DBs):**
-
-`registered pools in process × TENANCY_POOL_MAX_OPEN_CONNS × API instances` ≪ DB `max_connections` (leave headroom for platform DB, backups, ops).
-
-Multiple `tenant_*` databases on one MySQL/PG host still share that host's connection limit.
-
-### Runtime dual-mode (small / large fleets)
-
-| Mechanism | Config | Small fleet | Large fleet |
-|-----------|--------|-------------|-------------|
-| Idle registry eviction | `TENANCY_REGISTERED_IDLE_TTL` (default 900s) | Idle pools drop; reconnect on next request | Prevents registry growing to full fleet |
-| Registry hard cap | `TENANCY_REGISTERED_MAX` (0=unlimited) | Optional | Prefer 300–500 |
-| Fleet command paging | `TENANCY_SCOPE_AUTO_BATCH_AT` (200) / `TENANCY_SCOPE_AUTO_BATCH` (100) | ≤200 tenants: one pass | Above threshold: page; minute jobs rotate a cursor |
-| Forced page size | `TENANCY_SCOPE_BATCH` | 0=auto | Force N per page |
-| Flexible schedules | `next_run_at` + tick fan-out + `schedule` queue (`QUEUE_SCHEDULE_CONCURRENT`) | Same minute match semantics | Tick **enqueues only**; workers run handlers in parallel |
-| Fleet backups | `tenant:backup-all` / `backup-scheduled` | Small fleets may enqueue all at once | Enqueue `long-running`; daily rotate `TENANT_BACKUP_SCHEDULE_BATCH` |
-| Fleet migrate/seed | `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency` | Default 2; same host prefer 2–5 | With many `tenants.host` shards, 20–50 OK (true parallel DDL/seed; do not stampede the DB) |
-
-### Fleet schema migrate (`tenant:migrate-all`)
-
-Database-per-tenant means one DDL/seed pass per tenant. Wall clock is roughly `tenants × per-tenant time / concurrency`. `MigrateTenant` / `SeedTenant` bind per-goroutine Schema+Orm (no global `database.default` flip), so `TENANCY_MIGRATE_CONCURRENCY` is **true parallelism** for both migrate-all and seed-all. Load still hits each MySQL/PG host that holds tenant DBs.
-
-| Deploy | Suggested concurrency | Notes |
-|--------|----------------------|-------|
-| Single host / many DBs on one instance | 2–5 | Default 2; higher risks `max_connections` / disk IO |
-| ~100 tenants per DB host, many hosts | 20–50 | Spread via `tenants.host` at provision; still a **global** cap, not per-host |
-| Platform UI batch migrate/seed | `TENANCY_MIGRATE_CONCURRENCY` (`tenant_ops_fleet`) | Same path as CLI; `QUEUE_LONG_RUNNING_CONCURRENT=1` is enough |
-
-Failed tenants get `provision_status=failed` + `last_migrate_error`; filter and retry without re-running the whole fleet. Cutover: new image platform `migrate`, then `tenant:migrate-all` (optional `--concurrency`), then switch traffic.
-
-### Concurrency knobs (tune with queue workers)
-
-These are **different** controls — raising one does not raise the others:
-
-| Knob | What it limits | Typical use |
-|------|----------------|-------------|
-| `TENANCY_MIGRATE_CONCURRENCY` | **In-process** parallel tenants for `tenant:migrate-all` / `tenant:seed-all` (goroutines) | CLI fleet DDL/seed in a maintenance window |
-| `QUEUE_LONG_RUNNING_CONCURRENT` | Jobs per long-running Worker | Per-tenant `tenant_ops`; **batch migrate/seed/backup only needs 1** (fleet uses one slot) |
-| `QUEUE_SCHEDULE_CONCURRENT` | Jobs per schedule Worker | Minute collection / flexible schedules — **competes for tenant-DB IO** with migrate |
-| `QUEUE_CONCURRENT` | Default queue parallelism | Exports, notifications, etc. |
-
-**How to tune them together (same DB host):**
-
-1. **During `migrate-all` / `seed-all`**: temporarily lower `QUEUE_SCHEDULE_CONCURRENT` to `1–2` (or pause the schedule tick), keep `QUEUE_LONG_RUNNING_CONCURRENT=1`, and **do not** also fire UI batch migrate — CLI + Worker concurrency would stack on the same MySQL/PG.
-2. **Wall clock**: `≈ ceil(tenants / TENANCY_MIGRATE_CONCURRENCY) × per-tenant migrate time`; seed is usually much faster and can share the same concurrency value.
-3. **Day-to-day**: `TENANCY_MIGRATE_CONCURRENCY` only affects CLI and may stay high; steady load is `QUEUE_SCHEDULE_CONCURRENT × Worker hosts` plus `TENANCY_POOL_MAX_OPEN_CONNS`.
-4. **Rule of thumb**: same host prefer CLI concurrency `2–5`; use `20–50` only with many `tenants.host` shards. Keep long-running at `1`; scale schedule separately for collection SLA.
-5. **Batch migrate/seed**: both CLI and platform UI batch read `TENANCY_MIGRATE_CONCURRENCY`. Do not raise `QUEUE_LONG_RUNNING_CONCURRENT` just for batch migrate. Still avoid running CLI and UI fleets against the same DB hosts at once.
-
-**Platform UI batch migrate / seed / backup:**
-
-1. **Batch** migrate/seed enqueues **one** `tenant_ops_fleet` job that uses `TENANCY_MIGRATE_CONCURRENCY` (same path as CLI `migrate-all`). Per-tenant ops still use `tenant_ops`. Keep `QUEUE_LONG_RUNNING_CONCURRENT=1` for batch migrate (the fleet occupies a single queue slot).
-2. Worker hosts must run `queue-long-running` (do not set `APP_DISABLED_RUNNERS=queue-*`); API hosts usually Dispatch only.
-3. After changing `.env`, **restart the Worker processes** that consume long-running (concurrency is read at startup in `bootstrap/runners.go`). Env-only change without Worker restart keeps the old concurrency. Restarting API alone does not change Worker parallelism.
-4. Batch migrate speed comes from raising `TENANCY_MIGRATE_CONCURRENCY` (applies to newly enqueued fleets). Batch backup remains one job per tenant and still scales with `QUEUE_LONG_RUNNING_CONCURRENT`.
-
-| Knob | Restart needed? | Notes |
-|------|-----------------|-------|
-| `QUEUE_LONG_RUNNING_CONCURRENT` / `QUEUE_SCHEDULE_CONCURRENT` / `QUEUE_CONCURRENT` | **Yes** — restart matching queue Workers | Concurrent is fixed when the runner starts |
-| `TENANCY_MIGRATE_CONCURRENCY` | Next `artisan tenant:migrate-all` picks it up; no need to restart long-lived API/Workers for CLI | Or use one-shot `--concurrency=N` without editing env |
-| Clicking migrate in the UI | Enqueue works without restart | Parallelism still follows already-running Worker concurrency |
-
-**Suggested values (copy-paste, one tenant-DB host):**
-
-| Scenario | `TENANCY_MIGRATE_CONCURRENCY` (CLI / UI batch migrate·seed) | `QUEUE_LONG_RUNNING_CONCURRENT` (per-tenant / batch backup) | `QUEUE_SCHEDULE_CONCURRENT` |
-|----------|-------------------------------------|--------------------------------------|----------------------------|
-| Local / small fleet &lt;50 | **2–3** (default 2) | **1** | **5–10** (often 10) |
-| Same host, cutover `migrate-all` | **3–5** | **1** (do not raise during cutover) | Temporarily **1–2** or pause tick |
-| ~100 tenants/DB host, sharded `tenants.host` | **20–40** | **1–2** | **5–10** |
-| Few thousand, many hosts | **40–50** (max 100, use sparingly) | **1–2**; add Worker hosts for more speed | Start around **10**, tune to SLA |
-
-Rule of thumb: UI batch migrate tunes `TENANCY_MIGRATE_CONCURRENCY` (same as CLI); keep `QUEUE_LONG_RUNNING_CONCURRENT=1`. Wall clock ≈ `ceil(tenants / concurrency) × per-tenant migrate seconds` (this repo: often ~10–20s DDL per tenant on a typical laptop/dev MySQL).
-
-### Active-tenant bands
-
-| Active tenants | Tenant pool | Queue / processes | Redis |
-|----------------|-------------|-------------------|-------|
-| &lt; 50 | Defaults `IDLE=2` / `OPEN=20` OK; can use `OPEN=10` | Worker may share API host; `QUEUE_CONNECTION=redis` | Single or small managed Redis |
-| 50–200 | `IDLE=1–2`, `OPEN=3–5`; shorter idle/lifetime (e.g. 120 / 600) | Split **API vs Worker** (see [Production](/en/deploy/production)); keep `QUEUE_LONG_RUNNING_CONCURRENT` low | Managed Redis; watch `used_memory` and backlog |
-| 200–1000 | `OPEN=2–3`; optional `REGISTERED_MAX=300` | Dedicated Workers: `default` + `long-running` + **`schedule`** | Larger tier; watch export/import neighbors |
-| Few thousand | `OPEN=2`; `REGISTERED_MAX=300–500`; shard via `tenants.host`; migrate may use `TENANCY_MIGRATE_CONCURRENCY=20–50` | Scale Workers horizontally; tune `QUEUE_SCHEDULE_CONCURRENT` | HA Redis; split cache/queue if needed |
-
-### Machine sizing and role layout (rule of thumb)
-
-Same binary; split roles with `APP_DISABLED_RUNNERS` (see [Production](/en/deploy/production)). vCPU/RAM are cloud-host ballparks — adjust for QPS, collection duration, and export load.
-
-| Active band | API | Queue Worker | Scheduler | Platform DB | Tenant DBs | Redis |
-|-------------|-----|--------------|-----------|-------------|------------|-------|
-| &lt; 50 | 1× 2vCPU 4GB (Worker may colocated) | Optional merge | Merged or 1 host | 1× small/mid | Same host multi-DB OK | 1× small |
-| 50–200 | 2× 2vCPU 4GB (HTTP only) | 1× 2vCPU 4GB | **Exactly 1** schedule host | 1× (raise `max_connections`) | Same host or start 1 tenant DB host | 1× managed |
-| 200–1000 | 2–4× API | 2+× Workers (include `schedule`) | 1 host | Dedicated platform DB | **Multiple** hosts via `tenants.host` | Mid/large HA |
-| Few thousand | 4+× API behind LB | 3+× Workers; tune `QUEUE_SCHEDULE_CONCURRENT` | 1 host | Dedicated + backups | Many tenant DB hosts | HA; split if noisy |
-
-**Roles:**
-
-| Role | `APP_DISABLED_RUNNERS` | Queue runners needed |
-|------|-------------------------|----------------------|
-| API | `queue-*` | None (Dispatch only) |
-| Worker | empty | `queue-default`, `queue-long-running`, **`queue-schedule`**, optional `queue-search` |
-| Scheduler | may disable `queue-*` | Only `goravel:schedule`; **one host cluster-wide** |
-
-Minute-collection throughput ≈ `QUEUE_SCHEDULE_CONCURRENT × Worker hosts`. Example: 3000 tenants/min at 5s each needs ~**250** concurrent slots (or lower frequency).
-
-### Example configs
-
-~100 active tenants, 2 API instances:
-
-```ini
-TENANCY_POOL_MAX_IDLE_CONNS=1
-TENANCY_POOL_MAX_OPEN_CONNS=5
-TENANCY_POOL_CONN_MAX_IDLETIME=120
-TENANCY_POOL_CONN_MAX_LIFETIME=600
-TENANCY_REGISTERED_IDLE_TTL=900
-
-CACHE_STORE=redis
-QUEUE_CONNECTION=redis
-QUEUE_CONCURRENT=2
-QUEUE_LONG_RUNNING_CONCURRENT=1
-QUEUE_SCHEDULE_CONCURRENT=5
-# API hosts: APP_DISABLED_RUNNERS=queue-*
-```
-
-Few-thousand active starting point:
-
-```ini
-TENANCY_POOL_MAX_IDLE_CONNS=1
-TENANCY_POOL_MAX_OPEN_CONNS=2
-TENANCY_REGISTERED_IDLE_TTL=900
-TENANCY_REGISTERED_MAX=400
-TENANCY_SCOPE_AUTO_BATCH_AT=200
-TENANCY_SCOPE_AUTO_BATCH=100
-TENANCY_FLEX_SCHEDULE_TICK_LIMIT=2000
-TENANCY_FLEX_SCHEDULE_QUEUE=schedule
-TENANCY_MIGRATE_CONCURRENCY=40
-QUEUE_SCHEDULE_CONCURRENT=10
-TENANT_BACKUP_SCHEDULE_ENABLED=true
-TENANT_BACKUP_SCHEDULE_BATCH=100
-QUEUE_LONG_RUNNING_CONCURRENT=1
-# Set tenants.host when provisioning; API disables queue-*; Workers run queue-schedule
-```
-
-**Watch:** MySQL/PG `Threads_connected`, queue pending / `queue:alert-backlog`, `schedule` / `long-running` depth, Redis memory and connections. Near limits, lower `TENANCY_POOL_*` or scale DB/Workers **before** blindly adding API replicas (replicas multiply connection usage).
-
-### Beyond one fleet: regional (cell) deployments
-
-A single fleet targets about **a few thousand active** tenants (see table above). When counts keep growing, prefer **standing up another full stack (region / cell)** instead of endlessly adding API replicas or `tenant_*` databases on one platform DB.
-
-Recommended pattern:
-
-```text
-Region A (existing)           Region B (new)
-Platform DB A + API/Worker… → Platform DB B + API/Worker…
-Existing tenants stay on A    New signups write only to B
-```
-
-| Point | Guidance |
-|-------|----------|
-| One stack per region | Separate platform DB, `TENANCY_DRIVER=database`, API / Worker / Scheduler / Redis, tenant DBs (optionally split further with `tenants.host`) |
-| Signup traffic | Point registration/sales at the **current write region** platform/API; from a cutover date, new tenants go only to the new region |
-| How tenants return | Region-specific subdomains/apexes, or a thin gateway/DNS map `tenant_code → region API`; do not point old tenant hosts at the wrong region |
-| Platform console | Each region has its own `/platform`; this product has **no** cross-region control plane |
-| Moves | Avoid moving tenants; cross-region means backup/restore plus DNS/directory changes |
-| Cold tenants | `disabled` / archive or DROP the DB while keeping the platform row; do not leave huge numbers of idle-but-`ready` DBs to drag down regional backup / `migrate-all` |
-
-There is **no built-in** `CELL_ID`, global tenant router, or one-click cross-region migrate. Regional scale-out is **ops-level copy of the stack**; tune each cell with the settings in this section. About **~1k tenants per cell** is the comfortable band; grow total capacity as `cells × per-cell capacity`.
+Moved to [Multi-tenancy: scale and recommended settings](/en/advanced/tenancy-scaling) (default capacity, dual mode, concurrency knobs, machine layout, example configs, regional cells).
 
 ## Object storage and quotas
 
@@ -605,22 +430,24 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 | POST | `/api/payment/notify/{type}/{tenant}` | wechat\|alipay；路径绑定租户 |
 | POST | `/api/payment/notify/{type}` | tenancy 关闭时可用；开启时 `tenant_required` |
 
-## 代码约定
+## Code conventions
 
-| API | 用途 |
+| API | Use |
 |-----|------|
-| `tenancy.Enabled()` | 是否一户一库 |
-| `OrmQuery(ctx)` | 租户业务默认入口 |
-| `PlatformOrmQuery(ctx)` | 平台元数据 / 平台 token |
-| `tenancyctx.Detach(ctx)` | 异步 goroutine 保留租户连接 |
-| `tenancy.CacheKey` / `StoragePrefix` | 缓存键 / 对象存储路径前缀 |
-| `RunTenantScope` / `--tenant` | CLI 按租户执行 |
+| `tenancy.Enabled()` | Database-per-tenant on? |
+| `OrmQuery(ctx)` / `OrmTransaction(ctx, fn)` | Tenant business data; a nil ctx fails with `ErrNilQueryContext` when tenancy is on |
+| `PlatformOrmQuery(ctx)` / `PlatformQuery()` | Platform data (with / without a ctx); never `PlatformOrmQuery(nil)` |
+| `tenancyctx.Go(ctx, name, fn)` | Start background work: keeps the tenant, drops request cancellation, recovers panics |
+| `tenancy.CacheKey` / `StoragePrefix` | Cache key / object storage prefix |
+| `models.PlatformModel` | Marks platform-table models; tenant connections refuse their tables (`tenantdb.ErrPlatformTable`) |
+| `TenantConnectionService.TenantContext(t)` | Platform code reading one tenant's data: a ctx bound to that tenant |
+| `RunTenantScope` / `--tenant` | CLI per tenant |
 | `SchemaHasTable` / `WithSchemaContext` | Tenant Schema from ctx (no global state) |
-| `WithTenantConnection` | Run as the tenant on the current goroutine (migration-style code, seeders) |
+| `WithTenantConnection` | Run as the tenant on the current goroutine (only code that takes no ctx: migrations, seeders) |
 
 ### 硬性规则
 
-1. 业务用 `OrmQuery(ctx)`；平台路由**不**挂 `Tenant` 中间件；平台元数据用 `PlatformOrmQuery`（钉死平台连接）。
+1. Business code uses `OrmQuery(ctx)`; platform routes do **not** use the `Tenant` middleware; platform data uses `PlatformOrmQuery(ctx)` / `PlatformQuery()` (pinned platform connection). See the [developer guide](/en/advanced/tenancy-dev).
 2. 隔离是**切库/切 Schema**，不是行级 `tenant_id` GlobalScope。
 3. 缓存/上传（含 `chunks/`、导出、导入与附件临时目录）走租户前缀。
 4. Search indexes are `{code}_orders` when bound (the full code, never truncated); unbound fails closed and never falls back to the shared `orders`. Before a tenant is deleted for good (platform force-delete / `tenant:cleanup-deleted` / delete after purge) all its search indexes are dropped; if that fails the tenant row stays and the code is not freed (a new tenant reusing the code must not read the old tenant's documents). Creating a tenant also clears indexes left under its code.
@@ -636,8 +463,9 @@ Platform console supports per-tenant ping/migrate/seed/backup/restore/delete, ba
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
 16. Vanity domains: edge Host rewrite (see above); do not add per-domain app env, CORS allowlist entries, or separate deploys.
-17. Business dirs (`app/services` / `http` / `jobs` / `console`) must not call `facades.Orm().Query()`; CI runs `bash scripts/check-tenant-orm.sh` (tenant-maintenance allowlist excepted). Data statements in migrations (`database/migrations`) use `migrationQuery()`: it runs inside the migration's transaction, `facades.Orm()` does not (on PostgreSQL it cannot see a table the migration just created).
-18. Tenant business cache/locks must use `tenancy.CacheKey` / `TenantCacheKey`; CI runs `bash scripts/check-tenant-cache.sh` (global/platform allowlist in script ALLOW).
+17. CI runs `go run ./scripts/tenantlint`, which checks four rules per call site: `orm` (no `facades.Orm().Query/Transaction/WithContext/Connection` under `app/`), `nilctx` (no `OrmQuery(nil)` / `PlatformOrmQuery(nil)` ...), `cache` (a function using `facades.Cache()` goes through `tenancy.CacheKey`, possibly via a key helper of the same package) and `goctx` (a `go` statement must not capture a request ctx; use `tenancyctx.Go`). An intended exception carries `//tenantlint:allow <rule>: <reason>` at the call site or in the function's doc comment. Data statements in migrations (`database/migrations`) use `migrationQuery()`: it runs inside the migration's transaction, `facades.Orm()` does not (on PostgreSQL it cannot see a table the migration just created).
+18. Platform tables (`models.PlatformModel`) must match the tables landlord-only migrations create (`TestPlatformTablesMatchLandlordOnlyMigrations`); tenant connections refuse ORM statements on them.
+19. `TestEveryAdminRouteIsTenantIsolated` marks tenant A's data and calls every GET route as tenant B, asserting the marker never shows; new routes are included automatically. `TestTenantResolutionSecurity` covers host/header conflicts, the public apex ignoring client-supplied tenants, platform/tenant tokens not crossing, disable/maintenance taking effect at once, and a reused code not honouring the old tokens.
 
 ## Platform ops: domain board / onboard / health
 

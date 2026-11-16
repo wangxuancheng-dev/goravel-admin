@@ -72,13 +72,12 @@ func BuildTenantQuotaSnapshot(tenant *models.Tenant) TenantQuotaSnapshot {
 	out := TenantQuotaSnapshot{
 		StorageLimitBytes: tenant.StorageLimitBytes,
 	}
-	_ = NewTenantConnectionService().WithTenantConnection(tenant, func() error {
-		used, err := SumTenantAttachmentBytes(context.Background())
-		if err != nil {
-			return err
-		}
+	ctx, err := NewTenantConnectionService().TenantContext(tenant)
+	if err != nil {
+		return out
+	}
+	if used, err := SumTenantAttachmentBytes(ctx); err == nil {
 		out.StorageUsedBytes = used
-		return nil
-	})
+	}
 	return out
 }

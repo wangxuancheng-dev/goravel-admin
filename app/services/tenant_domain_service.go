@@ -36,11 +36,14 @@ func (s *TenantDomainService) cacheKey(host string) string {
 	return tenantDomainCachePrefix + tenancy.NormalizeHost(host)
 }
 
+//tenantlint:allow cache: platform host -> tenant map, read before any tenant is bound
 func (s *TenantDomainService) forgetCache(host string) {
 	_ = facades.Cache().Forget(s.cacheKey(host))
 }
 
 // ResolveActiveCode returns tenant code when host is an active custom domain.
+//
+//tenantlint:allow cache: platform host -> tenant map, read before any tenant is bound
 func (s *TenantDomainService) ResolveActiveCode(host string) string {
 	host = tenancy.NormalizeHost(host)
 	if host == "" || !tenancy.Enabled() {
@@ -89,14 +92,14 @@ func (s *TenantDomainService) TLSAllow(host string) bool {
 
 func (s *TenantDomainService) findActiveByHost(host string) (*models.TenantDomain, *models.Tenant, error) {
 	var row models.TenantDomain
-	if err := appfacades.PlatformOrmQuery(nil).
+	if err := appfacades.PlatformQuery().
 		Where("host", host).
 		Where("status", models.TenantDomainStatusActive).
 		First(&row); err != nil || row.ID == 0 {
 		return nil, nil, err
 	}
 	var tenant models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", row.TenantID).First(&tenant); err != nil || tenant.ID == 0 {
+	if err := appfacades.PlatformQuery().Where("id", row.TenantID).First(&tenant); err != nil || tenant.ID == 0 {
 		return nil, nil, err
 	}
 	return &row, &tenant, nil
@@ -104,7 +107,7 @@ func (s *TenantDomainService) findActiveByHost(host string) (*models.TenantDomai
 
 func (s *TenantDomainService) ListByTenant(tenantID uint) ([]models.TenantDomain, error) {
 	var list []models.TenantDomain
-	err := appfacades.PlatformOrmQuery(nil).
+	err := appfacades.PlatformQuery().
 		Where("tenant_id", tenantID).
 		Order("is_primary desc, id asc").
 		Find(&list)
@@ -113,7 +116,7 @@ func (s *TenantDomainService) ListByTenant(tenantID uint) ([]models.TenantDomain
 
 func (s *TenantDomainService) GetByID(tenantID, id uint) (*models.TenantDomain, error) {
 	var row models.TenantDomain
-	if err := appfacades.PlatformOrmQuery(nil).
+	if err := appfacades.PlatformQuery().
 		Where("tenant_id", tenantID).
 		Where("id", id).
 		First(&row); err != nil || row.ID == 0 {
@@ -142,15 +145,15 @@ func (s *TenantDomainService) Create(tenantID uint, in TenantDomainCreateInput) 
 	}
 
 	var tenant models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", tenantID).First(&tenant); err != nil || tenant.ID == 0 {
+	if err := appfacades.PlatformQuery().Where("id", tenantID).First(&tenant); err != nil || tenant.ID == 0 {
 		return nil, apperrors.ErrTenantNotFound
 	}
 
 	var existing models.TenantDomain
-	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("host", host).First(&existing); err == nil && existing.ID > 0 {
+	if err := appfacades.PlatformQuery().WithTrashed().Where("host", host).First(&existing); err == nil && existing.ID > 0 {
 		// Soft-deleted rows still occupy the unique host index — reclaim them.
 		if existing.DeletedAt.Valid {
-			if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", existing.ID).ForceDelete(&models.TenantDomain{}); err != nil {
+			if _, err := appfacades.PlatformQuery().WithTrashed().Where("id", existing.ID).ForceDelete(&models.TenantDomain{}); err != nil {
 				return nil, apperrors.ErrDeleteFailed.WithError(err)
 			}
 			s.forgetCache(host)
@@ -173,7 +176,7 @@ func (s *TenantDomainService) Create(tenantID uint, in TenantDomainCreateInput) 
 		VerifyType:  models.TenantDomainVerifyDNSTXT,
 		VerifyToken: token,
 	}
-	if err := appfacades.PlatformOrmQuery(nil).Create(&row); err != nil {
+	if err := appfacades.PlatformQuery().Create(&row); err != nil {
 		return nil, apperrors.ErrQueryFailed.WithError(err)
 	}
 	if in.IsPrimary {
@@ -184,7 +187,7 @@ func (s *TenantDomainService) Create(tenantID uint, in TenantDomainCreateInput) 
 }
 
 func (s *TenantDomainService) clearOtherPrimary(tenantID, keepID uint) error {
-	_, err := appfacades.PlatformOrmQuery(nil).Model(&models.TenantDomain{}).
+	_, err := appfacades.PlatformQuery().Model(&models.TenantDomain{}).
 		Where("tenant_id", tenantID).
 		Where("id != ?", keepID).
 		Where("is_primary", true).
@@ -201,7 +204,7 @@ func (s *TenantDomainService) SetPrimary(tenantID, id uint) (*models.TenantDomai
 		return nil, apperrors.ErrTenantDomainNotActive
 	}
 	_ = s.clearOtherPrimary(tenantID, row.ID)
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(row).Update("is_primary", true); err != nil {
+	if _, err := appfacades.PlatformQuery().Model(row).Update("is_primary", true); err != nil {
 		return nil, apperrors.ErrUpdateFailed.WithError(err)
 	}
 	row.IsPrimary = true
@@ -215,7 +218,7 @@ func (s *TenantDomainService) Disable(tenantID, id uint) (*models.TenantDomain, 
 		return nil, err
 	}
 	now := time.Now()
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(row).Update(map[string]any{
+	if _, err := appfacades.PlatformQuery().Model(row).Update(map[string]any{
 		"status":           models.TenantDomainStatusDisabled,
 		"is_primary":       false,
 		"last_check_at":    now,
@@ -236,7 +239,7 @@ func (s *TenantDomainService) Delete(tenantID, id uint) error {
 	}
 	host := row.Host
 	// Hard-delete so unique(host) is freed and the domain can be re-bound immediately.
-	if _, err := appfacades.PlatformOrmQuery(nil).Where("id", row.ID).ForceDelete(&models.TenantDomain{}); err != nil {
+	if _, err := appfacades.PlatformQuery().Where("id", row.ID).ForceDelete(&models.TenantDomain{}); err != nil {
 		return apperrors.ErrDeleteFailed.WithError(err)
 	}
 	s.forgetCache(host)
@@ -252,7 +255,7 @@ func (s *TenantDomainService) DisableAllForTenant(tenantID uint) error {
 	for i := range list {
 		s.forgetCache(list[i].Host)
 	}
-	_, err = appfacades.PlatformOrmQuery(nil).Model(&models.TenantDomain{}).
+	_, err = appfacades.PlatformQuery().Model(&models.TenantDomain{}).
 		Where("tenant_id", tenantID).
 		Update(map[string]any{
 			"status":     models.TenantDomainStatusDisabled,
@@ -264,13 +267,13 @@ func (s *TenantDomainService) DisableAllForTenant(tenantID uint) error {
 // PurgeAllForTenant hard-deletes vanity domain rows and clears host cache.
 func (s *TenantDomainService) PurgeAllForTenant(tenantID uint) error {
 	var list []models.TenantDomain
-	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("tenant_id", tenantID).Find(&list); err != nil {
+	if err := appfacades.PlatformQuery().WithTrashed().Where("tenant_id", tenantID).Find(&list); err != nil {
 		return err
 	}
 	for i := range list {
 		s.forgetCache(list[i].Host)
 	}
-	_, err := appfacades.PlatformOrmQuery(nil).Where("tenant_id", tenantID).ForceDelete(&models.TenantDomain{})
+	_, err := appfacades.PlatformQuery().Where("tenant_id", tenantID).ForceDelete(&models.TenantDomain{})
 	return err
 }
 
@@ -287,13 +290,13 @@ func (s *TenantDomainService) Verify(tenantID, id uint) (*models.TenantDomain, e
 	}
 	if checkErr != nil {
 		updates["last_check_error"] = checkErr.Error()
-		_, _ = appfacades.PlatformOrmQuery(nil).Model(row).Update(updates)
+		_, _ = appfacades.PlatformQuery().Model(row).Update(updates)
 		return nil, apperrors.ErrTenantDomainVerifyFailed.WithMessage(checkErr.Error())
 	}
 	updates["last_check_error"] = ""
 	updates["status"] = models.TenantDomainStatusActive
 	updates["verified_at"] = now
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(row).Update(updates); err != nil {
+	if _, err := appfacades.PlatformQuery().Model(row).Update(updates); err != nil {
 		return nil, apperrors.ErrUpdateFailed.WithError(err)
 	}
 	row.Status = models.TenantDomainStatusActive

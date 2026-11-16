@@ -51,7 +51,7 @@ func TestParallelTenantMigrate(t *testing.T) {
 				continue
 			}
 			_ = conn.DropStorage(tn)
-			_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+			_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		}
 	}
 	t.Cleanup(cleanup)

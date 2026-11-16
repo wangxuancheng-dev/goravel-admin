@@ -83,6 +83,9 @@ func build(ctx context.Context, name string, spec Spec) (*Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tenantdb: open %s: %w", name, err)
 	}
+	if err = installTableGuard(gdb); err != nil {
+		return nil, fmt.Errorf("tenantdb: table guard %s: %w", name, err)
+	}
 	sqlDB, err := gdb.DB()
 	if err != nil {
 		return nil, fmt.Errorf("tenantdb: pool %s: %w", name, err)
@@ -125,10 +128,14 @@ func build(ctx context.Context, name string, spec Spec) (*Conn, error) {
 		sqlDB:       sqlDB,
 		migrations:  registeredMigrations,
 		closeFn: func() error {
+			err := sqlDB.Close() // waits for queries already running
 			if instrument != nil {
-				instrument.Shutdown()
+				// Not right away: a query that just returned still runs gorm's after-
+				// callback, whose span end reads the histogram Shutdown nils (a nil
+				// pointer panic in the framework). By then no statement can start.
+				time.AfterFunc(instrumentShutdownDelay, instrument.Shutdown)
 			}
-			return sqlDB.Close()
+			return err
 		},
 	}
 	if spec.Driver == DriverPostgres {
@@ -138,6 +145,9 @@ func build(ctx context.Context, name string, spec Spec) (*Conn, error) {
 	c.touch()
 	return c, nil
 }
+
+// instrumentShutdownDelay is how long a closed connection's telemetry outlives it.
+const instrumentShutdownDelay = 30 * time.Second
 
 // prePing reaches the server under ctx before gorm opens the connection. gorm's mysql
 // dialector runs SELECT VERSION() while opening, on a connection with no timeout, so a

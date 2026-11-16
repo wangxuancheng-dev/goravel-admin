@@ -108,7 +108,8 @@ if errors != nil {
 
 ### Example: logging unexpected errors safely
 ```go
-if err := facades.Orm().Query().Save(&model); err != nil {
+// Tenant (or single-DB) business data: always OrmQuery(ctx), never facades.Orm().Query().
+if err := appfacades.OrmQuery(ctx).Save(&model); err != nil {
     return response.ErrorWithLog(ctx, "menu", err, map[string]any{
         "menu_id": model.ID,
         "slug":    model.Slug,

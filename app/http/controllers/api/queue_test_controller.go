@@ -124,6 +124,7 @@ func (c *QueueTestController) Backoff(ctx http.Context) http.Response {
 	})
 }
 
+//tenantlint:allow cache: demo of unique jobs on the shared queue
 func (c *QueueTestController) Unique(ctx http.Context) http.Response {
 	windowSeconds, _ := strconv.Atoi(ctx.Request().Query("window_seconds", "30"))
 	if windowSeconds <= 0 {
@@ -171,6 +172,7 @@ func (c *QueueTestController) Unique(ctx http.Context) http.Response {
 	})
 }
 
+//tenantlint:allow cache: demo of unique jobs on the shared queue
 func (c *QueueTestController) UniqueStatus(ctx http.Context) http.Response {
 	uniqueKey := ctx.Request().Query("key", "default")
 	if uniqueKey == "" {

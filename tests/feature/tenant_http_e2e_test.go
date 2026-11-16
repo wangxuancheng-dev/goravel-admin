@@ -104,7 +104,7 @@ func TestTenantLifecycleAndIsolationOverHTTP(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			_ = conn.DropStorage(tn)
-			_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
+			_, _ = appfacades.PlatformQuery().WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		})
 		return tn
 	}
@@ -124,7 +124,7 @@ func TestTenantLifecycleAndIsolationOverHTTP(t *testing.T) {
 
 	for _, tn := range []*models.Tenant{ta, tb} {
 		var row models.Tenant
-		require.NoError(t, appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).First(&row))
+		require.NoError(t, appfacades.PlatformQuery().Where("id", tn.ID).First(&row))
 		assert.Equal(t, models.TenantProvisionReady, row.ProvisionStatus, "tenant %s provision", tn.Code)
 		assert.Equal(t, models.TenantOpStatusSuccess, row.LastOpStatus, "tenant %s last op: %s", tn.Code, row.LastOpMessage)
 		assert.Positive(t, row.SchemaMigrationCount)
@@ -156,7 +156,7 @@ func TestTenantLifecycleAndIsolationOverHTTP(t *testing.T) {
 	assert.Equal(t, nick, adminNickname(infoA))
 	assert.NotEqual(t, nick, adminNickname(infoB), "tenant B must not see tenant A's write")
 
-	platformAdmins, err := appfacades.PlatformOrmQuery(nil).Table("admins").Where("nickname", nick).Count()
+	platformAdmins, err := appfacades.PlatformQuery().Table("admins").Where("nickname", nick).Count()
 	require.NoError(t, err)
 	assert.Zero(t, platformAdmins, "tenant writes must not reach the platform database")
 }

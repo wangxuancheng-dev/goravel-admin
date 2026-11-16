@@ -33,9 +33,9 @@ func insertTenantFixture(t *testing.T, code, provisionStatus string) *models.Ten
 		Database:        "tenant_" + code,
 		ConnectionName:  fmt.Sprintf("tenant_gate_%s", code),
 	}
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).Create(&tenant))
+	require.NoError(t, appfacades.PlatformQuery().Create(&tenant))
 	t.Cleanup(func() {
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", tenant.ID).ForceDelete(&models.Tenant{})
 	})
 	return &tenant
 }
@@ -61,7 +61,7 @@ func TestSetStatusActiveBlockedWhenPending(t *testing.T) {
 	code := fmt.Sprintf("ena%d", time.Now().Unix()%1000000)
 	tenant := insertPendingTenant(t, code)
 	tenant.Status = models.TenantStatusDisabled
-	_, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	_, err := appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"status": models.TenantStatusDisabled,
 	})
 	require.NoError(t, err)

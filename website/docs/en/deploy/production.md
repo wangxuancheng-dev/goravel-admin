@@ -7,7 +7,7 @@ Full Chinese detail: [生产清单](/deploy/production).
 ## Before go-live
 
 1. `migrate` succeeds; after `db:seed`, change default `admin` password  
-   - Multi-tenant: also `tenant:migrate-all` (concurrency: `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`; see [Tenancy concurrency knobs](/en/advanced/tenancy#concurrency-knobs-tune-with-queue-workers))
+   - Multi-tenant: also `tenant:migrate-all` (concurrency: `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`; see [Tenancy concurrency knobs](/en/advanced/tenancy-scaling#concurrency-knobs-tune-with-queue-workers))
 2. Redis up; web process + queue workers stay running. `CACHE_STORE=redis` and `QUEUE_CONNECTION=redis` are enforced when `APP_ENV=production`: any other driver makes the server refuse to start (artisan commands still run)  
 3. HTTPS + reverse proxy  
 4. Disable or lock down: Swagger, pprof, code generator  
@@ -64,7 +64,7 @@ Ready failure webhook: `READY_ALERT_WEBHOOK_URL` (5 min debounce on `/ready` non
 
 Same binary and shared Redis/DB. Split roles via `.env` — do not run full HTTP + all queue runners on every node.
 
-Sizing by active-tenant band (API / Worker / DB hosts): [Tenancy · Scale](/en/advanced/tenancy#scale-and-recommended-settings).
+Sizing by active-tenant band (API / Worker / DB hosts): [Tenancy · Scale](/en/advanced/tenancy-scaling).
 
 | Role | Purpose | `APP_DISABLED_RUNNERS` |
 |------|---------|--------------------------|
@@ -159,7 +159,7 @@ Percentage canary needs Nginx/LB weights or Cloudflare Gradual Deployments. Repo
 
 ## Related
 
-- Tenant scale / pool starting points: [Tenancy · Scale and recommended settings](/en/advanced/tenancy#scale-and-recommended-settings)
+- Tenant scale / pool starting points: [Tenancy · Scale and recommended settings](/en/advanced/tenancy-scaling)
 - [Build & deploy](/en/deploy/build)  
 - [Docker production](/en/deploy/docker)  
 - [Testing](/en/guide/testing)  

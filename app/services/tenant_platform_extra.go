@@ -107,7 +107,7 @@ func (s *TenantAdminService) DeleteTenant(id uint, confirmCode string, opts Tena
 		}
 	}
 	_ = NewTenantDomainService().DisableAllForTenant(tenant.ID)
-	if _, err := appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).Delete(&models.Tenant{}); err != nil {
+	if _, err := appfacades.PlatformQuery().Where("id", tenant.ID).Delete(&models.Tenant{}); err != nil {
 		return nil, err
 	}
 	return &TenantDeleteResult{
@@ -134,7 +134,7 @@ func (s *TenantAdminService) UndeleteTenant(id uint) (*models.Tenant, error) {
 	if tenantOpBusy(tenant) {
 		return nil, apperrors.ErrTenantOpInProgress
 	}
-	if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).Restore(&models.Tenant{}); err != nil {
+	if _, err = appfacades.PlatformQuery().WithTrashed().Where("id", tenant.ID).Restore(&models.Tenant{}); err != nil {
 		return nil, err
 	}
 	restored, err := s.GetByID(id)
@@ -148,7 +148,7 @@ func (s *TenantAdminService) UndeleteTenant(id uint) (*models.Tenant, error) {
 		if len(msg) > 2000 {
 			msg = msg[:2000]
 		}
-		_, _ = appfacades.PlatformOrmQuery(nil).Model(restored).Update(map[string]any{
+		_, _ = appfacades.PlatformQuery().Model(restored).Update(map[string]any{
 			"provision_status":   models.TenantProvisionFailed,
 			"last_migrate_error": msg,
 			"last_op":            "undelete",
@@ -164,7 +164,7 @@ func (s *TenantAdminService) UndeleteTenant(id uint) (*models.Tenant, error) {
 		restored.LastOpAt = &now
 		return restored, nil
 	}
-	_, _ = appfacades.PlatformOrmQuery(nil).Model(restored).Update(map[string]any{
+	_, _ = appfacades.PlatformQuery().Model(restored).Update(map[string]any{
 		"last_op":         "undelete",
 		"last_op_status":  models.TenantOpStatusSuccess,
 		"last_op_message": msg,
@@ -201,7 +201,7 @@ func (s *TenantAdminService) ForceDeleteTenant(id uint, confirmCode string) erro
 	}
 	s.conn.Forget(tenant.ConnectionName)
 	_ = NewTenantDomainService().PurgeAllForTenant(tenant.ID)
-	if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
+	if _, err := appfacades.PlatformQuery().WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
 		return err
 	}
 	return nil
@@ -237,7 +237,7 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 	}
 	cutoff := time.Now().AddDate(0, 0, -days)
 	var list []models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).WithTrashed().
+	if err := appfacades.PlatformQuery().Model(&models.Tenant{}).WithTrashed().
 		Where("deleted_at IS NOT NULL").
 		Where("deleted_at < ?", cutoff).
 		Order("deleted_at asc").
@@ -259,7 +259,7 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 			continue // keep the row (and code) until its indexes are gone
 		}
 		s.conn.Forget(t.ConnectionName)
-		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", t.ID).ForceDelete(&models.Tenant{}); err != nil {
+		if _, err := appfacades.PlatformQuery().WithTrashed().Where("id", t.ID).ForceDelete(&models.Tenant{}); err != nil {
 			continue
 		}
 		removed++
@@ -279,7 +279,7 @@ func (s *TenantAdminService) ListForBatchOpFiltered(ids []uint, provisionStatus 
 	if limit > 100 {
 		limit = 100
 	}
-	query := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{})
+	query := appfacades.PlatformQuery().Model(&models.Tenant{})
 	if len(ids) > 0 {
 		query = query.Where("id IN ?", ids)
 	}
@@ -319,46 +319,52 @@ func (s *TenantConnectionService) BuildTenantOverview(tenant *models.Tenant) *Te
 	out.PingOK = true
 	out.PingMs = time.Since(start).Milliseconds()
 
-	err := s.WithTenantConnection(tenant, func() error {
-		dbName := facades.Schema().Orm().DatabaseName()
-		if dbName == "" {
-			dbName = tenant.Database
-		}
-		driver := NormalizeTenantDriver(tenant.Driver)
-		switch driver {
-		case models.TenantDriverPostgres:
-			var n int64
-			_ = facades.Orm().Query().Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'`).Scan(&n)
-			out.TableCount = n
-			var bytes int64
-			_ = facades.Orm().Query().Raw(`SELECT pg_database_size(current_database())`).Scan(&bytes)
-			out.DatabaseBytes = bytes
-		default:
-			var n int64
-			_ = facades.Orm().Query().Raw(
-				"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_type IN ('BASE TABLE','SYSTEM VERSIONED')",
-				dbName,
-			).Scan(&n)
-			out.TableCount = n
-			var bytes int64
-			_ = facades.Orm().Query().Raw(
-				"SELECT COALESCE(SUM(data_length+index_length),0) FROM information_schema.tables WHERE table_schema = ?",
-				dbName,
-			).Scan(&bytes)
-			out.DatabaseBytes = bytes
-		}
-		if facades.Schema().HasTable("admins") {
-			n, _ := facades.Orm().Query().Table("admins").Count()
-			out.AdminsCount = n
-		}
-		if facades.Schema().HasTable("migrations") {
-			n, _ := facades.Orm().Query().Table("migrations").Count()
-			out.MigrationsCount = n
-		}
-		return nil
-	})
-	if err != nil && out.Error == "" {
+	// Queries go to the tenant's connection explicitly: no goroutine binding, which is
+	// reserved for migrate / seed (they take no ctx).
+	conn, err := s.ensureConn(tenant)
+	if err != nil {
 		out.Error = err.Error()
+		return out
+	}
+	q := conn.Orm().Query
+	dbName := conn.DatabaseName()
+	if dbName == "" {
+		dbName = tenant.Database
+	}
+	switch NormalizeTenantDriver(tenant.Driver) {
+	case models.TenantDriverPostgres:
+		var n int64
+		_ = q().Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'`).Scan(&n)
+		out.TableCount = n
+		var bytes int64
+		_ = q().Raw(`SELECT pg_database_size(current_database())`).Scan(&bytes)
+		out.DatabaseBytes = bytes
+	default:
+		var n int64
+		_ = q().Raw(
+			"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_type IN ('BASE TABLE','SYSTEM VERSIONED')",
+			dbName,
+		).Scan(&n)
+		out.TableCount = n
+		var bytes int64
+		_ = q().Raw(
+			"SELECT COALESCE(SUM(data_length+index_length),0) FROM information_schema.tables WHERE table_schema = ?",
+			dbName,
+		).Scan(&bytes)
+		out.DatabaseBytes = bytes
+	}
+	sch, err := conn.NewSchema()
+	if err != nil {
+		out.Error = err.Error()
+		return out
+	}
+	if sch.HasTable("admins") {
+		n, _ := q().Table("admins").Count()
+		out.AdminsCount = n
+	}
+	if sch.HasTable("migrations") {
+		n, _ := q().Table("migrations").Count()
+		out.MigrationsCount = n
 	}
 	return out
 }

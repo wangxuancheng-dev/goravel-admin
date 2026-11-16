@@ -225,7 +225,7 @@ func MarkTenantBackupResult(tenant *models.Tenant, path string) error {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
 	now := time.Now()
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	if _, err := appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"last_backup_path": path,
 		"last_op_at":       now,
 	}); err != nil {

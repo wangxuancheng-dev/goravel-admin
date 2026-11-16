@@ -42,7 +42,7 @@ const tenantScopeCursorCacheTTL = 48 * time.Hour
 // Prefer ListReadyActiveTenants for maintenance that assumes a migrated schema.
 func (s *TenantConnectionService) ListActiveTenants() ([]models.Tenant, error) {
 	var tenants []models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).
+	if err := appfacades.PlatformQuery().
 		Where("status", models.TenantStatusActive).
 		Order("id asc").
 		Get(&tenants); err != nil {
@@ -93,7 +93,7 @@ func (s *TenantConnectionService) ListReadyActiveTenantsPage(afterID uint, limit
 }
 
 func readyActiveTenantQuery() orm.Query {
-	q := appfacades.PlatformOrmQuery(nil)
+	q := appfacades.PlatformQuery()
 	if down, _ := appfacades.QueryUnavailable(q); down {
 		return nil
 	}
@@ -146,6 +146,7 @@ func tenantScopeCursorKey(rotateKey string) string {
 	return "tenancy:scope_cursor:" + rotateKey
 }
 
+//tenantlint:allow cache: platform fleet cursor
 func loadScopeCursor(rotateKey string) uint {
 	raw := facades.Cache().Get(tenantScopeCursorKey(rotateKey), uint(0))
 	switch v := raw.(type) {
@@ -170,6 +171,7 @@ func loadScopeCursor(rotateKey string) uint {
 	return 0
 }
 
+//tenantlint:allow cache: platform fleet cursor
 func storeScopeCursor(rotateKey string, afterID uint) {
 	_ = facades.Cache().Put(tenantScopeCursorKey(rotateKey), afterID, tenantScopeCursorCacheTTL)
 }

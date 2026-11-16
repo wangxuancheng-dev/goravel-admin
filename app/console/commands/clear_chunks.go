@@ -12,8 +12,8 @@ import (
 	"github.com/goravel/framework/contracts/console/command"
 	"github.com/goravel/framework/support/path"
 
-	"goravel/app/http/helpers"
 	"goravel/app/models"
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 )
 
@@ -57,7 +57,7 @@ func (r *ClearChunks) Handle(ctx console.Context) error {
 			storageRoot = path.Storage("app")
 		}
 
-		prefix := helpers.TenantStoragePrefix(bound)
+		prefix := tenancy.StoragePrefix(bound)
 		relChunks := strings.TrimSuffix(prefix, "/") + "/chunks"
 		if prefix == "" {
 			relChunks = "chunks"

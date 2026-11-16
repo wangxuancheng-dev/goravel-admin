@@ -39,7 +39,7 @@ func (r *TenantMigrateAll) Extend() command.Extend {
 
 func (r *TenantMigrateAll) Handle(ctx console.Context) error {
 	var tenants []models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).
+	if err := appfacades.PlatformQuery().
 		Where("status", models.TenantStatusActive).
 		Get(&tenants); err != nil {
 		ctx.Error(err.Error())

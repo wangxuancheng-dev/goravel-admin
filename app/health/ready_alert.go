@@ -19,6 +19,8 @@ const (
 
 // MaybeAlertNotReady POSTs JSON to READY_ALERT_WEBHOOK_URL when readiness fails,
 // preferring transition-to-not-ready and debouncing repeats for 5 minutes.
+//
+//tenantlint:allow cache: process readiness state, not tenant data
 func MaybeAlertNotReady(report Report) {
 	prev := facades.Cache().GetString(readyAlertLastStatus, "")
 	_ = facades.Cache().Put(readyAlertLastStatus, report.Status, 24*time.Hour)

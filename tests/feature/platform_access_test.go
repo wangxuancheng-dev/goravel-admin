@@ -53,7 +53,7 @@ func createPlatformViewer(t *testing.T) (string, string) {
 	_, err := services.UpsertPlatformAdmin(username, password, "Readonly", "viewer")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("username", username).ForceDelete(&models.PlatformAdmin{})
+		_, _ = appfacades.PlatformQuery().Where("username", username).ForceDelete(&models.PlatformAdmin{})
 	})
 	return username, password
 }
@@ -84,8 +84,8 @@ func TestPlatformViewerCannotMutate(t *testing.T) {
 	planCode := fmt.Sprintf("zz_ro_plan_%d", nonce)
 	newAdmin := fmt.Sprintf("smoke_ro_target_%d", nonce)
 	t.Cleanup(func() {
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("code", planCode).ForceDelete(&models.PlatformPlan{})
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("username", newAdmin).ForceDelete(&models.PlatformAdmin{})
+		_, _ = appfacades.PlatformQuery().Where("code", planCode).ForceDelete(&models.PlatformPlan{})
+		_, _ = appfacades.PlatformQuery().Where("username", newAdmin).ForceDelete(&models.PlatformAdmin{})
 	})
 
 	for _, uri := range []string{"/api/platform/tenants", "/api/platform/plans", fmt.Sprintf("/api/platform/tenants/%d", tenant.ID)} {
@@ -115,9 +115,9 @@ func TestPlatformViewerCannotMutate(t *testing.T) {
 
 	// The fixtures are untouched.
 	var after models.Tenant
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).First(&after))
+	require.NoError(t, appfacades.PlatformQuery().Where("id", tenant.ID).First(&after))
 	assert.Equal(t, tenant.Status, after.Status)
-	exists, err := appfacades.PlatformOrmQuery(nil).Model(&models.PlatformPlan{}).Where("code", planCode).Exists()
+	exists, err := appfacades.PlatformQuery().Model(&models.PlatformPlan{}).Where("code", planCode).Exists()
 	require.NoError(t, err)
 	assert.False(t, exists)
 }

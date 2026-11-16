@@ -192,14 +192,8 @@ func OperationLog() http.Middleware {
 				Duration:  savedDuration,
 			}
 
-			// 异步落库：请求结束后 HTTP ctx 会取消，需 Detach 保留租户连接键
-			persistCtx := tenancyctx.Detach(ctx)
-			go func(dbCtx context.Context) {
-				defer func() {
-					if r := recover(); r != nil {
-						logger.ErrorfContext(context.Background(), "Panic in operation log goroutine: %v", r)
-					}
-				}()
+			// 异步落库：tenancyctx.Go 保留租户、去掉请求取消，并兜底 panic
+			tenancyctx.Go(ctx, "operation_log", func(dbCtx context.Context) {
 				if err := appfacades.OrmQuery(dbCtx).Create(&operationLog); err != nil {
 					_ = systemLogService.Record(dbCtx, "error", "operation-log", "failed to persist operation log", map[string]any{
 						"error": err.Error(),
@@ -226,7 +220,7 @@ func OperationLog() http.Middleware {
 						"trace_id":  operationLog.TraceID,
 					})
 				}
-			}(persistCtx)
+			})
 		}
 	})
 }

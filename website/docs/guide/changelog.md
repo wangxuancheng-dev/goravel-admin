@@ -18,6 +18,10 @@
 - 🏢 平台控制台（Landlord）：`platform_admins` + `/api/platform` + `/platform/login`；租户管理迁出租户后台；远程 DB 凭据；子域解析；`platform:admin` / `tenant:backup|restore`
 - 🔒 远程租户建库打到目标 Host；`tenants.password` APP_KEY 加密；`skip_create`；mysqldump 密码走 defaults-extra-file
 - 🛠️ `platform:install` 首启；HTTP 开户禁止同步 migrate；平台控制台支持单户异步 migrate/seed/backup（`tenant_ops`）
+- 🔒 多租户防护：多租户开启时 `OrmQuery(nil)` 直接报错（不再悄悄落到平台库），平台查询改为显式的 `PlatformQuery()`；租户连接拒绝读写平台表（`models.PlatformModel`）；后台协程统一用 `tenancyctx.Go`（保留租户、兜底 panic）；新增可选的 `TENANCY_DB_DEDICATED_USER`，为每个租户自动创建只能访问自己库的 DB 账号
+- 🧪 `scripts/tenantlint` 取代 `check-tenant-orm.sh` / `check-tenant-cache.sh`，按调用点检查（例外须写明原因）；新增全接口跨租户扫描与租户解析安全测试
+- 🐛 关闭租户连接时，进行中查询的遥测回调不再因 nil 指针 panic
+- 📚 多租户文档拆分：[业务开发须知](/advanced/tenancy-dev)、[规模与推荐配置](/advanced/tenancy-scaling)
 
 ## [1.0.0] - 2024-12-25
 

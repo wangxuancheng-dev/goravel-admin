@@ -10,7 +10,7 @@
 4. `APP_DEBUG=false`，关闭 Swagger / 代码生成器 / pprof
 5. Set `PAYMENT_GATEWAYS_ENABLED` explicitly (e.g. `wechat,alipay`); omit `mock` in production
 6. 一户一库时：`TENANCY_RESOLVER=subdomain`，`TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`
-7. `migrate`（平台库）；租户库用平台 UI 异步迁移或 `tenant:migrate` / `tenant:migrate-all [--concurrency=N]`（默认 `TENANCY_MIGRATE_CONCURRENCY`，见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)）；异步运维需 `long-running` worker
+7. `migrate`（平台库）；租户库用平台 UI 异步迁移或 `tenant:migrate` / `tenant:migrate-all [--concurrency=N]`（默认 `TENANCY_MIGRATE_CONCURRENCY`，见 [多租户 · 并发旋钮对照](/advanced/tenancy-scaling#并发旋钮对照与队列一起调)）；异步运维需 `long-running` worker
 8. 修改默认管理员密码；平台管理员用 `platform:install`
 
 应用在 `APP_ENV=production` 时会对不安全默认项打 **Warning** 日志（不阻断启动），见 `app/production/warn.go`。
@@ -79,7 +79,7 @@ readinessProbe:
 | 5xx 比例升高 | 网关/日志告警 |
 | 队列堆积 / failed_jobs 增长 | Worker 存活、Redis、导出/导入任务；可选 `queue:alert-backlog`（见下） |
 | 磁盘（日志、`storage/backups`） | 备份与日志轮转 |
-| MySQL `Threads_connected` 接近 `max_connections` | 下调 `TENANCY_POOL_*` 或扩容；量级建议见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调) |
+| MySQL `Threads_connected` 接近 `max_connections` | 下调 `TENANCY_POOL_*` 或扩容；量级建议见 [多租户 · 并发旋钮对照](/advanced/tenancy-scaling#并发旋钮对照与队列一起调) |
 | 证书到期 | HTTPS |
 
 可选：配置 `OTEL_*` 接入 Jaeger/Grafana（见 OPENSOURCE 进阶段）。
@@ -90,7 +90,7 @@ readinessProbe:
 - Queue Worker：与 Web 分离，消费 `default` + `long-running` + **`schedule`**（灵活定时）及可选 `search`（见 `bootstrap/runners.go`）  
 - 定时：`schedule:run` 或框架 `goravel:schedule` runner（多机时只留一台）  
 - 备份：平台库 + 各租户库（`tenant:backup` / 入队式 `tenant:backup-all`）；公网务必异地副本，不要只留本机 `storage/backups`
-- 多租户规模 / 机器分布：见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)
+- 多租户规模 / 机器分布：见 [多租户 · 并发旋钮对照](/advanced/tenancy-scaling#并发旋钮对照与队列一起调)
 
 ### 4.1 多机：API 与 Queue Worker 分角色
 
@@ -146,7 +146,7 @@ Runner 名是连字符 `queue-*`（见 `bootstrap/runners.go`），不是 `queue
 
 **独立域名 / 自定义管理端域名**（页面 apex 与 API apex 不同，例如 	enant.example.xyz → pi.example.top）：浏览器无法完成跨站 WSS。SPA 使用同源 wss://<页面域名>/ws/admin/notifications。部署 html-react/worker.js（或 html/worker.js）并设置 [vars] API_ORIGIN=https://api.example.top，由 Cloudflare 把 /ws 反代到 API。若 SPA 用 nginx 托管，在该 vhost 增加 /ws 的 proxy_pass（见根目录 ginx.conf 注释）。
 
-活跃商户量级对应多少台 API / Worker / DB：见 [多租户 · 并发旋钮对照](/advanced/tenancy#并发旋钮对照与队列一起调)。
+活跃商户量级对应多少台 API / Worker / DB：见 [多租户 · 并发旋钮对照](/advanced/tenancy-scaling#并发旋钮对照与队列一起调)。
 
 ## 4.2 数据库版本
 

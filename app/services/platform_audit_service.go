@@ -164,7 +164,7 @@ func ListPlatformLoginLogsPaged(filters PlatformLoginLogFilters, page, pageSize 
 	if pageSize < 1 {
 		pageSize = 20
 	}
-	query := appfacades.PlatformOrmQuery(nil).Model(&models.PlatformLoginLog{})
+	query := appfacades.PlatformQuery().Model(&models.PlatformLoginLog{})
 	if filters.Username != "" {
 		query = query.Where("username LIKE ?", "%"+filters.Username+"%")
 	}
@@ -193,7 +193,7 @@ func ListPlatformLoginLogsPaged(filters PlatformLoginLogFilters, page, pageSize 
 // GetPlatformLoginLogByID returns one login log.
 func GetPlatformLoginLogByID(id uint) (*models.PlatformLoginLog, error) {
 	var row models.PlatformLoginLog
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", id).FirstOrFail(&row); err != nil {
+	if err := appfacades.PlatformQuery().Where("id", id).FirstOrFail(&row); err != nil {
 		return nil, apperrors.ErrLogNotFound.WithError(err)
 	}
 	return &row, nil
@@ -207,7 +207,7 @@ func ListPlatformOperationLogsPaged(filters PlatformOperationLogFilters, page, p
 	if pageSize < 1 {
 		pageSize = 20
 	}
-	query := appfacades.PlatformOrmQuery(nil).Model(&models.PlatformOperationLog{})
+	query := appfacades.PlatformQuery().Model(&models.PlatformOperationLog{})
 	if filters.Username != "" {
 		query = query.Where("username LIKE ?", "%"+filters.Username+"%")
 	}
@@ -239,7 +239,7 @@ func ListPlatformOperationLogsPaged(filters PlatformOperationLogFilters, page, p
 // GetPlatformOperationLogByID returns one operation log.
 func GetPlatformOperationLogByID(id uint) (*models.PlatformOperationLog, error) {
 	var row models.PlatformOperationLog
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", id).FirstOrFail(&row); err != nil {
+	if err := appfacades.PlatformQuery().Where("id", id).FirstOrFail(&row); err != nil {
 		return nil, apperrors.ErrLogNotFound.WithError(err)
 	}
 	return &row, nil

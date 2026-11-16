@@ -45,7 +45,7 @@ func TestTenantMigrateAndSeed(t *testing.T) {
 		if def := facades.Config().GetString("database.default", "mysql"); def != "" {
 			facades.Schema().SetConnection(def)
 		}
-		n, err := appfacades.PlatformOrmQuery(nil).Table("admins").Count()
+		n, err := appfacades.PlatformQuery().Table("admins").Count()
 		require.NoError(t, err)
 		platformAdminsBefore = n
 	}
@@ -63,7 +63,7 @@ func TestTenantMigrateAndSeed(t *testing.T) {
 				continue
 			}
 			_ = conn.DropStorage(tn)
-			_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+			_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		}
 		if def := facades.Config().GetString("database.default", "mysql"); def != "" {
 			facades.Schema().SetConnection(def)
@@ -186,7 +186,7 @@ func TestTenantMigrateAndSeed(t *testing.T) {
 		if def := facades.Config().GetString("database.default", "mysql"); def != "" {
 			facades.Schema().SetConnection(def)
 		}
-		platformAdminsAfter, err := appfacades.PlatformOrmQuery(nil).Table("admins").Count()
+		platformAdminsAfter, err := appfacades.PlatformQuery().Table("admins").Count()
 		require.NoError(t, err)
 		assert.Equal(t, platformAdminsBefore, platformAdminsAfter, "tenant seed must not write platform admins")
 	}

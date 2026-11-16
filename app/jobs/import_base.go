@@ -13,7 +13,6 @@ import (
 
 	apperrors "goravel/app/errors"
 	appfacades "goravel/app/facades"
-	"goravel/app/http/helpers"
 	"goravel/app/models"
 	"goravel/app/services"
 	"goravel/app/tenancy"
@@ -114,7 +113,7 @@ func WriteImportErrorCSV(ctx context.Context, importID uint, errors []string) (s
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("import_errors_%d_%s.csv", importID, timestamp)
 	rel := path.Join("imports", "errors", filename)
-	if p := helpers.TenantStoragePrefix(ctx); p != "" {
+	if p := tenancy.StoragePrefix(ctx); p != "" {
 		rel = path.Join(strings.TrimSuffix(p, "/"), rel)
 	}
 

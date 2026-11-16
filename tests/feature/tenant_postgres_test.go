@@ -64,7 +64,7 @@ func pgCreateTenant(t *testing.T, base services.TenantCreateInput, code, isolati
 	conn := services.NewTenantConnectionService()
 	t.Cleanup(func() {
 		assert.NoError(t, conn.DropStorage(tn), "drop storage %s", code)
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 	})
 	return tn
 }
@@ -82,7 +82,7 @@ func pgWithTenant(t *testing.T, tn *models.Tenant, fn func(q orm.Query) error) {
 // database by default, and the platform Schema must not report the tenant's tables as
 // its own (the framework's postgres HasTable scans every schema).
 func TestPostgresPlatformSchemaScope(t *testing.T) {
-	if !isPostgres(appfacades.PlatformOrmQuery(nil)) {
+	if !isPostgres(appfacades.PlatformQuery()) {
 		t.Skip("skip: platform database is not PostgreSQL")
 	}
 	withTenancyDriver(t, "database")
@@ -96,7 +96,7 @@ func TestPostgresPlatformSchemaScope(t *testing.T) {
 	conn := services.NewTenantConnectionService()
 	t.Cleanup(func() {
 		assert.NoError(t, conn.DropStorage(tn))
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 	})
 	require.Equal(t, facades.Config().GetString("database.connections.postgres.database"), tn.Database,
 		"precondition: the schema tenant lives in the platform database")
@@ -120,7 +120,7 @@ func TestPostgresPlatformSchemaScope(t *testing.T) {
 // must still be able to migrate (create tables) with its own account: PostgreSQL 15+
 // only lets the database owner create in public, and a schema only lets its owner.
 func TestPostgresPlatformTenantOwnAccount(t *testing.T) {
-	q := appfacades.PlatformOrmQuery(nil)
+	q := appfacades.PlatformQuery()
 	if !isPostgres(q) {
 		t.Skip("skip: platform database is not PostgreSQL")
 	}
@@ -137,9 +137,9 @@ func TestPostgresPlatformTenantOwnAccount(t *testing.T) {
 	t.Cleanup(func() {
 		for _, tn := range created {
 			assert.NoError(t, conn.DropStorage(tn))
-			_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+			_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		}
-		_, _ = appfacades.PlatformOrmQuery(nil).Exec(fmt.Sprintf(`DROP ROLE IF EXISTS %q`, role))
+		_, _ = appfacades.PlatformQuery().Exec(fmt.Sprintf(`DROP ROLE IF EXISTS %q`, role))
 	})
 
 	for _, isolation := range []string{models.TenantIsolationDatabase, models.TenantIsolationSchema} {
@@ -249,7 +249,7 @@ func TestPostgresTenantLifecycle(t *testing.T) {
 
 	// Without a host the tenant would go on the platform server, which runs another
 	// driver here (MySQL): rejected up front instead of failing half-way.
-	if !isPostgres(appfacades.PlatformOrmQuery(nil)) {
+	if !isPostgres(appfacades.PlatformQuery()) {
 		_, err := services.NewTenantAdminService().Create(services.TenantCreateInput{
 			Code: "pgn" + suffix, Name: "no host", Driver: "postgres",
 		})

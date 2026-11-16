@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	appfacades "goravel/app/facades"
+	"goravel/app/tenancy"
 	"io"
 	"mime"
 	"os"
@@ -116,7 +117,7 @@ type AttachmentServiceImpl struct {
 
 func (s *AttachmentServiceImpl) chunkObjectPath(chunkID string, chunkIndex int) string {
 	// chunkID is validated before use; keep path under tenant chunks/ only.
-	return fmt.Sprintf("%schunks/%s/%d", helpers.TenantStoragePrefix(s.ctx), chunkID, chunkIndex)
+	return fmt.Sprintf("%schunks/%s/%d", tenancy.StoragePrefix(s.ctx), chunkID, chunkIndex)
 }
 
 func NewAttachmentService(ctx http.Context) AttachmentService {
@@ -255,7 +256,7 @@ func (s *AttachmentServiceImpl) MergeChunks(chunkID string, filename string, mim
 	hash := md5.Sum([]byte(fmt.Sprintf("%s_%d", filename, time.Now().UnixNano())))
 	uniqueName := hex.EncodeToString(hash[:]) + ext
 	datePath := time.Now().Format("2006/01/02")
-	finalPath := fmt.Sprintf("%sattachments/%s/%s", helpers.TenantStoragePrefix(s.ctx), datePath, uniqueName)
+	finalPath := fmt.Sprintf("%sattachments/%s/%s", tenancy.StoragePrefix(s.ctx), datePath, uniqueName)
 
 	// 合并分片（流式写入，避免大文件内存占用过高）
 	// 对于本地存储，直接使用文件系统操作以提高性能
@@ -537,7 +538,7 @@ func (s *AttachmentServiceImpl) UploadFile(fileData []byte, filename string, _ s
 	hash := md5.Sum([]byte(fmt.Sprintf("%s_%d", filename, time.Now().UnixNano())))
 	uniqueName := hex.EncodeToString(hash[:]) + ext
 	datePath := time.Now().Format("2006/01/02")
-	finalPath := fmt.Sprintf("%sattachments/%s/%s", helpers.TenantStoragePrefix(s.ctx), datePath, uniqueName)
+	finalPath := fmt.Sprintf("%sattachments/%s/%s", tenancy.StoragePrefix(s.ctx), datePath, uniqueName)
 
 	// 保存文件（云盘未配置时返回业务错误，避免 Storage().Disk panic）
 	storage, err := utils.StorageDisk(s.disk)

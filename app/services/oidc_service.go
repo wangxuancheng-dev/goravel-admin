@@ -147,6 +147,7 @@ func (s *OIDCServiceImpl) provider(ctx context.Context, cfg oidcRuntimeSettings)
 	return provider, oauthCfg, nil
 }
 
+//tenantlint:allow cache: OIDC state is global on purpose (see oidcStateCachePrefix)
 func (s *OIDCServiceImpl) AuthURL(ctx http.Context) (string, error) {
 	reqCtx := context.Background()
 	if ctx != nil && ctx.Context() != nil {
@@ -187,6 +188,7 @@ func (s *OIDCServiceImpl) AuthURL(ctx http.Context) (string, error) {
 	return oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
 }
 
+//tenantlint:allow cache: OIDC state is global on purpose (see oidcStateCachePrefix)
 func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (string, *models.Admin, string, error) {
 	code = strings.TrimSpace(code)
 	state = strings.TrimSpace(state)

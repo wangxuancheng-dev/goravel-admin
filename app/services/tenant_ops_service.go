@@ -73,6 +73,8 @@ func (s *TenantOpsService) BeginQueuedOp(id uint, op string, withSeed bool, acto
 }
 
 // BeginQueuedOpWithBackup is BeginQueuedOp plus optional backup file name (restore).
+//
+//tenantlint:allow cache: platform lock on a tenant op, keyed by tenant id
 func (s *TenantOpsService) BeginQueuedOpWithBackup(id uint, op string, withSeed bool, backupName string, actor TenantOpActor, batchID string) (*models.Tenant, TenantOpsArgs, error) {
 	if err := s.requireEnabled(); err != nil {
 		return nil, TenantOpsArgs{}, err
@@ -121,7 +123,7 @@ func (s *TenantOpsService) BeginQueuedOpWithBackup(id uint, op string, withSeed 
 		updates["provision_status"] = models.TenantProvisionMigrating
 		updates["last_migrate_error"] = ""
 	}
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(updates); err != nil {
+	if _, err := appfacades.PlatformQuery().Model(tenant).Update(updates); err != nil {
 		return nil, TenantOpsArgs{}, err
 	}
 	tenant.LastOp = op
@@ -190,7 +192,7 @@ func (s *TenantOpsService) MarkOpFailed(tenant *models.Tenant, msg string, opLog
 		updates["provision_status"] = models.TenantProvisionFailed
 		tenant.ProvisionStatus = models.TenantProvisionFailed
 	}
-	_, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(updates)
+	_, err := appfacades.PlatformQuery().Model(tenant).Update(updates)
 	if err == nil {
 		tenant.LastOpStatus = models.TenantOpStatusFailed
 		tenant.LastOpMessage = msg
@@ -219,6 +221,8 @@ func tenantOpBusy(t *models.Tenant) bool {
 }
 
 // RunTenantOp executes migrate/seed/backup/restore/purge for a queued platform job.
+//
+//tenantlint:allow cache: platform lock on a tenant op, keyed by tenant id
 func RunTenantOp(args TenantOpsArgs) error {
 	op := strings.TrimSpace(args.Op)
 	if op == models.TenantOpPurge {
@@ -242,7 +246,7 @@ func RunTenantOp(args TenantOpsArgs) error {
 	defer lock.Release()
 
 	now := time.Now()
-	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	_, _ = appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"last_op":         op,
 		"last_op_status":  models.TenantOpStatusRunning,
 		"last_op_message": "",
@@ -319,7 +323,7 @@ func RunTenantOp(args TenantOpsArgs) error {
 			updates["provision_status"] = models.TenantProvisionFailed
 			tenant.ProvisionStatus = models.TenantProvisionFailed
 		}
-		_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(updates)
+		_, _ = appfacades.PlatformQuery().Model(tenant).Update(updates)
 		tenant.LastOp = op
 		tenant.LastOpStatus = models.TenantOpStatusFailed
 		tenant.LastOpMessage = msg
@@ -330,7 +334,7 @@ func RunTenantOp(args TenantOpsArgs) error {
 	}
 
 	okAt := time.Now()
-	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	_, _ = appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"last_op":         op,
 		"last_op_status":  models.TenantOpStatusSuccess,
 		"last_op_message": successMsg,
@@ -345,13 +349,15 @@ func RunTenantOp(args TenantOpsArgs) error {
 }
 
 // runTenantPurgeOp clears object storage and/or local backups by tenant code (works after soft-delete).
+//
+//tenantlint:allow cache: platform lock on a tenant op, keyed by tenant id
 func runTenantPurgeOp(args TenantOpsArgs) error {
 	code := strings.TrimSpace(args.Code)
 	tenant := &models.Tenant{Code: code}
 	if args.TenantID > 0 {
 		tenant.ID = args.TenantID
 		var row models.Tenant
-		if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", args.TenantID).First(&row); err == nil {
+		if err := appfacades.PlatformQuery().WithTrashed().Where("id", args.TenantID).First(&row); err == nil {
 			tenant = &row
 			if code == "" {
 				code = row.Code
@@ -403,7 +409,7 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 		failAt := time.Now()
 		UpdateTenantOpLog(args.OpLogID, tenant, models.TenantOpPurge, models.TenantOpStatusFailed, msg, &failAt)
 		if tenant.ID > 0 {
-			_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Model(&models.Tenant{}).Where("id", tenant.ID).Update(map[string]any{
+			_, _ = appfacades.PlatformQuery().WithTrashed().Model(&models.Tenant{}).Where("id", tenant.ID).Update(map[string]any{
 				"last_op":         models.TenantOpPurge,
 				"last_op_status":  models.TenantOpStatusFailed,
 				"last_op_message": msg,
@@ -417,7 +423,7 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 	okAt := time.Now()
 	UpdateTenantOpLog(args.OpLogID, tenant, models.TenantOpPurge, models.TenantOpStatusSuccess, successMsg, &okAt)
 	if tenant.ID > 0 {
-		_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Model(&models.Tenant{}).Where("id", tenant.ID).Update(map[string]any{
+		_, _ = appfacades.PlatformQuery().WithTrashed().Model(&models.Tenant{}).Where("id", tenant.ID).Update(map[string]any{
 			"last_op":         models.TenantOpPurge,
 			"last_op_status":  models.TenantOpStatusSuccess,
 			"last_op_message": successMsg,
@@ -430,7 +436,7 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 		}
 		sconn := NewTenantConnectionService()
 		sconn.Forget(tenant.ConnectionName)
-		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
+		if _, err := appfacades.PlatformQuery().WithTrashed().Where("id", tenant.ID).ForceDelete(&models.Tenant{}); err != nil {
 			facades.Log().Errorf("tenant_ops purge force-delete failed id=%d: %v", tenant.ID, err)
 			return err
 		}
@@ -454,7 +460,7 @@ func (s *TenantOpsService) BeginQueuedPurgeEx(tenantID uint, code string, purgeO
 	tenant := &models.Tenant{Code: code}
 	tenant.ID = tenantID
 	var row models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tenantID).First(&row); err == nil {
+	if err := appfacades.PlatformQuery().WithTrashed().Where("id", tenantID).First(&row); err == nil {
 		tenant = &row
 		if code == "" {
 			code = row.Code
@@ -468,7 +474,7 @@ func (s *TenantOpsService) BeginQueuedPurgeEx(tenantID uint, code string, purgeO
 	if forceDeleteAfter {
 		msg = "purge then force-delete"
 	}
-	_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Model(&models.Tenant{}).Where("id", tenantID).Update(map[string]any{
+	_, _ = appfacades.PlatformQuery().WithTrashed().Model(&models.Tenant{}).Where("id", tenantID).Update(map[string]any{
 		"last_op":         models.TenantOpPurge,
 		"last_op_status":  models.TenantOpStatusQueued,
 		"last_op_message": msg,
@@ -496,7 +502,7 @@ func MarkTenantOpFailedIncludingTrashed(id uint, op, message string, at time.Tim
 	if len(message) > 2000 {
 		message = message[:2000]
 	}
-	_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Model(&models.Tenant{}).Where("id", id).Update(map[string]any{
+	_, _ = appfacades.PlatformQuery().WithTrashed().Model(&models.Tenant{}).Where("id", id).Update(map[string]any{
 		"last_op":         op,
 		"last_op_status":  models.TenantOpStatusFailed,
 		"last_op_message": message,
@@ -536,7 +542,7 @@ func CreateTenantOpLog(tenant *models.Tenant, op, status, message, batchID strin
 		StartedAt:    started,
 		FinishedAt:   finished,
 	}
-	if err := appfacades.PlatformOrmQuery(nil).Create(&row); err != nil {
+	if err := appfacades.PlatformQuery().Create(&row); err != nil {
 		return 0
 	}
 	return row.ID
@@ -554,7 +560,7 @@ func UpdateTenantOpLog(id uint, tenant *models.Tenant, op, status, message strin
 	if finished != nil {
 		updates["finished_at"] = finished
 	}
-	q := appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{})
+	q := appfacades.PlatformQuery().Model(&models.TenantOpLog{})
 	if id > 0 {
 		_, _ = q.Where("id", id).Update(updates)
 		return
@@ -563,7 +569,7 @@ func UpdateTenantOpLog(id uint, tenant *models.Tenant, op, status, message strin
 		return
 	}
 	var row models.TenantOpLog
-	err := appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{}).
+	err := appfacades.PlatformQuery().Model(&models.TenantOpLog{}).
 		Where("tenant_id", tenant.ID).
 		Where("op", op).
 		Where("status IN ?", []string{models.TenantOpStatusQueued, models.TenantOpStatusRunning}).
@@ -573,7 +579,7 @@ func UpdateTenantOpLog(id uint, tenant *models.Tenant, op, status, message strin
 		_ = CreateTenantOpLog(tenant, op, status, message, "", TenantOpActor{}, nil, finished)
 		return
 	}
-	_, _ = appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{}).Where("id", row.ID).Update(updates)
+	_, _ = appfacades.PlatformQuery().Model(&models.TenantOpLog{}).Where("id", row.ID).Update(updates)
 }
 
 // ListTenantOpLogs returns recent op history for a tenant.
@@ -588,7 +594,7 @@ func ListTenantOpLogs(tenantID uint, limit int) ([]models.TenantOpLog, error) {
 		limit = 100
 	}
 	var rows []models.TenantOpLog
-	err := appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{}).
+	err := appfacades.PlatformQuery().Model(&models.TenantOpLog{}).
 		Where("tenant_id", tenantID).
 		Order("id desc").
 		Limit(limit).
@@ -616,7 +622,7 @@ func ListTenantOpLogsPaged(filters TenantOpLogFilters, page, pageSize int) ([]mo
 	if pageSize > 100 {
 		pageSize = 100
 	}
-	query := appfacades.PlatformOrmQuery(nil).Model(&models.TenantOpLog{})
+	query := appfacades.PlatformQuery().Model(&models.TenantOpLog{})
 	if code := strings.TrimSpace(filters.Code); code != "" {
 		query = query.Where("code LIKE ?", "%"+code+"%")
 	}

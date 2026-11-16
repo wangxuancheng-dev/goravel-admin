@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"goravel/app/tenancy"
 	"goravel/app/utils"
 
 	"github.com/goravel/framework/contracts/cache"
@@ -43,7 +44,7 @@ func AcquireExportLockWithTTL(ctx http.Context, resource string, ttl time.Durati
 		return ExportLockResult{Unauthorized: true}
 	}
 
-	lockKey := TenantCacheKey(ctx, fmt.Sprintf("export:%s:lock:%d", resource, adminID))
+	lockKey := tenancy.CacheKey(ctx, fmt.Sprintf("export:%s:lock:%d", resource, adminID))
 	lock := facades.Cache().Lock(lockKey, ttl)
 	if !lock.Get() {
 		return ExportLockResult{AdminID: adminID, Blocked: true}

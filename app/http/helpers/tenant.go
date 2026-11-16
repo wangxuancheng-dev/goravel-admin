@@ -50,14 +50,6 @@ func GetTenantIDFromAnyContext(ctx context.Context) (uint, bool) {
 	return tenancyctx.IDFrom(ctx)
 }
 
-func TenantCacheKey(ctx context.Context, key string) string {
-	return tenancy.CacheKey(ctx, key)
-}
-
-func TenantStoragePrefix(ctx context.Context) string {
-	return tenancy.StoragePrefix(ctx)
-}
-
 // TenantBound reports whether the request/job ctx is bound to a tenant connection.
 func TenantBound(ctx context.Context) bool {
 	return tenancy.Bound(ctx)

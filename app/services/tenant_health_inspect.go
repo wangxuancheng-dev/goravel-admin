@@ -60,7 +60,7 @@ func RunTenantHealthInspect(limit int, alert bool) (*TenantHealthInspectReport, 
 	}
 	var tenants []models.Tenant
 	// Prefer never-checked / oldest-checked so large fleets rotate past Limit.
-	if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).
+	if err := appfacades.PlatformQuery().Model(&models.Tenant{}).
 		Where("status", models.TenantStatusActive).
 		Order("health_checked_at IS NULL DESC").
 		Order("health_checked_at ASC").
@@ -85,7 +85,7 @@ func RunTenantHealthInspect(limit int, alert bool) (*TenantHealthInspectReport, 
 		t := &tenants[i]
 		res := inspectOneTenant(conn, t, expected, domainMeta[t.ID])
 		now := time.Now()
-		_, _ = appfacades.PlatformOrmQuery(nil).Model(t).Update(map[string]any{
+		_, _ = appfacades.PlatformQuery().Model(t).Update(map[string]any{
 			"health_status":     res.Status,
 			"health_checked_at": now,
 			"health_issues":     encodeHealthIssues(res.Issues),
@@ -194,6 +194,8 @@ func classifyHealth(issues []string) string {
 }
 
 // AlertTenantHealthIfNeeded posts webhook (WeCom-compatible JSON) when health degrades.
+//
+//tenantlint:allow cache: platform alert debounce
 func AlertTenantHealthIfNeeded(failCodes, warnCodes []string, report *TenantHealthInspectReport) {
 	url := ResolveTenantOpsAlertWebhookURL()
 	mailTo := strings.TrimSpace(facades.Config().GetString("health.tenant_health_alert_mail", ""))

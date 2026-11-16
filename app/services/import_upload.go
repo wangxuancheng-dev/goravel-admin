@@ -9,7 +9,7 @@ import (
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
-	"goravel/app/http/helpers"
+	"goravel/app/tenancy"
 )
 
 // SaveUploadedCSVForAsync persists an uploaded CSV for a background import job (not deleted).
@@ -24,7 +24,7 @@ func SaveUploadedCSVForAsync(ctx context.Context, file filesystem.File) (disk, s
 
 	disk = "local"
 	storage := facades.Storage().Disk(disk)
-	tmpDir := strings.TrimSuffix(helpers.TenantStoragePrefix(ctx), "/")
+	tmpDir := strings.TrimSuffix(tenancy.StoragePrefix(ctx), "/")
 	if tmpDir == "" {
 		tmpDir = "imports/pending"
 	} else {

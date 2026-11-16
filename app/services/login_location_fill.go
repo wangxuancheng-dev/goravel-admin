@@ -163,7 +163,7 @@ func (s *LoginLogServiceImpl) FillEmptyLocationsBatch(limit int, pause time.Dura
 }
 
 func platformLoginLogQuery() orm.Query {
-	return appfacades.PlatformOrmQuery(nil).Model(&models.PlatformLoginLog{})
+	return appfacades.PlatformQuery().Model(&models.PlatformLoginLog{})
 }
 
 // RefreshPlatformLoginLocation looks up one empty platform login log and fills empty rows with the same IP.

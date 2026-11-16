@@ -83,7 +83,7 @@ func TestTenantSearchIndexesFollowTheTenant(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_ = conn.DropStorage(tn)
-		_, _ = appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().WithTrashed().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 	})
 	assert.Contains(t, engine.drops(), want, "creating a tenant clears indexes left under its code (full code, not truncated)")
 

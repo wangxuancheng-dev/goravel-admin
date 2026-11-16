@@ -59,7 +59,7 @@ func RunFlexibleScheduleJob(ctx context.Context, scheduleID uint, slot string) e
 }
 
 func loadFlexibleScheduleByID(id uint) (*models.FlexibleSchedule, error) {
-	q := appfacades.PlatformOrmQuery(nil)
+	q := appfacades.PlatformQuery()
 	if down, err := appfacades.QueryUnavailable(q); down {
 		return nil, err
 	}

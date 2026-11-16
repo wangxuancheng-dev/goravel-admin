@@ -71,6 +71,8 @@ func maskOpsWebhookURL(raw string) string {
 }
 
 // AlertTenantOpFailedIfNeeded POSTs when a platform tenant op fails (debounced per tenant+op).
+//
+//tenantlint:allow cache: platform alert debounce, keyed by tenant id
 func AlertTenantOpFailedIfNeeded(tenant *models.Tenant, op, message string) {
 	url := ResolveTenantOpsAlertWebhookURL()
 	if url == "" || tenant == nil {

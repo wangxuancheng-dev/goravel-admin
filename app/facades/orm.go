@@ -28,12 +28,20 @@ func Orm() orm.Orm {
 // framework hands back an Orm with a nil query), it returns a stand-in whose calls
 // fail with that error (see QueryUnavailable). A tenant ctx never falls back to the
 // platform connection.
+//
+// A nil ctx with tenancy on is a bug (a forgotten ctx would silently read and write
+// the platform database), so it fails closed with ErrNilQueryContext — unless the
+// goroutine is bound to a tenant Schema (migrations / seeders), which routes it.
+// Platform code uses PlatformQuery / PlatformOrmQuery.
 func OrmQuery(ctx context.Context) orm.Query {
 	o := Orm()
 	if o == nil {
 		return newUnavailableQuery(ctx, errors.New("orm unavailable"))
 	}
 	if ctx == nil {
+		if err := nilContextGuard("OrmQuery"); err != nil {
+			return newUnavailableQuery(ctx, err)
+		}
 		return orUnavailable(ctx, o.Query(), "default")
 	}
 	if tenancy.Enabled() {
@@ -102,6 +110,9 @@ func logTenantConnError(name string, err error) {
 // When ctx carries a tenant connection, never falls back to the platform DB (fail-closed).
 func OrmTransaction(ctx context.Context, fn func(tx orm.Query) error) error {
 	if ctx == nil {
+		if err := nilContextGuard("OrmTransaction"); err != nil {
+			return err
+		}
 		return Orm().Transaction(fn)
 	}
 	if tenancy.Enabled() {
@@ -129,9 +140,26 @@ func ResetPlatformConnectionNameForTest() {
 	facades.Config().Add("tenancy.platform_connection", "")
 }
 
+// ErrNilQueryContext is returned by OrmQuery / OrmTransaction for a nil ctx while
+// tenancy is on and the goroutine is not bound to a tenant (see OrmQuery).
+var ErrNilQueryContext = errors.New("OrmQuery(nil) with tenancy on: pass the request/job ctx (tenant data) or use PlatformQuery() (platform data)")
+
+// nilContextGuard returns ErrNilQueryContext (and logs the caller) when a nil ctx
+// would silently reach the platform database: tenancy on and no goroutine-bound
+// tenant Schema. Single-database mode and migrate/seed goroutines pass.
+func nilContextGuard(fn string) error {
+	if !tenancy.Enabled() || BoundTenantSchema() != nil {
+		return nil
+	}
+	if l := facades.Log(); l != nil {
+		l.Errorf("%s: %v", fn, ErrNilQueryContext)
+	}
+	return ErrNilQueryContext
+}
+
 // PlatformConnectionName returns the fixed landlord connection name.
-// It is pinned on first use and never follows a temporary database.default flip
-// during tenant migrate/seed (WithTenantConnection).
+// It is pinned on first use, so it never follows a tenant Schema bound to the
+// goroutine during tenant migrate/seed (WithTenantConnection).
 func PlatformConnectionName() string {
 	platformConnOnce.Do(func() {
 		name := strings.TrimSpace(facades.Config().GetString("tenancy.platform_connection", ""))
@@ -147,8 +175,16 @@ func PlatformConnectionName() string {
 	return platformConnName
 }
 
+// PlatformQuery is PlatformOrmQuery without a ctx: the platform (landlord) database,
+// for code that has no request/job ctx at hand (console commands, schedulers, tenant
+// ops). Prefer PlatformOrmQuery(ctx) when a ctx exists, so cancellation and tracing
+// follow the request. PlatformOrmQuery(nil) is rejected by tenantlint: write this.
+func PlatformQuery() orm.Query {
+	return PlatformOrmQuery(context.Background())
+}
+
 // PlatformOrmQuery always uses the pinned platform (landlord) connection — tenants metadata / DDL only.
-// Safe to call while WithTenantConnection temporarily flips database.default for Artisan migrate/seed.
+// Safe to call inside WithTenantConnection (a tenant Schema bound to the goroutine for migrate/seed).
 // Never nil, like OrmQuery.
 func PlatformOrmQuery(ctx context.Context) orm.Query {
 	name := PlatformConnectionName()
@@ -164,7 +200,7 @@ func PlatformOrmQuery(ctx context.Context) orm.Query {
 
 // SystemLogOrmQuery picks the DB for system_logs writes/reads.
 // Tenant-bound ctx -> tenant connection; otherwise landlord PlatformOrmQuery
-// (avoids writing into a flipped database.default during WithTenantConnection).
+// (never the tenant Schema a migrate/seed goroutine may be bound to).
 // When the tenant connection is down, the log goes to the platform database: that
 // failure is exactly what the log should record.
 func SystemLogOrmQuery(ctx context.Context) orm.Query {

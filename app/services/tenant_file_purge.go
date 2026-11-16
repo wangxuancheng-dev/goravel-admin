@@ -52,7 +52,7 @@ func PurgeTenantObjectStorage(code string) error {
 	}
 
 	var tenant models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("code", code).First(&tenant); err == nil && tenant.ID > 0 {
+	if err := appfacades.PlatformQuery().WithTrashed().Where("code", code).First(&tenant); err == nil && tenant.ID > 0 {
 		if tenantstorage.CredentialsReady(&tenant) {
 			byob := tenantstorage.DiskName(tenant.ID)
 			if err := purgePrefixOnDisk(byob, prefix); err != nil {

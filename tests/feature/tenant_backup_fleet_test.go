@@ -62,9 +62,9 @@ func TestBackupFleetFanOut(t *testing.T) {
 				continue
 			}
 			_ = os.RemoveAll(services.TenantBackupDir(tn.Code))
-			_, _ = appfacades.PlatformOrmQuery(nil).Where("tenant_id", tn.ID).Delete(&models.TenantOpLog{})
+			_, _ = appfacades.PlatformQuery().Where("tenant_id", tn.ID).Delete(&models.TenantOpLog{})
 			_ = conn.DropStorage(tn)
-			_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+			_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		}
 		if def := facades.Config().GetString("database.default", "mysql"); def != "" {
 			facades.Schema().SetConnection(def)

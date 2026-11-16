@@ -85,7 +85,7 @@ func TestPlatformTenantStatusAndMaintenanceGateTenantRequests(t *testing.T) {
 	assert.NotContains(t, gate, "tenant_disabled")
 
 	var stored models.Tenant
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).First(&stored))
+	require.NoError(t, appfacades.PlatformQuery().Where("id", tenant.ID).First(&stored))
 	assert.False(t, stored.Maintenance)
 	assert.Empty(t, stored.MaintenanceMessage, "turning maintenance off clears the message")
 
@@ -168,7 +168,7 @@ func TestPlatformTenantBackupFileGuards(t *testing.T) {
 	resp.AssertStatus(400)
 	assert.Contains(t, content, "invalid_argument")
 	var stored models.Tenant
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).Where("id", tenant.ID).First(&stored))
+	require.NoError(t, appfacades.PlatformQuery().Where("id", tenant.ID).First(&stored))
 	assert.NotEqual(t, models.TenantOpStatusQueued, stored.LastOpStatus)
 
 	// Download only serves .sql files from this tenant's own backup directory.
@@ -277,7 +277,7 @@ func TestPlatformTenantCustomDomainLifecycle(t *testing.T) {
 	assert.False(t, resp.IsSuccessful())
 	assert.Contains(t, content, "tenant_domain_verify_failed")
 	var row models.TenantDomain
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).Where("id", domainID).First(&row))
+	require.NoError(t, appfacades.PlatformQuery().Where("id", domainID).First(&row))
 	assert.Equal(t, models.TenantDomainStatusPending, row.Status)
 	assert.NotEmpty(t, row.LastCheckError, "the DNS failure reason is kept for the console")
 
@@ -286,7 +286,7 @@ func TestPlatformTenantCustomDomainLifecycle(t *testing.T) {
 	assert.Contains(t, content, "tenant_domain_not_active")
 
 	// Simulate a successful DNS check (Verify sets active and clears the host cache).
-	_, err = appfacades.PlatformOrmQuery(nil).Model(&models.TenantDomain{}).Where("id", domainID).
+	_, err = appfacades.PlatformQuery().Model(&models.TenantDomain{}).Where("id", domainID).
 		Update("status", models.TenantDomainStatusActive)
 	require.NoError(t, err)
 	facades.Cache().Forget("tenant_domain:v1:" + host)
@@ -364,9 +364,9 @@ func TestTenantBackupThenRestoreRevertsData(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_ = os.RemoveAll(services.TenantBackupDir(tn.Code))
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("tenant_id", tn.ID).Delete(&models.TenantOpLog{})
+		_, _ = appfacades.PlatformQuery().Where("tenant_id", tn.ID).Delete(&models.TenantOpLog{})
 		_ = conn.DropStorage(tn)
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		if def := facades.Config().GetString("database.default", "mysql"); def != "" {
 			facades.Schema().SetConnection(def)
 		}

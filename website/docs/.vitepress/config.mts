@@ -65,6 +65,8 @@ const zhSidebar = {
       collapsed: false,
       items: [
         { text: '1. 多租户', link: '/advanced/tenancy' },
+        { text: '1.1 多租户：业务开发须知', link: '/advanced/tenancy-dev' },
+        { text: '1.2 多租户：规模与推荐配置', link: '/advanced/tenancy-scaling' },
         { text: '2. 支付参考', link: '/advanced/payments' },
         { text: '3. 搜索（ES / Meili）', link: '/advanced/search' },
         { text: '4. 分表指南', link: '/advanced/sharding' },
@@ -147,6 +149,8 @@ const enSidebar = {
       collapsed: false,
       items: [
         { text: '1. Multi-tenancy', link: '/en/advanced/tenancy' },
+        { text: '1.1 Multi-tenancy: developer guide', link: '/en/advanced/tenancy-dev' },
+        { text: '1.2 Multi-tenancy: scale', link: '/en/advanced/tenancy-scaling' },
         { text: '2. Payments', link: '/en/advanced/payments' },
         { text: '3. Search', link: '/en/advanced/search' },
         { text: '4. Sharding guide', link: '/en/advanced/sharding' },

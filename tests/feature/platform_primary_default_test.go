@@ -24,20 +24,20 @@ func TestSetPrimaryDomainClearsPreviousPrimary(t *testing.T) {
 
 	addDomain := func(host string, primary bool) *models.TenantDomain {
 		d := models.TenantDomain{TenantID: tenant.ID, Host: host, IsPrimary: primary, Status: models.TenantDomainStatusActive}
-		require.NoError(t, appfacades.PlatformOrmQuery(nil).Create(&d))
+		require.NoError(t, appfacades.PlatformQuery().Create(&d))
 		return &d
 	}
 	first := addDomain(fmt.Sprintf("a%d.prim.test", suffix), true)
 	second := addDomain(fmt.Sprintf("b%d.prim.test", suffix), false)
 	t.Cleanup(func() {
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("tenant_id", tenant.ID).ForceDelete(&models.TenantDomain{})
+		_, _ = appfacades.PlatformQuery().Where("tenant_id", tenant.ID).ForceDelete(&models.TenantDomain{})
 	})
 
 	_, err := services.NewTenantDomainService().SetPrimary(tenant.ID, second.ID)
 	require.NoError(t, err)
 
 	var primaries []models.TenantDomain
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).
+	require.NoError(t, appfacades.PlatformQuery().
 		Where("tenant_id", tenant.ID).Where("is_primary", true).Get(&primaries))
 	require.Len(t, primaries, 1, "exactly one primary domain")
 	assert.Equal(t, second.ID, primaries[0].ID)
@@ -51,12 +51,12 @@ func TestUpsertDefaultPlanClearsOtherDefaults(t *testing.T) {
 	require.NoError(t, svc.EnsureBootstrap())
 
 	var prevDefaults []models.PlatformPlan
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).Where("is_default", true).Get(&prevDefaults))
+	require.NoError(t, appfacades.PlatformQuery().Where("is_default", true).Get(&prevDefaults))
 	code := fmt.Sprintf("dflt%d", time.Now().UnixNano()%1_000_000)
 	t.Cleanup(func() {
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("code", code).ForceDelete(&models.PlatformPlan{})
+		_, _ = appfacades.PlatformQuery().Where("code", code).ForceDelete(&models.PlatformPlan{})
 		for _, p := range prevDefaults {
-			_, _ = appfacades.PlatformOrmQuery(nil).Model(&models.PlatformPlan{}).
+			_, _ = appfacades.PlatformQuery().Model(&models.PlatformPlan{}).
 				Where("id", p.ID).Update("is_default", true)
 		}
 	})
@@ -65,7 +65,7 @@ func TestUpsertDefaultPlanClearsOtherDefaults(t *testing.T) {
 	require.NoError(t, err)
 
 	var defaults []models.PlatformPlan
-	require.NoError(t, appfacades.PlatformOrmQuery(nil).Where("is_default", true).Get(&defaults))
+	require.NoError(t, appfacades.PlatformQuery().Where("is_default", true).Get(&defaults))
 	require.Len(t, defaults, 1, "exactly one default plan")
 	assert.Equal(t, plan.ID, defaults[0].ID)
 }

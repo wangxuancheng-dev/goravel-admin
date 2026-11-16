@@ -28,8 +28,6 @@ linters:
       # Bug-finding checks only; S/ST/QF are style suggestions.
       checks:
         - SA*
-        # nil context is a project convention: PlatformOrmQuery(nil) means the platform connection.
-        - -SA1012
         # tenancyctx uses string keys on purpose so Goravel ctx.Value("...") can read them.
         - -SA1029
         # Empty branches here are deliberate (recover-and-ignore, documented no-ops).

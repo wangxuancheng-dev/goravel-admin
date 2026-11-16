@@ -52,7 +52,7 @@ func TestTenantCreateWithMigrateAndSeed(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_ = conn.DropStorage(tn)
-		_, _ = appfacades.PlatformOrmQuery(nil).Where("id", tn.ID).ForceDelete(&models.Tenant{})
+		_, _ = appfacades.PlatformQuery().Where("id", tn.ID).ForceDelete(&models.Tenant{})
 		if def := facades.Config().GetString("database.default", "mysql"); def != "" {
 			facades.Schema().SetConnection(def)
 		}

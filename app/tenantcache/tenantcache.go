@@ -148,7 +148,7 @@ func ByCode(code string) (*models.Tenant, error) {
 	}
 	v, err, _ := group.Do(codeKey(code), func() (any, error) {
 		var row struct{ ID uint }
-		if err := appfacades.PlatformOrmQuery(nil).Model(&models.Tenant{}).Select("id").Where("code", code).First(&row); err != nil {
+		if err := appfacades.PlatformQuery().Model(&models.Tenant{}).Select("id").Where("code", code).First(&row); err != nil {
 			return nil, err
 		}
 		if row.ID == 0 {
@@ -210,7 +210,7 @@ func IsCached(id uint) bool {
 // before the query, so a concurrent invalidation makes this write unreachable.
 func loadByID(id uint, ver string, d time.Duration) (*models.Tenant, error) {
 	var t models.Tenant
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", id).First(&t); err != nil {
+	if err := appfacades.PlatformQuery().Where("id", id).First(&t); err != nil {
 		return nil, err
 	}
 	if t.ID == 0 {

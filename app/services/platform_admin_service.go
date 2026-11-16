@@ -34,7 +34,7 @@ func UpsertPlatformAdmin(username, password, name, role string) (*models.Platfor
 		return nil, apperrors.ErrPasswordEncryptFailed.WithError(err)
 	}
 
-	q := appfacades.PlatformOrmQuery(nil)
+	q := appfacades.PlatformQuery()
 	var existing models.PlatformAdmin
 	if err := q.Where("username", username).First(&existing); err == nil && existing.ID > 0 {
 		if _, err := q.Model(&existing).Update(map[string]any{
@@ -73,7 +73,7 @@ func ChangePlatformAdminPassword(adminID uint, oldPassword, newPassword string) 
 	if adminID == 0 || oldPassword == "" || newPassword == "" {
 		return apperrors.ErrInvalidArgument
 	}
-	q := appfacades.PlatformOrmQuery(nil)
+	q := appfacades.PlatformQuery()
 	var admin models.PlatformAdmin
 	if err := q.Where("id", adminID).First(&admin); err != nil || admin.ID == 0 {
 		return apperrors.ErrUserNotFound
@@ -119,7 +119,7 @@ func ListPlatformAdminsPaged(filters PlatformAdminFilters, page, pageSize int) (
 	if pageSize > 100 {
 		pageSize = 100
 	}
-	query := appfacades.PlatformOrmQuery(nil).Model(&models.PlatformAdmin{})
+	query := appfacades.PlatformQuery().Model(&models.PlatformAdmin{})
 	if u := strings.TrimSpace(filters.Username); u != "" {
 		query = query.Where("username LIKE ? OR name LIKE ?", "%"+u+"%", "%"+u+"%")
 	}
@@ -163,7 +163,7 @@ func GetPlatformAdminByID(id uint) (*models.PlatformAdmin, error) {
 		return nil, apperrors.ErrInvalidArgument
 	}
 	var admin models.PlatformAdmin
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", id).FirstOrFail(&admin); err != nil {
+	if err := appfacades.PlatformQuery().Where("id", id).FirstOrFail(&admin); err != nil {
 		return nil, apperrors.ErrUserNotFound.WithError(err)
 	}
 	return &admin, nil
@@ -196,7 +196,7 @@ func CreatePlatformAdmin(in CreatePlatformAdminInput) (*models.PlatformAdmin, er
 	}
 	role := models.NormalizePlatformAdminRole(in.Role)
 
-	q := appfacades.PlatformOrmQuery(nil)
+	q := appfacades.PlatformQuery()
 	var existing models.PlatformAdmin
 	if err := q.WithTrashed().Where("username", username).First(&existing); err == nil && existing.ID > 0 {
 		if !existing.DeletedAt.Valid {
@@ -317,7 +317,7 @@ func UpdatePlatformAdmin(actorID, targetID uint, in UpdatePlatformAdminInput) (*
 	if len(updates) == 0 {
 		return admin, nil
 	}
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(admin).Update(updates); err != nil {
+	if _, err := appfacades.PlatformQuery().Model(admin).Update(updates); err != nil {
 		return nil, err
 	}
 	admin.Role = newRole
@@ -348,7 +348,7 @@ func ResetPlatformAdminPassword(targetID uint, newPassword string) error {
 	if err != nil {
 		return apperrors.ErrPasswordEncryptFailed.WithError(err)
 	}
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(admin).Update(map[string]any{"password": hashed}); err != nil {
+	if _, err := appfacades.PlatformQuery().Model(admin).Update(map[string]any{"password": hashed}); err != nil {
 		return err
 	}
 	_ = NewPlatformTokenService(nil).DeleteTokensByUser(models.TokenableTypePlatformAdmin, targetID)
@@ -379,7 +379,7 @@ func DeletePlatformAdmin(actorID, targetID uint) error {
 			return apperrors.ErrPlatformLastOwner
 		}
 	}
-	if _, err := appfacades.PlatformOrmQuery(nil).Delete(admin); err != nil {
+	if _, err := appfacades.PlatformQuery().Delete(admin); err != nil {
 		return err
 	}
 	_ = NewPlatformTokenService(nil).DeleteTokensByUser(models.TokenableTypePlatformAdmin, targetID)
@@ -387,7 +387,7 @@ func DeletePlatformAdmin(actorID, targetID uint) error {
 }
 
 func countActivePlatformOwners() (int64, error) {
-	return appfacades.PlatformOrmQuery(nil).Model(&models.PlatformAdmin{}).
+	return appfacades.PlatformQuery().Model(&models.PlatformAdmin{}).
 		Where("status", models.PlatformAdminStatusActive).
 		Where("(role = ? OR role = ? OR role IS NULL)", models.PlatformAdminRoleOwner, "").
 		Count()

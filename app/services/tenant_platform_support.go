@@ -265,7 +265,7 @@ func RecordPlatformAlertDelivery(row *models.PlatformAlertDelivery) {
 	if row.Status == "" {
 		row.Status = models.PlatformAlertStatusPending
 	}
-	_ = appfacades.PlatformOrmQuery(nil).Create(row)
+	_ = appfacades.PlatformQuery().Create(row)
 }
 
 // FinishPlatformAlertDelivery updates status after send.
@@ -282,7 +282,7 @@ func FinishPlatformAlertDelivery(id uint, status string, httpStatus int, errMsg 
 		now := time.Now()
 		updates["delivered_at"] = now
 	}
-	_, _ = appfacades.PlatformOrmQuery(nil).Model(&models.PlatformAlertDelivery{}).Where("id", id).Update(updates)
+	_, _ = appfacades.PlatformQuery().Model(&models.PlatformAlertDelivery{}).Where("id", id).Update(updates)
 }
 
 func truncateAlertErr(s string, n int) string {
@@ -309,7 +309,7 @@ func ListPlatformAlertDeliveries(filters PlatformAlertDeliveryFilters, page, pag
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	query := appfacades.PlatformOrmQuery(nil).Model(&models.PlatformAlertDelivery{})
+	query := appfacades.PlatformQuery().Model(&models.PlatformAlertDelivery{})
 	if v := strings.TrimSpace(filters.Event); v != "" {
 		query = query.Where("event", v)
 	}
@@ -360,7 +360,7 @@ func PlatformAlertDeliveryToJSON(row *models.PlatformAlertDelivery) map[string]a
 // RetryPlatformAlertDelivery re-sends a stored webhook payload.
 func RetryPlatformAlertDelivery(id uint) (*models.PlatformAlertDelivery, error) {
 	var row models.PlatformAlertDelivery
-	if err := appfacades.PlatformOrmQuery(nil).Where("id", id).FirstOrFail(&row); err != nil {
+	if err := appfacades.PlatformQuery().Where("id", id).FirstOrFail(&row); err != nil {
 		return nil, apperrors.ErrRecordNotFound.WithError(err)
 	}
 	if row.Channel != models.PlatformAlertChannelWebhook {
@@ -400,7 +400,7 @@ func RetryPlatformAlertDelivery(id uint) (*models.PlatformAlertDelivery, error) 
 		row.ErrorMessage = ""
 		row.DeliveredAt = &now
 	}
-	if saveErr := appfacades.PlatformOrmQuery(nil).Save(&row); saveErr != nil {
+	if saveErr := appfacades.PlatformQuery().Save(&row); saveErr != nil {
 		return nil, saveErr
 	}
 	if err != nil {

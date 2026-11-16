@@ -170,6 +170,8 @@ func (s *ScheduleServiceImpl) Run(command string) (*ScheduleRunResult, error) {
 }
 
 // ExecuteScheduledCommand runs a whitelisted schedule command, captures console output, and stores last-run cache.
+//
+//tenantlint:allow cache: keyed by the full command line, which carries --tenant
 func ExecuteScheduledCommand(command string, triggeredBy string) (*ScheduleRunResult, error) {
 	command = strings.TrimSpace(command)
 	if command == "" {
@@ -367,6 +369,7 @@ func isScheduledCommand(command string) bool {
 	return false
 }
 
+//tenantlint:allow cache: keyed by the full command line, which carries --tenant
 func getScheduleLastRun(command string) *scheduleLastRunCache {
 	raw := facades.Cache().GetString(scheduleLastRunCacheKey(command), "")
 	if raw == "" {
@@ -379,6 +382,7 @@ func getScheduleLastRun(command string) *scheduleLastRunCache {
 	return &cached
 }
 
+//tenantlint:allow cache: keyed by the full command line, which carries --tenant
 func putScheduleLastRun(command string, cached *scheduleLastRunCache) {
 	payload, err := json.Marshal(cached)
 	if err != nil {

@@ -4,6 +4,8 @@
 
 设为 **`database`** 后：每租户独立 database（MySQL）或 database/schema（PostgreSQL）；**租户认证与业务都在该租户库**。平台控制台使用独立账号与 `/api/platform`，不切租户库。
 
+> 写业务模块只需读 [多租户：业务开发须知](/advanced/tenancy-dev)；生产调参见 [规模与推荐配置](/advanced/tenancy-scaling)。
+
 ## 架构
 
 ```text
@@ -31,7 +33,7 @@ TENANCY_DRIVER=database
 - 请求路径查找已注册连接只取读锁；新建或重建连接（含 ping，超时 5s）在锁外进行并按连接名去重，一个慢库或连不上的库不会拖住其他租户。
 - `OrmQuery(ctx)` 按 ctx 中的连接名取连接；连接被淘汰后再次访问，会按 `tenants` 表自动重建。
 - 每个租户请求都要读 `tenants` 行（识别租户、建连接、存储），所以缓存在共享缓存里（`app/tenantcache`，生产为 Redis，`TENANCY_TENANT_CACHE_TTL` 默认 60s）。失效是**自动**的：平台连接上任何成功写 `tenants` 表的语句（`Model(t).Update`、`Save`、`Delete`、`Where(...).Delete` 批量写，乃至应用内 `Exec("UPDATE tenants ...")`）都会**立即在所有节点失效**；能识别出租户的只失效该租户，识别不出的失效全部。停用、维护、删除不受缓存延迟影响，不需要手动调用任何失效函数。只有在应用之外手工改库（如 mysql 客户端）才会最多延迟一个 TTL。失效回调没挂上时缓存自动关闭。进程内另有一份本地副本，以带版本号的 key 存放，命中时每个请求只需从 Redis 读两个版本号；版本号一变本地副本就自然失效，不会读到旧数据。**多进程部署（API 与 worker 分开、多台机器）必须用共享缓存（`CACHE_STORE=redis`）**：`memory` 驱动只在本进程内失效，其他进程最多延迟一个 TTL。
-- 迁移和 seeder 只能通过 `facades.Schema()` / `facades.Orm()` 访问数据库（不接收参数），所以 migrate / seed / `WithTenantConnection` 在**当前 goroutine** 上绑定一份独立的租户 Schema（`WithBoundTenantSchema`），不改任何全局状态，其他请求不受影响。交给其他 goroutine 的工作须传 `tenancyctx.Detach(ctx)` 并用 `OrmQuery(ctx)`。
+- 迁移和 seeder 只能通过 `facades.Schema()` / `facades.Orm()` 访问数据库（不接收参数），所以 migrate / seed / `WithTenantConnection` 在**当前 goroutine** 上绑定一份独立的租户 Schema（`WithBoundTenantSchema`），不改任何全局状态，其他请求不受影响。后台协程一律用 `tenancyctx.Go(ctx, name, fn)` 启动（保留租户、去掉请求取消、兜底 panic），在其中用 `OrmQuery(ctx)`。
 
 ## 租户权益 / 模块套餐
 
@@ -209,6 +211,8 @@ TENANCY_SCHEMA_PREFIX=tenant_
 TENANCY_PLATFORM_CONNECTION=       # 可选；钉死平台连接名，默认取 database.default
 TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发可 true
                                           # 远程 host 始终要求独立 username/password
+TENANCY_DB_DEDICATED_USER=false           # true：同机开户且未填账号时自动建专用 DB 账号（只授权本库），删库时一并删除
+TENANCY_DB_USER_HOST=%                    # MySQL 专用账号的 host 部分；应用与库不同机时可收紧，如 10.0.%
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
 TENANT_BACKUP_KEEP=10                     # tenant:backup 保留份数；0=不清理（旧名 TENANCY_BACKUP_KEEP 仍兼容）
 TENANT_BACKUP_DISK=                       # 备份所在磁盘（s3/oss/cos/minio）；空=存于执行备份那台机器
@@ -289,9 +293,9 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 2. **生产 Artisan**：`APP_ENV=production` 白名单含 `tenant:*` / `platform:*`（开户/迁移可用）。
 3. **连接回收**：`Forget` 立即关闭该租户的连接池；空闲（`TENANCY_REGISTERED_IDLE_TTL`）或超上限（`TENANCY_REGISTERED_MAX`）淘汰的连接在 2 分钟宽限期后关闭，再次访问时自动重建。
 4. **开户状态**：HTTP/CLI 创建后为 `pending`；平台 UI 异步迁移或 CLI `tenant:migrate` → `migrating` → `ready`/`failed`；未 ready 禁止业务绑定。UI 入队后若 worker 未消费，约 30 分钟后允许重试（防永久卡住）。
-5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。
+5. **账号隔离**：远程库必须独立凭据；同机共用平台账号仅当 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=true`（**公网默认 false**）。推荐开启 `TENANCY_DB_DEDICATED_USER=true`：开户时用平台账号为租户创建 `t_<code>` 账号（随机密码，APP_KEY 加密保存），只授权该租户的库（MySQL `GRANT ALL ON tenant_x.*`；PostgreSQL 由该角色拥有库或 schema），删库时一并删除。这样即使代码写错，数据库服务器也会拒绝跨库访问。平台账号需要 `CREATE USER` + `GRANT OPTION`（MySQL）或 `CREATEROLE`（PostgreSQL）；PostgreSQL 共库 schema 模式下，建议对平台库执行 `REVOKE ALL ON SCHEMA public FROM PUBLIC`。
 6. **异步运维**：单户 migrate / seed / backup / restore / rollback 走 `tenant_ops`（`long-running`）；生产需 Redis 队列 + long-running worker。`migrate-all` / `backup-all` / `rollback-all` 仍可用 CLI：`backup-all` 改为入队 long-running（分页扇出），定时 `backup-scheduled` 按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` 户。
-7. **全舰队 migrate/seed 并发**：`TENANCY_MIGRATE_CONCURRENCY`（默认 2）控制 CLI `tenant:migrate-all` / `seed-all` / `rollback-all` **以及**平台 UI 批量 migrate/seed/rollback（`tenant_ops_fleet`）；CLI `--concurrency=N` 可临时覆盖。与 `QUEUE_LONG_RUNNING_CONCURRENT`（单户/backup）、`QUEUE_SCHEDULE_CONCURRENT`（采集）**不是同一旋钮**；见 [并发旋钮对照](#并发旋钮对照与队列一起调)。
+7. **全舰队 migrate/seed 并发**：`TENANCY_MIGRATE_CONCURRENCY`（默认 2）控制 CLI `tenant:migrate-all` / `seed-all` / `rollback-all` **以及**平台 UI 批量 migrate/seed/rollback（`tenant_ops_fleet`）；CLI `--concurrency=N` 可临时覆盖。与 `QUEUE_LONG_RUNNING_CONCURRENT`（单户/backup）、`QUEUE_SCHEDULE_CONCURRENT`（采集）**不是同一旋钮**；见 [并发旋钮对照](/advanced/tenancy-scaling#并发旋钮对照与队列一起调)。
 8. **全舰队 schema 回滚**：`tenant:rollback` / `tenant:rollback-all` 与平台 UI 单户/批量 rollback 共用 `TENANCY_MIGRATE_CONCURRENCY`（`tenant_ops_fleet`）。`--step=N` 回滚最近 N 个迁移文件；`--batch=N` 回滚 `migrations.batch=N`；二者为 0 时回滚上一批次。**首次 migrate 常把全部文件记为 batch 1**，默认 0/0 会整批撤销——生产请优先 `--step=1`，并先备份。
 9. **全舰队每日备份**：`TENANT_BACKUP_SCHEDULE_MODE=full`（默认）时 `tenant:backup-scheduled` 每天入队**全部** ready 租户；内部用 `tenant_ops_fleet` + `TENANCY_BACKUP_CONCURRENCY`（默认 2，上限 50）。`MODE=rotate` 仍按 `TENANT_BACKUP_SCHEDULE_BATCH` 轮转。CLI `backup-all` / UI 批量 backup 同路径。墙钟 ≈ ceil(户数/并发)×单户 dump 秒数；`QUEUE_LONG_RUNNING_CONCURRENT=1` 即可（fleet 占一槽）。
 
@@ -304,7 +308,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 1. **`TENANCY_RESOLVER=subdomain`**：租户以 `acme.example.com` 访问；apex/`www`/`platform` 等保留域**不接受** Header/Query 冒充（除非显式 `TENANCY_ALLOW_HEADER_FALLBACK=true`）。
 2. 子域与 Header/body 冲突 → `tenant_hint_conflict`（400）。
 3. **支付回调**：`POST /api/payment/notify/{type}/{tenant_code}`（渠道不会带租户 Header）；tenancy 开启时须带 `{tenant_code}`。
-4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 10 / open 20）；户多时按下方 [规模与推荐配置](#规模与推荐配置) 下调，避免打满 MySQL。
+4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 10 / open 20）；户多时按下方 [规模与推荐配置](/advanced/tenancy-scaling) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 
 
@@ -390,186 +394,7 @@ shop.customer-b.com.     CNAME  tenants.example.com.
 旧方案（Nginx 改写 Host 为 `{code}.主域`）仍可用；新产品请用 `tenant_domains`。
 ## 规模与推荐配置
 
-以下为**经验起点**，需按监控回调，**不是硬性配额**。户多时首要瓶颈通常是**租户库连接池**（不是 Redis）。Redis 全站共用（缓存键经 `tenancy.CacheKey` 加 `t{id}:` 前缀），一般升规格即可；队列与缓存吵邻居时再考虑拆实例或分 DB。
-
-### 出厂默认能支撑多少
-
-「活跃」指**近期有流量、进程内已注册连接池的租户**，不是 `tenants` 表总行数。
-
-| 场景 | 建议 |
-|------|------|
-| **默认池 + 单机部署** | 稳妥大约 **&lt; 50 活跃**；储备 **50–200**（建议已收紧 `OPEN`） |
-| **调参 + Redis 队列 + API/Worker 分开** | **数百～约 1k 活跃** |
-| **再加 `tenants.host` 分库主机 + `queue-schedule` Worker** | **几千活跃**（本产品目标量级） |
-| **再加按区域多套完整部署（cell）** | **超出单舰队**时复制栈（见本节下文） |
-
-默认 `TENANCY_POOL_MAX_OPEN_CONNS=20`、`TENANCY_REGISTERED_MAX=0`（不限）。**几千商户不要原样上生产**，按下表调参。
-
-**容量公式（租户库）：**
-
-`进程内已注册的租户池数 × TENANCY_POOL_MAX_OPEN_CONNS × API实例数` ≪ 数据库 `max_connections`（预留平台库、备份、运维余量）。
-
-同机多库时所有 `tenant_*` 仍计入**同一** MySQL/PG 实例的连接上限。
-
-### 运行时双模式（少量 / 大量）
-
-| 机制 | 配置 | 少量租户 | 大量租户 |
-|------|------|----------|----------|
-| 连接注册表空闲淘汰 | `TENANCY_REGISTERED_IDLE_TTL`（默认 900s） | 长时间无访问会释放池 | 避免注册池涨到总户数 |
-| 注册池硬上限 | `TENANCY_REGISTERED_MAX`（默认 0=不限） | 可不设 | 建议 300–500 |
-| 全舰队命令分页 | `TENANCY_SCOPE_AUTO_BATCH_AT`（200） / `TENANCY_SCOPE_AUTO_BATCH`（100） | 户数 ≤200 时一次跑完 | 超过阈值自动分页；分钟级任务带 rotate 游标 |
-| 强制页大小 | `TENANCY_SCOPE_BATCH` | 0=跟自动策略 | 可强制每页 N 户 |
-| 灵活定时 | `next_run_at` + tick 扇出 + `schedule` 队列（`QUEUE_SCHEDULE_CONCURRENT`） | 行为与按分钟匹配一致 | tick **只入队**；Worker 并行执行 handler |
-| 全舰队备份 | `tenant:backup-all` / `backup-scheduled` | 小舰队可一次入队 | 入队 `long-running`；定时按天轮转 `TENANT_BACKUP_SCHEDULE_BATCH` |
-| 全舰队 migrate/seed | `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency` | 默认 2；单机同 host 建议 2–5 | 多 `tenants.host` 时可 20–50（真实并行 DDL/seed；勿盲目开满打爆 DB） |
-
-### 全舰队 schema 迁移（`tenant:migrate-all`）
-
-一户一库时每户独立 DDL/seed，墙钟大致为 `户数 × 单户耗时 / 并发`。`MigrateTenant` / `SeedTenant` 使用每 goroutine 绑定的 Schema+Orm（不翻转全局 `database.default`），故 `TENANCY_MIGRATE_CONCURRENCY` 对 migrate-all 与 seed-all 均为 **真正并行**。压力落在各租户库所在的 MySQL/PG 上。
-
-| 部署 | 建议并发 | 说明 |
-|------|----------|------|
-| 单机 / 同 host 多库 | 2–5 | 默认 2；再高易顶 `max_connections` / 磁盘 IO |
-| 约 100 户 / 一台租户库机，多 host | 20–50 | 开户填不同 `tenants.host` 分散；仍是**全局**并发上限，非按 host 分组 |
-| 平台 UI 批量 migrate/seed | `TENANCY_MIGRATE_CONCURRENCY`（`tenant_ops_fleet`） | 与 CLI 同路径；`QUEUE_LONG_RUNNING_CONCURRENT=1` 即可 |
-
-失败户会写 `provision_status=failed` + `last_migrate_error`，可筛失败后批量重试，不必每次全舰队重跑。发版：新镜像先平台 `migrate`，再 `tenant:migrate-all`（可 `--concurrency`），再切流量。
-
-### 并发旋钮对照（与队列一起调）
-
-这些参数**不是**同一个东西，调高其中一个不会自动提高另一个：
-
-| 参数 | 控制什么 | 典型场景 |
-|------|----------|----------|
-| `TENANCY_MIGRATE_CONCURRENCY` | **本进程内** `tenant:migrate-all` / `tenant:seed-all` 同时处理几户（goroutine） | CLI 发版窗口全舰队 DDL/seed |
-| `QUEUE_LONG_RUNNING_CONCURRENT` | **每个** long-running Worker 同时跑几个任务 | 单户 `tenant_ops`；**批量 migrate/seed/backup 只需 1**（fleet 占一槽） |
-| `QUEUE_SCHEDULE_CONCURRENT` | **每个** schedule Worker 同时跑几个灵活定时/采集 job | 日常分钟级业务，与 migrate **抢租户库 IO** |
-| `QUEUE_CONCURRENT` | default 队列并行度 | 导出、通知等普通任务 |
-
-**一起调的原则（同机租户库）：**
-
-1. **发版跑 `migrate-all` / `seed-all` 时**：把 `QUEUE_SCHEDULE_CONCURRENT` 临时降到 `1–2`（或先停 schedule tick），`QUEUE_LONG_RUNNING_CONCURRENT` 保持 `1`，**不要**同时在平台 UI 再点批量迁移——否则 CLI 并发 + Worker 并发叠在同一批 MySQL/PG 上。
-2. **墙钟**：`≈ ceil(户数 / TENANCY_MIGRATE_CONCURRENCY) × 单户 migrate 耗时`；seed 通常远快于 migrate，可共用同一并发值。
-3. **日常运行**：`TENANCY_MIGRATE_CONCURRENCY` 只影响 CLI，可长期保持较大；真正常驻压力看 `QUEUE_SCHEDULE_CONCURRENT × Worker 台数` 与 `TENANCY_POOL_MAX_OPEN_CONNS`。
-4. **经验上界**：单机同 host 建议 CLI 并发 `2–5`；多 `tenants.host` 才开到 `20–50`。队列侧 long-running 默认 `1` 即可，schedule 按采集 SLA 单独加。
-5. **批量 migrate/seed**：CLI 与平台 UI 批量都读 `TENANCY_MIGRATE_CONCURRENCY`。`QUEUE_LONG_RUNNING_CONCURRENT` 不必跟着开大。发版时仍勿同时 CLI + UI 两路叠压同一批库。
-
-**平台 UI 批量 migrate / seed / backup：**
-
-1. **批量** migrate/seed 入队 **一个** `tenant_ops_fleet` 任务，内部用 `TENANCY_MIGRATE_CONCURRENCY`（与 CLI `migrate-all` 同路径）。单户操作仍走普通 `tenant_ops`。`QUEUE_LONG_RUNNING_CONCURRENT` 对批量迁保持 **1** 即可（fleet 只占一个队列槽）。
-2. Worker 机须跑 `queue-long-running`（勿设 `APP_DISABLED_RUNNERS=queue-*`）；API 机通常只 Dispatch。
-3. 改 `.env` 后须 **重启消费 long-running 的 Worker 进程**（并发在启动时读入，见 `bootstrap/runners.go`）。只改 env 不重启 Worker → 仍是旧并发。只重启 API、Worker 不重启 → UI 入队照常但并行度不变。
-4. 批量迁速度靠调大 `TENANCY_MIGRATE_CONCURRENCY`（改完 **下次** 入队的 fleet 即生效，或重启 Worker 前已入队的不受影响）。backup 批量同样走 `tenant_ops_fleet`，并行看 `TENANCY_BACKUP_CONCURRENCY`（`QUEUE_LONG_RUNNING_CONCURRENT=1` 即可）。
-
-| 改哪个 | 要不要重启 | 说明 |
-|--------|------------|------|
-| `QUEUE_LONG_RUNNING_CONCURRENT` / `QUEUE_SCHEDULE_CONCURRENT` / `QUEUE_CONCURRENT` | **要**：重启对应队列 Worker | 启动时固定 Concurrent |
-| `TENANCY_MIGRATE_CONCURRENCY` | CLI **下次** `artisan tenant:migrate-all` 即生效；长期跑的 API/Worker 不必为它重启 | 也可用一次性 `--concurrency=N`，无需改 env |
-| 平台 UI 点迁移 | 不重启也能入队 | 并行度仍取决于已启动的 Worker 并发 |
-
-**建议取值（可直接抄，同机一库主机）：**
-
-| 场景 | `TENANCY_MIGRATE_CONCURRENCY`（CLI / UI 批量 migrate·seed） | `QUEUE_LONG_RUNNING_CONCURRENT`（单户 / backup 批量） | `QUEUE_SCHEDULE_CONCURRENT` |
-|------|--------------------------------------|----------------------------------------|------------------------------|
-| 本地 / 小舰队 &lt;50 户 | **2–3**（默认 2） | **1** | **5–10**（默认常 10） |
-| 单机同 host，发版 migrate-all | **3–5** | **1**（发版窗口勿开大） | 临时 **1–2** 或停 tick |
-| ~100 户/台库机，已分 `tenants.host` | **20–40** | **1–2** | **5–10** |
-| 几千户、多 host | **40–50**（上限 100，慎用） | **1–2**；更快就加 Worker 台 | 按 SLA，常从 **10** 起 |
-
-经验：UI 批量迁调 `TENANCY_MIGRATE_CONCURRENCY`（与 CLI 相同）；`QUEUE_LONG_RUNNING_CONCURRENT` 默认 **1** 即可。墙钟粗算 `ceil(户数/并发) × 单户 migrate 秒数`（本仓库实测单户 DDL 约十余秒量级）。
-
-### 活跃量级 × 调参对照
-
-| 活跃商户 | 租户池 | 队列 / 进程 | Redis |
-|----------------|------|-------------|-------|
-| &lt; 50 | 默认 `IDLE=2` / `OPEN=20` 可留；可先降到 `OPEN=10` | 可同机 Worker；`QUEUE_CONNECTION=redis` | 单机或小规格云 Redis |
-| 50–200 | `IDLE=1–2`，`OPEN=3–5`；缩短 idle/lifetime（如 120 / 600） | API 与 Worker **分角色**（见 [生产清单](/deploy/production) §4.1）；`QUEUE_LONG_RUNNING_CONCURRENT` 保持较小 | 托管 Redis，盯 `used_memory` 与 backlog |
-| 200–1000 | `OPEN=2–3`；`REGISTERED_MAX=300` 可选 | 独立 Worker：`default` + `long-running` + **`schedule`** | 更大规格；导出导入注意吵邻居 |
-| 几千 | `OPEN=2`；`REGISTERED_MAX=300–500`；`tenants.host` **分库主机**；migrate 可 `TENANCY_MIGRATE_CONCURRENCY=20–50` | Worker 可水平扩；`QUEUE_SCHEDULE_CONCURRENT` 按采集耗时调 | 托管高可用；吵邻居再拆缓存/队列 |
-
-### 机器规模与角色分布（经验）
-
-同一二进制；用 `APP_DISABLED_RUNNERS` 区分角色（详见 [生产清单 §4.1](/deploy/production)）。以下 **vCPU / 内存** 为云主机粗算，按实际 QPS、采集耗时、导出频次加减。
-
-| 活跃户量级 | API | Queue Worker | Scheduler | 平台 DB | 租户 DB | Redis |
-|--------------|-----|--------------|-----------|---------|---------|-------|
-| &lt; 50 | 1× 2vCPU 4GB（可同机跑 Worker） | 可合并 | 合并或单独 1 台 | 1×中小规格 | 可与平台同机多库 | 1×小规格 |
-| 50–200 | 2× 2vCPU 4GB（只 HTTP） | 1× 2vCPU 4GB | **只 1 台** 开 schedule | 1×（提高`max_connections`） | 同机或开始拆 1 台租户库机 | 1×托管 |
-| 200–1000 | 2–4× API | 2+× Worker（含 `schedule`） | 1 台 | 独立平台库 | **多台** `tenants.host` 分片 | 1×中大规格 HA |
-| 几千 | 4+× API（LB） | 3+× Worker；`QUEUE_SCHEDULE_CONCURRENT`按需调 | 1 台 | 独立 + 备份 | 多台租户库（按 host 分配开户） | HA；吵邻居再拆 |
-
-**角色要点：**
-
-| 角色 | `APP_DISABLED_RUNNERS` | 必开队列 Runner |
-|------|-------------------------|----------------|
-| API | `queue-*` | 无（只 Dispatch） |
-| Worker | 留空 | `queue-default`、`queue-long-running`、**`queue-schedule`**（灵活定时）、可选 `queue-search` |
-| Scheduler | 可 `queue-*`（若不消费） | 只跑 `goravel:schedule`；**全站只 1 台** |
-
-分钟级采集吞吐粗算：`并发槽 ≈ QUEUE_SCHEDULE_CONCURRENT × Worker 台数`。若 3000 户/分钟且每户耗时 5s，约需 **250** 并发槽（或降频）。
-
-### 示例配置
-
-约 100 活跃户、2 个 API：
-
-```ini
-TENANCY_POOL_MAX_IDLE_CONNS=1
-TENANCY_POOL_MAX_OPEN_CONNS=5
-TENANCY_POOL_CONN_MAX_IDLETIME=120
-TENANCY_POOL_CONN_MAX_LIFETIME=600
-TENANCY_REGISTERED_IDLE_TTL=900
-
-CACHE_STORE=redis
-QUEUE_CONNECTION=redis
-QUEUE_CONCURRENT=2
-QUEUE_LONG_RUNNING_CONCURRENT=1
-QUEUE_SCHEDULE_CONCURRENT=5
-# API 机：APP_DISABLED_RUNNERS=queue-*
-```
-
-几千活跃起点：
-
-```ini
-TENANCY_POOL_MAX_IDLE_CONNS=1
-TENANCY_POOL_MAX_OPEN_CONNS=2
-TENANCY_REGISTERED_IDLE_TTL=900
-TENANCY_REGISTERED_MAX=400
-TENANCY_SCOPE_AUTO_BATCH_AT=200
-TENANCY_SCOPE_AUTO_BATCH=100
-TENANCY_FLEX_SCHEDULE_TICK_LIMIT=2000
-TENANCY_FLEX_SCHEDULE_QUEUE=schedule
-TENANCY_MIGRATE_CONCURRENCY=40
-QUEUE_SCHEDULE_CONCURRENT=10
-TENANT_BACKUP_SCHEDULE_ENABLED=true
-TENANT_BACKUP_SCHEDULE_BATCH=100
-QUEUE_LONG_RUNNING_CONCURRENT=1
-# 开户时填 tenants.host 分库主机；API 关 queue-* ；Worker 开 queue-schedule
-```
-
-**建议监控：** MySQL/PG `Threads_connected`、队列 pending / `queue:alert-backlog`、`schedule` / `long-running` 积压、Redis 内存与连接数。接近上限时先下调 `TENANCY_POOL_*` 或扩容 DB/Worker，**不要盲目加 API 副本**（副本会放大连接占用）。
-
-### 超出单舰队：按区域多套部署
-
-单舰队目标大约是**几千活跃**（见上表）。户数继续增长时，优先**新开一套完整部署（区域 / cell）**，而不是在同一平台库上无限加 API 或堆更多 `tenant_*`。
-
-推荐模式：
-
-```text
-区域 A（存量）              区域 B（新区）
-平台库 A + API/Worker…  →  平台库 B + API/Worker…
-老租户继续留在 A            新开户只写入 B
-```
-
-| 要点 | 说明 |
-|------|------|
-| 每区域一套栈 | 独立平台库、`TENANCY_DRIVER=database`、API / Worker / Scheduler / Redis、租户库（可再按 `tenants.host` 分机） |
-| 开户指向 | 注册/销售入口默认打到**当前写入区域**的 platform/API；从某日起新户只进新区即可 |
-| 租户如何回访 | 子域/根域按区域区分，或在网关/DNS 上维护极薄的 `tenant_code → 区域 API` 目录；勿把老户域名指到错区域 |
-| 平台控制台 | 每区各自 `/platform`；本产品**无**跨区域统一控制面 |
-| 迁户 | 尽量不搬；跨区等于备份恢复 + 改域名/目录，成本高 |
-| 冷户 | `disabled` / 归档或 DROP 后保留平台行；勿让大量无流量但仍 `ready` 的库拖垮单区 backup / `migrate-all` |
-
-**没有内置的** `CELL_ID`、全球租户路由表或一键跨区迁移。区域扩展是**运维级复制部署**；组内仍按本文「规模与推荐配置」调参即可。单组常见容量约一千户量级时最省心，总规模用「组数 × 组容量」放大。
+已移至 [多租户：规模与推荐配置](/advanced/tenancy-scaling)（出厂容量、双模式、并发旋钮、机器分布、示例配置、多区域部署）。
 
 ## 对象存储与配额
 
@@ -741,17 +566,19 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 | API | 用途 |
 |-----|------|
 | `tenancy.Enabled()` | 是否一户一库 |
-| `OrmQuery(ctx)` | 租户业务默认入口 |
-| `PlatformOrmQuery(ctx)` | 平台元数据 / 平台 token |
-| `tenancyctx.Detach(ctx)` | 异步 goroutine 保留租户连接 |
+| `OrmQuery(ctx)` / `OrmTransaction(ctx, fn)` | 租户业务默认入口；多租户开启时 ctx 为 nil 直接报 `ErrNilQueryContext` |
+| `PlatformOrmQuery(ctx)` / `PlatformQuery()` | 平台数据（有 ctx / 无 ctx）；禁止 `PlatformOrmQuery(nil)` |
+| `tenancyctx.Go(ctx, name, fn)` | 启动后台协程：保留租户、去掉请求取消、兜底 panic |
 | `tenancy.CacheKey` / `StoragePrefix` | 缓存键 / 对象存储路径前缀 |
+| `models.PlatformModel` | 平台表模型标记；租户连接拒绝访问这些表（`tenantdb.ErrPlatformTable`） |
+| `TenantConnectionService.TenantContext(t)` | 平台代码读写某个租户的数据：拿到绑定该租户的 ctx |
 | `RunTenantScope` / `--tenant` | CLI 按租户执行 |
 | `SchemaHasTable` / `WithSchemaContext` | 按 ctx 取租户 Schema（不改全局状态） |
-| `WithTenantConnection` | 在当前 goroutine 上以租户身份运行（迁移式代码、seeder） |
+| `WithTenantConnection` | 在当前 goroutine 上以租户身份运行（仅迁移、seeder 这类无法接收 ctx 的代码） |
 
 ### 硬性规则
 
-1. 业务用 `OrmQuery(ctx)`；平台路由**不**挂 `Tenant` 中间件；平台元数据用 `PlatformOrmQuery`（钉死平台连接）。
+1. 业务用 `OrmQuery(ctx)`；平台路由**不**挂 `Tenant` 中间件；平台数据用 `PlatformOrmQuery(ctx)` / `PlatformQuery()`（钉死平台连接）。规则说明见 [业务开发须知](/advanced/tenancy-dev)。
 2. 隔离是**切库/切 Schema**，不是行级 `tenant_id` GlobalScope。
 3. 缓存/上传（含 `chunks/`、导出、导入与附件临时目录）走租户前缀。
 4. 搜索索引绑定后为 `{code}_orders`（完整 code，不截断）；未绑定 fail-closed，禁止回退共享 `orders`。租户彻底删除（平台 force-delete / `tenant:cleanup-deleted` / purge 后删除）前先删除其全部搜索索引，删除失败则保留租户行、code 不释放（避免新租户复用 code 时读到旧租户文档）；创建租户时也会先清理同名残留索引。
@@ -767,8 +594,9 @@ go run . artisan payment:generate-test-data --tenant={code} --count=1000
 14. PG schema 隔离的 backup/restore 必须限定 schema；登录对 `tenant_not_ready` 返回 403（非 500）。
 15. 公网优先 subdomain；支付回调必须带 `{type}/{tenant_code}` 路径。
 16. 商户独立域名用边缘改写 Host（见上文）；勿为每个独立域改应用 env、CORS 白名单或独立部署。
-17. 业务目录（`app/services` / `http` / `jobs` / `console`）禁止 `facades.Orm().Query()`；CI 跑 `bash scripts/check-tenant-orm.sh`（租户运维白名单除外）。迁移（`database/migrations`）里的数据操作用 `migrationQuery()`：它在迁移事务内，`facades.Orm()` 不在（PostgreSQL 下看不到本迁移刚建的表）。
-18. 租户业务缓存/锁须经 `tenancy.CacheKey` / `TenantCacheKey`；CI 跑 `bash scripts/check-tenant-cache.sh`（平台/全局 key 白名单除外，见脚本 ALLOW）。
+17. CI 跑 `go run ./scripts/tenantlint`，按调用点检查四条规则：`orm`（`app/` 下禁止 `facades.Orm().Query/Transaction/WithContext/Connection`）、`nilctx`（禁止 `OrmQuery(nil)` / `PlatformOrmQuery(nil)` 等）、`cache`（`facades.Cache()` 所在函数须经 `tenancy.CacheKey`，可通过同包的 key 辅助函数）、`goctx`（`go` 语句不得捕获请求 ctx，改用 `tenancyctx.Go`）。确属例外的，在调用处或函数注释里写 `//tenantlint:allow <rule>: <原因>`。迁移（`database/migrations`）里的数据操作用 `migrationQuery()`：它在迁移事务内，`facades.Orm()` 不在（PostgreSQL 下看不到本迁移刚建的表）。
+18. 平台表（`models.PlatformModel`）与 landlord-only 迁移建的表必须一致（`TestPlatformTablesMatchLandlordOnlyMigrations`）；租户连接对这些表的 ORM 读写一律拒绝。
+19. `TestEveryAdminRouteIsTenantIsolated` 在租户 A 写入标记，再以租户 B 调用全部 GET 接口，断言拿不到 A 的数据；新增接口自动纳入。`TestTenantResolutionSecurity` 覆盖子域与 Header 冲突、公网 apex 拒收客户端租户、平台 / 租户 token 不互通、停用 / 维护立即生效、复用 code 后旧 token 失效。
 
 ## Platform ops: domain board / onboard / health
 

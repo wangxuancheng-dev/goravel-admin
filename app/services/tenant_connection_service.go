@@ -81,7 +81,7 @@ func TenantConnectionName(tenantID uint) string {
 // driver of the platform connection, i.e. whether the tenant can live on the platform
 // database server.
 func samePlatformDriver(driverName string) bool {
-	q := appfacades.PlatformOrmQuery(nil)
+	q := appfacades.PlatformQuery()
 	if down, _ := appfacades.QueryUnavailable(q); down {
 		return true // cannot tell; CreateStorage reports the real error
 	}
@@ -191,7 +191,7 @@ func (s *TenantConnectionService) SetProvisionStatus(tenant *models.Tenant, stat
 	default:
 		return apperrors.ErrInvalidArgument.WithMessage("invalid provision_status")
 	}
-	if _, err := appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	if _, err := appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"provision_status": status,
 	}); err != nil {
 		return err
@@ -383,6 +383,18 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 	if skipCreate {
 		return nil
 	}
+	// A dedicated account (TENANCY_DB_DEDICATED_USER) exists before its database
+	// (PostgreSQL creates the database owned by it) and is granted it after (MySQL).
+	if err := createDedicatedDBUser(tenant); err != nil {
+		return err
+	}
+	if err := s.createStorage(tenant); err != nil {
+		return err
+	}
+	return grantDedicatedDBUser(tenant)
+}
+
+func (s *TenantConnectionService) createStorage(tenant *models.Tenant) error {
 	isolation, err := ResolveTenantIsolation(tenant.Driver, tenant.Isolation)
 	if err != nil {
 		return err
@@ -401,7 +413,7 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 			tenant.Database,
 		)
 		if usePlatform {
-			_, err := appfacades.PlatformOrmQuery(nil).Exec(sql)
+			_, err := appfacades.PlatformQuery().Exec(sql)
 			return err
 		}
 		return s.withMaintenanceOrmQuery(tenant, func(q orm.Query) error {
@@ -435,7 +447,7 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 				if owner := pgTenantOwner(tenant); owner != "" {
 					createSQL += " OWNER " + quotePGIdent(owner)
 				}
-				return checkAndCreate(appfacades.PlatformOrmQuery(nil))
+				return checkAndCreate(appfacades.PlatformQuery())
 			}
 			return s.withMaintenanceOrmQuery(tenant, checkAndCreate)
 		}
@@ -450,7 +462,7 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 			if owner := pgTenantOwner(tenant); owner != "" {
 				schemaSQL += " AUTHORIZATION " + quotePGIdent(owner)
 			}
-			_, err := appfacades.PlatformOrmQuery(nil).Exec(schemaSQL)
+			_, err := appfacades.PlatformQuery().Exec(schemaSQL)
 			return err
 		}
 		// Schema on a dedicated / remote database: connect to that database then create schema.
@@ -465,11 +477,19 @@ func (s *TenantConnectionService) CreateStorageWithOptions(tenant *models.Tenant
 	}
 }
 
-// DropStorage drops the tenant database or schema created by CreateStorage (best-effort cleanup).
+// DropStorage drops the tenant database or schema created by CreateStorage (best-effort
+// cleanup), then the tenant's dedicated DB account when it has one.
 func (s *TenantConnectionService) DropStorage(tenant *models.Tenant) error {
 	if tenant == nil {
 		return apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
+	if err := s.dropStorage(tenant); err != nil {
+		return err
+	}
+	return dropDedicatedDBUser(tenant)
+}
+
+func (s *TenantConnectionService) dropStorage(tenant *models.Tenant) error {
 	isolation, err := ResolveTenantIsolation(tenant.Driver, tenant.Isolation)
 	if err != nil {
 		return err
@@ -493,7 +513,7 @@ func (s *TenantConnectionService) DropStorage(tenant *models.Tenant) error {
 		}
 		sql := fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", tenant.Database)
 		if usePlatform {
-			_, err := appfacades.PlatformOrmQuery(nil).Exec(sql)
+			_, err := appfacades.PlatformQuery().Exec(sql)
 			return err
 		}
 		return s.withMaintenanceOrmQuery(tenant, func(q orm.Query) error {
@@ -517,7 +537,7 @@ func (s *TenantConnectionService) DropStorage(tenant *models.Tenant) error {
 				return err
 			}
 			if usePlatform {
-				return drop(appfacades.PlatformOrmQuery(nil))
+				return drop(appfacades.PlatformQuery())
 			}
 			return s.withMaintenanceOrmQuery(tenant, drop)
 		}
@@ -529,7 +549,7 @@ func (s *TenantConnectionService) DropStorage(tenant *models.Tenant) error {
 		}
 		schemaSQL := fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", quotePGIdent(tenant.Schema))
 		if usePlatform && (tenant.Database == "" || tenant.Database == platformDB) {
-			_, err := appfacades.PlatformOrmQuery(nil).Exec(schemaSQL)
+			_, err := appfacades.PlatformQuery().Exec(schemaSQL)
 			return err
 		}
 		q, err := s.tenantQuery(tenant)
@@ -736,8 +756,23 @@ func (s *TenantConnectionService) BindBackground(ctx context.Context, tenantID u
 	return tenancyctx.WithTenant(ctx, tenant.ID, tenant.ConnectionName, tenant.Code), nil
 }
 
+// TenantContext returns a background ctx bound to tenant, for platform code that
+// reads or writes one tenant's data (OrmQuery(ctx), tenancy.CacheKey(ctx, ...)).
+// Unlike BindBackground it does not refuse disabled / maintenance / unready tenants:
+// the platform inspects those too. Prefer it to WithTenantConnection.
+func (s *TenantConnectionService) TenantContext(tenant *models.Tenant) (context.Context, error) {
+	if err := s.EnsureRegistered(tenant); err != nil {
+		return nil, err
+	}
+	return tenancyctx.WithTenant(context.Background(), tenant.ID, tenant.ConnectionName, tenant.Code), nil
+}
+
 // WithTenantConnection runs fn with facades.Schema() / facades.Orm() (and OrmQuery
 // without a tenant ctx) pointed at the tenant, on the current goroutine only.
+//
+// For code that cannot take a ctx: migrations, seeders, and the tenant-scope runner
+// that hosts console work written that way. Everything else uses TenantContext and
+// OrmQuery(ctx).
 //
 // A fresh tenant Schema (over the shared, app-owned pool) is bound to this goroutine;
 // nothing process-wide changes, so requests running concurrently in the same process
@@ -777,7 +812,7 @@ func (s *TenantConnectionService) markSeedOpResult(tenant *models.Tenant, runErr
 		if len(msg) > 2000 {
 			msg = msg[:2000]
 		}
-		_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+		_, _ = appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 			"last_op":         models.TenantOpSeed,
 			"last_op_status":  models.TenantOpStatusFailed,
 			"last_op_message": msg,
@@ -789,7 +824,7 @@ func (s *TenantConnectionService) markSeedOpResult(tenant *models.Tenant, runErr
 		tenant.LastOpAt = &now
 		return
 	}
-	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	_, _ = appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"last_op":         models.TenantOpSeed,
 		"last_op_status":  models.TenantOpStatusSuccess,
 		"last_op_message": "seed ok",
@@ -871,7 +906,7 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 		if len(msg) > 2000 {
 			msg = msg[:2000]
 		}
-		_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+		_, _ = appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 			"last_migrate_error": msg,
 			"last_op":            models.TenantOpMigrate,
 			"last_op_status":     models.TenantOpStatusFailed,
@@ -888,7 +923,7 @@ func (s *TenantConnectionService) MigrateTenant(tenant *models.Tenant) error {
 	if err := s.SetProvisionStatus(tenant, models.TenantProvisionReady); err != nil {
 		return err
 	}
-	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	_, _ = appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"last_migrate_error":     "",
 		"migrated_at":            now,
 		"schema_migration_count": migCount,
@@ -925,7 +960,7 @@ func (s *TenantConnectionService) RollbackTenant(tenant *models.Tenant, step, mi
 		if len(msg) > 2000 {
 			msg = msg[:2000]
 		}
-		_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+		_, _ = appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 			"last_op":         models.TenantOpRollback,
 			"last_op_status":  models.TenantOpStatusFailed,
 			"last_op_message": msg,
@@ -945,7 +980,7 @@ func (s *TenantConnectionService) RollbackTenant(tenant *models.Tenant, step, mi
 	}
 	_ = s.SetProvisionStatus(tenant, provision)
 	msg := fmt.Sprintf("rollback ok (step=%d batch=%d)", step, migBatch)
-	_, _ = appfacades.PlatformOrmQuery(nil).Model(tenant).Update(map[string]any{
+	_, _ = appfacades.PlatformQuery().Model(tenant).Update(map[string]any{
 		"schema_migration_count": migCount,
 		"last_op":                models.TenantOpRollback,
 		"last_op_status":         models.TenantOpStatusSuccess,
