@@ -30,7 +30,7 @@ cp .env.example .env
 # 编辑 .env：至少改 DB_*（库名 / 账号 / 密码），确认 APP_PORT=3000
 ```
 
-可选简化（无 Redis 时）：
+可选简化（无 Redis 时，仅限 `APP_ENV=local`；`APP_ENV=production` 下非 Redis 会拒绝启动）：
 
 ```env
 CACHE_STORE=memory
@@ -93,7 +93,7 @@ docker compose up -d --build
 |----|------|
 | 迁移 | 容器启动时 `artisan migrate` |
 | 填充 | `RUN_SEED=true` 时执行 `db:seed`（失败不阻断启动） |
-| 队列 | compose 内默认 `QUEUE_CONNECTION=sync` |
+| 队列 | compose 内默认 `QUEUE_CONNECTION=redis`（worker 在应用进程内，单容器即可） |
 | 环境文件 | 根目录 `.env`（由 `.env.docker.example` 复制） |
 
 关闭自动填充：`.env` 设 `RUN_SEED=false`。

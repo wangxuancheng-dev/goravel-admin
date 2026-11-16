@@ -415,7 +415,7 @@ services:
       - redis
 
   mysql:
-    image: mysql:8.0
+    image: mysql:8.4
     volumes:
       - mysql_data:/var/lib/mysql
 

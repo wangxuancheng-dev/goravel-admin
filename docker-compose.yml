@@ -14,7 +14,8 @@
 
 services:
   mysql:
-    image: mysql:8.0
+    # 8.4 LTS (8.0 reached end of life in April 2026).
+    image: mysql:8.4
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -25,7 +26,13 @@ services:
       - "127.0.0.1:3306:3306"
     volumes:
       - goravel_mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    # New accounts use caching_sha2_password (8.4 default; the Go driver supports it).
+    # --mysql-native-password=ON only lets accounts created by the former mysql:8.0
+    # setup (which forced mysql_native_password) keep logging in after the upgrade.
+    # MySQL 9 removes that plugin: before moving to 9.x, convert such accounts with
+    #   ALTER USER 'goravel'@'%' IDENTIFIED WITH caching_sha2_password BY '...';
+    # and drop the flag. (--default-authentication-plugin no longer exists in 8.4.)
+    command: --mysql-native-password=ON --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
       interval: 5s
@@ -68,8 +75,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       CACHE_STORE: redis
-      # Local compose defaults to sync queue so one container is enough.
-      QUEUE_CONNECTION: sync
+      # Queue workers run inside the app process, so one container is enough with redis.
+      # Not sync: APP_ENV=production (the default when .env omits it) refuses non-redis queues.
+      QUEUE_CONNECTION: redis
       RUN_SEED: "true"
       SKIP_MIGRATE: "false"
 

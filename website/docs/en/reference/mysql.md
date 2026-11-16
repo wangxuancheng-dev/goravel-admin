@@ -600,12 +600,12 @@ SET GLOBAL general_log = 'ON';
 ## 主从复制
 
 ```sql
--- 查看主从状态
-SHOW MASTER STATUS;
-SHOW SLAVE STATUS;  -- MySQL 8.0+ 使用 SHOW REPLICA STATUS
+-- Source binlog position
+SHOW BINARY LOG STATUS;  -- MySQL 8.2+ (SHOW MASTER STATUS removed in 8.4)
+SHOW MASTER STATUS;      -- MySQL 8.0 / 5.7
 
--- 查看从库状态
-SHOW REPLICA STATUS;  -- MySQL 8.0+
+-- Replica status
+SHOW REPLICA STATUS;  -- MySQL 8.0.22+ (SHOW SLAVE STATUS removed in 8.4)
 SHOW SLAVE STATUS\G;  -- MySQL 5.7
 
 -- 停止从库复制

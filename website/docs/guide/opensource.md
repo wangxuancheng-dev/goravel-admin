@@ -49,7 +49,7 @@
 | 代码生成器 | 本地/开发环境使用；生产请限权或关闭 |
 
 **最小依赖：** MySQL（或兼容库）+ 可运行的 Go 服务。  
-本地开发可用 `QUEUE_CONNECTION=sync`、`CACHE_STORE=memory`（不推荐生产）。
+本地开发可用 `QUEUE_CONNECTION=sync`、`CACHE_STORE=memory`（`APP_ENV=production` 下会拒绝启动）。
 
 ### 进阶（可选，按需开启）
 

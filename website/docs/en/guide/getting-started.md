@@ -30,7 +30,7 @@ cp .env.example .env
 # Edit .env: set DB_* at least; keep APP_PORT=3000
 ```
 
-Optional (no Redis):
+Optional (no Redis, `APP_ENV=local` only; with `APP_ENV=production` the server refuses non-Redis drivers):
 
 ```env
 CACHE_STORE=memory
@@ -93,7 +93,7 @@ docker compose up -d --build
 |------|----------|
 | Migrate | `artisan migrate` on container start |
 | Seed | `db:seed` when `RUN_SEED=true` (failure does not block startup) |
-| Queue | `QUEUE_CONNECTION=sync` in compose |
+| Queue | `QUEUE_CONNECTION=redis` in compose (workers run in the app process, one container is enough) |
 | Env file | Root `.env` from `.env.docker.example` |
 
 Disable auto-seed with `RUN_SEED=false`.
