@@ -110,7 +110,8 @@ jobs:
 
   backend-integration:
     name: Backend Integration (${{ matrix.shard }})
-    runs-on: ubuntu-latest
+    # Pinned: the postgres service below must match this image's pg_dump / psql.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     # The feature tests are dominated by tenant tests that create, migrate and seed real
@@ -118,24 +119,60 @@ jobs:
     # "rest" runs everything else via -skip, so a new test always lands in some shard.
     # Rebalance HEAVY_TESTS with the per-test CI timings each shard posts as a notice
     # annotation ("Slowest feature tests"); local timings do not carry over to CI.
+    # "pg-platform" runs the whole suite with the platform database on PostgreSQL
+    # (transactional DDL in migrations, schema-scoped lookups, tenant ownership).
     strategy:
       fail-fast: false
       matrix:
         include:
           - shard: heavy
             select: -run
+            db_connection: mysql
+            db_port: '3306'
+            db_username: root
+            db_password: root
           - shard: rest
             select: -skip
+            db_connection: mysql
+            db_port: '3306'
+            db_username: root
+            db_password: root
+          - shard: pg-platform
+            select: -run
+            pattern: '.'
+            db_connection: postgres
+            db_port: '5432'
+            db_username: postgres
+            db_password: postgres
 
     env:
       HEAVY_TESTS: '^(TestBackupFleetFanOut|TestTenantLifecycleAndIsolationOverHTTP|TestDualTenantDatabaseIsolation|TestTenantCreateWithMigrateAndSeed)$'
       # Fleet migrate+seed: 3 tenants on 2 workers still covers parallel runs and queueing.
       TENANCY_TEST_FLEET_COUNT: '3'
       TENANCY_TEST_FLEET_CONCURRENCY: '2'
+      # PostgreSQL tenants (TestPostgresTenantLifecycle), on whichever platform database.
+      TENANCY_TEST_PG_HOST: 127.0.0.1
+      TENANCY_TEST_PG_PORT: '5432'
+      TENANCY_TEST_PG_USER: postgres
+      TENANCY_TEST_PG_PASSWORD: postgres
 
     services:
+      postgres:
+        # Same major version as the runner's pg_dump / psql (ubuntu-24.04 ships 16):
+        # pg_dump refuses to dump a newer server.
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: goravel # the platform database of the pg-platform shard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: goravel
@@ -169,6 +206,9 @@ jobs:
       - name: Prepare env
         run: |
           set -euo pipefail
+          # Postgres tenant backup/restore runs these clients; fail early if missing.
+          pg_dump --version
+          psql --version
           cp .env.example .env
           # Goravel requires APP_KEY to be exactly 32 chars (no base64: prefix).
           # Invalid keys make Config exit 0 before migrate runs — CI would go green falsely.
@@ -177,12 +217,12 @@ jobs:
             -e 's/^APP_DEBUG=.*/APP_DEBUG=false/' \
             -e 's/^APP_KEY=.*/APP_KEY=ci-test-app-key-32-bytes-long!!!/' \
             -e 's/^JWT_SECRET=.*/JWT_SECRET=ci-jwt-secret-change-me-not-for-prod/' \
-            -e 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' \
+            -e 's/^DB_CONNECTION=.*/DB_CONNECTION=${{ matrix.db_connection }}/' \
             -e 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' \
-            -e 's/^DB_PORT=.*/DB_PORT=3306/' \
+            -e 's/^DB_PORT=.*/DB_PORT=${{ matrix.db_port }}/' \
             -e 's/^DB_DATABASE=.*/DB_DATABASE=goravel/' \
-            -e 's/^DB_USERNAME=.*/DB_USERNAME=root/' \
-            -e 's/^DB_PASSWORD=.*/DB_PASSWORD=root/' \
+            -e 's/^DB_USERNAME=.*/DB_USERNAME=${{ matrix.db_username }}/' \
+            -e 's/^DB_PASSWORD=.*/DB_PASSWORD=${{ matrix.db_password }}/' \
             -e 's/^CACHE_STORE=.*/CACHE_STORE=redis/' \
             -e 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=sync/' \
             -e 's/^REDIS_HOST=.*/REDIS_HOST=127.0.0.1/' \
@@ -197,9 +237,11 @@ jobs:
           grep -q 'Migration success' migrate.log
 
       - name: Feature / smoke tests
+        env:
+          TEST_PATTERN: ${{ matrix.pattern || env.HEAVY_TESTS }}
         run: |
           set -o pipefail
-          go test -count=1 -v -timeout=12m ${{ matrix.select }} "$HEAVY_TESTS" ./tests/feature/... 2>&1 | tee feature.log
+          go test -count=1 -v -timeout=12m ${{ matrix.select }} "$TEST_PATTERN" ./tests/feature/... 2>&1 | tee feature.log
 
       - name: Report slowest feature tests
         if: always()
