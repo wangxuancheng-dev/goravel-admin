@@ -28,3 +28,9 @@ Follow the code generator (`app/services/templates/`) and `article_*`. Cursor sk
 ## Comments
 
 New/edited code comments and Go docstrings: English (ASCII). User-facing Chinese only in i18n JSON / website docs.
+
+## Frontend
+
+- Primary UI: `html-react/` (React). Peer UI: `html/` (Vue).
+- New admin UI work: React first, then Vue parity. See `website/docs/guide/frontend-parity.md`.
+- Capability tiers / reading path: `website/docs/guide/opensource.md` (do not treat every env knob as required).

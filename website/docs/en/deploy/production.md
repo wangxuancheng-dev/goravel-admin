@@ -41,6 +41,16 @@ go run . artisan tenant:ensure-db-user --all
 
 Full Chinese detail: [生产清单 §1.0](/deploy/production#10-最小生产默认路径一户一库).
 
+### You can ignore for mid-size (for now)
+
+Still available, but skip until you need them (~&lt;50 active tenants, no sold plans, no search):
+
+- Schema isolation, sharding, fleet concurrency knobs ([Scale](/en/advanced/tenancy-scaling))
+- Meilisearch / Elasticsearch, entitlement enforcement
+- Vanity domains, OpenTelemetry, AI Lab
+
+Tier overview: [Open-source scope · Capability tiers](/en/guide/opensource#capability-tiers-keep-features-expose-in-layers).
+
 ## Task Center + import permissions
 
 After shipping versions with import/export Task Center, confirm menu + permissions exist (otherwise no sidebar entry or 403 on import APIs).

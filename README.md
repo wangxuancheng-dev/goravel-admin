@@ -5,7 +5,7 @@
 <h1 align="center">Goravel Admin</h1>
 
 <p align="center">
-  <b>SaaS ops + admin starter</b> — Goravel · DB-per-tenant platform · Vue 3 / React · RBAC · Docker in 3 minutes
+  <b>SaaS ops + admin starter</b> — Goravel · DB-per-tenant platform · React (primary) / Vue · RBAC · Docker in 3 minutes
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 ### Why this repo
 
 - **SaaS ops path** — database-per-tenant, platform console, provision → migrate → ready gate, `/health` `/ready` (`TENANCY_DRIVER=database`)
-- **Dual frontend** — Vue 3 + Element Plus or React + Ant Design 6, same `/api/admin`
+- **Dual frontend** — React (`html-react/`) is primary; Vue (`html/`) keeps API parity — [frontend parity](https://docs.xuancheng888.top/en/guide/frontend-parity)
 - **Batteries included** — JWT / RBAC, menus, logs, export, WebSocket notices, code generator, AI Lab
 
 **Good fit:** mid-size multi-tenant SaaS ops, internal admin panels, Goravel secondary development.  
@@ -48,7 +48,7 @@ docker compose up -d --build
 
 Multi-tenant demo (optional): [Platform ops](https://admin.xuancheng888.top/platform/login) → provision tenant → [Tenant login](https://acme.xuancheng888.top/login?tenant_code=acme).
 
-UI dev (optional): Vite Vue `html/` → `:3007`, React `html-react/` → `:3008`, API at `http://127.0.0.1:3000`.
+UI dev (optional): React `html-react/` → `:3008` (default), Vue `html/` → `:3007`, API at `http://127.0.0.1:3000`.
 
 <p align="center">
   <img src="./images/admin.png" alt="Admin Dashboard" width="800">

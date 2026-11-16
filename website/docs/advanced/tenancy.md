@@ -4,7 +4,7 @@
 
 设为 **`database`** 后：每租户独立 database（MySQL）或 database/schema（PostgreSQL）；**租户认证与业务都在该租户库**。平台控制台使用独立账号与 `/api/platform`，不切租户库。
 
-> 写业务模块只需读 [多租户：业务开发须知](/advanced/tenancy-dev)；生产调参见 [规模与推荐配置](/advanced/tenancy-scaling)。
+> **阅读顺序：** 公网上线先跟 [最小生产默认路径](/deploy/production#10-最小生产默认路径一户一库)；写业务只读 [业务开发须知](/advanced/tenancy-dev)；户多了再读 [规模与推荐配置](/advanced/tenancy-scaling)。能力分档见 [开源定位 §2](/guide/opensource#2-能力分档不删功能分层暴露)。
 
 ## 架构
 

@@ -40,7 +40,18 @@ go run . artisan tenant:ensure-db-user --all
 # 若个别户曾手填同机 username，需显式替换：加 --force（旧账号不会自动删除）
 ```
 
+
 平台账号需要 MySQL `CREATE USER` + `GRANT OPTION`，或 PostgreSQL `CREATEROLE`。
+
+### 中小部署暂时不需要懂
+
+下列能力**都还在**，但约 50 活跃户以下、未卖套餐、未接搜索时可以先不管：
+
+- Schema 隔离、分表、`TENANCY_MIGRATE_CONCURRENCY` 等舰队旋钮（见 [规模与推荐配置](/advanced/tenancy-scaling)）
+- Meilisearch / Elasticsearch、套餐 entitlement 强制执行
+- 商户独立域名、OpenTelemetry、AI Lab
+
+能力分档总表见 [开源定位 §2](/guide/opensource#2-能力分档不删功能分层暴露)。
 
 ## 1.1 任务中心
 与导入权限（升级后必查）

@@ -1,6 +1,6 @@
 # Goravel Admin (React)
 
-Vue 版后台（`html/`）的 React 对照实现，对接同一套 Goravel Admin API。
+本仓库**默认管理端**（React 19）。Vue 端在 `html/`，对接同一套 Goravel Admin API；对齐约定见 [双前端对齐](../website/docs/guide/frontend-parity.md)。
 
 <p align="center">
   <img src="../images/react.jpg" alt="React 后台管理界面" width="800">

@@ -5,7 +5,7 @@
 <h1 align="center">Goravel Admin</h1>
 
 <p align="center">
-  <b>中小 SaaS 运维 + 后台脚手架</b> — Goravel · 一户一库 · 平台控制台 · Vue 3 / React · RBAC · Docker 三分钟
+  <b>中小 SaaS 运维 + 后台脚手架</b> — Goravel · 一户一库 · 平台控制台 · React（主）/ Vue · RBAC · Docker 三分钟
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 ### 为什么选这个仓库
 
 - **SaaS 运维路径** — 一户一库、平台控制台、开户迁移门禁（provision → migrate → ready）、`/health` `/ready`（`TENANCY_DRIVER=database`）
-- **双前端** — Vue 3 + Element Plus 或 React + Ant Design 6，共用同一套 `/api/admin`
+- **双前端** — React（`html-react/`）为主；Vue（`html/`）对齐同一套 API — [双前端对齐](https://docs.xuancheng888.top/guide/frontend-parity)
 - **开箱能力** — JWT / RBAC、菜单、日志、导出、WebSocket 通知、代码生成器、AI 实验室
 
 **适合：** 中小多租户 SaaS 运维、企业内部后台、Goravel 二次开发底座。  
@@ -48,7 +48,7 @@ docker compose up -d --build
 
 多租户体验（可选）：[平台运维](https://admin.xuancheng888.top/platform/login) → 开户迁移 → [租户登录](https://acme.xuancheng888.top/login?tenant_code=acme)。
 
-前端本地开发（可选）：Vite Vue `html/` → `:3007`，React `html-react/` → `:3008`，API 指向 `http://127.0.0.1:3000`。
+前端本地开发（可选）：React `html-react/` → `:3008`（默认），Vue `html/` → `:3007`，API 指向 `http://127.0.0.1:3000`。
 
 <p align="center">
   <img src="./images/admin.png" alt="后台管理界面" width="800">

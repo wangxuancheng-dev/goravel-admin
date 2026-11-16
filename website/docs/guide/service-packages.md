@@ -9,6 +9,7 @@
 3. **现有域包**：`app/payment`、`app/search`、`app/rbac`、`app/tenancy`。不要默认再新建 `app/<业务>`（例如不要为公告建 `app/notice`）。
 4. **依赖方向**：`services` 可 import 域包；域包 **不得** import `services`，避免循环依赖。
 5. 新代码优先 `app/services`；确有纯算法、强复用或需要打断 import 循环时再考虑域包。
+6. **驾驭复杂度：** 不靠再拆一层「人人必懂」的包，靠 [能力分档](/guide/opensource#2-能力分档不删功能分层暴露) 与文档窄路径；碰触大文件时再渐进挪到现有域包即可。
 
 ## 现有域包一览
 

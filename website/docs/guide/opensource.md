@@ -1,5 +1,17 @@
 # 开源定位与生产配置
 
+## 0. 建议阅读路径（先窄后宽）
+
+1. [快速开始](/guide/getting-started) — 先跑起来（默认单库）
+2. 本页 — 模块边界与**能力分档**（不必一次全开）
+3. [系统架构](/guide/architecture) → [开发指南](/guide/development) / [代码生成器](/guide/code-generator)
+4. 上线：[生产清单](/deploy/production)（含[最小生产默认路径](/deploy/production#10-最小生产默认路径一户一库)）→ [SaaS 核对清单](/advanced/saas)
+5. 写租户业务时再读 [多租户：业务开发须知](/advanced/tenancy-dev)；户多了再读 [规模与推荐配置](/advanced/tenancy-scaling)
+
+**前端：** 新功能以 React（`html-react/`）为准，Vue（`html/`）跟进对齐，见 [双前端对齐](/guide/frontend-parity)。
+
+---
+
 ## 1. 适用 / 不适用
 
 ### 适合
@@ -36,34 +48,46 @@
 
 ---
 
-## 2. 模块分层：核心 vs 进阶
+## 2. 能力分档（不删功能，分层暴露）
 
-### 核心能力
+能力都可以留着；第一次上线只盯 **A 档**。B/C 档需要时再展开，避免把「选项密度」当成「人人必背」。
 
-| 能力 | 说明 |
-|------|------|
-| 认证授权 | JWT、RBAC、菜单权限 |
-| 系统管理 | 管理员、角色、部门、字典、配置 |
-| 日志 | 操作日志、登录日志、系统日志 |
-| 基础导出 | 列表导出（小数据可同步；异步导出见进阶） |
-| 代码生成器 | 本地/开发环境使用；生产请限权或关闭 |
+### A. 默认必开（公网 / 一户一库）
 
-**最小依赖：** MySQL（或兼容库）+ 可运行的 Go 服务。  
-本地开发可用 `QUEUE_CONNECTION=sync`、`CACHE_STORE=memory`（`APP_ENV=production` 下会拒绝启动）。
+| 项 | 说明 |
+|----|------|
+| 认证授权、RBAC、菜单、日志 | 管理端核心 |
+| Redis 缓存 + 队列 | 生产强制（`CACHE_STORE` / `QUEUE_CONNECTION`） |
+| 一户一库最小路径 | `subdomain` + 专用库账号 + TLS + 可信代理；见 [最小生产默认路径](/deploy/production#10-最小生产默认路径一户一库) |
+| API / Worker 分角色 | `long-running` Worker；见生产清单 §4.1 |
 
-### 进阶（可选，按需开启）
+单库演示（`TENANCY_DRIVER=off`）可先不看租户行；本地可用 sync/memory。
 
-| 模块 | 何时需要 | 相关配置 / 文档 |
-|------|----------|-----------------|
-| Redis 缓存 / 队列 | 生产导出、异步任务、限流与锁 | `CACHE_STORE`、`QUEUE_CONNECTION` |
-| 订单 / 支付分表 | 数据量大、按月归档 | [分表迁移](/advanced/sharding-migration)、`SHARDING_*` |
-| 调度演示（活动窗口 / 订单超时） | 二次开发样板；非生产营销中台 | [调度演示](/advanced/scheduled-demos)、`/api/schedule-demo` |
-| Elasticsearch | 订单检索、全文检索 | `ELASTICSEARCH_*`、ES Worker |
-| OpenTelemetry | Jaeger / Grafana 等统一观测 | `OTEL_*`、[Telemetry 文档](https://www.goravel.dev/zh_CN/digging-deeper/telemetry.html) |
-| AI / pprof / Swagger | 开发与排障 | 生产默认关闭或限权 |
-| 一户一库多租户 | 大商户隔离（默认关闭） | `TENANCY_DRIVER=database`、平台 `/api/platform`、见 [多租户](/advanced/tenancy) |
+### B. 按规模再开
 
-**AI（可选）：** 「代码生成器 → AI 辅助」与 **AI 实验室**（文本 / 视觉 / 图片 / 语音）。未配置 `AI_API_KEY`（或 `OPENAI_API_KEY`）时相关菜单自动隐藏。实验室限流：`AI_LAB_RATE_LIMIT_PER_MINUTE` / `AI_LAB_RATE_LIMIT_PER_DAY`。`AI_ENABLED=false` 可关闭。详见 `.env.example`。
+户数上去后再调；细节在 [规模与推荐配置](/advanced/tenancy-scaling)：
+
+- 连接池 `TENANCY_POOL_*`、`TENANCY_REGISTERED_MAX`
+- 舰队并发 `TENANCY_MIGRATE_CONCURRENCY` / `TENANCY_BACKUP_CONCURRENCY`
+- 备份磁盘 `TENANT_BACKUP_DISK`、日程 `TENANT_BACKUP_SCHEDULE_*`
+- 队列并发 `QUEUE_LONG_RUNNING_CONCURRENT` / `QUEUE_SCHEDULE_CONCURRENT`
+
+**中小部署（约 50 活跃户以下）通常不必先懂这些旋钮。**
+
+### C. 按业务选装（默认关或演示向）
+
+| 模块 | 何时需要 | 文档 |
+|------|----------|------|
+| 搜索（ES / Meili） | 订单/全文检索 | [搜索](/advanced/search) |
+| 分表 | 单表过大、按月归档 | [分表](/advanced/sharding) |
+| 套餐 / entitlement 强制 | 真按 plan 限功能或行数 | [多租户 · 套餐](/advanced/tenancy) |
+| 商户独立域名 | 白牌 / 自定义域 | [多租户 · 独立域名](/advanced/tenancy) |
+| 支付网关真实验签 | 自备商户号后扩展 | [支付](/advanced/payments) |
+| AI Lab / pprof / Swagger | 开发与排障 | 生产关闭或限权 |
+| 调度演示 | 样板，非营销中台 | [调度演示](/advanced/scheduled-demos) |
+| OpenTelemetry | 统一观测 | `OTEL_*` |
+
+**AI：** 未配置 `AI_API_KEY` 时相关菜单隐藏。详见 `.env.example`。
 
 ### 模块开关
 

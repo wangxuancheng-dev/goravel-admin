@@ -11,6 +11,8 @@ This repo ships two admin UIs against the **same** `/api/admin` (and platform `/
 
 Prefer React (`html-react/`) first, then follow up Vue (`html/`). Same PR when practical; otherwise call out the follow-up in the PR.
 
+This keeps dual UI as **one primary path + a parity checklist**, so complexity stays manageable without dropping Vue.
+
 ## Change checklist
 
 - [ ] API path / query / body matches backend

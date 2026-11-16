@@ -9,7 +9,7 @@
 | **默认前端** | `html-react/`（React 19） | 文档截图、生产 Docker `BUILD_FRONTEND=1`（产物进 `public/admin`）、新功能优先落此端 |
 | **对等前端** | `html/`（Vue 3） | 同仓库维护的 Vue 端；CI 独立 type-check / test / build，契约与权限对齐 |
 
-新功能、修 Bug、改请求约定时：**先 React（`html-react/`），再跟进 Vue（`html/`）**。理想情况两端同 PR；若短期只能改一端，在 PR 中注明另一端跟进项。
+新功能、修 Bug、改请求约定时：**先 React（`html-react/`），再跟进 Vue（`html/`）**。理想情况两端同 PR；若短期只能改一端，在 PR 中注明另一端跟进项。`n`n这样把「双前端」从人人必背变成**一条主线 + 对齐清单**，降低驾驭复杂度（能力仍双端保留）。
 
 ## 改动时检查
 

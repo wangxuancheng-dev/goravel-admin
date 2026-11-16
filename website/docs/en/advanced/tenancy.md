@@ -2,7 +2,7 @@
 
 > Chinese remains the full reference: [多租户](/advanced/tenancy). Key local Docker steps are below in English.
 >
-> Writing a business module? Read [Multi-tenancy: developer guide](/en/advanced/tenancy-dev). Production tuning: [Scale and recommended settings](/en/advanced/tenancy-scaling).
+> **Reading order:** public go-live → [Minimal tenancy path](/en/deploy/production#minimal-tenancy-path); business code → [Developer guide](/en/advanced/tenancy-dev); many tenants → [Scale](/en/advanced/tenancy-scaling). Tiers: [Open-source scope](/en/guide/opensource#capability-tiers-keep-features-expose-in-layers).
 
 ## Docker local setup
 

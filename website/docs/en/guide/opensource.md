@@ -1,6 +1,16 @@
 # Open-source scope & modules
 
-Chinese full version: [开源定位与模块](/guide/opensource).
+Chinese full version: [开源定位与模块](/guide/opensource) (authoritative for tables and Chinese wording).
+
+## Suggested reading path (narrow first)
+
+1. [Quick start](/en/guide/getting-started) — run locally (single DB by default)
+2. This page — module boundaries and **capability tiers** (do not turn everything on at once)
+3. [Architecture](/en/guide/architecture) → [Development](/en/guide/development) / [Code generator](/en/guide/code-generator)
+4. Go-live: [Production](/en/deploy/production) ([minimal tenancy path](/en/deploy/production#minimal-tenancy-path)) → [SaaS checklist](/en/advanced/saas)
+5. Tenant business code: [Tenancy developer guide](/en/advanced/tenancy-dev); many tenants: [Scale](/en/advanced/tenancy-scaling)
+
+**Frontend:** React (`html-react/`) is primary; Vue (`html/`) follows for parity — [Frontend parity](/en/guide/frontend-parity).
 
 ## Fit / not a fit
 
@@ -34,11 +44,15 @@ Demo accounts are for exploration only. Change default admin password and secret
 
 On public deploys, restrict gateways with `PAYMENT_GATEWAYS_ENABLED` and withhold payment permissions from roles that should not use them.
 
-## Core vs advanced
+## Capability tiers (keep features; expose in layers)
 
-**Core:** JWT + RBAC, system management, operation/login/system logs, list export, code generator (dev). Minimal dependency: MySQL-compatible DB + Go process.
+Do not delete modules — stage what you must learn first. Full Chinese tables: [开源定位 §2](/guide/opensource#2-能力分档不删功能分层暴露).
 
-**Advanced (opt-in):** Redis cache/queue (`QUEUE_CONNECTION=redis`), order/payment sharding, Elasticsearch/Meilisearch, OpenTelemetry, AI / pprof / Swagger, database-per-tenant (`TENANCY_DRIVER=database`).
+| Tier | When | Examples |
+|------|------|----------|
+| **A — default on** | Public / DB-per-tenant go-live | JWT/RBAC, Redis cache+queue, [minimal tenancy path](/en/deploy/production#minimal-tenancy-path), API/Worker split |
+| **B — by scale** | More tenants / noisier load | Pool caps, fleet concurrency, backup disk/schedule — [Scale](/en/advanced/tenancy-scaling). Mid-size (&lt;~50 active) usually skips these at first |
+| **C — by product** | Optional / demo | Search, sharding, entitlement enforcement, vanity domains, real payment verify, AI Lab, OTel |
 
 **Module switches**
 

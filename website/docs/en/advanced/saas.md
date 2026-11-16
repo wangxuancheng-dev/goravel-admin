@@ -5,7 +5,7 @@
 ---
 
 面向**公网可服务的中小 SaaS / 运营后台**（一户一库可选、非金融收单）。  
-详细运维步骤见 [生产清单](/deploy/production)。
+详细运维步骤见 [生产清单](/deploy/production)。Tiers: [Open-source scope](/en/guide/opensource#capability-tiers-keep-features-expose-in-layers) — start with A, open B/C on demand.
 
 ## 1. 范围约定
 

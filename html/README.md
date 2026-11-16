@@ -1,4 +1,7 @@
-# 后台管理系统前端
+# 后台管理系统前端（Vue 对等端）
+
+默认前端是 React（`html-react/`）。本目录为 Vue 3 对等实现，API 契约对齐；改功能时 React 优先，见 [双前端对齐](../website/docs/guide/frontend-parity.md)。
+
 
 基于 Vue 3 + Element Plus + vxe-table 的后台管理系统。
 
