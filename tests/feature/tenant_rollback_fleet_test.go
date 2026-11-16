@@ -120,4 +120,14 @@ func TestUIBatchRollbackFleet(t *testing.T) {
 		require.Equal(t, models.TenantOpStatusSuccess, fresh.LastOpStatus, "%s last_op_status=%s msg=%s", tn.Code, fresh.LastOpStatus, fresh.LastOpMessage)
 		require.Less(t, fresh.SchemaMigrationCount, beforeCounts[tn.ID], "%s migration count should decrease after step=1", tn.Code)
 	}
+
+	// Rolling back the rest of the first batch includes the landlord-only goralens
+	// migration: it must be skipped on the tenant, not run against the platform
+	// database (dropping the platform's goralens tables).
+	platformSchema := facades.Schema().Connection(appfacades.PlatformConnectionName())
+	hadGoralens := platformSchema.HasTable("goralens_entries")
+	require.NoError(t, conn.RollbackTenant(tenants[0], 0, 0))
+	if hadGoralens {
+		require.True(t, platformSchema.HasTable("goralens_entries"), "tenant rollback dropped the platform goralens table")
+	}
 }
