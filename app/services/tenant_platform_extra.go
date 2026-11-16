@@ -234,7 +234,7 @@ func (s *TenantAdminService) CleanupExpiredDeletedTenants(days int, withPurge bo
 		}
 		if withPurge {
 			_ = PurgeTenantObjectStorage(t.Code)
-			_ = PurgeTenantLocalBackups(t.Code)
+			_ = PurgeTenantBackups(t.Code)
 		}
 		s.conn.Forget(t.ConnectionName)
 		if _, err := appfacades.PlatformOrmQuery(nil).WithTrashed().Where("id", t.ID).ForceDelete(&models.Tenant{}); err != nil {

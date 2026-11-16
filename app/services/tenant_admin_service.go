@@ -771,7 +771,7 @@ func TenantToJSONWithMeta(t *models.Tenant, domain TenantDomainListMeta, sub Ten
 		"last_op_message":            t.LastOpMessage,
 		"last_op_at":                 t.LastOpAt,
 		"last_backup_path":           t.LastBackupPath,
-		"backup_dir":                 TenantBackupDir(t.Code),
+		"backup_dir":                 TenantBackupLocation(t.Code),
 		"storage_limit_bytes":        t.StorageLimitBytes,
 		"health_status":              strings.TrimSpace(t.HealthStatus),
 		"health_checked_at":          t.HealthCheckedAt,

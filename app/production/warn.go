@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/goravel/framework/facades"
+
+	"goravel/app/utils"
 )
 
 // WarnInsecureDefaults logs warnings when APP_ENV=production has unsafe settings.
@@ -58,6 +60,11 @@ func WarnInsecureDefaults() {
 		}
 		if strings.EqualFold(facades.Config().GetString("tenancy.resolver", "header"), "header") {
 			warn("TENANCY_RESOLVER=header — public deployments should prefer subdomain")
+		}
+		if disk := strings.TrimSpace(facades.Config().GetString("tenancy.backup_disk", "")); disk == "" {
+			warn("TENANT_BACKUP_DISK is empty — tenant backups stay in storage/backups on the host that ran them; with several instances set an object-storage disk (or share that directory)")
+		} else if err := utils.ValidateFilesystemDisk(disk); err != nil {
+			warn("TENANT_BACKUP_DISK=" + disk + " is not configured (" + err.Error() + ") — tenant backups will fail")
 		}
 	}
 }

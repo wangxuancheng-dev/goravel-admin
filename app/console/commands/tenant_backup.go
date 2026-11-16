@@ -16,13 +16,13 @@ type TenantBackup struct{}
 
 func (r *TenantBackup) Signature() string { return "tenant:backup" }
 func (r *TenantBackup) Description() string {
-	return "备份指定租户数据库到 storage/backups/tenants/{code}/（依赖 mysqldump/pg_dump）"
+	return "备份指定租户数据库到 storage/backups/tenants/{code}/，配置 TENANT_BACKUP_DISK 时上传到该磁盘（依赖 mysqldump/pg_dump）"
 }
 func (r *TenantBackup) Extend() command.Extend {
 	return command.Extend{
 		Category: "tenant",
 		Flags: []command.Flag{
-			&command.IntFlag{Name: "keep", Usage: "保留最近 N 份备份（0=不清理；默认读 TENANCY_BACKUP_KEEP）"},
+			&command.IntFlag{Name: "keep", Usage: "保留最近 N 份备份（0=不清理；默认读 TENANT_BACKUP_KEEP）"},
 		},
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -1084,7 +1085,7 @@ func (c *TenantController) Export(ctx http.Context) http.Response {
 		String(http.StatusOK, buf.String())
 }
 
-// ListBackups lists SQL dump files under storage/backups/tenants/{code}/.
+// ListBackups lists the tenant's SQL dumps (local dir or backup disk, see services.TenantBackupDisk).
 func (c *TenantController) ListBackups(ctx http.Context) http.Response {
 	id := helpers.GetUintRoute(ctx, "id")
 	if id == 0 {
@@ -1120,6 +1121,15 @@ func (c *TenantController) DownloadBackup(ctx http.Context) http.Response {
 	tenant, err := c.service().GetByID(id)
 	if err != nil {
 		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusNotFound, err, map[string]any{"id": id})
+	}
+	if services.TenantBackupDisk() != "" {
+		data, readErr := services.ReadTenantBackup(tenant, name)
+		if readErr != nil {
+			return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusBadRequest, readErr, map[string]any{"id": id, "name": name})
+		}
+		return ctx.Response().
+			Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(name))).
+			Data(http.StatusOK, "application/sql", data)
 	}
 	absPath, err := services.ResolveTenantBackupAbsPath(tenant, name)
 	if err != nil {

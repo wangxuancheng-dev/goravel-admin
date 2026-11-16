@@ -17,8 +17,9 @@ import (
 	"goravel/app/models"
 )
 
-// BackupTenant dumps the tenant database to storage/backups/tenants/{code}/.
-// keep<=0 uses TENANCY_BACKUP_KEEP (0 means do not prune).
+// BackupTenant dumps the tenant database to storage/backups/tenants/{code}/, then to
+// the backup disk when one is configured (see TenantBackupDisk), and returns where the
+// dump is kept. keep<0 uses TENANT_BACKUP_KEEP (0 means do not prune).
 func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 	if tenant == nil || tenant.ID == 0 {
 		return "", apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
@@ -89,14 +90,24 @@ func BackupTenant(tenant *models.Tenant, keep int) (string, error) {
 		_ = os.Remove(tmpFile)
 		return "", err
 	}
+	// On a backup disk: upload and drop the local copy. A failed upload keeps the
+	// local file (the dump is not lost) and fails the backup.
+	stored, err := storeTenantBackup(tenant.Code, finalFile)
+	if err != nil {
+		return "", err
+	}
 
 	if keep < 0 {
 		keep = facades.Config().GetInt("tenancy.backup_keep", 10)
 	}
 	if keep > 0 {
-		_, _ = pruneTenantBackups(dir, keep)
+		if TenantBackupDisk() != "" {
+			_, _ = pruneDiskTenantBackups(tenant.Code, keep)
+		} else {
+			_, _ = pruneTenantBackups(dir, keep)
+		}
 	}
-	return finalFile, nil
+	return stored, nil
 }
 
 // ResolveTenantDSN returns connection fields for dump tools.
@@ -239,10 +250,15 @@ type TenantBackupFile struct {
 	ModTime string `json:"mod_time"`
 }
 
-// ListTenantBackups lists .sql dumps for the tenant (newest first).
+// ListTenantBackups lists .sql dumps for the tenant (newest first), and where they
+// are kept.
 func ListTenantBackups(tenant *models.Tenant) ([]TenantBackupFile, string, error) {
 	if tenant == nil || tenant.Code == "" {
 		return nil, "", apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
+	}
+	if TenantBackupDisk() != "" {
+		files, err := listDiskTenantBackups(tenant.Code)
+		return files, TenantBackupLocation(tenant.Code), err
 	}
 	dir := TenantBackupDir(tenant.Code)
 	entries, err := os.ReadDir(dir)
@@ -279,17 +295,15 @@ func ListTenantBackups(tenant *models.Tenant) ([]TenantBackupFile, string, error
 	return files, dir, nil
 }
 
-// ResolveTenantBackupAbsPath validates name and returns an absolute path under the tenant backup dir.
+// ResolveTenantBackupAbsPath validates name and returns an absolute path under the
+// local tenant backup dir (backups kept on this host; see FetchTenantBackup).
 func ResolveTenantBackupAbsPath(tenant *models.Tenant, name string) (string, error) {
 	if tenant == nil || tenant.Code == "" {
 		return "", apperrors.ErrInvalidArgument.WithMessage("tenant is nil")
 	}
-	name = filepath.Base(strings.TrimSpace(name))
-	if name == "" || name == "." || name == ".." {
-		return "", apperrors.ErrInvalidArgument.WithMessage("invalid backup name")
-	}
-	if !strings.HasSuffix(strings.ToLower(name), ".sql") || strings.Contains(name, "..") {
-		return "", apperrors.ErrInvalidArgument.WithMessage("invalid backup name")
+	name, err := validTenantBackupName(name)
+	if err != nil {
+		return "", err
 	}
 	absDir, err := filepath.Abs(TenantBackupDir(tenant.Code))
 	if err != nil {
@@ -320,9 +334,11 @@ func PruneTenantBackups(tenant *models.Tenant, keep int) (int, error) {
 	if keep <= 0 {
 		return 0, nil
 	}
+	if TenantBackupDisk() != "" {
+		return pruneDiskTenantBackups(tenant.Code, keep)
+	}
 	return pruneTenantBackups(TenantBackupDir(tenant.Code), keep)
 }
-
 
 // RestoreTenantFromFile restores a tenant database from an absolute SQL dump path.
 func RestoreTenantFromFile(tenant *models.Tenant, absFile string) error {

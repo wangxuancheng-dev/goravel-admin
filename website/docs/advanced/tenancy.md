@@ -210,7 +210,8 @@ TENANCY_PLATFORM_CONNECTION=       # 可选；钉死平台连接名，默认取 
 TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发可 true
                                           # 远程 host 始终要求独立 username/password
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
-TENANCY_BACKUP_KEEP=10                    # tenant:backup 保留份数；0=不清理
+TENANT_BACKUP_KEEP=10                     # tenant:backup 保留份数；0=不清理（旧名 TENANCY_BACKUP_KEEP 仍兼容）
+TENANT_BACKUP_DISK=                       # 备份所在磁盘（s3/oss/cos/minio）；空=存于执行备份那台机器
 TENANCY_MIGRATE_CONCURRENCY=2             # tenant:migrate-all / seed-all 并发；可用 --concurrency 覆盖；上限 100
 TENANCY_BACKUP_CONCURRENCY=2              # 备份 fleet 并行 dump；上限 50
 TENANT_BACKUP_SCHEDULE_MODE=full          # full=每日全舰队；rotate=按 BATCH 轮转
@@ -595,6 +596,8 @@ QUEUE_LONG_RUNNING_CONCURRENT=1
    - 测试：设置 `TENANCY_TEST_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` 后 `TestPostgresTenantLifecycle` 会在平台库上创建 PG 租户（database + schema 隔离）跑全流程；CI 自带 postgres 服务。
 7. **迁移回滚**：`tenant:rollback` / `rollback-all`（及 UI/fleet）；默认建议 `--step=1`，避免 0/0 整批撤销首次 migrate。
 8. **备份/恢复**：`tenant:backup [--keep=N]`、`tenant:backup-all`（入队，非同步 dump 全舰队）、`tenant:backup-scheduled`（日批轮转）。
+   - 存放位置：默认在执行备份那台机器的 `storage/backups/tenants/{code}/`。多实例部署时设 `TENANT_BACKUP_DISK`（`config/filesystems.go` 里的磁盘名，如 s3 / oss / cos / minio）：备份完成后上传到该磁盘的 `tenant-backups/{code}/` 并删除本地文件，列表、下载、恢复、清理、删除租户时的清理都走该磁盘，各实例看到同一份。也可以不配磁盘、把 `storage/backups` 挂到共享目录。
+   - 框架的磁盘驱动在上传 / 下载时会把整个文件读进内存；特别大的租户库建议用共享目录。生产环境未配置或配置不完整时，启动日志会有 `[production]` 警告。
    - PG 只导出租户自己的 schema（`pg_dump -n`；独立库租户为 `public`），不会带上同库的其他 schema 租户。
    - PG 恢复在单个事务里先清空该 schema（`DROP SCHEMA ... CASCADE`，含备份后新建的分表）再重放 dump，失败整体回滚、租户保持原样；平台 UI 与 `tenant:restore` 走同一实现。
    - 需要与服务端同大版本或更新的 `pg_dump` / `psql`。

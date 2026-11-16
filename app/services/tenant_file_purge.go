@@ -3,7 +3,6 @@ package services
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -64,15 +63,16 @@ func PurgeTenantObjectStorage(code string) error {
 	return nil
 }
 
-// PurgeTenantLocalBackups removes storage/backups/tenants/{code}/ SQL dumps on the app host.
-func PurgeTenantLocalBackups(code string) error {
+// PurgeTenantBackups removes a tenant's SQL dumps: storage/backups/tenants/{code}/ on
+// this host and, when configured, tenant-backups/{code}/ on the backup disk.
+func PurgeTenantBackups(code string) error {
 	if _, err := TenantObjectStoragePrefix(code); err != nil {
 		return err
 	}
 	code = strings.TrimSpace(code)
-	dir := filepath.Join("storage", "backups", "tenants", code)
+	dir := TenantBackupDir(code)
 	if err := os.RemoveAll(dir); err != nil {
 		return apperrors.ErrDeleteFileFailed.WithError(fmt.Errorf("purge local backups %s: %w", dir, err))
 	}
-	return nil
+	return purgeDiskTenantBackups(code)
 }

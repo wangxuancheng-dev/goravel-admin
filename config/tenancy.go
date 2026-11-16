@@ -27,8 +27,13 @@ func init() {
 		"allow_platform_db_credentials": config.Env("TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS", false),
 		// PostgreSQL 租户连接 sslmode（也可由 database.connections.postgres.sslmode / DB_SSLMODE 提供）
 		"postgres_sslmode": config.Env("TENANCY_POSTGRES_SSLMODE", ""),
-		// tenant:backup keep count (0 = never prune)
-		"backup_keep": config.Env("TENANT_BACKUP_KEEP", 10),
+		// tenant:backup keep count (0 = never prune). TENANCY_BACKUP_KEEP is the name the
+		// docs used to give; it is still honoured when TENANT_BACKUP_KEEP is unset.
+		"backup_keep": config.Env("TENANT_BACKUP_KEEP", config.Env("TENANCY_BACKUP_KEEP", 10)),
+		// Disk of config/filesystems.go (s3 / oss / cos / minio ...) tenant backups are
+		// uploaded to (tenant-backups/{code}/), so every instance sees the same files.
+		// Empty: kept in storage/backups/tenants/{code}/ on the host that ran the backup.
+		"backup_disk": config.Env("TENANT_BACKUP_DISK", ""),
 		// When true, tenant:backup-scheduled (kernel DailyAt) enqueues a rotated page
 		"backup_schedule_enabled": config.Env("TENANT_BACKUP_SCHEDULE_ENABLED", false),
 		// UTC HH:MM for tenant:backup-scheduled DailyAt

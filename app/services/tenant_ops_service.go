@@ -283,11 +283,12 @@ func RunTenantOp(args TenantOpsArgs) error {
 			successMsg = "backup ok: " + path
 		}
 	case models.TenantOpRestore:
-		absPath, err := ResolveTenantBackupAbsPath(tenant, args.BackupName)
+		absPath, cleanup, err := FetchTenantBackup(tenant, args.BackupName)
 		if err != nil {
 			runErr = err
 		} else {
 			runErr = RestoreTenantFromFile(tenant, absPath)
+			cleanup()
 			if runErr == nil {
 				successMsg = "restore ok: " + args.BackupName
 			}
@@ -387,7 +388,7 @@ func runTenantPurgeOp(args TenantOpsArgs) error {
 		}
 	}
 	if runErr == nil && args.PurgeBackups {
-		if err := PurgeTenantLocalBackups(code); err != nil {
+		if err := PurgeTenantBackups(code); err != nil {
 			runErr = err
 		} else {
 			parts = append(parts, "backups")

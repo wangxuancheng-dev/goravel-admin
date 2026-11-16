@@ -140,7 +140,8 @@ TENANCY_PLATFORM_CONNECTION=       # 可选；钉死平台连接名，默认取 
 TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false  # 公网默认 false；同机开发可 true
                                           # 远程 host 始终要求独立 username/password
 TENANCY_POSTGRES_SSLMODE=                 # 空则回落 DB_SSLMODE / disable
-TENANCY_BACKUP_KEEP=10                    # tenant:backup keep count; 0=never prune
+TENANT_BACKUP_KEEP=10                     # tenant:backup keep count; 0=never prune (old name TENANCY_BACKUP_KEEP still honoured)
+TENANT_BACKUP_DISK=                       # disk for backups (s3/oss/cos/minio); empty = the host that ran them
 TENANCY_MIGRATE_CONCURRENCY=2             # tenant:migrate-all / seed-all parallelism; --concurrency overrides; max 100
 TENANCY_POOL_MAX_IDLE_CONNS=10
 TENANCY_POOL_MAX_OPEN_CONNS=20
@@ -466,6 +467,8 @@ There is **no built-in** `CELL_ID`, global tenant router, or one-click cross-reg
    - **PG schema isolation**: tenants sharing a database each own a schema; table existence checks and table listings only look at the tenant's schema (the framework's own implementation scans every schema in the database), so they migrate safely in parallel.
    - Tests: with `TENANCY_TEST_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` set, `TestPostgresTenantLifecycle` creates PG tenants (database and schema isolation) on the platform and runs the full lifecycle; CI provides a postgres service.
 7. **Backup / restore**: `tenant:backup [--keep=N]`, `tenant:backup-all` (enqueue, not sync dump-all), `tenant:backup-scheduled` (daily rotate).
+   - Location: by default `storage/backups/tenants/{code}/` on the host that ran the backup. With several instances set `TENANT_BACKUP_DISK` (a disk of `config/filesystems.go`, e.g. s3 / oss / cos / minio): each dump is uploaded to `tenant-backups/{code}/` on that disk and removed locally, and listing, download, restore, pruning and tenant purge all use the disk, so every instance sees the same files. Alternatively leave it empty and mount `storage/backups` on a shared volume.
+   - The framework disk drivers hold a whole file in memory while uploading / downloading; for very large tenant databases prefer the shared volume. In production, a missing or incomplete setting is reported at startup with a `[production]` warning.
    - PG dumps only the tenant's own schema (`pg_dump -n`; `public` for a database-isolated tenant), never other schema tenants in the same database.
    - PG restore empties that schema (`DROP SCHEMA ... CASCADE`, including shards created after the backup) and replays the dump in one transaction: a failure rolls back and leaves the tenant as it was. The platform UI and `tenant:restore` share this implementation.
    - Needs `pg_dump` / `psql` of the server's major version or newer.
