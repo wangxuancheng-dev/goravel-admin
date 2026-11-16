@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -8,6 +9,7 @@ import (
 
 	"goravel/app/clients"
 	"goravel/app/facades"
+	"goravel/app/production"
 	"goravel/app/websocket/notifications"
 	"goravel/bootstrap"
 )
@@ -39,6 +41,13 @@ const shutdownTimeout = 10 * time.Second
 func main() {
 	// Bootstrap the application
 	app := bootstrap.Boot()
+
+	// Artisan commands have already run and exited inside Boot; only serving gets here.
+	if err := production.RequireRedis(); err != nil {
+		facades.Log().Error(err.Error())
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// 须在 Start 之前注册信号：Start() 会阻塞直到所有 runner 退出，
 	// 若放在 Start 之后则 Ctrl+C 永远无法触发自定义的强制退出逻辑。

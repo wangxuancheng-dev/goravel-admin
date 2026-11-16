@@ -8,7 +8,7 @@ Full Chinese detail: [生产清单](/deploy/production).
 
 1. `migrate` succeeds; after `db:seed`, change default `admin` password  
    - Multi-tenant: also `tenant:migrate-all` (concurrency: `TENANCY_MIGRATE_CONCURRENCY` / `--concurrency`; see [Tenancy concurrency knobs](/en/advanced/tenancy#concurrency-knobs-tune-with-queue-workers))
-2. Redis up; web process + queue workers stay running  
+2. Redis up; web process + queue workers stay running. `CACHE_STORE=redis` and `QUEUE_CONNECTION=redis` are enforced when `APP_ENV=production`: any other driver makes the server refuse to start (artisan commands still run)  
 3. HTTPS + reverse proxy  
 4. Disable or lock down: Swagger, pprof, code generator  
 5. Log disk + backup policy ready  

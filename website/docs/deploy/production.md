@@ -6,7 +6,7 @@
 
 1. 用 [`.env.production.example`](../.env.production.example) 生成 `.env`
 2. `go run . artisan key:generate`，填写强随机 `JWT_SECRET`
-3. `CACHE_STORE=redis`、`QUEUE_CONNECTION=redis`（勿用 `memory` / `sync` 上公网多实例）
+3. `CACHE_STORE=redis`、`QUEUE_CONNECTION=redis`（`APP_ENV=production` 时强制：其他驱动会让服务拒绝启动；artisan 命令不受影响）
 4. `APP_DEBUG=false`，关闭 Swagger / 代码生成器 / pprof
 5. Set `PAYMENT_GATEWAYS_ENABLED` explicitly (e.g. `wechat,alipay`); omit `mock` in production
 6. 一户一库时：`TENANCY_RESOLVER=subdomain`，`TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS=false`

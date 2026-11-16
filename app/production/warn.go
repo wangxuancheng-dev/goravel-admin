@@ -31,13 +31,7 @@ func WarnInsecureDefaults() {
 	if strings.TrimSpace(facades.Config().GetString("jwt.secret", "")) == "" {
 		warn("JWT_SECRET is empty — set a strong random secret before public traffic")
 	}
-	if strings.EqualFold(facades.Config().GetString("cache.default", ""), "memory") {
-		warn("CACHE_STORE=memory — use redis for multi-instance / rate-limit / locks")
-	}
-	queue := strings.ToLower(strings.TrimSpace(facades.Config().GetString("queue.default", "sync")))
-	if queue == "sync" {
-		warn("QUEUE_CONNECTION=sync — async export/jobs will block HTTP workers; use redis/database")
-	}
+	// Cache / queue drivers are enforced (not warned) by RequireRedis before serving.
 	if corsAllowsAnyOrigin() {
 		warn("CORS_ALLOWED_ORIGINS is empty or * — any website can call the API from a browser; set an explicit allowlist")
 	}
