@@ -44,6 +44,10 @@ func init() {
 		// 可选：由可信 CDN 写入的客户端 IP 头，如 Cloudflare 填 CF-Connecting-IP。
 		// 仅当源站只能经由该 CDN 访问时才可设置，否则可被伪造。
 		"trusted_ip_header": config.Env("TRUSTED_IP_HEADER", ""),
+		// X-Forwarded-Host（租户子域 / 独立域名识别、域名白名单）是否也只采信 trusted_proxies 内的对端。
+		// 默认 false：与旧版一致，任何对端的 X-Forwarded-Host 都采信。确认反代 / CDN 回源地址都在
+		// TRUSTED_PROXIES 内后建议设为 true，防止客户端伪造 Host 选租户（token 仍按租户库校验，不会越权）。
+		"forwarded_host_trusted_only": config.Env("TRUSTED_FORWARDED_HOST_ONLY", false),
 		// Browser security headers (see app/http/middleware/security_headers.go).
 		// Set SECURITY_HSTS_MAX_AGE (e.g. 31536000) only when serving behind HTTPS.
 		"security": map[string]any{

@@ -84,8 +84,8 @@ func TestTenantResolutionSecurity(t *testing.T) {
 		assert.False(t, resp.IsSuccessful(), "a tenant token must not open the platform API: %s", body)
 	})
 
-	// The test client stands in for a reverse proxy here: only a trusted peer's
-	// X-Forwarded-Host counts (see the forged-host subtest below).
+	// The test client stands in for a reverse proxy here, which also holds with
+	// TRUSTED_FORWARDED_HOST_ONLY=true (see the forged-host subtest below).
 	trustTestClient := func(t *testing.T) {
 		withConfig(t, "http.trusted_proxies", "*")
 	}
@@ -123,7 +123,8 @@ func TestTenantResolutionSecurity(t *testing.T) {
 		assert.Equal(t, 200, code)
 	})
 
-	t.Run("a forged X-Forwarded-Host from an untrusted peer is ignored", func(t *testing.T) {
+	t.Run("TRUSTED_FORWARDED_HOST_ONLY: a forged X-Forwarded-Host from an untrusted peer is ignored", func(t *testing.T) {
+		withConfig(t, "http.forwarded_host_trusted_only", true)
 		withConfig(t, "http.trusted_proxies", "10.255.255.254/32") // not the test client
 		withConfig(t, "tenancy.resolver", "subdomain")
 		withConfig(t, "tenancy.base_domain", "example.test")
@@ -139,6 +140,16 @@ func TestTenantResolutionSecurity(t *testing.T) {
 			"X-Forwarded-Host": tb.Code + ".example.test", "Authorization": "Bearer " + tokenA,
 		}, "/api/admin/info")
 		assert.NotEqual(t, 200, code)
+	})
+
+	t.Run("by default X-Forwarded-Host is taken from any peer (as before)", func(t *testing.T) {
+		withConfig(t, "http.forwarded_host_trusted_only", false)
+		withConfig(t, "http.trusted_proxies", "10.255.255.254/32") // not the test client
+		withConfig(t, "tenancy.resolver", "subdomain")
+		withConfig(t, "tenancy.base_domain", "example.test")
+		code, msg := tenantGET(t, asA(map[string]string{"X-Forwarded-Host": tb.Code + ".example.test"}), "/api/admin/info")
+		assert.Equal(t, 400, code)
+		assert.Contains(t, msg, apperrors.ErrTenantHintConflict.Code)
 	})
 
 	t.Run("disabling a tenant shuts out tokens already issued", func(t *testing.T) {

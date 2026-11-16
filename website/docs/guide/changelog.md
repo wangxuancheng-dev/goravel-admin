@@ -24,6 +24,7 @@
 - 🔒 永久删除租户（含平台异步清理与定时 `tenant:cleanup-deleted`）一律删除其库、对象存储、备份与搜索索引后才释放 code；开户不再接管同名已存在的库（`tenant_storage_exists`）；开户失败物理删除并清理本次所建，code 立即可重用
 - 🔒 多租户开启时，未绑定租户的 ctx（不只 nil）调用 `OrmQuery` 一律报 `ErrNoTenantContext`；队列统计命令改为显式读平台库，`token:create` 需 `--tenant` 并在租户库建 token
 - 🩺 租户库或平台库暂时不可用时返回 503 + `Retry-After`（原为 500，平台库故障还会被报成 404 租户不存在）；生产环境未配置 `TENANCY_BASE_DOMAIN` 时启动告警
+- 🔒 `TRUSTED_FORWARDED_HOST_ONLY=true`（可选，默认关闭以兼容旧部署）：`X-Forwarded-Host` 只采信 `TRUSTED_PROXIES` 内的对端，防止伪造 Host 选租户；新增 `TENANCY_MYSQL_TLS`，租户 MySQL 连接与备份可走 TLS
 - 🛠️ 新增 `tenant:orphans`：列出（`--drop` 确认后删除）没有任何租户引用的残留租户库 / schema，升级后执行一次
 - 🔒 租户无自有账号时回落平台账号，每次连接都受 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS` 约束（含备份）；`platform.` 主机不再接受客户端指定租户
 - 📚 多租户文档拆分：[业务开发须知](/advanced/tenancy-dev)、[规模与推荐配置](/advanced/tenancy-scaling)

@@ -110,7 +110,7 @@ func domainMiddleware(allowTenantVanity bool, configValueOrDomains ...any) http.
 			return
 		}
 
-		// Same trust rule as tenant binding: X-Forwarded-Host only from trusted proxies.
+		// Same X-Forwarded-Host rule as tenant binding (TRUSTED_FORWARDED_HOST_ONLY).
 		host := tenancy.RequestHostFromContext(ctx)
 
 		if facades.Config().GetBool("app.debug", false) {

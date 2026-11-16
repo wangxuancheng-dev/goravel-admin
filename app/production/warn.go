@@ -61,6 +61,9 @@ func WarnInsecureDefaults() {
 		if strings.EqualFold(facades.Config().GetString("tenancy.resolver", "header"), "header") {
 			warn("TENANCY_RESOLVER=header — public deployments should prefer subdomain")
 		}
+		if !facades.Config().GetBool("http.forwarded_host_trusted_only", false) {
+			warn("TRUSTED_FORWARDED_HOST_ONLY=false — X-Forwarded-Host is taken from any client, so a request can name another tenant's host (its token is still checked against that tenant); set true once your proxies / CDN egress are in TRUSTED_PROXIES")
+		}
 		if strings.TrimSpace(facades.Config().GetString("tenancy.base_domain", "")) == "" {
 			warn("TENANCY_BASE_DOMAIN is empty — no public host is locked against a client-supplied tenant (apex / www / platform accept X-Tenant-ID), and with TENANCY_RESOLVER=subdomain the first label of any host (crm.customer.com) is taken as a tenant code; set it to your public apex")
 		}

@@ -45,14 +45,16 @@ func GetRealIP(ctx http.Context) string {
 	return peer
 }
 
-// TrustedForwardedHost returns X-Forwarded-Host only when the TCP peer is a trusted
-// proxy (http.trusted_proxies). Untrusted clients cannot spoof the Host used for
-// tenant subdomain resolution.
+// TrustedForwardedHost returns the X-Forwarded-Host to use for the request Host.
+// By default (http.forwarded_host_trusted_only=false, as before) every peer's header
+// is used. With TRUSTED_FORWARDED_HOST_ONLY=true it is used only when the TCP peer is
+// in http.trusted_proxies, so a client cannot pick a tenant subdomain by forging it.
 func TrustedForwardedHost(ctx http.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if !proxies.FromConfig().Contains(peerIP(ctx)) {
+	if facades.Config().GetBool("http.forwarded_host_trusted_only", false) &&
+		!proxies.FromConfig().Contains(peerIP(ctx)) {
 		return ""
 	}
 	return ctx.Request().Header("X-Forwarded-Host", "")

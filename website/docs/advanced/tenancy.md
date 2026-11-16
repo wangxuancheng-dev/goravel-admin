@@ -312,7 +312,7 @@ VITE_TENANCY_HEADER=X-Tenant-ID
 4. **连接池**：每租户 `TENANCY_POOL_MAX_*`（默认 idle 10 / open 20）；户多时按下方 [规模与推荐配置](/advanced/tenancy-scaling) 下调，避免打满 MySQL。
 5. 平台控制台走 `platform.` 或独立域名；勿与租户子域混用。
 6. **`TENANCY_DB_DEDICATED_USER=true`**：每个租户一个只能访问自己库的 DB 账号，代码写错也跨不了库（见生产要点 5）。只影响此后新开的租户；存量租户继续用原账号，需要时在平台编辑租户凭据更换。
-7. **反代与库 TLS**：仅当 TCP 对端在 `http.trusted_proxies` 内时才采信 `X-Forwarded-Host`（防伪造子域选租户）。远程租户库建议 `TENANCY_MYSQL_TLS=true`、`TENANCY_POSTGRES_SSLMODE=require`。
+7. **反代与库 TLS**：默认任何对端的 `X-Forwarded-Host` 都会被采信（与旧版一致）；确认反代 / CDN 回源地址都在 `TRUSTED_PROXIES` 内后，建议设 `TRUSTED_FORWARDED_HOST_ONLY=true`，只采信这些对端，防止客户端伪造 Host 选租户（token 仍按租户库校验，不会越权）。远程租户库建议 `TENANCY_MYSQL_TLS=true`、`TENANCY_POSTGRES_SSLMODE=require`。
 
 
 

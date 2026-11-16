@@ -289,7 +289,7 @@ Moved to [Multi-tenancy: scale and recommended settings](/en/advanced/tenancy-sc
 3. **Ping / async ops**：`POST .../ping`；`.../migrate|seed|backup` enqueue `tenant_ops`.
 4. **登录限流**：`login` limiter 键含 body/query/header/`subdomain` 租户提示，避免跨租户互相锁号。
 5. **日志**：带 `tenant_code` / `tenant_id` 前缀（`app/utils/logger`）。
-6. **DB TLS**: `TENANCY_POSTGRES_SSLMODE` / `DB_SSLMODE` for PostgreSQL; `TENANCY_MYSQL_TLS` (`true` / `skip-verify`) for tenant MySQL. `X-Forwarded-Host` is honoured only from `http.trusted_proxies` peers.
+6. **DB TLS**: `TENANCY_POSTGRES_SSLMODE` / `DB_SSLMODE` for PostgreSQL; `TENANCY_MYSQL_TLS` (`true` / `skip-verify`) for tenant MySQL. `X-Forwarded-Host` is taken from any peer by default (as before); once your proxies / CDN egress are in `TRUSTED_PROXIES`, set `TRUSTED_FORWARDED_HOST_ONLY=true` so only they can set it and a client cannot pick a tenant host by forging it (tokens are still checked per tenant).
    - **Cross-driver tenants**: when the tenant driver differs from the platform database (e.g. MySQL platform, PostgreSQL tenant), host/port/credentials are required; an empty host (meaning "on the platform server") is rejected.
    - **PG schema isolation**: tenants sharing a database each own a schema; table existence checks and table listings only look at the tenant's schema (the framework's own implementation scans every schema in the database), so they migrate safely in parallel.
    - Tests: with `TENANCY_TEST_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` set, `TestPostgresTenantLifecycle` creates PG tenants (database and schema isolation) on the platform and runs the full lifecycle; CI provides a postgres service.

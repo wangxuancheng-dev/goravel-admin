@@ -34,9 +34,8 @@ func NormalizeHost(raw string) string {
 }
 
 // RequestHost prefers a trusted forwardedHost then Request.Host.
-// Callers must only pass X-Forwarded-Host when the TCP peer is a trusted proxy
-// (see TrustedForwardedHost / http.trusted_proxies); otherwise spoofed Hosts
-// would select another tenant's subdomain.
+// forwardedHost comes from TrustedForwardedHost, which applies the trust rule
+// (TRUSTED_FORWARDED_HOST_ONLY / http.trusted_proxies).
 func RequestHost(hostHeader, forwardedHost string) string {
 	host := strings.TrimSpace(forwardedHost)
 	if host != "" && strings.Contains(host, ",") {
@@ -48,9 +47,10 @@ func RequestHost(hostHeader, forwardedHost string) string {
 	return NormalizeHost(host)
 }
 
-// TrustedForwardedHost returns X-Forwarded-Host when the request's TCP peer is a
-// trusted proxy. Default is empty (do not trust) until the HTTP layer wires it
-// (helpers.TrustedForwardedHost) so unit tests and non-HTTP callers stay fail-closed.
+// TrustedForwardedHost returns the X-Forwarded-Host to use for the request (wired to
+// helpers.TrustedForwardedHost at boot: every peer by default, only trusted proxies
+// with TRUSTED_FORWARDED_HOST_ONLY=true). Unset (unit tests, non-HTTP callers) means
+// the header is not read.
 var TrustedForwardedHost func(ctx http.Context) string
 
 // RequestHostFromContext resolves the public Host for tenant binding.

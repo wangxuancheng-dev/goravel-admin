@@ -32,7 +32,7 @@ func (receiver *RouteServiceProvider) Register(app foundation.Application) {
 func (receiver *RouteServiceProvider) Boot(app foundation.Application) {
 	// Log rows record the proxy-aware client IP, not a client-supplied X-Forwarded-For.
 	errorlog.ClientIP = helpers.GetRealIP
-	// Tenant Host binding: only honour X-Forwarded-Host from http.trusted_proxies peers.
+	// Tenant Host binding: X-Forwarded-Host per TRUSTED_FORWARDED_HOST_ONLY / TRUSTED_PROXIES.
 	tenancy.TrustedForwardedHost = helpers.TrustedForwardedHost
 
 	// Add HTTP middleware

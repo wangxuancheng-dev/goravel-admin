@@ -108,7 +108,7 @@ func ResolveHint(ctx http.Context, clientHint string) (string, error) {
 	host := ""
 	sub := ""
 	if ctx != nil {
-		// X-Forwarded-Host only when the TCP peer is in http.trusted_proxies.
+		// X-Forwarded-Host per TrustedForwardedHost (TRUSTED_FORWARDED_HOST_ONLY).
 		host = RequestHostFromContext(ctx)
 	}
 	if Resolver() == "subdomain" && host != "" {
