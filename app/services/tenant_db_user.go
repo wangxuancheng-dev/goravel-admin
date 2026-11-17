@@ -217,13 +217,13 @@ func reclaimDedicatedDBOwnership(tenant *models.Tenant) error {
 	owner := quotePGIdent(tenant.Username)
 	switch isolation {
 	case models.TenantIsolationSchema:
-		if err := validateSQLIdent(tenant.Schema); err != nil {
+		if err = validateSQLIdent(tenant.Schema); err != nil {
 			return err
 		}
 		_, err = q.Exec(fmt.Sprintf("ALTER SCHEMA %s OWNER TO %s", quotePGIdent(tenant.Schema), owner))
 		return dedicatedUserErr("reclaim schema owner "+tenant.Username, err)
 	default:
-		if err := validateSQLIdent(tenant.Database); err != nil {
+		if err = validateSQLIdent(tenant.Database); err != nil {
 			return err
 		}
 		_, err = q.Exec(fmt.Sprintf("ALTER DATABASE %s OWNER TO %s", quotePGIdent(tenant.Database), owner))
