@@ -127,18 +127,14 @@ html.dark *::-webkit-scrollbar-thumb:hover {
     overflow: visible;
   }
 
+  /* Table headerBg is a translucent tint (stores/app.ts), so layer it over the opaque
+     container color: same look as other header cells, but nothing shows through. */
   .ant-table-thead > tr > th.ant-table-cell-fix,
   .ant-table-thead > tr > th.ant-table-cell-fix-start,
   .ant-table-thead > tr > th.ant-table-cell-fix-end {
-    background: var(--ant-table-header-bg, #fafafa) !important;
-  }
-}
-
-html.dark .ant-table-wrapper {
-  .ant-table-thead > tr > th.ant-table-cell-fix,
-  .ant-table-thead > tr > th.ant-table-cell-fix-start,
-  .ant-table-thead > tr > th.ant-table-cell-fix-end {
-    background: var(--ant-table-header-bg, #1d1d1d) !important;
+    background:
+      linear-gradient(var(--ant-table-header-bg, transparent), var(--ant-table-header-bg, transparent)),
+      var(--ant-color-bg-container, var(--app-surface)) !important;
   }
 }
 
