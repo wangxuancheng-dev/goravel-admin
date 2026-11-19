@@ -35,6 +35,7 @@ import (
 	"github.com/goravel/redis"
 	"github.com/goravel/s3"
 	"goravel/app/providers"
+	feedbackpkg "goravel/packages/feedback"
 )
 
 func Providers() []foundation.ServiceProvider {
@@ -62,6 +63,8 @@ func Providers() []foundation.ServiceProvider {
 		&view.ServiceProvider{},
 		&providers.AppServiceProvider{},
 		&providers.PaymentServiceProvider{},
+		&feedbackpkg.ServiceProvider{},
+		&providers.FeedbackServiceProvider{},
 		&providers.SearchServiceProvider{},
 		&providers.AuthServiceProvider{},
 		&providers.RouteServiceProvider{},

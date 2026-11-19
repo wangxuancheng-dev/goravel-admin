@@ -4,7 +4,7 @@
 
 1. [快速开始](/guide/getting-started) — 先跑起来（默认单库）
 2. 本页 — 模块边界与**能力分档**（不必一次全开）
-3. [系统架构](/guide/architecture) → [开发指南](/guide/development) / [代码生成器](/guide/code-generator)
+3. [系统架构](/guide/architecture) → [开发指南](/guide/development) / [代码生成器](/guide/code-generator) / [扩展包示例 feedback](/guide/package-example)
 4. 上线：[生产清单](/deploy/production)（含[最小生产默认路径](/deploy/production#10-最小生产默认路径一户一库)）→ [SaaS 核对清单](/advanced/saas)
 5. 写租户业务时再读 [多租户：业务开发须知](/advanced/tenancy-dev)；户多了再读 [规模与推荐配置](/advanced/tenancy-scaling)
 

@@ -6,7 +6,7 @@ Chinese full version: [开源定位与模块](/guide/opensource) (authoritative 
 
 1. [Quick start](/en/guide/getting-started) — run locally (single DB by default)
 2. This page — module boundaries and **capability tiers** (do not turn everything on at once)
-3. [Architecture](/en/guide/architecture) → [Development](/en/guide/development) / [Code generator](/en/guide/code-generator)
+3. [Architecture](/en/guide/architecture) → [Development](/en/guide/development) / [Code generator](/en/guide/code-generator) / [Package example (feedback)](/en/guide/package-example)
 4. Go-live: [Production](/en/deploy/production) ([minimal tenancy path](/en/deploy/production#minimal-tenancy-path)) → [SaaS checklist](/en/advanced/saas)
 5. Tenant business code: [Tenancy developer guide](/en/advanced/tenancy-dev); many tenants: [Scale](/en/advanced/tenancy-scaling)
 

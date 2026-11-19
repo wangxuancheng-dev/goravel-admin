@@ -2,6 +2,8 @@ package migrations
 
 import (
 	"github.com/goravel/framework/contracts/database/schema"
+
+	feedbackmigrations "goravel/packages/feedback/migrations"
 )
 
 // All returns migrations shipped in this binary (single registry for bootstrap + schema waterline).
@@ -97,6 +99,7 @@ func All() []schema.Migration {
 		&M20261011000000CreatePlatformSettingsTable{},
 		&M20261030000000AddCreatedAtIndexToUsers{},
 		&M20260101000000CreateGoralensTables{},
+		&feedbackmigrations.M20261119000000CreateFeedbacksTable{},
 	}
 }
 

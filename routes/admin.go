@@ -7,6 +7,7 @@ import (
 	"goravel/app/facades"
 	"goravel/app/http/controllers/admin"
 	"goravel/app/http/middleware"
+	feedbackhttp "goravel/packages/feedback/http"
 )
 
 func Admin() {
@@ -106,6 +107,9 @@ func Admin() {
 			router.Get("menus/tree", menuController.Tree)
 
 			router.Get("dictionaries/types", dictionaryController.GetAllTypes)
+
+			// Example Goravel package (packages/feedback): login required, no menu/permission install.
+			feedbackhttp.RegisterAdminRoutes(router)
 
 			// 附件预览（公开接口，以便富文本编辑器等可以直接访问图片）
 			// 注意：如果需要严格的权限控制，应使用带签名的URL或Query Token
