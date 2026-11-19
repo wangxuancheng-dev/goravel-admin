@@ -223,13 +223,17 @@ const handleMediaSelect = ({ url, alt }) => {
 /* --- 用 Element Plus 变量覆盖 md-editor-v3 的 CSS 变量 --- */
 .dark-mode :deep(.md-editor-dark) {
   --md-bk-color: var(--el-bg-color-overlay);
-  --md-bk-color-outstand: var(--el-fill-color-blank);
-  --md-bk-hover: var(--el-fill-color-light);
+  --md-bk-color-outstand: var(--el-fill-color);
+  --md-bk-hover-color: var(--el-fill-color-light);
   --md-border-color: var(--el-border-color);
   --md-border-hover-color: var(--el-border-color-lighter);
   --md-border-active-color: var(--el-color-primary);
   --md-color: var(--el-text-color-regular);
   --md-hover-color: var(--el-text-color-primary);
+  --md-scrollbar-bg-color: var(--el-bg-color-overlay);
+  --md-scrollbar-thumb-color: var(--el-fill-color);
+  --md-scrollbar-thumb-hover-color: var(--el-fill-color-dark);
+  --md-scrollbar-thumb-active-color: var(--el-fill-color-dark);
 }
 
 /* --- 外框 --- */
@@ -248,16 +252,8 @@ const handleMediaSelect = ({ url, alt }) => {
   border-bottom-color: var(--el-border-color);
 }
 
-.dark-mode :deep(.md-editor-toolbar li > span) {
-  color: var(--el-text-color-regular);
-}
-
-.dark-mode :deep(.md-editor-toolbar li > span:hover) {
-  background-color: var(--el-fill-color-light);
-}
-
-.dark-mode :deep(.md-editor-toolbar .active > span) {
-  background-color: var(--el-fill-color);
+/* 工具栏按钮 (button.md-editor-toolbar-item) 的 hover/激活背景读取 --md-bk-color-outstand，已在上方变量中设置 */
+.dark-mode :deep(.md-editor-toolbar-active) {
   color: var(--el-text-color-primary);
 }
 
@@ -281,7 +277,6 @@ const handleMediaSelect = ({ url, alt }) => {
   background-color: var(--el-fill-color-blank);
 }
 
-.dark-mode :deep(.md-editor-input-wrapper .inputWrapper textarea),
 .dark-mode :deep(.cm-editor),
 .dark-mode :deep(.cm-content) {
   color: var(--el-text-color-regular);
@@ -368,7 +363,7 @@ const handleMediaSelect = ({ url, alt }) => {
 }
 
 /* --- 占位符 --- */
-.dark-mode :deep(.md-editor-input-wrapper .placeholder-wrapper) {
+.dark-mode :deep(.cm-placeholder) {
   color: var(--el-text-color-placeholder);
 }
 
@@ -446,5 +441,19 @@ const handleMediaSelect = ({ url, alt }) => {
 
 .dark-mode :deep(.md-editor ::-webkit-scrollbar-track) {
   background-color: var(--el-bg-color-overlay);
+}
+</style>
+
+<style>
+/* md-editor-v3 的弹窗通过 Teleport 挂到 body，scoped/:deep 样式无法命中，这里用全局样式覆盖其暗色变量 */
+html.dark .md-editor-modal-container[data-theme='dark'] {
+  --md-bk-color: var(--el-bg-color-overlay);
+  --md-bk-color-outstand: var(--el-fill-color);
+  --md-bk-hover-color: var(--el-fill-color-light);
+  --md-border-color: var(--el-border-color);
+  --md-border-hover-color: var(--el-border-color-lighter);
+  --md-border-active-color: var(--el-color-primary);
+  --md-color: var(--el-text-color-regular);
+  --md-hover-color: var(--el-text-color-primary);
 }
 </style>

@@ -230,9 +230,25 @@ const handleMediaSelect = ({ url, alt }) => {
 
 /* ========== 暗黑模式 ========== */
 
-/* --- 外框 --- */
+/* --- 外框 + wangEditor 内置变量（下拉列表 .w-e-select-list、面板 .w-e-drop-panel 等都读这些变量） --- */
 .dark-mode {
   border-color: var(--el-border-color);
+  --w-e-textarea-bg-color: var(--el-bg-color);
+  --w-e-textarea-color: var(--el-text-color-regular);
+  --w-e-textarea-border-color: var(--el-border-color);
+  --w-e-textarea-slight-border-color: var(--el-border-color);
+  --w-e-textarea-slight-color: var(--el-text-color-placeholder);
+  --w-e-textarea-slight-bg-color: var(--el-fill-color-light);
+  --w-e-textarea-selected-border-color: var(--el-color-primary);
+  --w-e-textarea-handler-bg-color: var(--el-color-primary);
+  --w-e-toolbar-bg-color: var(--el-bg-color-overlay);
+  --w-e-toolbar-color: var(--el-text-color-regular);
+  --w-e-toolbar-active-color: var(--el-text-color-primary);
+  --w-e-toolbar-active-bg-color: var(--el-fill-color);
+  --w-e-toolbar-disabled-color: var(--el-text-color-disabled);
+  --w-e-toolbar-border-color: var(--el-border-color);
+  --w-e-modal-button-bg-color: var(--el-fill-color);
+  --w-e-modal-button-border-color: var(--el-border-color);
 }
 
 .dark-mode .wang-editor-media-bar {
@@ -274,19 +290,10 @@ const handleMediaSelect = ({ url, alt }) => {
   background-color: var(--el-fill-color-light);
 }
 
-/* --- Select 下拉列表 (标题、字体等) --- */
-.dark-mode :deep(.w-e-drop-down-menu) {
-  background-color: var(--el-bg-color-overlay);
-  border-color: var(--el-border-color);
+/* --- Select 下拉列表 (标题、字号等) / 下拉面板 (表情、表格等) --- */
+.dark-mode :deep(.w-e-select-list),
+.dark-mode :deep(.w-e-drop-panel) {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.dark-mode :deep(.w-e-drop-down-menu li) {
-  color: var(--el-text-color-regular);
-}
-
-.dark-mode :deep(.w-e-drop-down-menu li:hover) {
-  background-color: var(--el-fill-color-light);
 }
 
 /* --- 颜色选择面板 --- */
@@ -298,15 +305,6 @@ const handleMediaSelect = ({ url, alt }) => {
 
 .dark-mode :deep(.w-e-panel-content-color li .color-block) {
   border-color: var(--el-border-color-lighter);
-}
-
-.dark-mode :deep(.w-e-panel-content-color .clear-color-btn) {
-  color: var(--el-text-color-regular);
-  border-color: var(--el-border-color);
-}
-
-.dark-mode :deep(.w-e-panel-content-color .clear-color-btn:hover) {
-  background-color: var(--el-fill-color-light);
 }
 
 /* --- 编辑区域 --- */
