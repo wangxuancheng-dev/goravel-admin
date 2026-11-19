@@ -187,11 +187,12 @@ html.dark .layout-header__icon-btn:hover {
 }
 
 /* Platform header / login sit on a dark navy bar regardless of theme */
-.platform-header__icon-btn {
+/* Doubled class beats .layout-header__icon-btn from LayoutHeader.scss (loaded later). */
+.platform-header__icon-btn.platform-header__icon-btn {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.platform-header__icon-btn:hover {
+.platform-header__icon-btn.platform-header__icon-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: #fff;
 }

@@ -1,4 +1,19 @@
-import { Button, Form, Input, Layout, Menu, Modal, Typography, message, theme } from 'antd'
+import { Button, Form, Input, Layout, Menu, Modal, Popover, Space, Typography, message, theme } from 'antd'
+import {
+  AlertOutlined,
+  ApartmentOutlined,
+  AuditOutlined,
+  CrownOutlined,
+  DashboardOutlined,
+  FileTextOutlined,
+  HistoryOutlined,
+  LoginOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  SettingOutlined,
+  TeamOutlined,
+  ToolOutlined,
+} from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
@@ -16,7 +31,8 @@ import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { usePlatformPasswordPolicy } from '@/hooks/usePasswordPolicy'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import LanguageSwitch from '@/components/LanguageSwitch'
-import { useAppStore } from '@/stores/app'
+import { THEME_COLORS, useAppStore } from '@/stores/app'
+import '@/layouts/components/LayoutHeader.scss'
 
 const { Header, Sider, Content } = Layout
 
@@ -26,6 +42,10 @@ export default function PlatformLayout() {
   const location = useLocation()
   const { token } = theme.useToken()
   const darkMode = useAppStore((s) => s.darkMode)
+  const collapsed = useAppStore((s) => s.sidebarCollapsed)
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const themeColor = useAppStore((s) => s.themeColor)
+  const setThemeColor = useAppStore((s) => s.setThemeColor)
   const admin = getPlatformAdmin()
   const isViewer = admin?.role === 'viewer'
   const showError = useUnhandledError()
@@ -130,6 +150,26 @@ export default function PlatformLayout() {
     }
   }
 
+  const themeSettings = (
+    <div className="header-settings">
+      <div className="header-settings__item header-settings__item--column">
+        <span className="header-settings__label">{t('header.theme_color')}</span>
+        <Space size={10} wrap>
+          {THEME_COLORS.map((color) => (
+            <button
+              key={color.key}
+              type="button"
+              className={`theme-swatch${themeColor === color.key ? ' theme-swatch--active' : ''}`}
+              style={{ backgroundColor: color.color }}
+              title={color.key}
+              onClick={() => setThemeColor(color.key)}
+            />
+          ))}
+        </Space>
+      </div>
+    </div>
+  )
+
   return (
     <Layout style={{ minHeight: '100vh', background: token.colorBgLayout }}>
       <Header
@@ -141,9 +181,19 @@ export default function PlatformLayout() {
           padding: '0 20px',
         }}
       >
-        <Typography.Text strong style={{ color: '#fff', fontSize: 16 }}>
-          {t('platform.title')}
-        </Typography.Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            className="layout-header__icon-btn platform-header__icon-btn"
+            onClick={toggleSidebar}
+            aria-label="toggle sidebar"
+          >
+            {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          </button>
+          <Typography.Text strong style={{ color: '#fff', fontSize: 16 }}>
+            {t('platform.title')}
+          </Typography.Text>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Typography.Text style={{ color: 'rgba(255,255,255,0.85)' }}>
             {admin?.name || admin?.username || ''}
@@ -153,6 +203,20 @@ export default function PlatformLayout() {
               {t('platform.role_viewer')}
             </Typography.Text>
           ) : null}
+          <Popover
+            content={themeSettings}
+            trigger="click"
+            placement="bottomRight"
+            classNames={{ root: 'header-settings-popover' }}
+          >
+            <button
+              type="button"
+              className="layout-header__icon-btn platform-header__icon-btn"
+              title={t('header.theme_color')}
+            >
+              <SettingOutlined />
+            </button>
+          </Popover>
           <DarkModeSwitch className="layout-header__icon-btn platform-header__icon-btn" />
           <LanguageSwitch className="layout-header__icon-btn platform-header__icon-btn" />
           <Button type="link" onClick={() => setPwdOpen(true)} style={{ color: '#93c5fd' }}>
@@ -169,6 +233,10 @@ export default function PlatformLayout() {
       <Layout>
         <Sider
           width={200}
+          collapsible
+          collapsed={collapsed}
+          collapsedWidth={64}
+          trigger={null}
           theme={darkMode ? 'dark' : 'light'}
           style={{
             background: darkMode ? token.colorBgContainer : '#fff',
@@ -183,51 +251,61 @@ export default function PlatformLayout() {
             items={[
               {
                 key: '/platform/overview',
+                icon: <DashboardOutlined />,
                 label: t('menu.platform_overview'),
                 onClick: () => navigate('/platform/overview'),
               },
               {
                 key: '/platform/tenants',
+                icon: <ApartmentOutlined />,
                 label: t('menu.tenant'),
                 onClick: () => navigate('/platform/tenants'),
               },
               {
                 key: '/platform/entitlements',
+                icon: <CrownOutlined />,
                 label: t('menu.entitlement'),
                 onClick: () => navigate('/platform/entitlements'),
               },
               {
                 key: '/platform/admins',
+                icon: <TeamOutlined />,
                 label: t('menu.platform_admin'),
                 onClick: () => navigate('/platform/admins'),
               },
               {
                 key: '/platform/settings',
+                icon: <ToolOutlined />,
                 label: t('menu.platform_settings'),
                 onClick: () => navigate('/platform/settings'),
               },
               {
                 key: '/platform/tenant-op-logs',
+                icon: <HistoryOutlined />,
                 label: t('menu.tenant_op_log'),
                 onClick: () => navigate('/platform/tenant-op-logs'),
               },
               {
                 key: '/platform/alert-deliveries',
+                icon: <AlertOutlined />,
                 label: t('menu.platform_alert'),
                 onClick: () => navigate('/platform/alert-deliveries'),
               },
               {
                 key: '/platform/system-logs',
+                icon: <FileTextOutlined />,
                 label: t('menu.system_log'),
                 onClick: () => navigate('/platform/system-logs'),
               },
               {
                 key: '/platform/login-logs',
+                icon: <LoginOutlined />,
                 label: t('menu.login_log'),
                 onClick: () => navigate('/platform/login-logs'),
               },
               {
                 key: '/platform/operation-logs',
+                icon: <AuditOutlined />,
                 label: t('menu.operation_log'),
                 onClick: () => navigate('/platform/operation-logs'),
               },

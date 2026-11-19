@@ -1,10 +1,37 @@
 <template>
   <div class="platform-layout">
     <header class="platform-header">
-      <div class="brand">{{ $t('platform.title') }}</div>
+      <div class="brand-wrap">
+        <button type="button" class="header-icon-btn" aria-label="toggle sidebar" @click="appStore.toggleSidebar()">
+          <el-icon><Expand v-if="collapsed" /><Fold v-else /></el-icon>
+        </button>
+        <div class="brand">{{ $t('platform.title') }}</div>
+      </div>
       <div class="actions">
         <span class="admin-name">{{ adminName }}</span>
         <el-tag v-if="isViewer" size="small" type="info" effect="plain" class="role-tag">{{ $t('platform.role_viewer') }}</el-tag>
+        <el-popover placement="bottom-end" trigger="click" :width="240">
+          <template #reference>
+            <button type="button" class="header-icon-btn" :title="$t('header.theme_color')">
+              <el-icon><Setting /></el-icon>
+            </button>
+          </template>
+          <div class="theme-settings">
+            <div class="theme-settings-label">{{ $t('header.theme_color') }}</div>
+            <div class="theme-color-swatches">
+              <button
+                v-for="item in THEME_COLORS"
+                :key="item.key"
+                type="button"
+                class="theme-swatch"
+                :class="{ active: appStore.themeColor === item.key }"
+                :style="{ backgroundColor: item.color }"
+                :title="item.key"
+                @click="appStore.setThemeColor(item.key)"
+              />
+            </div>
+          </div>
+        </el-popover>
         <DarkModeSwitch class="platform-header-dark" />
         <LanguageSwitch class="platform-header-lang" />
         <el-button link type="primary" @click="pwdVisible = true">{{ $t('platform.change_password') }}</el-button>
@@ -12,18 +39,48 @@
       </div>
     </header>
     <div class="platform-body">
-      <aside class="platform-aside">
-        <el-menu :default-active="active" router>
-          <el-menu-item index="/platform/overview">{{ $t('menu.platform_overview') }}</el-menu-item>
-          <el-menu-item index="/platform/tenants">{{ $t('menu.tenant') }}</el-menu-item>
-          <el-menu-item index="/platform/entitlements">{{ $t('menu.entitlement') }}</el-menu-item>
-          <el-menu-item index="/platform/admins">{{ $t('menu.platform_admin') }}</el-menu-item>
-          <el-menu-item index="/platform/settings">{{ $t('menu.platform_settings') }}</el-menu-item>
-          <el-menu-item index="/platform/tenant-op-logs">{{ $t('menu.tenant_op_log') }}</el-menu-item>
-          <el-menu-item index="/platform/alert-deliveries">{{ $t('menu.platform_alert') }}</el-menu-item>
-          <el-menu-item index="/platform/system-logs">{{ $t('menu.system_log') }}</el-menu-item>
-          <el-menu-item index="/platform/login-logs">{{ $t('menu.login_log') }}</el-menu-item>
-          <el-menu-item index="/platform/operation-logs">{{ $t('menu.operation_log') }}</el-menu-item>
+      <aside class="platform-aside" :class="{ collapsed }">
+        <el-menu :default-active="active" :collapse="collapsed" :collapse-transition="false" router>
+          <el-menu-item index="/platform/overview">
+            <el-icon><Odometer /></el-icon>
+            <template #title>{{ $t('menu.platform_overview') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/tenants">
+            <el-icon><OfficeBuilding /></el-icon>
+            <template #title>{{ $t('menu.tenant') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/entitlements">
+            <el-icon><Medal /></el-icon>
+            <template #title>{{ $t('menu.entitlement') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/admins">
+            <el-icon><User /></el-icon>
+            <template #title>{{ $t('menu.platform_admin') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/settings">
+            <el-icon><Tools /></el-icon>
+            <template #title>{{ $t('menu.platform_settings') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/tenant-op-logs">
+            <el-icon><Clock /></el-icon>
+            <template #title>{{ $t('menu.tenant_op_log') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/alert-deliveries">
+            <el-icon><Bell /></el-icon>
+            <template #title>{{ $t('menu.platform_alert') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/system-logs">
+            <el-icon><Document /></el-icon>
+            <template #title>{{ $t('menu.system_log') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/login-logs">
+            <el-icon><Key /></el-icon>
+            <template #title>{{ $t('menu.login_log') }}</template>
+          </el-menu-item>
+          <el-menu-item index="/platform/operation-logs">
+            <el-icon><Tickets /></el-icon>
+            <template #title>{{ $t('menu.operation_log') }}</template>
+          </el-menu-item>
         </el-menu>
       </aside>
       <main class="platform-main">
@@ -61,6 +118,22 @@ import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
+import {
+  Bell,
+  Clock,
+  Document,
+  Expand,
+  Fold,
+  Key,
+  Medal,
+  Odometer,
+  OfficeBuilding,
+  Setting,
+  Tickets,
+  Tools,
+  User,
+} from '@element-plus/icons-vue'
+import { useAppStore, THEME_COLORS } from '@/store/app'
 import { logoutPlatform, updatePlatformPassword } from '@/api/platform'
 import { getPlatformAdmin } from '@/utils/platformRequest'
 import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
@@ -73,6 +146,8 @@ const passwordPolicy = usePlatformPasswordPolicy()
 const route = useRoute()
 const router = useRouter()
 const active = computed(() => route.path)
+const appStore = useAppStore()
+const collapsed = computed(() => appStore.sidebarCollapsed)
 const platformAdmin = computed(() => getPlatformAdmin())
 const adminName = computed(() => platformAdmin.value?.name || platformAdmin.value?.username || '')
 const isViewer = computed(() => platformAdmin.value?.role === 'viewer')
@@ -145,6 +220,56 @@ const onLogout = async () => {
   background: #0f172a;
   color: #fff;
 }
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 18px;
+  cursor: pointer;
+}
+.header-icon-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.theme-settings-label {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  margin-bottom: 10px;
+}
+.theme-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.theme-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 0 0 1px var(--el-border-color);
+  transition: transform 0.15s;
+}
+.theme-swatch:hover {
+  transform: scale(1.1);
+}
+.theme-swatch.active {
+  border-color: var(--el-bg-color, #fff);
+  box-shadow: 0 0 0 2px var(--el-color-primary);
+}
 .brand {
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -190,8 +315,17 @@ const onLogout = async () => {
 }
 .platform-aside {
   width: 200px;
+  flex-shrink: 0;
   background: var(--el-bg-color, #fff);
   border-right: 1px solid var(--el-border-color-light, #e5e7eb);
+  transition: width 0.2s;
+}
+.platform-aside.collapsed {
+  width: 64px;
+}
+.platform-aside :deep(.el-menu) {
+  border-right: none;
+  background: transparent;
 }
 .platform-main {
   flex: 1;
