@@ -323,7 +323,7 @@ export default function CodeGenerator() {
                       <Radio value="async">{t('code_generator.import_mode_async')}</Radio>
                     </Radio.Group>
                     {cg.options.includes('is_master_detail') ? (
-                      <div style={{ marginTop: 8, color: 'rgba(0,0,0,0.45)', fontSize: 12 }}>
+                      <div style={{ marginTop: 8, color: 'var(--ant-color-text-tertiary)', fontSize: 12 }}>
                         {t('code_generator.master_detail_no_import')}
                       </div>
                     ) : null}
@@ -493,7 +493,18 @@ export default function CodeGenerator() {
                             {t('code_generator.refresh_preview')}
                           </Button>
                           {cg.previewCodeMap[fileType.value] ? (
-                            <pre style={{ marginTop: 12, padding: 12, background: '#f5f5f5', overflow: 'auto', maxHeight: 480 }}>
+                            <pre
+                              style={{
+                                marginTop: 12,
+                                padding: 12,
+                                background: 'var(--ant-color-fill-tertiary)',
+                                border: '1px solid var(--ant-color-border-secondary)',
+                                borderRadius: 6,
+                                color: 'var(--ant-color-text)',
+                                overflow: 'auto',
+                                maxHeight: 480,
+                              }}
+                            >
                               <code>{cg.previewCodeMap[fileType.value]}</code>
                             </pre>
                           ) : (
