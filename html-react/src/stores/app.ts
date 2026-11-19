@@ -150,6 +150,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         fontFamily,
         colorBgLayout: darkMode ? '#0b1220' : '#f4f6fb',
         colorBgContainer: darkMode ? '#141c2b' : '#ffffff',
+        // 暗色下弹窗/下拉/气泡等浮层背景与边框也使用同一套藏青色系，避免 antd 默认的中性灰黑 (#1f1f1f/#424242) 显得发黑突兀
+        ...(darkMode ? { colorBgElevated: '#1a2436', colorBorder: '#2e3a50' } : {}),
         colorBorderSecondary: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)',
         controlHeight: layoutSize === 'large' ? 40 : layoutSize === 'small' ? 28 : 34,
         boxShadowSecondary: darkMode

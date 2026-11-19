@@ -179,10 +179,11 @@ export default function Monitor() {
   }, [themeColor])
 
   const textColor = darkMode ? '#cfd3dc' : '#303133'
-  const axisLineColor = darkMode ? '#3d3e40' : '#dcdfe6'
-  const splitLineColor = darkMode ? '#3d3e40' : '#ebeef5'
-  const tooltipBg = darkMode ? '#2d2d30' : '#fff'
-  const tooltipBorder = darkMode ? '#3d3e40' : '#e4e7ed'
+  // 暗色取值与 stores/app.ts 的 colorBorder / colorBorderSecondary / colorBgElevated 保持一致
+  const axisLineColor = darkMode ? '#2e3a50' : '#dcdfe6'
+  const splitLineColor = darkMode ? 'rgba(255,255,255,0.08)' : '#ebeef5'
+  const tooltipBg = darkMode ? '#1a2436' : '#fff'
+  const tooltipBorder = darkMode ? '#2e3a50' : '#e4e7ed'
 
   const [systemInfo, setSystemInfo] = useState<SystemInfo>({ os: 'linux', alerts: [] })
   const [historyData, setHistoryData] = useState<HistoryData>(emptyHistory)

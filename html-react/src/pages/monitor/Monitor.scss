@@ -142,7 +142,7 @@ html.dark .process-card {
 .process-ranking-hint {
   font-size: 12px;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--ant-color-text-secondary);
   line-height: 1.45;
   max-width: 420px;
   text-align: right;

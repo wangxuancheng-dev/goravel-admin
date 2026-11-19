@@ -271,13 +271,14 @@ export default function PaymentMethodFormModal({
                     textAlign: 'left',
                     padding: '14px 16px',
                     borderRadius: 10,
-                    border: active ? '1px solid #1677ff' : '1px solid #d9d9d9',
-                    background: active ? '#e6f4ff' : '#fff',
+                    border: active ? '1px solid var(--ant-color-primary)' : '1px solid var(--ant-color-border)',
+                    background: active ? 'var(--ant-color-primary-bg)' : 'var(--ant-color-bg-container)',
+                    color: 'var(--ant-color-text)',
                     cursor: 'pointer',
                   }}
                 >
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>{opt.label}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--ant-color-text-tertiary)' }}>
                     {t(`payment_method.type_desc_${opt.value}`)}
                   </div>
                 </button>

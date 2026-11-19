@@ -378,10 +378,12 @@ export default function AttachmentList() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: error ? '#fef0f0' : '#fafafa',
+              background: error ? 'var(--ant-color-error-bg)' : 'var(--ant-color-fill-quaternary)',
               borderRadius: 4,
-              border: error ? '1px solid #fde2e2' : '1px solid #f0f0f0',
-              color: error ? '#f56c6c' : '#999',
+              border: error
+                ? '1px solid var(--ant-color-error-border)'
+                : '1px solid var(--ant-color-border-secondary)',
+              color: error ? 'var(--ant-color-error)' : 'var(--ant-color-text-tertiary)',
             }}
           >
             {error ? <PictureOutlined /> : '...'}
@@ -395,7 +397,7 @@ export default function AttachmentList() {
                   src={previewUrl}
                   width={50}
                   height={50}
-                  style={{ objectFit: 'cover', borderRadius: 4, border: '1px solid #f0f0f0' }}
+                  style={{ objectFit: 'cover', borderRadius: 4, border: '1px solid var(--ant-color-border-secondary)' }}
                   preview={{ src: previewUrl }}
                 />
               ) : loadingState === 'error' ? (
@@ -416,9 +418,9 @@ export default function AttachmentList() {
                   style={{
                     objectFit: 'cover',
                     borderRadius: 4,
-                    border: '1px solid #f0f0f0',
+                    border: '1px solid var(--ant-color-border-secondary)',
                     cursor: 'pointer',
-                    background: '#fafafa',
+                    background: 'var(--ant-color-fill-quaternary)',
                   }}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -717,7 +719,7 @@ export default function AttachmentList() {
       >
         <div style={{ minHeight: 200, textAlign: 'center' }}>
           {previewLoading ? (
-            <div style={{ padding: 48, color: '#999' }}>...</div>
+            <div style={{ padding: 48, color: 'var(--ant-color-text-tertiary)' }}>...</div>
           ) : previewKind === 'image' && previewBlobUrl ? (
             <img
               src={previewBlobUrl}
@@ -742,7 +744,8 @@ export default function AttachmentList() {
                 wordBreak: 'break-word',
                 margin: 0,
                 padding: 12,
-                background: '#f5f7fa',
+                background: 'var(--ant-color-fill-tertiary)',
+                color: 'var(--ant-color-text)',
                 borderRadius: 4,
                 fontSize: 13,
                 lineHeight: 1.5,
@@ -751,7 +754,7 @@ export default function AttachmentList() {
               {previewText}
             </pre>
           ) : (
-            <div style={{ padding: 48, color: '#999' }}>{t('attachment.preview_unsupported')}</div>
+            <div style={{ padding: 48, color: 'var(--ant-color-text-tertiary)' }}>{t('attachment.preview_unsupported')}</div>
           )}
         </div>
       </Modal>
@@ -797,7 +800,7 @@ export default function AttachmentList() {
                     : 'active'
               }
             />
-            <div style={{ marginTop: 12, textAlign: 'center', color: '#666' }}>
+            <div style={{ marginTop: 12, textAlign: 'center', color: 'var(--ant-color-text-secondary)' }}>
               {chunk.status === 'success'
                 ? t('attachment.upload_success')
                 : chunk.status === 'exception'

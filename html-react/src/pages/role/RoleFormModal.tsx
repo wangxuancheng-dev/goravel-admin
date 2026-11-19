@@ -265,7 +265,7 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
 
           <Form.Item label={t('role.menus_and_permissions', { defaultValue: '菜单与权限' })}>
             {isProtected ? (
-              <div style={{ color: 'rgba(0,0,0,0.45)' }}>
+              <div style={{ color: 'var(--ant-color-text-tertiary)' }}>
                 {t('role.super_admin_has_all_permissions', {
                   defaultValue: '超级管理员拥有全部菜单与权限，无需单独配置',
                 })}
@@ -273,7 +273,7 @@ export default function RoleFormModal({ open, editId, onClose, onSuccess }: Role
             ) : (
               <div
                 style={{
-                  border: '1px solid #f0f0f0',
+                  border: '1px solid var(--ant-color-border)',
                   borderRadius: 8,
                   padding: 12,
                   maxHeight: 420,

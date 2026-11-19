@@ -64,14 +64,14 @@
 }
 
 .layout-sidebar-drawer .ant-drawer-content {
-  background: #001529;
+  background: #0f172a; // 与 Layout.siderBg 一致
 }
 
 .layout-sidebar-drawer__content {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #001529;
+  background: #0f172a; // 与 Layout.siderBg 一致
 }
 
 .layout-sidebar-drawer__content .layout-sidebar__logo {

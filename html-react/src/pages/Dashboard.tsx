@@ -37,12 +37,13 @@ export default function DashboardPage() {
   } = useDashboard()
 
   const textColor = darkMode ? '#e5eaf3' : '#303133'
-  const axisLineColor = darkMode ? '#3d3e40' : '#dcdfe6'
-  const splitLineColor = darkMode ? '#3d3e40' : '#ebeef5'
+  // 暗色取值与 stores/app.ts 的 colorBorder / colorBorderSecondary / colorBgElevated 保持一致
+  const axisLineColor = darkMode ? '#2e3a50' : '#dcdfe6'
+  const splitLineColor = darkMode ? 'rgba(255,255,255,0.08)' : '#ebeef5'
   const tooltipStyle = useMemo(
     () => ({
-      backgroundColor: darkMode ? 'rgba(22, 24, 29, 0.95)' : '#ffffff',
-      borderColor: darkMode ? '#4c4d4f' : '#dcdfe6',
+      backgroundColor: darkMode ? '#1a2436' : '#ffffff',
+      borderColor: darkMode ? '#2e3a50' : '#dcdfe6',
       borderWidth: 1,
       textStyle: { color: darkMode ? '#f5f7fa' : '#303133' },
     }),
@@ -144,7 +145,7 @@ export default function DashboardPage() {
           type: 'pie',
           radius: ['40%', '70%'],
           avoidLabelOverlap: false,
-          itemStyle: { borderRadius: 10, borderColor: darkMode ? '#1f1f1f' : '#fff', borderWidth: 2 },
+          itemStyle: { borderRadius: 10, borderColor: darkMode ? '#141c2b' : '#fff', borderWidth: 2 },
           label: { show: true, formatter: '{b}: {d}%', color: textColor },
           emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold', color: textColor } },
           data: accessSource.map((item) => ({ name: item.name, value: item.value })),
