@@ -22,6 +22,20 @@
   box-shadow: none;
 }
 
+// @uiw 暗色默认是 GitHub 画布色 (#0d1117)，改为跟随 antd 主题
+// 预览区 .wmde-markdown 会在自身重新声明 --color-canvas-default，需要单独覆盖
+.markdown-editor-wrapper[data-color-mode='dark'] .w-md-editor.wmde-markdown-var,
+.markdown-editor-wrapper[data-color-mode='dark'] .w-md-editor .wmde-markdown {
+  --md-editor-background-color: var(--ant-color-bg-container);
+  --color-canvas-default: var(--ant-color-bg-container);
+  --color-border-default: var(--ant-color-border);
+}
+
+.markdown-editor-wrapper[data-color-mode='dark'] .w-md-editor-toolbar {
+  background-color: var(--ant-color-bg-elevated);
+  border-bottom-color: var(--ant-color-border);
+}
+
 .markdown-content {
   min-height: 100px;
   max-height: 60vh;

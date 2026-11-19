@@ -1,8 +1,20 @@
+// 注意：本文件是普通 .scss（非 CSS Module），不能使用 :global(...)，否则整条规则会被浏览器丢弃。
+// 暗色主题通过覆盖 wangEditor 自带的 CSS 变量实现；--ant-* 由 antd v6 在 .css-var-root 上注入（<AntdApp> 与 Modal 根节点均带该类）。
+
 .wang-editor-wrapper {
   border: 1px solid var(--ant-color-border);
   border-radius: 6px;
   overflow: hidden;
   transition: border-color 0.3s;
+
+  .w-e-toolbar {
+    border-bottom: 1px solid var(--w-e-toolbar-border-color);
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+
+  .w-e-text-container {
+    transition: background-color 0.3s, color 0.3s;
+  }
 }
 
 .wang-editor-media-bar {
@@ -14,112 +26,52 @@
   background: var(--ant-color-fill-quaternary, #fafafa);
 }
 
-.wang-editor-wrapper.dark-mode .wang-editor-media-bar {
-  background: var(--ant-color-bg-elevated);
-  border-bottom-color: var(--ant-color-border);
-}
-
-.wang-editor-wrapper :global(.w-e-toolbar) {
-  border-bottom: 1px solid var(--ant-color-border);
-  transition: background-color 0.3s, border-color 0.3s;
-}
-
-.wang-editor-wrapper :global(.w-e-text-container) {
-  transition: background-color 0.3s, color 0.3s;
-}
-
+// ========== 暗黑模式 ==========
 .wang-editor-wrapper.dark-mode {
-  border-color: var(--ant-color-border);
-}
+  --w-e-textarea-bg-color: var(--ant-color-bg-container);
+  --w-e-textarea-color: var(--ant-color-text);
+  --w-e-textarea-border-color: var(--ant-color-border);
+  --w-e-textarea-slight-border-color: var(--ant-color-border);
+  --w-e-textarea-slight-color: var(--ant-color-text-quaternary);
+  --w-e-textarea-slight-bg-color: var(--ant-color-fill-tertiary);
+  --w-e-textarea-selected-border-color: var(--ant-color-primary);
+  --w-e-textarea-handler-bg-color: var(--ant-color-primary);
+  --w-e-toolbar-bg-color: var(--ant-color-bg-elevated);
+  --w-e-toolbar-color: var(--ant-color-text);
+  --w-e-toolbar-active-color: var(--ant-color-text);
+  --w-e-toolbar-active-bg-color: var(--ant-color-fill-secondary);
+  --w-e-toolbar-disabled-color: var(--ant-color-text-disabled);
+  --w-e-toolbar-border-color: var(--ant-color-border);
+  --w-e-modal-button-bg-color: var(--ant-color-fill-tertiary);
+  --w-e-modal-button-border-color: var(--ant-color-border);
 
-.wang-editor-wrapper.dark-mode :global(.w-e-toolbar) {
-  background-color: var(--ant-color-bg-elevated);
-  border-bottom-color: var(--ant-color-border);
-}
+  .wang-editor-media-bar {
+    background: var(--ant-color-bg-elevated);
+  }
 
-.wang-editor-wrapper.dark-mode :global(.w-e-bar-item button) {
-  color: var(--ant-color-text);
-}
+  .w-e-bar-item-menus-container,
+  .w-e-drop-panel,
+  .w-e-select-list,
+  .w-e-modal,
+  .w-e-hover-bar {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
 
-.wang-editor-wrapper.dark-mode :global(.w-e-bar-item button:hover) {
-  background-color: var(--ant-color-fill-secondary);
-}
+  .w-e-text-container {
+    a {
+      color: var(--ant-color-primary);
+    }
 
-.wang-editor-wrapper.dark-mode :global(.w-e-bar-item .active) {
-  background-color: var(--ant-color-fill);
-  color: var(--ant-color-text);
-}
+    blockquote {
+      color: var(--ant-color-text-secondary);
+    }
+  }
 
-.wang-editor-wrapper.dark-mode :global(.w-e-bar-item-menus-container),
-.wang-editor-wrapper.dark-mode :global(.w-e-drop-down-menu),
-.wang-editor-wrapper.dark-mode :global(.w-e-panel-content-color),
-.wang-editor-wrapper.dark-mode :global(.w-e-modal),
-.wang-editor-wrapper.dark-mode :global(.w-e-hover-bar) {
-  background-color: var(--ant-color-bg-elevated);
-  border-color: var(--ant-color-border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container) {
-  background-color: var(--ant-color-bg-container);
-  color: var(--ant-color-text);
-  border-color: var(--ant-color-border);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor]),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] p),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] div),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] span),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] h1),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] h2),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] h3),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] li),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] td),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container [data-slate-editor] th) {
-  color: var(--ant-color-text);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-placeholder) {
-  color: var(--ant-color-text-placeholder);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container a) {
-  color: var(--ant-color-primary);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container blockquote) {
-  border-left-color: var(--ant-color-border);
-  color: var(--ant-color-text-secondary);
-  background-color: var(--ant-color-fill-secondary);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container code) {
-  background-color: var(--ant-color-fill);
-  color: var(--ant-color-error);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container pre) {
-  background-color: var(--ant-color-fill-tertiary);
-  border-color: var(--ant-color-border);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container table) {
-  border-color: var(--ant-color-border);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container td),
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container th) {
-  border-color: var(--ant-color-border);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-text-container th) {
-  background-color: var(--ant-color-fill);
-}
-
-.wang-editor-wrapper.dark-mode :global(.w-e-modal input),
-.wang-editor-wrapper.dark-mode :global(.w-e-modal textarea),
-.wang-editor-wrapper.dark-mode :global(.w-e-modal select) {
-  background-color: var(--ant-color-bg-container);
-  border-color: var(--ant-color-border);
-  color: var(--ant-color-text);
+  .w-e-modal input,
+  .w-e-modal textarea,
+  .w-e-modal select {
+    background-color: var(--ant-color-bg-container);
+    border-color: var(--ant-color-border);
+    color: var(--ant-color-text);
+  }
 }
