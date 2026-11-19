@@ -1011,6 +1011,10 @@ onMounted(async () => {
   if (expiringFromQuery) {
     searchForm.expiring = expiringFromQuery
   }
+  const codeFromQuery = String(route.query.code || '').trim()
+  if (codeFromQuery) {
+    searchForm.code = codeFromQuery
+  }
   try {
     const res = await platformHealth()
     health.value = res?.data || null
@@ -1027,7 +1031,8 @@ onMounted(async () => {
     domainFromQuery ||
     healthFromQuery ||
     planFromQuery ||
-    expiringFromQuery
+    expiringFromQuery ||
+    codeFromQuery
   ) {
     await loadData()
   }

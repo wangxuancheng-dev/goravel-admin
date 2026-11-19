@@ -65,6 +65,8 @@
       </el-col>
     </el-row>
 
+    <TenantHealthBoard :reload-key="boardReloadKey" />
+
     <div class="stat-section-label">{{ $t('tenant.plan_stats_title') }}</div>
     <el-row :gutter="16" class="stat-row">
       <el-col :xs="12" :sm="8" :md="6" v-for="item in planCards" :key="item.key">
@@ -134,12 +136,14 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getPlatformOpsOverview, healthInspectPlatformTenants } from '@/api/platform'
+import TenantHealthBoard from './TenantHealthBoard.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const loading = ref(false)
 const inspectLoading = ref(false)
 const overview = ref(null)
+const boardReloadKey = ref(0)
 
 const summary = computed(() => overview.value?.summary || null)
 const queue = computed(() => overview.value?.queue || null)
@@ -240,6 +244,7 @@ const runHealthInspect = async () => {
       fail: report?.fail ?? 0
     }))
     await load()
+    boardReloadKey.value++
   } catch {
     // handled
   } finally {

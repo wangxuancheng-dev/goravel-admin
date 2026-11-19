@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getPlatformOpsOverview, healthInspectPlatformTenants } from '@/api/platform'
+import TenantHealthBoard from './TenantHealthBoard'
 
 export default function PlatformOverview() {
   const { t } = useTranslation()
@@ -11,6 +12,7 @@ export default function PlatformOverview() {
   const [loading, setLoading] = useState(false)
   const [inspectLoading, setInspectLoading] = useState(false)
   const [overview, setOverview] = useState<Record<string, any> | null>(null)
+  const [boardReloadKey, setBoardReloadKey] = useState(0)
 
   const summary = overview?.summary || null
   const queue = overview?.queue || null
@@ -170,6 +172,7 @@ export default function PlatformOverview() {
         }),
       )
       await load()
+      setBoardReloadKey((k) => k + 1)
     } catch {
       /* request wrapper handles toast */
     } finally {
@@ -262,6 +265,8 @@ export default function PlatformOverview() {
             </Col>
           ))}
         </Row>
+
+        <TenantHealthBoard reloadKey={boardReloadKey} />
 
         <Typography.Text type="secondary">{t('tenant.plan_stats_title')}</Typography.Text>
         <Row gutter={[16, 16]}>

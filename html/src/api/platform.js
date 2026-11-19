@@ -240,6 +240,10 @@ export function getPlatformTenantOpsSummary() {
   return platformRequest.get('/tenants/ops-summary')
 }
 
+export function getPlatformTenantHealthBoard() {
+  return platformRequest.get('/tenants/health-board')
+}
+
 export function getPlatformTenantSettings() {
   return platformRequest.get('/tenants/settings')
 }

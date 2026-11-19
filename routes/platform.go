@@ -60,6 +60,7 @@ func Platform() {
 
 			router.Get("tenants", tenantController.Index)
 			router.Get("tenants/ops-summary", tenantController.OpsSummary)
+			router.Get("tenants/health-board", tenantController.HealthBoard)
 			router.Get("tenants/settings", tenantController.Settings)
 			router.Get("tenants/queue-status", tenantController.QueueStatus)
 			router.Get("tenants/export", tenantController.Export)

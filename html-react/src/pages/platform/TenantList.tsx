@@ -551,13 +551,15 @@ export default function PlatformTenantList() {
     const healthFromQuery = String(searchParams.get('health_status') || '').trim()
     const planFromQuery = String(searchParams.get('plan_code') || '').trim()
     const expiringFromQuery = String(searchParams.get('expiring') || '').trim()
+    const codeFromQuery = String(searchParams.get('code') || '').trim()
     if (
       !schemaFromQuery &&
       !maintenanceFromQuery &&
       !domainFromQuery &&
       !healthFromQuery &&
       !planFromQuery &&
-      !expiringFromQuery
+      !expiringFromQuery &&
+      !codeFromQuery
     ) {
       return
     }
@@ -585,6 +587,10 @@ export default function PlatformTenantList() {
     }
     if (expiringFromQuery && String(searchForm.expiring || '') !== expiringFromQuery) {
       next.expiring = expiringFromQuery
+      changed = true
+    }
+    if (codeFromQuery && String(searchForm.code || '') !== codeFromQuery) {
+      next.code = codeFromQuery
       changed = true
     }
     if (!changed) return

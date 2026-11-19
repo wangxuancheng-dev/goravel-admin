@@ -232,6 +232,15 @@ func (c *TenantController) OpsSummary(ctx http.Context) http.Response {
 	return response.Success(ctx, map[string]any{"summary": sum})
 }
 
+// HealthBoard lists issue counts and warn/fail tenants from the last stored inspect.
+func (c *TenantController) HealthBoard(ctx http.Context) http.Response {
+	board, err := c.service().HealthBoard()
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusInternalServerError, err, nil)
+	}
+	return response.Success(ctx, map[string]any{"board": board})
+}
+
 // OpsOverview aggregates health-style fields + ops summary for the ops home page.
 func (c *TenantController) OpsOverview(ctx http.Context) http.Response {
 	sum, err := c.service().OpsSummary()

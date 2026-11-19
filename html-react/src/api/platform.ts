@@ -281,6 +281,10 @@ export function getPlatformTenantOpsSummary() {
   return platformRequest.get('/tenants/ops-summary')
 }
 
+export function getPlatformTenantHealthBoard() {
+  return platformRequest.get('/tenants/health-board')
+}
+
 export function migratePlatformTenantBatch(data?: {
   ids?: Array<string | number>
   provision_status?: string
