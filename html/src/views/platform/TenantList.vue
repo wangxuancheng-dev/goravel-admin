@@ -2697,4 +2697,13 @@ html.dark .ops-inline {
 html.dark .queue-meta {
   color: rgba(255, 255, 255, 0.45);
 }
+html.dark .op-meta,
+html.dark .backup-dir-row,
+html.dark .domain-hint {
+  color: rgba(255, 255, 255, 0.45);
+}
+html.dark .backup-path,
+html.dark .system-log-summary__list {
+  color: rgba(255, 255, 255, 0.65);
+}
 </style>

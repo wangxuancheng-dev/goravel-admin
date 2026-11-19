@@ -355,19 +355,19 @@ watch(visible, (newVal) => {
 
 .menu-search-item:hover,
 .menu-search-item.is-active {
-  background-color: #f5f7fa;
+  background-color: var(--el-fill-color-light);
 }
 
 .menu-item-icon {
   flex-shrink: 0;
   font-size: 16px;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 .menu-item-title {
   flex: 1;
   font-size: 14px;
-  color: #303133;
+  color: var(--el-text-color-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

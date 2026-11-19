@@ -455,9 +455,9 @@ const handleDialogClose = () => {
   align-items: flex-start;
   gap: 6px;
   padding: 14px 16px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--el-border-color);
   border-radius: 10px;
-  background: #fff;
+  background: var(--el-bg-color);
   cursor: pointer;
   text-align: left;
   user-select: none;
@@ -465,18 +465,18 @@ const handleDialogClose = () => {
 }
 
 .type-card:hover {
-  border-color: #409eff;
+  border-color: var(--el-color-primary);
 }
 
 .type-card:focus-visible {
-  outline: 2px solid #409eff;
+  outline: 2px solid var(--el-color-primary);
   outline-offset: 2px;
 }
 
 .type-card.active {
-  border-color: #409eff;
-  box-shadow: 0 0 0 1px #b3d8ff;
-  background: #ecf5ff;
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-9);
 }
 
 .type-card-name {

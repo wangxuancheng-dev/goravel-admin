@@ -71,7 +71,7 @@ const handleCommand = (command) => {
 
 <style scoped>
 .language-switch {
-  color: #606266;
+  color: var(--text-color-regular);
   display: flex;
   align-items: center;
   justify-content: center;

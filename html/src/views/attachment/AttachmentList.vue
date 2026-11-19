@@ -944,14 +944,14 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #fef0f0;
+  background-color: var(--el-color-danger-light-9);
   border-radius: var(--border-radius-sm);
-  border: 1px solid #fde2e2;
+  border: 1px solid var(--el-color-danger-light-8);
 }
 
 .image-error .el-icon {
   font-size: 20px;
-  color: #f56c6c;
+  color: var(--el-color-danger);
 }
 
 .filename-text {

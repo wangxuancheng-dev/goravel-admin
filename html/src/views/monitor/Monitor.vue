@@ -995,8 +995,8 @@
             </div>
           </template>
           <div class="monitor-content">
-            <div v-if="systemInfo.net?.speed_total_mbps !== undefined" class="monitor-item" style="margin-bottom: 15px; padding: 12px; background: #f5f7fa; border-radius: 8px">
-              <div style="font-size: 13px; color: #606266; margin-bottom: 8px; font-weight: 600">{{ $t('monitor.bandwidth_speed') }}</div>
+            <div v-if="systemInfo.net?.speed_total_mbps !== undefined" class="monitor-item" style="margin-bottom: 15px; padding: 12px; background: var(--el-fill-color-light); border-radius: 8px">
+              <div style="font-size: 13px; color: var(--el-text-color-regular); margin-bottom: 8px; font-weight: 600">{{ $t('monitor.bandwidth_speed') }}</div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px">
                 <span style="font-size: 12px; color: #909399">{{ $t('monitor.current_speed') }}:</span>
                 <span style="font-size: 16px; font-weight: 600; color: var(--el-color-primary)">

@@ -660,7 +660,7 @@ onBeforeUnmount(() => {
 .vxe-table-custom--checkbox-label {
   flex: 1;
   font-size: 13px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -758,17 +758,17 @@ onBeforeUnmount(() => {
 }
 
 .vxe-table-custom--panel-body::-webkit-scrollbar-track {
-  background: #f5f5f5;
+  background: var(--el-fill-color-lighter);
   border-radius: 3px;
 }
 
 .vxe-table-custom--panel-body::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--el-border-color-darker);
   border-radius: 3px;
 }
 
 .vxe-table-custom--panel-body::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--el-text-color-placeholder);
 }
 </style>
 
