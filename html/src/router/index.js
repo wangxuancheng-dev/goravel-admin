@@ -441,28 +441,27 @@ function addDynamicRoutes(menus) {
     return
   }
 
-  // 检查路由是否已存在，避免重复添加
+  // 找到主布局路由（path === '/' 或 name === 'MainLayout'）
   const existingRoutes = router.getRoutes()
+  const mainLayoutRoute = existingRoutes.find(route => route.name === 'MainLayout' || route.path === '/')
+
+  if (!mainLayoutRoute) {
+    logger.error('Main layout route not found')
+    return
+  }
+
+  // 只与主布局下已有子路由比对，避免平台路由（如 /platform/admins）的同名子路径误判为已存在
   const existingPaths = new Set(
     existingRoutes
-      .filter(route => route.path !== '/' && route.path !== '/login')
-      .flatMap(route => route.children || [])
-      .map(child => child.path)
+      .filter(route => route.path !== '/' && route.path.startsWith('/') && !route.path.startsWith('/platform'))
+      .map(route => route.path.slice(1))
   )
 
   // 只添加不存在的路由
   const routesToAdd = dynamicRoutes.filter(route => !existingPaths.has(route.path))
-  
+
   if (routesToAdd.length === 0) {
     logger.debug('All dynamic routes already exist')
-    return
-  }
-
-  // 找到主布局路由（path === '/' 或 name === 'MainLayout'）
-  const mainLayoutRoute = existingRoutes.find(route => route.path === '/' || route.name === 'MainLayout')
-  
-  if (!mainLayoutRoute) {
-    logger.error('Main layout route not found')
     return
   }
 
