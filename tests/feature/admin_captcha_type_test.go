@@ -90,8 +90,10 @@ func TestPlatformSettingsCaptchaType(t *testing.T) {
 	token := loginPlatformSmoke(t)
 	testCase := tests.TestCase{}
 
+	// The test DB is the developer's database: restore whatever type was set, not "image".
+	prevType := services.GetPlatformCaptchaType(context.Background())
 	t.Cleanup(func() {
-		_ = services.SetPlatformCaptchaType(context.Background(), "image")
+		_ = services.SetPlatformCaptchaType(context.Background(), prevType)
 	})
 
 	put := func(body string) (int, map[string]any) {
