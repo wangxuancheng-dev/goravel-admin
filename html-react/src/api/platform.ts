@@ -281,6 +281,10 @@ export function getPlatformTenantOpsSummary() {
   return platformRequest.get('/tenants/ops-summary')
 }
 
+export function impersonatePlatformTenantAdmin(id: number | string, data: { admin_id: number | string; reason: string }) {
+  return platformRequest.post(`/tenants/${id}/impersonate`, data)
+}
+
 export function getPlatformTenantHealthBoard() {
   return platformRequest.get('/tenants/health-board')
 }

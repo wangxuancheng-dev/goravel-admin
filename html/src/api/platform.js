@@ -240,6 +240,10 @@ export function getPlatformTenantOpsSummary() {
   return platformRequest.get('/tenants/ops-summary')
 }
 
+export function impersonatePlatformTenantAdmin(id, data) {
+  return platformRequest.post(`/tenants/${id}/impersonate`, data)
+}
+
 export function getPlatformTenantHealthBoard() {
   return platformRequest.get('/tenants/health-board')
 }

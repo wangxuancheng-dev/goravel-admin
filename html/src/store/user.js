@@ -14,6 +14,8 @@ export const useUserStore = defineStore('user', {
       adminInfo: adminInfo,
       tenant: Storage.getItem('tenantInfo', null),
       entitlements: null,
+      // 平台代管会话信息（来自 /info），非代管为 null
+      impersonation: null,
       permissions: [],
       menus: [], // 菜单不缓存，每次刷新都从服务器重新获取
       isSuperAdmin: false, // 是否是超级管理员
@@ -305,6 +307,7 @@ export const useUserStore = defineStore('user', {
           }
         }
         this.setEntitlements(res.data?.entitlements || null)
+        this.impersonation = res.data?.impersonation || null
         return res
       } catch (error) {
         // fetchUserInfo 失败时，如果旧数据存在，恢复旧数据
@@ -341,6 +344,7 @@ export const useUserStore = defineStore('user', {
         this.adminInfo = null
         this.tenant = null
         this.entitlements = null
+        this.impersonation = null
         this.permissions = []
         this.menus = []
         this.isSuperAdmin = false

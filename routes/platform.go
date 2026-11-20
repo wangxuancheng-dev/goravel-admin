@@ -99,6 +99,7 @@ func Platform() {
 				router.Post("tenants/ops-batch", tenantController.OpsBatch)
 				router.Post("tenants/onboard", tenantController.Onboard)
 				router.Post("tenants/health-inspect", tenantController.HealthInspect)
+				router.Post("tenants/{id}/impersonate", tenantController.Impersonate)
 				router.Post("tenants", tenantController.Store)
 				router.Put("tenants/{id}", tenantController.Update)
 				router.Put("tenants/{id}/status", tenantController.UpdateStatus)

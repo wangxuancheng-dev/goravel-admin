@@ -22,6 +22,52 @@ type tenantAdminUnlockBody struct {
 	Username string `json:"username" form:"username"`
 }
 
+type tenantImpersonateBody struct {
+	AdminID uint   `json:"admin_id" form:"admin_id"`
+	Reason  string `json:"reason" form:"reason"`
+}
+
+// Impersonate issues a one-time ticket to sign in to the tenant admin as one of its admins.
+// The platform operation log records who, which admin (admin_id) and why (reason).
+func (c *TenantController) Impersonate(ctx http.Context) http.Response {
+	tenant, fail := c.loadTenantOrFail(ctx)
+	if fail != nil {
+		return fail
+	}
+	var body tenantImpersonateBody
+	_ = ctx.Request().Bind(&body)
+	if body.AdminID == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrIDRequired.Code)
+	}
+	if strings.TrimSpace(body.Reason) == "" {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
+	}
+	platformAdmin, _ := ctx.Value("platform_admin").(models.PlatformAdmin)
+	if platformAdmin.ID == 0 {
+		return response.Error(ctx, http.StatusUnauthorized, apperrors.ErrUnauthorized.Code)
+	}
+	ticket, target, err := services.IssueImpersonationTicket(tenant, body.AdminID, platformAdmin.ID, platformAdmin.Username, body.Reason)
+	if err != nil {
+		return admin.HandleGeneratedServiceError(ctx, "tenant", http.StatusBadRequest, err, map[string]any{
+			"tenant_id": tenant.ID,
+			"admin_id":  body.AdminID,
+		})
+	}
+	return response.Success(ctx, map[string]any{
+		"ticket":      ticket.Ticket,
+		"tenant_code": ticket.TenantCode,
+		"expires_in":  ticket.ExpiresIn,
+		"url":         ticket.URL,
+		"host":        ticket.Host,
+		"path":        ticket.Path,
+		"admin": map[string]any{
+			"id":       target.ID,
+			"username": target.Username,
+		},
+		"session_minutes": int(services.ImpersonationTTL().Minutes()),
+	})
+}
+
 func (c *TenantController) loadTenantOrFail(ctx http.Context) (*models.Tenant, http.Response) {
 	id := helpers.GetUintRoute(ctx, "id")
 	if id == 0 {

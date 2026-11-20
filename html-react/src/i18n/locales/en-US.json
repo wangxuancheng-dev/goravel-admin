@@ -1368,7 +1368,15 @@
     "expiring_30d": "Expiring in 30 days",
     "filter_plan_none": "No subscription",
     "filter_expiring_7d": "Expiring in 7 days",
-    "filter_expiring_30d": "Expiring in 30 days"
+    "filter_expiring_30d": "Expiring in 30 days",
+    "impersonate": "Sign in as",
+    "impersonate_title": "Sign in to tenant admin as {{username}}",
+    "impersonate_hint": "Opens the tenant admin in a new tab. The session expires automatically and cannot change this account's password or 2FA. This is recorded in both the platform operation log and the tenant login log.",
+    "impersonate_same_browser": "An existing login to this tenant admin in the same browser will be replaced.",
+    "impersonate_reason": "Reason (required)",
+    "impersonate_reason_placeholder": "e.g. Ticket #1234, investigating order data",
+    "impersonate_reason_required": "Please enter a reason",
+    "impersonate_opened": "Opened tenant admin as {{username}} in a new tab"
   },
   "platform": {
     "title": "Tenant Ops",
@@ -1664,7 +1672,8 @@
     "location_refreshed": "Location updated to {{location}}. {{count}} rows with this IP were written.",
     "fill_empty_done": "Filled {{updated}} rows, {{failed}} IPs failed",
     "fill_empty_more": "Some empty locations remain. Click again to continue.",
-    "fill_empty_none": "No empty locations to fill"
+    "fill_empty_none": "No empty locations to fill",
+    "impersonate_login": "Platform support sign-in"
   },
   "monitor_runtime": {
     "health_status": "Health Status",
@@ -1907,7 +1916,9 @@
     "allowlist_not_found": "Allowlist entry not found",
     "revoke_others_success": "Other sessions revoked",
     "allowlist_locks_self": "This change would lock out your current IP ({{ip}}); add it to the allowlist first",
-    "blacklist_locks_self": "Cannot blacklist your current IP ({{ip}})"
+    "blacklist_locks_self": "Cannot blacklist your current IP ({{ip}})",
+    "impersonation_ticket_invalid": "Impersonation link is invalid or expired; start again from the platform console",
+    "impersonation_forbidden": "This action is not allowed in an impersonation session"
   },
   "code_generator": {
     "title": "Code Generator",
@@ -2394,5 +2405,13 @@
     "number": "a number",
     "special": "a special character (e.g. !@#$%)",
     "separator": ", "
+  },
+  "impersonate": {
+    "processing": "Starting support session…",
+    "failed": "Support sign-in failed",
+    "banner": "Platform support session: {{operator}} is acting as {{username}}",
+    "remaining": "{{time}} left",
+    "expired": "Support session expired",
+    "exit": "Exit support session"
   }
 }

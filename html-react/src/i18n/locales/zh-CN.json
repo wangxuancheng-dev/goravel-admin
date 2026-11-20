@@ -1372,7 +1372,15 @@
     "expiring_30d": "30天内到期",
     "filter_plan_none": "无订阅租户",
     "filter_expiring_7d": "7天内到期",
-    "filter_expiring_30d": "30天内到期"
+    "filter_expiring_30d": "30天内到期",
+    "impersonate": "以此身份登录",
+    "impersonate_title": "以 {{username}} 身份登录租户后台",
+    "impersonate_hint": "将在新标签页打开租户后台。会话限时自动失效，期间不能修改该账号的密码或 2FA。本次操作会同时记录到平台操作日志和租户登录日志。",
+    "impersonate_same_browser": "同一浏览器中该租户后台原有的登录会被替换。",
+    "impersonate_reason": "原因（必填）",
+    "impersonate_reason_placeholder": "例如：工单 #1234，协助排查订单数据",
+    "impersonate_reason_required": "请填写原因",
+    "impersonate_opened": "已在新标签页以 {{username}} 身份打开租户后台"
   },
   "platform": {
     "title": "租户运维",
@@ -1668,7 +1676,8 @@
     "location_refreshed": "地点已更新为 {{location}}，同 IP 空记录共写入 {{count}} 条",
     "fill_empty_done": "已补全 {{updated}} 条，失败 {{failed}} 个 IP",
     "fill_empty_more": "仍有地点为空的记录，可再次点击继续",
-    "fill_empty_none": "没有需要补全的空地点"
+    "fill_empty_none": "没有需要补全的空地点",
+    "impersonate_login": "平台代管登录"
   },
   "monitor_runtime": {
     "health_status": "健康状态",
@@ -1911,7 +1920,9 @@
     "allowlist_not_found": "白名单不存在",
     "revoke_others_success": "已踢出其他会话",
     "allowlist_locks_self": "变更后当前 IP（{{ip}}）将无法访问，请先加入白名单",
-    "blacklist_locks_self": "不能将当前 IP（{{ip}}）加入黑名单"
+    "blacklist_locks_self": "不能将当前 IP（{{ip}}）加入黑名单",
+    "impersonation_ticket_invalid": "代管登录链接无效或已过期，请回到运维平台重新发起",
+    "impersonation_forbidden": "代管会话不允许此操作"
   },
   "code_generator": {
     "title": "代码生成器",
@@ -2398,5 +2409,13 @@
     "number": "数字",
     "special": "特殊符号（如 !@#$%）",
     "separator": "、"
+  },
+  "impersonate": {
+    "processing": "正在进入代管会话…",
+    "failed": "代管登录失败",
+    "banner": "平台代管中：{{operator}} 正以 {{username}} 身份操作",
+    "remaining": "剩余 {{time}}",
+    "expired": "代管会话已到期",
+    "exit": "退出代管"
   }
 }

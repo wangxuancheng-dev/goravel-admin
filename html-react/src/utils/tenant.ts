@@ -173,6 +173,20 @@ export function withTenantQuery(url: string): string {
 }
 
 /**
+ * Absolute URL of the impersonation landing page from the platform's ticket response.
+ * Uses this console's scheme and port, so http and dev ports work too (the backend's
+ * `url` always says https). No host: open on this origin (tenant picked by tenant_code).
+ */
+export function buildImpersonationOpenUrl(data: { host?: string; path?: string; url?: string } | undefined): string {
+  const path = String(data?.path || '').trim()
+  if (!path) return String(data?.url || '').trim()
+  const host = String(data?.host || '').trim()
+  if (!host) return new URL(path, window.location.origin).toString()
+  const port = !host.includes(':') && window.location.port ? `:${window.location.port}` : ''
+  return `${window.location.protocol}//${host}${port}${path}`
+}
+
+/**
  * URL for "back to tenant admin login" from the platform console.
  * Prefer VITE_TENANT_DEMO_LOGIN_URL; hosted demo host falls back to the public tenant demo.
  */

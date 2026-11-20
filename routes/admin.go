@@ -66,13 +66,15 @@ func Admin() {
 				router.Get("auth/oidc", oidcController.Config)
 				router.Get("auth/oidc/redirect", oidcController.Redirect)
 				router.Get("public/images/{id}", attachmentController.PublicPreview)
+				// Platform support impersonation: redeem the one-time ticket for a tenant-bound session.
+				router.Middleware(httpmiddleware.Throttle("login")).Post("auth/impersonate", adminAuthController.ImpersonateExchange)
 			})
 			// OIDC callback: IdP browser GET has no tenant header/host; bind from state inside handler.
 			router.Middleware(middleware.Blacklist()).Get("auth/oidc/callback", oidcController.Callback)
 		})
 
 		// 已登录：Tenant → Allowlist → Blacklist → Jwt → 强制改密门禁
-		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Allowlist(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange()).Group(func(router route.Router) {
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Allowlist(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange(), middleware.ImpersonationGuard()).Group(func(router route.Router) {
 			// 认证相关
 			router.Get("info", adminAuthController.Info)
 			router.Get("entitlements/me", entitlementController.Me)
@@ -120,7 +122,7 @@ func Admin() {
 		})
 
 		// 业务 CRUD：Tenant → Allowlist → Blacklist → Jwt → 强制改密 → 角色限流 → Permission
-		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Allowlist(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange(), httpmiddleware.Throttle("adminApi"), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
+		router.Middleware(middleware.Lang(), middleware.Tenant(), middleware.Allowlist(), middleware.Blacklist(), middleware.Jwt(), middleware.ForcePasswordChange(), middleware.ImpersonationGuard(), httpmiddleware.Throttle("adminApi"), middleware.ApiMetric(), middleware.Permission(), middleware.OperationLog()).Group(func(router route.Router) {
 
 			router.Put("profile", adminAuthController.UpdateProfile)
 

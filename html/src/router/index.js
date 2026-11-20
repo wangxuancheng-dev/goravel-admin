@@ -78,6 +78,12 @@ const staticRoutes = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/login/impersonate',
+    name: 'ImpersonateLogin',
+    component: () => lazyLoad(() => import('../views/ImpersonateLogin.vue')),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/login/oidc-callback',
     name: 'OidcCallback',
     component: () => lazyLoad(() => import('../views/OidcCallback.vue')),
@@ -520,6 +526,11 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.meta.requiresAuth === false) {
+    // 代管落地页自行替换现有会话，不能因已登录被重定向而丢掉票据
+    if (to.name === 'ImpersonateLogin') {
+      next()
+      return
+    }
     // 登录页面，如果已登录则跳转到首页
     if (userStore.isLoggedIn) {
       next('/')

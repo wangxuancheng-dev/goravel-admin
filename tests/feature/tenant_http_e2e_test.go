@@ -54,6 +54,12 @@ func tenantAdminCall(t *testing.T, tenantCode, token, method, uri, body string) 
 		resp, e := req.Put(uri, strings.NewReader(body))
 		require.NoError(t, e)
 		content, err = resp.Content()
+	case "DELETE":
+		resp, e := req.Delete(uri, strings.NewReader(body))
+		require.NoError(t, e)
+		content, err = resp.Content()
+	default:
+		t.Fatalf("tenantAdminCall: unsupported method %s", method)
 	}
 	require.NoError(t, err)
 	var payload map[string]any

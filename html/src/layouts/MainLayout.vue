@@ -24,6 +24,8 @@
         @lock-screen="handleLockScreen"
       />
 
+      <ImpersonationBanner />
+
       <LayoutTopMenu
         :is-mobile="isMobile"
         :menu-mode="appStore.menuMode"
@@ -112,6 +114,7 @@ import LayoutSidebar from './components/LayoutSidebar.vue'
 import LayoutHeader from './components/LayoutHeader.vue'
 import LayoutTopMenu from './components/LayoutTopMenu.vue'
 import LayoutLockScreen from './components/LayoutLockScreen.vue'
+import ImpersonationBanner from './components/ImpersonationBanner.vue'
 import { useResponsive } from '@/composables/useResponsive'
 import { useLayoutWebsite } from '@/composables/useLayoutWebsite'
 import { useLayoutMenu } from '@/composables/useLayoutMenu'

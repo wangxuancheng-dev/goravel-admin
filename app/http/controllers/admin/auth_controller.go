@@ -373,6 +373,82 @@ func (r *AuthController) Login(ctx http.Context) http.Response {
 	})
 }
 
+type impersonateExchangeBody struct {
+	Ticket string `json:"ticket" form:"ticket"`
+}
+
+// ImpersonateExchange redeems a platform-issued one-time ticket for an impersonation
+// session (hard TTL, see services.ImpersonationTTL). The tenant comes from the Tenant
+// middleware and must match the ticket.
+func (r *AuthController) ImpersonateExchange(ctx http.Context) http.Response {
+	var body impersonateExchangeBody
+	_ = ctx.Request().Bind(&body)
+	tenantID, ok := tenancyctx.IDFrom(ctx)
+	if !tenancy.Enabled() || !ok || tenantID == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrImpersonationTicketInvalid.Code)
+	}
+	payload, err := services.RedeemImpersonationTicket(body.Ticket, tenantID)
+	if err != nil {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrImpersonationTicketInvalid.Code)
+	}
+
+	var admin models.Admin
+	if err := appfacades.OrmQuery(ctx).Where("id", payload.AdminID).First(&admin); err != nil {
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
+			"admin_id": payload.AdminID,
+		})
+	}
+	if admin.ID == 0 {
+		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrAdminNotFound.Code)
+	}
+	if admin.Status != 1 {
+		return response.Error(ctx, http.StatusForbidden, apperrors.ErrAccountDisabled.Code)
+	}
+
+	browser, osName := helpers.GetBrowserAndOS(ctx)
+	expiresAt := time.Now().Add(services.ImpersonationTTL())
+	token, _, err := services.NewTokenServiceImpl(ctx).CreateToken(
+		"admin",
+		admin.ID,
+		services.ImpersonationTokenName(payload.PlatformAdminID, payload.PlatformUsername),
+		&expiresAt,
+		browser,
+		helpers.GetRealIP(ctx),
+		osName,
+		"",
+	)
+	if err != nil {
+		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
+			"admin_id": admin.ID,
+		})
+	}
+
+	// Tenant-side audit trail: who from the platform signed in as this admin, and why.
+	auditRaw, _ := json.Marshal(map[string]any{
+		"platform_admin_id": payload.PlatformAdminID,
+		"platform_username": payload.PlatformUsername,
+		"reason":            payload.Reason,
+	})
+	_ = r.authService(ctx).RecordLoginLog(ctx, admin.ID, admin.Username, 1, "impersonate_login", string(auditRaw))
+
+	return response.SuccessWithHeader(ctx, "login_success", "Authorization", "Bearer "+token, http.Json{
+		"token": token,
+		"admin": http.Json{
+			"id":       admin.ID,
+			"username": admin.Username,
+			"nickname": admin.Nickname,
+			"avatar":   admin.Avatar,
+			// Impersonation is exempt from the forced password change.
+			"must_change_password": false,
+		},
+		"impersonation": http.Json{
+			"platform_admin_id": payload.PlatformAdminID,
+			"platform_username": payload.PlatformUsername,
+			"expires_at":        expiresAt,
+		},
+	})
+}
+
 // Captcha 获取登录验证码
 // Query check=1：仅返回是否开启，不生成图片（避免登录页探测时产生无用 captcha）
 func (r *AuthController) Captcha(ctx http.Context) http.Response {
@@ -534,6 +610,13 @@ func (r *AuthController) Info(ctx http.Context) http.Response {
 			"tenancy_enabled":                 tenancy.Enabled(),
 			"password_policy":                 services.ResolvePasswordPolicy(ctx).ToJSON(),
 		},
+	}
+	if accessToken, ok := ctx.Value("token").(*models.PersonalAccessToken); ok {
+		if info := services.ParseImpersonationToken(accessToken); info != nil {
+			payload["impersonation"] = info
+			// ForcePasswordChange is skipped for impersonation; keep the SPA from redirecting.
+			payload["admin"].(http.Json)["must_change_password"] = false
+		}
 	}
 	if tenancy.Enabled() {
 		if tenantInfo := currentTenantInfoForAdmin(ctx); tenantInfo != nil {

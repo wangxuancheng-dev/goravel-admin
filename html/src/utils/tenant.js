@@ -54,6 +54,20 @@ export function clearTenantCode() {
 }
 
 /**
+ * Absolute URL of the impersonation landing page from the platform's ticket response.
+ * Uses this console's scheme and port, so http and dev ports work too (the backend's
+ * `url` always says https). No host: open on this origin (tenant picked by tenant_code).
+ */
+export function buildImpersonationOpenUrl(data) {
+  const path = String(data?.path || '').trim()
+  if (!path) return String(data?.url || '').trim()
+  const host = String(data?.host || '').trim()
+  if (!host) return new URL(path, window.location.origin).toString()
+  const port = !host.includes(':') && window.location.port ? `:${window.location.port}` : ''
+  return `${window.location.protocol}//${host}${port}${path}`
+}
+
+/**
  * Admin login path; keep tenant_code on logout/401 so re-login does not lose the hint.
  * Pass an explicit code when calling after clearTenantCode().
  * On a tenant subdomain, plain /login is enough (Host/Origin bind on the API).

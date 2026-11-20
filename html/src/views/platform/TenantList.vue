@@ -622,9 +622,10 @@
         <el-table-column prop="is_2fa_bound" :label="$t('admin.is_2fa_bound')" width="90">
           <template #default="{ row }">{{ row.is_2fa_bound ? $t('common.yes') : $t('common.no') }}</template>
         </el-table-column>
-        <el-table-column :label="$t('common.operation')" width="280">
+        <el-table-column :label="$t('common.operation')" width="340">
           <template #default="{ row }">
             <template v-if="isOwner">
+              <el-button v-if="row.status === 1" link type="primary" @click="onImpersonateTenantAdmin(row)">{{ $t('tenant.impersonate') }}</el-button>
               <el-button link type="primary" @click="onResetTenantAdminPwd(row)">{{ $t('admin.reset_password') }}</el-button>
               <el-button link type="primary" @click="onUnlockTenantAdmin(row)">{{ $t('tenant.unlock_admin') }}</el-button>
               <el-button v-if="row.is_2fa_bound" link type="danger" @click="onResetTenantAdmin2FA(row)">{{ $t('admin.reset_2fa') }}</el-button>
@@ -799,6 +800,7 @@ import {
   getPlatformTenantAdmins,
   getPlatformTenantAuditSummary,
   resetPlatformTenantAdminPassword,
+  impersonatePlatformTenantAdmin,
   unlockPlatformTenantAdmin,
   resetPlatformTenantAdmin2FA,
   listPlatformTenantBackups,
@@ -818,6 +820,7 @@ import {
   updatePlatformTenantStatus
 } from '@/api/platform'
 import { isPlatformOwner } from '@/utils/platformRequest'
+import { buildImpersonationOpenUrl } from '@/utils/tenant'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -2303,6 +2306,54 @@ const openSupport = async (row) => {
     ElMessage.error(t('common.operation_failed'))
   } finally {
     supportLoading.value = false
+  }
+}
+
+const onImpersonateTenantAdmin = async (adminRow) => {
+  const username = String(adminRow.username || '')
+  try {
+    await ElMessageBox.prompt(
+      `${t('tenant.impersonate_hint')} ${t('tenant.impersonate_same_browser')}`,
+      t('tenant.impersonate_title', { username }),
+      {
+        inputType: 'textarea',
+        inputPlaceholder: t('tenant.impersonate_reason_placeholder'),
+        inputValidator: (v) => !!String(v || '').trim() || t('tenant.impersonate_reason_required'),
+        // Runs inside the OK click (after validation): open the tab now, since popup
+        // blockers reject window.open once an await has passed.
+        beforeClose: async (action, instance, done) => {
+          if (action !== 'confirm') {
+            done()
+            return
+          }
+          const win = window.open('about:blank', '_blank')
+          instance.confirmButtonLoading = true
+          try {
+            const res = await impersonatePlatformTenantAdmin(supportRow.value.id, {
+              admin_id: adminRow.id,
+              reason: String(instance.inputValue || '').trim().slice(0, 200)
+            })
+            const url = buildImpersonationOpenUrl(res?.data)
+            if (!url) throw new Error('no url')
+            if (win) {
+              win.opener = null
+              win.location.href = url
+            } else {
+              window.open(url, '_blank', 'noopener')
+            }
+            ElMessage.success(t('tenant.impersonate_opened', { username }))
+            done()
+          } catch (e) {
+            win?.close()
+            if (!e?.__handled) ElMessage.error(e?.message || t('common.operation_failed'))
+          } finally {
+            instance.confirmButtonLoading = false
+          }
+        }
+      }
+    )
+  } catch (e) {
+    if (e === 'cancel' || e === 'close') return
   }
 }
 

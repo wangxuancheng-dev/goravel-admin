@@ -309,6 +309,8 @@ func PlatformOperationTitle(method, path string) string {
 		return "platform.tenant.admin.reset_password"
 	case strings.HasSuffix(path, "/admins/unlock") && strings.Contains(path, "/tenants/") && method == "POST":
 		return "platform.tenant.admin.unlock"
+	case strings.HasSuffix(path, "/impersonate") && strings.Contains(path, "/tenants/") && method == "POST":
+		return "platform.tenant.impersonate"
 	case strings.HasSuffix(path, "/reset-2fa") && strings.Contains(path, "/tenants/") && method == "POST":
 		return "platform.tenant.admin.reset_2fa"
 	case strings.HasSuffix(path, "/retry") && strings.Contains(path, "/alert-deliveries/") && method == "POST":

@@ -18,6 +18,7 @@ import logger from '@/utils/logger'
 // "Failed to fetch dynamically imported module ...?t=...".
 import LoginPage from '../pages/Login'
 import OidcCallbackPage from '../pages/OidcCallback'
+import ImpersonateLoginPage from '../pages/ImpersonateLogin'
 import MainLayout from '../layouts/MainLayout'
 import DashboardPage from '../pages/Dashboard'
 import ProfilePage from '../pages/profile/Profile'
@@ -154,6 +155,12 @@ function buildRouter(dynamicChildren: ReturnType<typeof convertMenusToRoutes>) {
     {
       path: '/login/oidc-callback',
       element: <OidcCallbackPage />,
+      errorElement: <RouteErrorFallback />,
+      handle: { requiresAuth: false },
+    },
+    {
+      path: '/login/impersonate',
+      element: <ImpersonateLoginPage />,
       errorElement: <RouteErrorFallback />,
       handle: { requiresAuth: false },
     },

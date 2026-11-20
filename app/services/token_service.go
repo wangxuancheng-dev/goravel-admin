@@ -249,7 +249,8 @@ func (s *TokenServiceImpl) Touch(accessToken *models.PersonalAccessToken, ttl ti
 	}
 
 	values := map[string]any{"last_used_at": now}
-	if accessToken.ExpiresAt != nil && ttl > 0 {
+	// Impersonation sessions have a hard end; activity must not extend them.
+	if accessToken.ExpiresAt != nil && ttl > 0 && !IsImpersonationTokenName(accessToken.Name) {
 		values["expires_at"] = now.Add(ttl)
 	}
 	_, err := s.query().

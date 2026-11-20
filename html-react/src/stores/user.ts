@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { compact, map } from 'lodash-es'
-import { getInfo, logout as logoutApi } from '@/api/auth'
+import { getInfo, logout as logoutApi, type ImpersonationInfo } from '@/api/auth'
 import Storage from '@/utils/storage'
 import logger from '@/utils/logger'
 import { DEFAULT_PASSWORD_POLICY, normalizePasswordPolicy } from '@/utils/passwordPolicy'
@@ -65,6 +65,8 @@ interface UserState {
   adminInfo: AdminInfo | null
   tenant: CurrentTenantInfo | null
   entitlements: EntitlementsView | null
+  /** Set when this session is a platform support impersonation (from /info). */
+  impersonation: ImpersonationInfo | null
   permissions: string[]
   menus: MenuNode[]
   isSuperAdmin: boolean
@@ -98,6 +100,7 @@ export const useUserStore = create<UserState>((set, get) => {
     adminInfo: cachedAdmin,
     tenant: Storage.getItem<CurrentTenantInfo>('tenantInfo', null),
     entitlements: null,
+    impersonation: null,
     permissions: [],
     menus: [],
     isSuperAdmin: false,
@@ -333,6 +336,9 @@ export const useUserStore = create<UserState>((set, get) => {
           ?.entitlements
         get().setEntitlements(entitlementsPayload)
 
+        const impersonation = (res.data as { impersonation?: ImpersonationInfo | null } | undefined)?.impersonation
+        set({ impersonation: impersonation || null })
+
         return res
       } catch (error) {
         if (oldMenus.length > 0 && !force) {
@@ -365,6 +371,7 @@ export const useUserStore = create<UserState>((set, get) => {
           adminInfo: null,
           tenant: null,
           entitlements: null,
+          impersonation: null,
           permissions: [],
           menus: [],
           isSuperAdmin: false,

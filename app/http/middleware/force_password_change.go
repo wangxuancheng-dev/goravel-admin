@@ -32,7 +32,9 @@ func ForcePasswordChange() http.Middleware {
 			return
 		}
 
-		if mustChange != 1 {
+		// Impersonation sessions may not change the admin's password (ImpersonationGuard),
+		// so forcing them to would lock support out of the tenant entirely.
+		if mustChange != 1 || isImpersonationRequest(ctx) {
 			ctx.Request().Next()
 			return
 		}

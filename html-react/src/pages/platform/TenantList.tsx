@@ -47,6 +47,7 @@ import {
   getPlatformTenantAdmins,
   getPlatformTenantAuditSummary,
   resetPlatformTenantAdminPassword,
+  impersonatePlatformTenantAdmin,
   unlockPlatformTenantAdmin,
   resetPlatformTenantAdmin2FA,
   listPlatformTenantBackups,
@@ -65,6 +66,7 @@ import {
   updatePlatformTenantMaintenance,
   updatePlatformTenantStatus,
 } from '@/api/platform'
+import { buildImpersonationOpenUrl } from '@/utils/tenant'
 import { useListPage } from '@/hooks/useListPage'
 import { handlePaginatedTableChange } from '@/utils/tableChange'
 import { useUnhandledError } from '@/hooks/useUnhandledError'
@@ -2538,10 +2540,71 @@ export default function PlatformTenantList() {
                 {
                   title: t('common.operation'),
                   key: 'actions',
-                  width: 280,
+                  width: 340,
                   render: (_: unknown, adminRow) =>
                     isOwner ? (
                       <Space size={0} wrap>
+                        {adminRow.status === 1 ? (
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => {
+                              let reason = ''
+                              const username = String(adminRow.username || '')
+                              modal.confirm({
+                                title: t('tenant.impersonate_title', { username }),
+                                width: 480,
+                                content: (
+                                  <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                                    <Typography.Text type="secondary">{t('tenant.impersonate_hint')}</Typography.Text>
+                                    <Typography.Text type="secondary">{t('tenant.impersonate_same_browser')}</Typography.Text>
+                                    <Input.TextArea
+                                      rows={3}
+                                      maxLength={200}
+                                      showCount
+                                      placeholder={t('tenant.impersonate_reason_placeholder')}
+                                      aria-label={t('tenant.impersonate_reason')}
+                                      onChange={(e) => {
+                                        reason = e.target.value
+                                      }}
+                                    />
+                                  </Space>
+                                ),
+                                onOk: async () => {
+                                  if (!supportRow) return
+                                  if (!reason.trim()) {
+                                    message.warning(t('tenant.impersonate_reason_required'))
+                                    throw new Error('reason required')
+                                  }
+                                  // Open the tab inside the click: after an await, popup blockers kick in.
+                                  const win = window.open('about:blank', '_blank')
+                                  try {
+                                    const res = await impersonatePlatformTenantAdmin(supportRow.id, {
+                                      admin_id: adminRow.id,
+                                      reason: reason.trim(),
+                                    })
+                                    const url = buildImpersonationOpenUrl(
+                                      (res as { data?: { host?: string; path?: string; url?: string } })?.data,
+                                    )
+                                    if (!url) throw new Error('no url')
+                                    if (win) {
+                                      win.opener = null
+                                      win.location.href = url
+                                    } else {
+                                      window.open(url, '_blank', 'noopener')
+                                    }
+                                    message.success(t('tenant.impersonate_opened', { username }))
+                                  } catch (e) {
+                                    win?.close()
+                                    throw e
+                                  }
+                                },
+                              })
+                            }}
+                          >
+                            {t('tenant.impersonate')}
+                          </Button>
+                        ) : null}
                         <Button
                           type="link"
                           size="small"

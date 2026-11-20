@@ -221,6 +221,8 @@ var (
 	ErrTenantNotFound              = NewBusinessError("tenant_not_found", "租户不存在")
 	ErrTenantDisabled              = NewBusinessError("tenant_disabled", "租户已禁用")
 	ErrTenantMaintenance           = NewBusinessError("tenant_maintenance", "租户维护中，请稍后再试")
+	ErrImpersonationTicketInvalid  = NewBusinessError("impersonation_ticket_invalid", "代管登录链接无效或已过期，请回到运维平台重新发起")
+	ErrImpersonationForbidden      = NewBusinessError("impersonation_forbidden", "代管会话不允许此操作")
 	ErrTenantConnectionFailed      = NewBusinessError("tenant_connection_failed", "租户数据库连接失败")
 	ErrTenantLookupFailed          = NewBusinessError("tenant_lookup_failed", "暂时无法读取租户信息，请稍后重试")
 	ErrTenancyDisabled             = NewBusinessError("tenancy_disabled", "未开启多租户（TENANCY_DRIVER=database）")

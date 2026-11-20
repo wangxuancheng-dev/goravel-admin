@@ -7,6 +7,7 @@ import LayoutSidebar from './components/LayoutSidebar'
 import LayoutTopMenu from './components/LayoutTopMenu'
 import LayoutLockScreen from './components/LayoutLockScreen'
 import TabsView from './components/TabsView'
+import ImpersonationBanner from './components/ImpersonationBanner'
 import { useAppStore } from '@/stores/app'
 import { useUserStore } from '@/stores/user'
 import { useTabsStore } from '@/stores/tabs'
@@ -88,6 +89,7 @@ export default function MainLayout() {
           isXs={isXs}
           onOpenDrawer={() => setDrawerOpen(true)}
         />
+        <ImpersonationBanner />
         {isTopMenu ? <LayoutTopMenu /> : null}
         {!isMobile ? <TabsView /> : null}
         {/*

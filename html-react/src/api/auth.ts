@@ -9,6 +9,21 @@ export function login(data: LoginPayload) {
   }) as Promise<ApiResponse<{ token?: string; admin?: unknown }>>
 }
 
+export interface ImpersonationInfo {
+  platform_admin_id: number
+  platform_username: string
+  expires_at: string | null
+}
+
+/** Redeem a platform-issued one-time ticket (tenant from header/host). */
+export function exchangeImpersonationTicket(ticket: string) {
+  return request({
+    url: '/auth/impersonate',
+    method: 'post',
+    data: { ticket },
+  }) as Promise<ApiResponse<{ token?: string; admin?: unknown; impersonation?: ImpersonationInfo }>>
+}
+
 export function getInfo() {
   return request({
     url: '/info',

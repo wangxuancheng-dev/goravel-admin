@@ -9,6 +9,15 @@ export function login(data) {
   })
 }
 
+// 平台代管：用一次性票据换取租户会话（租户由 header/host 解析）
+export function exchangeImpersonationTicket(ticket) {
+  return request({
+    url: '/auth/impersonate',
+    method: 'post',
+    data: { ticket }
+  })
+}
+
 // 获取当前用户信息
 export function getInfo() {
   return request({

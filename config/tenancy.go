@@ -37,6 +37,8 @@ func init() {
 		// tenant:backup keep count (0 = never prune). TENANCY_BACKUP_KEEP is the name the
 		// docs used to give; it is still honoured when TENANT_BACKUP_KEEP is unset.
 		"backup_keep": config.Env("TENANT_BACKUP_KEEP", config.Env("TENANCY_BACKUP_KEEP", 10)),
+		// Platform "sign in as tenant admin" session length (hard cap, never extended).
+		"impersonate_ttl_minutes": config.Env("TENANCY_IMPERSONATE_TTL_MINUTES", 30),
 		// Disk of config/filesystems.go (s3 / oss / cos / minio ...) tenant backups are
 		// uploaded to (tenant-backups/{code}/), so every instance sees the same files.
 		// Empty: kept in storage/backups/tenants/{code}/ on the host that ran the backup.
