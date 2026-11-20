@@ -16,6 +16,8 @@ export interface OperationLogRow {
   response?: unknown
   changes?: Array<{ field?: string; old?: unknown; new?: unknown }> | null
   name?: string
+  /** Platform account (username) that acted via "sign in as tenant admin"; empty = the admin. */
+  impersonator?: string
 }
 
 export interface OperationLogChange {
@@ -33,6 +35,7 @@ export function createOperationLogInitialSearchForm() {
     ip: '',
     status: '',
     request: '',
+    impersonated: '',
     start_time: getSevenDaysAgo(),
     end_time: '',
   }
@@ -76,7 +79,16 @@ export function transformOperationLogRow(log: Record<string, unknown>): Operatio
     response: log.response || null,
     changes,
     name: String(log.title || ''),
+    impersonator: impersonatorName(log.impersonator),
   }
+}
+
+/** Stored as "<platform_username>#<platform_admin_id>"; show the username. */
+export function impersonatorName(raw: unknown): string {
+  const value = String(raw || '').trim()
+  if (!value) return ''
+  const hash = value.lastIndexOf('#')
+  return hash > 0 ? value.slice(0, hash) : value
 }
 
 export function hasRequestParams(request: unknown): boolean {
@@ -191,6 +203,17 @@ export function createOperationLogSearchFields(
       ],
     },
     { name: 'request', label: t('log.request_params'), span: 6, advanced: true },
+    {
+      name: 'impersonated',
+      label: t('log.impersonated'),
+      type: 'select',
+      span: 6,
+      advanced: true,
+      options: [
+        { label: t('log.impersonated_only'), value: '1' },
+        { label: t('log.own_only'), value: '0' },
+      ],
+    },
     { name: 'start_time', label: t('log.start_time'), type: 'datetime', span: 6, advanced: true },
     { name: 'end_time', label: t('log.end_time'), type: 'datetime', span: 6, advanced: true },
   ]

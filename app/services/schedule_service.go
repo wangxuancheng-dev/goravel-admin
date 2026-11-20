@@ -249,6 +249,7 @@ func isLandlordOnlyScheduleCommand(command string) bool {
 	case "flexible-schedule:tick",
 		"tenant:cleanup-deleted",
 		"tenant:health-inspect",
+		"tenant:subscription-expiry",
 		"tenant:backup-scheduled",
 		"queue:alert-backlog":
 		return true

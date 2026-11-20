@@ -46,6 +46,9 @@ type OperationLogFilters struct {
 	StartTime string
 	EndTime   string
 	OrderBy   string
+	// Impersonated: "1" = only rows written by a platform account via "sign in as
+	// tenant admin", "0" = only the admins' own actions, "" = all.
+	Impersonated string
 }
 
 func BuildOperationLogFiltersFromHTTP(ctx http.Context) OperationLogFilters {
@@ -62,6 +65,8 @@ func BuildOperationLogFiltersFromHTTP(ctx http.Context) OperationLogFilters {
 		StartTime: helpers.GetTimeInputOrQueryParam(ctx, "start_time"),
 		EndTime:   helpers.GetTimeInputOrQueryParam(ctx, "end_time"),
 		OrderBy:   ctx.Request().Query("order_by", ""),
+
+		Impersonated: ctx.Request().Query("impersonated", ""),
 	}
 }
 
@@ -140,6 +145,12 @@ func (s *OperationLogServiceImpl) GetList(filters OperationLogFilters, page, pag
 	}
 	if filters.EndTime != "" {
 		query = query.Where("created_at <= ?", filters.EndTime)
+	}
+	switch filters.Impersonated {
+	case "1":
+		query = query.Where("impersonator <> ''")
+	case "0":
+		query = query.Where("impersonator = ''")
 	}
 
 	query = rbac.ApplyDataScope(s.ctx, query, rbac.DataScopeApplyOpts{Mode: rbac.DataScopeModeAdmin, AdminColumn: "admin_id"})
@@ -226,7 +237,7 @@ func (s *OperationLogServiceImpl) Archive(days int) (uint, error) {
 
 	headers := []string{
 		"id", "admin_id", "trace_id", "method", "path", "title", "ip",
-		"user_agent", "request", "response", "changes", "status", "error_msg", "duration", "created_at",
+		"user_agent", "request", "response", "changes", "status", "error_msg", "duration", "created_at", "impersonator",
 	}
 	data := make([][]string, 0, len(logs))
 	for _, log := range logs {
@@ -250,6 +261,7 @@ func (s *OperationLogServiceImpl) Archive(days int) (uint, error) {
 			log.ErrorMsg,
 			fmt.Sprintf("%d", log.Duration),
 			createdAt,
+			log.Impersonator,
 		})
 	}
 
@@ -319,7 +331,7 @@ func (s *OperationLogServiceImpl) ExportOlderThan(days int) (uint, error) {
 
 	headers := []string{
 		"id", "admin_id", "trace_id", "method", "path", "title", "ip",
-		"user_agent", "request", "response", "changes", "status", "error_msg", "duration", "created_at",
+		"user_agent", "request", "response", "changes", "status", "error_msg", "duration", "created_at", "impersonator",
 	}
 	data := make([][]string, 0, len(logs))
 	for _, log := range logs {
@@ -343,6 +355,7 @@ func (s *OperationLogServiceImpl) ExportOlderThan(days int) (uint, error) {
 			log.ErrorMsg,
 			fmt.Sprintf("%d", log.Duration),
 			createdAt,
+			log.Impersonator,
 		})
 	}
 

@@ -30,6 +30,11 @@
     >
       <template #admin="{ row }">
         {{ row.admin?.username || '-' }}
+        <div v-if="row.impersonator">
+          <el-tag type="warning" size="small" effect="plain" class="impersonator-tag">
+            {{ $t('log.impersonated_by', { name: row.impersonator }) }}
+          </el-tag>
+        </div>
       </template>
 
       <template #title="{ row }">
@@ -81,7 +86,12 @@
     <el-dialog v-model="detailVisible" :title="$t('log.detail')" width="1100px">
       <el-descriptions v-if="logDetail" :column="2" border>
         <el-descriptions-item :label="$t('table.id')">{{ logDetail.id }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('log.admin')">{{ logDetail.admin?.username }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('log.admin')">
+          {{ logDetail.admin?.username }}
+          <el-tag v-if="logDetail.impersonator" type="warning" size="small" effect="plain" style="margin-left: 8px">
+            {{ $t('log.impersonated_by', { name: logDetail.impersonator }) }}
+          </el-tag>
+        </el-descriptions-item>
         <el-descriptions-item :label="$t('log.method')">{{ logDetail.method }}</el-descriptions-item>
         <el-descriptions-item :label="$t('log.path')">{{ logDetail.path }}</el-descriptions-item>
         <el-descriptions-item :label="$t('log.ip')">{{ logDetail.ip }}</el-descriptions-item>
@@ -362,6 +372,9 @@ pre {
   overflow-x: auto;
 }
 
+.impersonator-tag {
+  margin-top: 4px;
+}
 .request-params-cell {
   display: flex;
   align-items: center;

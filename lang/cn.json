@@ -429,5 +429,17 @@
     },
     "tenant_storage_not_configured": "租户自定义对象存储未配置完整",
     "tenant_storage_secret_corrupt": "租户对象存储密钥密文无效，请重新设置",
-    "tenant_storage_invalid_driver": "租户自定义存储驱动无效，仅支持 s3/oss/cos/minio"
+    "tenant_storage_invalid_driver": "租户自定义存储驱动无效，仅支持 s3/oss/cos/minio",
+    "subscription": {
+        "expiring_title": "套餐即将到期",
+        "expiring_content": "您的套餐「:plan」将于 :date 到期（剩余约 :days 天）。请及时联系平台续费，以免影响使用。",
+        "ended_title": "套餐已到期",
+        "grace_content": "您的套餐「:plan」已于 :date 到期，宽限期至 :grace，届时:after。请尽快联系平台续费。",
+        "ended_notify_content": "您的套餐「:plan」已于 :date 到期，请尽快联系平台续费。",
+        "after_downgrade": "将切换为默认套餐，部分功能可能不可用",
+        "after_suspend": "租户将被停用，所有账号无法登录",
+        "expired_title": "套餐已到期",
+        "expired_content_downgrade": "您的套餐「:plan」已于 :date 到期，现已切换为默认套餐，部分功能可能不可用。续费请联系平台。",
+        "expired_content_suspend": "您的套餐「:plan」已于 :date 到期，租户即将停用。续费后请联系平台恢复。"
+    }
 }

@@ -429,5 +429,17 @@
         "allowlist_locks_self": "This change would lock out your current IP ({ip}); add it to the allowlist first",
         "blacklist_locks_self": "Cannot blacklist your current IP ({ip})",
         "system_table_not_allowed": "System / built-in tables cannot be used in the code generator"
+    },
+    "subscription": {
+        "expiring_title": "Your plan is about to expire",
+        "expiring_content": "Your plan \":plan\" expires on :date (about :days day(s) left). Please contact the platform to renew.",
+        "ended_title": "Your plan has expired",
+        "grace_content": "Your plan \":plan\" expired on :date. The grace period lasts until :grace; after that :after. Please contact the platform to renew.",
+        "ended_notify_content": "Your plan \":plan\" expired on :date. Please contact the platform to renew.",
+        "after_downgrade": "the tenant moves to the default plan and some features may be unavailable",
+        "after_suspend": "the tenant will be disabled and no account can sign in",
+        "expired_title": "Your plan has expired",
+        "expired_content_downgrade": "Your plan \":plan\" expired on :date. The tenant is now on the default plan and some features may be unavailable. Contact the platform to renew.",
+        "expired_content_suspend": "Your plan \":plan\" expired on :date and the tenant is being disabled. Contact the platform to renew and restore access."
     }
 }

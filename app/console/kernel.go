@@ -36,6 +36,8 @@ func (kernel *Kernel) Schedule() []schedule.Event {
 		ScheduleTracked("tenant:backup-scheduled").DailyAt(tenantBackupScheduleAtUTC()).OnOneServer(),
 		// Tenant health: ping / schema / quota / migrate fail → webhook/email
 		ScheduleTracked("tenant:health-inspect").Hourly().OnOneServer(),
+		// Plan expiry: reminders before the end, then downgrade / suspend per platform settings
+		ScheduleTracked("tenant:subscription-expiry").Hourly().OnOneServer(),
 		// Open-source demos: activity windows + unpaid order expire safety net
 		ScheduleTracked("activity:sync-status").EveryMinute().OnOneServer(),
 		ScheduleTracked("order:cancel-expired").EveryMinute().OnOneServer(),
@@ -100,6 +102,7 @@ func (kernel *Kernel) Commands() []console.Command {
 		&commands.TenantOrphans{},
 		&commands.TenantEnsureDBUser{},
 		&commands.TenantHealthInspect{},
+		&commands.TenantSubscriptionExpiry{},
 		&commands.PlatformAdminCreate{},
 		&commands.PlatformInstall{},
 	}

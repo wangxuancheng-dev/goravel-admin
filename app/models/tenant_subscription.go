@@ -18,6 +18,9 @@ type TenantSubscription struct {
 	TrialEndsAt *time.Time `json:"trial_ends_at"`
 	ExternalRef string     `gorm:"size:128" json:"external_ref"`
 	Note        string     `gorm:"size:500" json:"note"`
+	// LastRemindDays is the last expiry notice sent (days-before threshold; 0 = "ended");
+	// nil = none yet. See services.RunSubscriptionExpiry.
+	LastRemindDays *int `json:"last_remind_days"`
 }
 
 func (TenantSubscription) TableName() string { return "tenant_subscriptions" }

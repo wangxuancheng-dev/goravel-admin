@@ -9,6 +9,7 @@ export function createOperationLogInitialSearchForm() {
     ip: '',
     status: '',
     request: '',
+    impersonated: '',
     start_time: getSevenDaysAgo(),
     end_time: ''
   }
@@ -48,8 +49,17 @@ export function transformOperationLogRow(log) {
     params,
     request: log.request || null,
     response: log.response || null,
-    changes
+    changes,
+    impersonator: impersonatorName(log.impersonator)
   }
+}
+
+/** Stored as "<platform_username>#<platform_admin_id>"; show the username. */
+export function impersonatorName(raw) {
+  const value = String(raw || '').trim()
+  if (!value) return ''
+  const hash = value.lastIndexOf('#')
+  return hash > 0 ? value.slice(0, hash) : value
 }
 
 export function hasRequestParams(request) {
@@ -155,6 +165,18 @@ export function createOperationLogSearchFields(t, getMethodOptions, titleOptions
     },
     { prop: 'request', label: t('log.request_params'), type: 'input', width: '200px', advanced: true },
     {
+      prop: 'impersonated',
+      label: t('log.impersonated'),
+      type: 'select',
+      width: '150px',
+      options: [
+        { label: t('log.impersonated_only'), value: '1' },
+        { label: t('log.own_only'), value: '0' }
+      ],
+      clearable: true,
+      advanced: true
+    },
+    {
       prop: 'start_time',
       label: t('log.start_time'),
       type: 'datetime',
@@ -176,7 +198,7 @@ export function createOperationLogSearchFields(t, getMethodOptions, titleOptions
 export function createOperationLogTableColumns(t) {
   return [
     { field: 'id', title: t('table.id'), width: 80, sortable: true, key: 'id' },
-    { field: 'admin', title: t('log.admin'), slot: 'admin', sortable: false, key: 'admin', width: 120 },
+    { field: 'admin', title: t('log.admin'), slot: 'admin', sortable: false, key: 'admin', width: 140 },
     { field: 'title', title: t('log.title'), slot: 'title', sortable: false, width: 200, key: 'title' },
     { field: 'method', title: t('log.method'), width: 100, sortable: false, key: 'method' },
     { field: 'path', title: t('log.path'), sortable: false, key: 'path' },

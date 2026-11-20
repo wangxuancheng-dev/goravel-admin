@@ -178,23 +178,30 @@ func OperationLog() http.Middleware {
 			traceID := traceid.FromHTTPContext(ctx)
 
 			operationLog := models.OperationLog{
-				AdminID:   savedAdminID,
-				TraceID:   traceID,
-				Method:    savedMethod,
-				Path:      savedPath,
-				Title:     title,
-				IP:        savedIP,
-				UserAgent: savedUserAgent,
-				Request:   savedRequestBody,
-				Changes:   changes,
-				Status:    status,
-				ErrorMsg:  errorMsg,
-				Duration:  savedDuration,
+				AdminID:      savedAdminID,
+				TraceID:      traceID,
+				Method:       savedMethod,
+				Path:         savedPath,
+				Title:        title,
+				IP:           savedIP,
+				UserAgent:    savedUserAgent,
+				Request:      savedRequestBody,
+				Changes:      changes,
+				Status:       status,
+				ErrorMsg:     errorMsg,
+				Duration:     savedDuration,
+				Impersonator: requestImpersonator(ctx),
 			}
 
 			// 异步落库：tenancyctx.Go 保留租户、去掉请求取消，并兜底 panic
 			tenancyctx.Go(ctx, "operation_log", func(dbCtx context.Context) {
-				if err := appfacades.OrmQuery(dbCtx).Create(&operationLog); err != nil {
+				q := appfacades.OrmQuery(dbCtx)
+				if operationLog.Impersonator == "" {
+					// Normal rows skip the column, so tenant databases not yet migrated
+					// (no operation_logs.impersonator) keep logging after a deploy.
+					q = q.Omit("impersonator")
+				}
+				if err := q.Create(&operationLog); err != nil {
 					_ = systemLogService.Record(dbCtx, "error", "operation-log", "failed to persist operation log", map[string]any{
 						"error": err.Error(),
 						"path":  savedPath,
@@ -218,6 +225,8 @@ func OperationLog() http.Middleware {
 						"ip":        operationLog.IP,
 						"duration":  operationLog.Duration,
 						"trace_id":  operationLog.TraceID,
+						// Platform account acting via "sign in as tenant admin" ("" = the admin).
+						"impersonator": operationLog.Impersonator,
 					})
 				}
 			})

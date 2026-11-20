@@ -19,12 +19,14 @@ func NewSettingController() *SettingController {
 }
 
 type platformSettingsBody struct {
-	CaptchaType *string `json:"captcha_type" form:"captcha_type"`
+	CaptchaType        *string                            `json:"captcha_type" form:"captcha_type"`
+	SubscriptionExpiry *services.SubscriptionExpiryPolicy `json:"subscription_expiry" form:"subscription_expiry"`
 }
 
 func platformSettingsPayload(ctx http.Context) map[string]any {
 	return map[string]any{
-		"captcha_type": services.GetPlatformCaptchaType(ctx),
+		"captcha_type":        services.GetPlatformCaptchaType(ctx),
+		"subscription_expiry": services.GetSubscriptionExpiryPolicy(ctx),
 	}
 }
 
@@ -37,15 +39,25 @@ func (c *SettingController) Show(ctx http.Context) http.Response {
 func (c *SettingController) Update(ctx http.Context) http.Response {
 	var body platformSettingsBody
 	_ = ctx.Request().Bind(&body)
-	if body.CaptchaType == nil {
+	if body.CaptchaType == nil && body.SubscriptionExpiry == nil {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
 	}
-	captchaType := strings.TrimSpace(*body.CaptchaType)
-	if err := services.SetPlatformCaptchaType(ctx, captchaType); err != nil {
-		if err == apperrors.ErrCaptchaTypeInvalid {
-			return response.Error(ctx, http.StatusBadRequest, apperrors.ErrCaptchaTypeInvalid.Code)
+	if body.CaptchaType != nil {
+		captchaType := strings.TrimSpace(*body.CaptchaType)
+		if err := services.SetPlatformCaptchaType(ctx, captchaType); err != nil {
+			if err == apperrors.ErrCaptchaTypeInvalid {
+				return response.Error(ctx, http.StatusBadRequest, apperrors.ErrCaptchaTypeInvalid.Code)
+			}
+			return admin.HandleGeneratedServiceError(ctx, "platform_settings", http.StatusInternalServerError, err, nil)
 		}
-		return admin.HandleGeneratedServiceError(ctx, "platform_settings", http.StatusInternalServerError, err, nil)
+	}
+	if body.SubscriptionExpiry != nil {
+		if err := services.SetSubscriptionExpiryPolicy(ctx, *body.SubscriptionExpiry); err != nil {
+			if err == apperrors.ErrInvalidArgument {
+				return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidArgument.Code)
+			}
+			return admin.HandleGeneratedServiceError(ctx, "platform_settings", http.StatusInternalServerError, err, nil)
+		}
 	}
 	return response.Success(ctx, map[string]any{"settings": platformSettingsPayload(ctx)})
 }

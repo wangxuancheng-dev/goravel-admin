@@ -25,7 +25,17 @@ export function getPlatformSettings() {
   return platformRequest.get('/settings')
 }
 
-export function updatePlatformSettings(data: { captcha_type: 'image' | 'slide' }) {
+export interface SubscriptionExpiryPolicy {
+  action: 'downgrade' | 'suspend' | 'notify_only'
+  grace_days: number
+  remind_days: number[]
+  notice_locale: 'cn' | 'en'
+}
+
+export function updatePlatformSettings(data: {
+  captcha_type?: 'image' | 'slide'
+  subscription_expiry?: SubscriptionExpiryPolicy
+}) {
   return platformRequest.put('/settings', data)
 }
 

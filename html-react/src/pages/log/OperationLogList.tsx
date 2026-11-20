@@ -8,6 +8,7 @@ import {
   Space,
   Spin,
   Table,
+  Tag,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { CopyOutlined, EyeOutlined, SettingOutlined } from '@ant-design/icons'
@@ -219,8 +220,19 @@ export default function OperationLogList() {
     {
       title: t('log.admin'),
       dataIndex: ['admin', 'username'],
-      width: 120,
-      render: (_, row) => row.admin?.username || '-',
+      width: 140,
+      render: (_, row) => (
+        <>
+          {row.admin?.username || '-'}
+          {row.impersonator ? (
+            <div>
+              <Tag color="orange" style={{ marginTop: 4, marginInlineEnd: 0 }}>
+                {t('log.impersonated_by', { name: row.impersonator })}
+              </Tag>
+            </div>
+          ) : null}
+        </>
+      ),
     },
     {
       title: t('log.title'),
@@ -375,7 +387,14 @@ export default function OperationLogList() {
           {logDetail ? (
             <Descriptions bordered column={2} size="small">
               <Descriptions.Item label={t('table.id')}>{logDetail.id}</Descriptions.Item>
-              <Descriptions.Item label={t('log.admin')}>{logDetail.admin?.username || '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('log.admin')}>
+                {logDetail.admin?.username || '-'}
+                {logDetail.impersonator ? (
+                  <Tag color="orange" style={{ marginInlineStart: 8 }}>
+                    {t('log.impersonated_by', { name: logDetail.impersonator })}
+                  </Tag>
+                ) : null}
+              </Descriptions.Item>
               <Descriptions.Item label={t('log.method')}>{logDetail.method}</Descriptions.Item>
               <Descriptions.Item label={t('log.path')}>{logDetail.path}</Descriptions.Item>
               <Descriptions.Item label={t('log.ip')}>{logDetail.ip}</Descriptions.Item>

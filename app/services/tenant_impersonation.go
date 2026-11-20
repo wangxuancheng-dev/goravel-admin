@@ -109,6 +109,20 @@ func ParseImpersonationToken(token *models.PersonalAccessToken) *ImpersonationIn
 	}
 }
 
+// ImpersonatorLabel is what operation logs store for an impersonation session:
+// "<platform_username>#<platform_admin_id>", or "" for a normal token.
+func ImpersonatorLabel(token *models.PersonalAccessToken) string {
+	info := ParseImpersonationToken(token)
+	if info == nil {
+		return ""
+	}
+	label := []rune(fmt.Sprintf("%s#%d", info.PlatformUsername, info.PlatformAdminID))
+	if len(label) > 120 { // column is varchar(120); cut on a rune boundary
+		label = label[:120]
+	}
+	return string(label)
+}
+
 // IssueImpersonationTicket validates the target and stores a one-time ticket.
 //
 //tenantlint:allow cache: ticket is issued on the platform and redeemed in a tenant request; payload carries and is checked against tenant_id

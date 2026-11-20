@@ -30,13 +30,24 @@ func ImpersonationGuard() http.Middleware {
 }
 
 func isImpersonationRequest(ctx http.Context) bool {
+	tok := requestToken(ctx)
+	return tok != nil && services.IsImpersonationTokenName(tok.Name)
+}
+
+// requestImpersonator is the operation-log label of the platform account acting
+// through an impersonation token ("" for the admin's own session).
+func requestImpersonator(ctx http.Context) string {
+	return services.ImpersonatorLabel(requestToken(ctx))
+}
+
+func requestToken(ctx http.Context) *models.PersonalAccessToken {
 	switch v := ctx.Value("token").(type) {
 	case *models.PersonalAccessToken:
-		return v != nil && services.IsImpersonationTokenName(v.Name)
+		return v
 	case models.PersonalAccessToken:
-		return services.IsImpersonationTokenName(v.Name)
+		return &v
 	default:
-		return false
+		return nil
 	}
 }
 

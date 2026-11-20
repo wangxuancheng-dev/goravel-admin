@@ -100,6 +100,8 @@ func All() []schema.Migration {
 		&M20261030000000AddCreatedAtIndexToUsers{},
 		&M20260101000000CreateGoralensTables{},
 		&feedbackmigrations.M20261119000000CreateFeedbacksTable{},
+		&M20261120000001AddImpersonatorToOperationLogs{},
+		&M20261120000002AddLastRemindDaysToTenantSubscriptions{},
 	}
 }
 

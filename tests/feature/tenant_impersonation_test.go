@@ -109,8 +109,42 @@ func TestTenantImpersonationOverHTTP(t *testing.T) {
 	code, blocked = tenantAdminCall(t, ta.Code, token, "DELETE", "/api/admin/auth/tokens/others", "")
 	assert.Equal(t, 403, code, "support must not sign the real admin out: %v", blocked)
 
+	// Writes made in the session are tagged with the platform account in the tenant
+	// operation log (written asynchronously), and the list can filter on it.
+	nick := "support-edit-" + suffix
+	code, upd := tenantAdminCall(t, ta.Code, token, "PUT", "/api/admin/profile", fmt.Sprintf(`{"nickname":%q}`, nick))
+	require.Equal(t, 200, code, "profile update while impersonating: %v", upd)
+	var opRow models.OperationLog
+	require.Eventually(t, func() bool {
+		opRow = models.OperationLog{}
+		err := appfacades.OrmQuery(tenantCtx(ta)).Where("admin_id", target.ID).
+			Where("path", "/api/admin/profile").Where("impersonator <> ''").
+			Order("id desc").First(&opRow)
+		return err == nil && opRow.ID != 0
+	}, 10*time.Second, 200*time.Millisecond, "impersonated write must be in the operation log")
+	assert.Equal(t, fmt.Sprintf("%s#%v", platformSmokeUser, imp["platform_admin_id"]), opRow.Impersonator)
+	code, list := tenantAdminCall(t, ta.Code, token, "GET", "/api/admin/operation-logs?impersonated=1&start_time=&page_size=50", "")
+	require.Equal(t, 200, code, "operation log list: %v", list)
+	assert.Contains(t, fmt.Sprint(list), platformSmokeUser+"#", "impersonated=1 must list the tagged row")
+	code, list = tenantAdminCall(t, ta.Code, token, "GET", "/api/admin/operation-logs?impersonated=0&start_time=&page_size=50", "")
+	require.Equal(t, 200, code, "operation log list: %v", list)
+	assert.NotContains(t, fmt.Sprint(list), platformSmokeUser+"#", "impersonated=0 must hide the tagged row")
+
+	// A tenant not yet migrated to the impersonator column still logs normal writes.
+	_, err := appfacades.OrmQuery(tenantCtx(tb)).Exec("ALTER TABLE operation_logs DROP COLUMN impersonator")
+	require.NoError(t, err)
+	tokenB := tenantAdminLogin(t, tb.Code)
+	nickB := "pre-migrate-" + suffix
+	code, upd = tenantAdminCall(t, tb.Code, tokenB, "PUT", "/api/admin/profile", fmt.Sprintf(`{"nickname":%q}`, nickB))
+	require.Equal(t, 200, code, "profile update: %v", upd)
+	require.Eventually(t, func() bool {
+		n, countErr := appfacades.OrmQuery(tenantCtx(tb)).Model(&models.OperationLog{}).
+			Where("path", "/api/admin/profile").Count()
+		return countErr == nil && n > 0
+	}, 10*time.Second, 200*time.Millisecond, "operation log must be written without the impersonator column")
+
 	// A tenant in maintenance rejects every admin request: refuse the ticket up front.
-	_, err := appfacades.PlatformQuery().Model(&models.Tenant{}).Where("id", tb.ID).Update("maintenance", true)
+	_, err = appfacades.PlatformQuery().Model(&models.Tenant{}).Where("id", tb.ID).Update("maintenance", true)
 	require.NoError(t, err)
 	resp, content := platformCall(t, platformToken, "POST", fmt.Sprintf("/api/platform/tenants/%d/impersonate", tb.ID),
 		`{"admin_id":1,"reason":"maintenance check"}`)
