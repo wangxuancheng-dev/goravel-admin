@@ -140,7 +140,7 @@ func IssueImpersonationTicket(tenant *models.Tenant, adminID, platformAdminID ui
 		return nil, nil, err
 	}
 	var target models.Admin
-	if err := appfacades.OrmQuery(ctx).Where("id", adminID).First(&target); err != nil {
+	if err = appfacades.OrmQuery(ctx).Where("id", adminID).First(&target); err != nil {
 		return nil, nil, err
 	}
 	if target.ID == 0 {

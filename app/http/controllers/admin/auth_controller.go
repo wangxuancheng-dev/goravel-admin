@@ -393,7 +393,7 @@ func (r *AuthController) ImpersonateExchange(ctx http.Context) http.Response {
 	}
 
 	var admin models.Admin
-	if err := appfacades.OrmQuery(ctx).Where("id", payload.AdminID).First(&admin); err != nil {
+	if err = appfacades.OrmQuery(ctx).Where("id", payload.AdminID).First(&admin); err != nil {
 		return HandleGeneratedServiceError(ctx, "auth", http.StatusInternalServerError, err, map[string]any{
 			"admin_id": payload.AdminID,
 		})
