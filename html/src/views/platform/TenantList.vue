@@ -1059,7 +1059,9 @@ const setListMode = (mode) => {
     loadData()
     return
   }
-  searchForm.trashed = next
+  // Start each mode from a clean form: filters from the other mode (or an overview /
+  // health-board link) are hidden in the recycle bin's short form but would still apply.
+  Object.assign(searchForm, initialSearchForm, { trashed: next })
   handleSearch()
 }
 

@@ -152,6 +152,23 @@ function formatSize(n?: number) {
 }
 
 const MB = 1024 * 1024
+
+const initialTenantSearchForm = {
+  code: '',
+  name: '',
+  status: '',
+  provision_status: '',
+  schema_status: '',
+  last_op: '',
+  last_op_status: '',
+  maintenance: '',
+  domain_host: '',
+  domain_status: '',
+  health_status: '',
+  plan_code: '',
+  expiring: '',
+  trashed: '',
+}
 function mbToBytes(m?: number) {
   return Math.round((Number(m) || 0) * MB)
 }
@@ -479,22 +496,7 @@ export default function PlatformTenantList() {
     refresh,
   } = useListPage<TenantRow>({
     fetchApi: getPlatformTenantList,
-    initialSearchForm: {
-      code: '',
-      name: '',
-      status: '',
-      provision_status: '',
-      schema_status: '',
-      last_op: '',
-      last_op_status: '',
-      maintenance: '',
-      domain_host: '',
-      domain_status: '',
-      health_status: '',
-      plan_code: '',
-      expiring: '',
-      trashed: '',
-    },
+    initialSearchForm: initialTenantSearchForm,
     defaultSort: 'id:desc',
     transformData: (row) => {
       const record = row
@@ -604,7 +606,9 @@ export default function PlatformTenantList() {
 
   const setListMode = (mode: 'active' | 'recycle') => {
     const next = mode === 'recycle' ? 'only' : ''
-    onSearchFormChange({ ...searchForm, trashed: next })
+    // Start each mode from a clean form: filters from the other mode (or an overview /
+    // health-board link) are hidden in the recycle bin's short form but would still apply.
+    onSearchFormChange({ ...initialTenantSearchForm, trashed: next })
     window.setTimeout(() => handleSearch(), 0)
   }
 
@@ -1992,23 +1996,7 @@ export default function PlatformTenantList() {
         onChange={onSearchFormChange}
         onSearch={handleSearch}
         onReset={() => {
-          const keep = String(searchForm.trashed || '')
-          onSearchFormChange({
-            code: '',
-            name: '',
-            status: '',
-            provision_status: '',
-            schema_status: '',
-            last_op: '',
-            last_op_status: '',
-            maintenance: '',
-            domain_host: '',
-            domain_status: '',
-            health_status: '',
-            plan_code: '',
-            expiring: '',
-            trashed: keep,
-          })
+          onSearchFormChange({ ...initialTenantSearchForm, trashed: String(searchForm.trashed || '') })
           window.setTimeout(() => handleSearch(), 0)
         }}
       />
