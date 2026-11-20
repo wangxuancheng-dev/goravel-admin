@@ -2516,6 +2516,7 @@
       "delete": "Delete tenant",
       "rollback": "Rollback tenant",
       "subscription": "Assign tenant plan",
+      "impersonate": "Sign in as tenant admin",
       "entitlement": {
         "set": "Set tenant entitlement override",
         "delete": "Delete tenant entitlement override",
@@ -2563,6 +2564,9 @@
     "plan": {
       "create": "Create plan",
       "update": "Update plan"
+    },
+    "login_log": {
+      "refresh_location": "Refresh login log locations"
     }
   },
   "platform_admin": {

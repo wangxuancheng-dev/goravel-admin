@@ -2525,6 +2525,7 @@
       "delete": "删除租户",
       "rollback": "回滚租户",
       "subscription": "分配租户套餐",
+      "impersonate": "以租户管理员身份登录",
       "entitlement": {
         "set": "设置租户权益覆盖",
         "delete": "删除租户权益覆盖",
@@ -2572,6 +2573,9 @@
     "plan": {
       "create": "创建套餐",
       "update": "更新套餐"
+    },
+    "login_log": {
+      "refresh_location": "刷新登录日志归属地"
     }
   },
   "platform_admin": {

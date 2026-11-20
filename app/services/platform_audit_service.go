@@ -270,13 +270,19 @@ func PlatformOperationLogToJSON(row *models.PlatformOperationLog) map[string]any
 	if row == nil {
 		return nil
 	}
+	// Rows written before a route got a title key stored the "METHOD path" fallback;
+	// map them now so the console can translate them.
+	title := row.Title
+	if title == strings.ToUpper(strings.TrimSpace(row.Method))+" "+strings.TrimSpace(row.Path) {
+		title = PlatformOperationTitle(row.Method, row.Path)
+	}
 	return map[string]any{
 		"id":         row.ID,
 		"admin_id":   row.AdminID,
 		"username":   row.Username,
 		"method":     row.Method,
 		"path":       row.Path,
-		"title":      row.Title,
+		"title":      title,
 		"ip":         row.IP,
 		"user_agent": row.UserAgent,
 		"request":    row.Request,
@@ -305,6 +311,8 @@ func PlatformOperationTitle(method, path string) string {
 		return "platform.security.2fa_unbind"
 	case method == "POST" && path == "/api/platform/admins":
 		return "platform.admin.create"
+	case method == "POST" && path == "/api/platform/login-logs/refresh-location":
+		return "platform.login_log.refresh_location"
 	case strings.HasSuffix(path, "/reset-password") && strings.Contains(path, "/tenants/") && strings.Contains(path, "/admins/") && method == "POST":
 		return "platform.tenant.admin.reset_password"
 	case strings.HasSuffix(path, "/admins/unlock") && strings.Contains(path, "/tenants/") && method == "POST":
