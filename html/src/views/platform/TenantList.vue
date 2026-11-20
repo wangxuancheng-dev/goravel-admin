@@ -21,7 +21,7 @@
         <el-radio-button label="active">{{ $t('tenant.list_active') }}</el-radio-button>
         <el-radio-button label="recycle">
           {{ $t('tenant.recycle_bin') }}
-          <el-badge v-if="(opsSummary?.deleted || 0) > 0" :value="opsSummary.deleted" class="recycle-badge" />
+          <span v-if="(opsSummary?.deleted || 0) > 0" class="recycle-count">{{ opsSummary.deleted > 99 ? '99+' : opsSummary.deleted }}</span>
         </el-radio-button>
       </el-radio-group>
       <span v-if="opsSummary" class="ops-inline">
@@ -59,62 +59,64 @@
           }) }}
         </template>
       </span>
-      <template v-if="!isRecycleView && isOwner">
-        <el-button
-          size="small"
-          :loading="batchLoading"
-          :disabled="!(opsSummary?.failed_provision > 0)"
-          @click="retryFailedMigrates"
-        >
-          {{ $t('tenant.retry_failed_migrate') }}
-        </el-button>
-        <el-button
-          size="small"
-          :loading="batchLoading"
-          :disabled="!(opsSummary?.failed_seed > 0)"
-          @click="retryFailedSeeds"
-        >
-          {{ $t('tenant.retry_failed_seed') }}
-        </el-button>
-        <el-button
-          size="small"
-          type="primary"
-          :loading="batchLoading"
-          :disabled="selectedRows.length < 1"
-          @click="batchMigrateSelected"
-        >
-          {{ $t('tenant.batch_migrate') }}
-        </el-button>
-        <el-button
-          size="small"
-          :loading="batchLoading"
-          :disabled="selectedRows.length < 1"
-          @click="batchSeedSelected"
-        >
-          {{ $t('tenant.batch_seed') }}
-        </el-button>
-        <el-button
-          size="small"
-          :loading="batchLoading"
-          :disabled="selectedRows.length < 1"
-          @click="batchBackupSelected"
-        >
-          {{ $t('tenant.batch_backup') }}
-        </el-button>
-        <el-button
-          size="small"
-          type="danger"
-          :loading="batchLoading"
-          :disabled="selectedRows.length < 1"
-          @click="batchRollbackSelected"
-        >
-          {{ $t('tenant.batch_rollback') }}
-        </el-button>
+    </div>
+
+    <div v-if="!isRecycleView" class="ops-toolbar">
+      <template v-if="isOwner">
+        <div class="ops-toolbar__group">
+          <el-button
+            type="primary"
+            :loading="batchLoading"
+            :disabled="selectedRows.length < 1"
+            @click="batchMigrateSelected"
+          >
+            {{ $t('tenant.batch_migrate') }}
+          </el-button>
+          <el-button
+            :loading="batchLoading"
+            :disabled="selectedRows.length < 1"
+            @click="batchSeedSelected"
+          >
+            {{ $t('tenant.batch_seed') }}
+          </el-button>
+          <el-button
+            :loading="batchLoading"
+            :disabled="selectedRows.length < 1"
+            @click="batchBackupSelected"
+          >
+            {{ $t('tenant.batch_backup') }}
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            :loading="batchLoading"
+            :disabled="selectedRows.length < 1"
+            @click="batchRollbackSelected"
+          >
+            {{ $t('tenant.batch_rollback') }}
+          </el-button>
+        </div>
+        <el-divider direction="vertical" class="ops-toolbar__divider" />
+        <div class="ops-toolbar__group">
+          <el-button
+            :loading="batchLoading"
+            :disabled="!(opsSummary?.failed_provision > 0)"
+            @click="retryFailedMigrates"
+          >
+            {{ $t('tenant.retry_failed_migrate') }}
+          </el-button>
+          <el-button
+            :loading="batchLoading"
+            :disabled="!(opsSummary?.failed_seed > 0)"
+            @click="retryFailedSeeds"
+          >
+            {{ $t('tenant.retry_failed_seed') }}
+          </el-button>
+        </div>
+        <el-divider direction="vertical" class="ops-toolbar__divider" />
       </template>
-      <template v-if="!isRecycleView">
-        <el-button size="small" @click="exportCsv">{{ $t('tenant.export_csv') }}</el-button>
-      </template>
-      <span v-if="queueInfo" class="queue-meta">{{ $t('tenant.queue_status', { conn: queueInfo.connection || '-', pending: queueInfo.pending ?? '-', msg: queueInfo.message || '' }) }}</span>
+      <el-button @click="exportCsv">{{ $t('tenant.export_csv') }}</el-button>
+      <span v-if="queueInfo" class="queue-meta ops-toolbar__meta">{{ $t('tenant.queue_status', { conn: queueInfo.connection || '-', pending: queueInfo.pending ?? '-', msg: queueInfo.message || '' }) }}</span>
     </div>
 
     <el-alert
@@ -2692,15 +2694,52 @@ const downloadBackup = async (file) => {
   margin-bottom: 12px;
 }
 .ops-inline {
+  flex: 1 1 320px;
+  min-width: 0;
   font-size: 13px;
+  line-height: 1.6;
   color: #475569;
+}
+.ops-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ops-toolbar__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ops-toolbar__group .el-button + .el-button {
+  margin-left: 0;
+}
+.ops-toolbar__divider {
+  height: 20px;
+  margin: 0 4px;
+}
+.ops-toolbar__meta {
+  margin-left: auto;
 }
 .recycle-banner {
   margin-bottom: 12px;
 }
-.recycle-badge {
+/* Inline count: an el-badge here makes the radio button taller than its sibling. */
+.recycle-count {
+  display: inline-block;
+  min-width: 16px;
+  height: 16px;
   margin-left: 6px;
-  vertical-align: middle;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--el-color-danger);
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  vertical-align: 1px;
+  box-sizing: border-box;
 }
 .queue-meta {
   font-size: 12px;
