@@ -193,6 +193,36 @@ html.dark .layout-header__icon-btn:hover {
   color: #fff;
 }
 
+/* Timezone select on the always-dark platform header. */
+.platform-header__timezone {
+  display: inline-flex;
+  align-items: center;
+
+  /* antd v6 Select reads these CSS variables (hover/focus reset them, hence !important). */
+  .ant-select {
+    --ant-select-background-color: rgba(255, 255, 255, 0.08) !important;
+    --ant-select-color: rgba(255, 255, 255, 0.85) !important;
+    --ant-select-affix-color: rgba(255, 255, 255, 0.65) !important;
+  }
+
+  /* Keep the theme-color border on focus. */
+  .ant-select:not(.ant-select-focused) {
+    --ant-select-border-color: rgba(255, 255, 255, 0.2) !important;
+  }
+
+  .ant-select:not(.ant-select-focused):hover {
+    --ant-select-border-color: rgba(255, 255, 255, 0.4) !important;
+  }
+
+  .ant-select .ant-select-placeholder {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
 /* Available before MainLayout mounts (auth bootstrap / Suspense). */
 .page-fallback {
   display: flex;

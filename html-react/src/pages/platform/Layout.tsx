@@ -16,7 +16,7 @@ import {
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { getPlatformAdmin } from '@/utils/platformRequest'
 import {
   bindPlatformSecurity2FA,
@@ -31,6 +31,7 @@ import { useUnhandledError } from '@/hooks/useUnhandledError'
 import { usePlatformPasswordPolicy } from '@/hooks/usePasswordPolicy'
 import DarkModeSwitch from '@/components/DarkModeSwitch'
 import LanguageSwitch from '@/components/LanguageSwitch'
+import TimezoneSwitch from '@/components/TimezoneSwitch'
 import { THEME_COLORS, useAppStore } from '@/stores/app'
 import '@/layouts/components/LayoutHeader.scss'
 
@@ -46,6 +47,7 @@ export default function PlatformLayout() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const themeColor = useAppStore((s) => s.themeColor)
   const setThemeColor = useAppStore((s) => s.setThemeColor)
+  const timezone = useAppStore((s) => s.timezone)
   const admin = getPlatformAdmin()
   const isViewer = admin?.role === 'viewer'
   const showError = useUnhandledError()
@@ -219,6 +221,9 @@ export default function PlatformLayout() {
           </Popover>
           <DarkModeSwitch className="layout-header__icon-btn platform-header__icon-btn" />
           <LanguageSwitch className="layout-header__icon-btn platform-header__icon-btn" />
+          <span className="platform-header__timezone">
+            <TimezoneSwitch />
+          </span>
           <Button type="link" onClick={() => setPwdOpen(true)} style={{ color: '#93c5fd' }}>
             {t('platform.change_password')}
           </Button>
@@ -313,7 +318,10 @@ export default function PlatformLayout() {
           />
         </Sider>
         <Content style={{ padding: 16, background: token.colorBgLayout }}>
-          <Outlet />
+          {/* The API converts times per X-Timezone: remount the page to refetch on a switch. */}
+          <Fragment key={timezone}>
+            <Outlet />
+          </Fragment>
         </Content>
       </Layout>
 

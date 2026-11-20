@@ -113,7 +113,7 @@ func listDiskTenantBackups(code string) ([]TenantBackupFile, error) {
 			file.Size = size
 		}
 		if mod, err := storage.LastModified(key); err == nil {
-			file.ModTime = mod.Format("2006-01-02 15:04:05")
+			file.ModTime = mod.UTC().Format("2006-01-02 15:04:05") // UTC like every stored time; the API converts per X-Timezone
 		}
 		files = append(files, file)
 	}

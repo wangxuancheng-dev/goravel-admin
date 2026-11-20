@@ -3,6 +3,7 @@ import { message as antdMessage } from 'antd'
 import i18n from '@/i18n'
 import Storage from './storage'
 import { navigateTo, getCurrentPath } from './navigation'
+import { resolveTimezone } from './request'
 
 const PLATFORM_TOKEN_KEY = 'platform_token'
 const PLATFORM_ADMIN_KEY = 'platform_admin'
@@ -96,6 +97,11 @@ platformRequest.interceptors.request.use((config) => {
   }
   const locale = i18n.language || Storage.getItem('language', 'zh-CN')
   config.headers['Accept-Language'] = locale === 'en-US' ? 'en-US' : 'zh-CN'
+  // Times are stored in UTC; the API converts response times (and date filters) to this zone.
+  const timezone = resolveTimezone()
+  if (timezone) {
+    config.headers['X-Timezone'] = timezone
+  }
   return config
 })
 

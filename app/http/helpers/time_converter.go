@@ -27,6 +27,13 @@ func ConvertTimesInData(ctx http.Context, data any) any {
 	// 获取请求的时区
 	timezone := GetCurrentTimezone(ctx)
 	timeFields := getTimeFieldWhitelist()
+	// The platform console has many timestamps beyond created_at (last_op_at,
+	// health_checked_at, ends_at ...): convert every *_at key there. Values that are
+	// not datetimes (e.g. backup_schedule_at "20:00") fail to parse and stay as they are.
+	if strings.HasPrefix(ctx.Request().Path(), "/api/platform/") {
+		timeFields[timeFieldSuffixAt] = struct{}{}
+		timeFields["mod_time"] = struct{}{} // tenant backup files
+	}
 
 	// 先序列化为 JSON
 	jsonData, err := json.Marshal(data)
@@ -256,10 +263,19 @@ func convertTimesInValue(v reflect.Value, timezone string, timeFields map[string
 	return v.Interface()
 }
 
+// timeFieldSuffixAt in the whitelist makes every "*_at" key a time field.
+const timeFieldSuffixAt = "*_at"
+
 // isTimeField 检查字段名是否是时间字段
 func isTimeField(fieldName string, timeFields map[string]struct{}) bool {
-	_, exists := timeFields[strings.ToLower(fieldName)]
-	return exists
+	name := strings.ToLower(fieldName)
+	if _, exists := timeFields[name]; exists {
+		return true
+	}
+	if _, suffix := timeFields[timeFieldSuffixAt]; suffix && strings.HasSuffix(name, "_at") {
+		return true
+	}
+	return false
 }
 
 // isTimeType 检查类型是否是时间类型

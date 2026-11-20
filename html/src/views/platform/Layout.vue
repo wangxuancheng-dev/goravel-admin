@@ -34,6 +34,7 @@
         </el-popover>
         <DarkModeSwitch class="platform-header-dark" />
         <LanguageSwitch class="platform-header-lang" />
+        <TimezoneSwitch class="platform-header-tz" />
         <el-button link type="primary" @click="pwdVisible = true">{{ $t('platform.change_password') }}</el-button>
         <el-button link type="primary" @click="onLogout">{{ $t('header.logout') }}</el-button>
       </div>
@@ -84,7 +85,8 @@
         </el-menu>
       </aside>
       <main class="platform-main">
-        <router-view />
+        <!-- The API converts times per X-Timezone: remount the page to refetch on a switch. -->
+        <router-view :key="appStore.timezone" />
       </main>
     </div>
 
@@ -138,6 +140,7 @@ import { logoutPlatform, updatePlatformPassword } from '@/api/platform'
 import { getPlatformAdmin } from '@/utils/platformRequest'
 import DarkModeSwitch from '@/components/DarkModeSwitch.vue'
 import LanguageSwitch from '@/components/LanguageSwitch.vue'
+import TimezoneSwitch from '@/components/TimezoneSwitch.vue'
 import { describePasswordPolicy, passwordPolicyRule } from '@/utils/passwordPolicy'
 import { usePlatformPasswordPolicy } from '@/composables/usePlatformPasswordPolicy'
 
@@ -297,6 +300,29 @@ const onLogout = async () => {
 .platform-header-dark :deep(.dark-mode-switch:hover) {
   background-color: rgba(255, 255, 255, 0.1);
   color: #fff;
+}
+/* Timezone select on the always-dark platform header. */
+.platform-header-tz {
+  width: 200px;
+}
+.platform-header-tz :deep(.el-select__wrapper) {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+}
+.platform-header-tz :deep(.el-select__wrapper.is-hovering:not(.is-focused)) {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+}
+/* Element Plus renders the selected label in __placeholder (without is-transparent). */
+.platform-header-tz :deep(.el-select__placeholder:not(.is-transparent)),
+.platform-header-tz :deep(.el-select__selected-item),
+.platform-header-tz :deep(.el-select__input),
+.platform-header-tz :deep(.el-select__caret) {
+  color: rgba(255, 255, 255, 0.85);
+}
+@media (max-width: 768px) {
+  .platform-header-tz {
+    display: none;
+  }
 }
 .platform-header-lang :deep(.language-switch) {
   color: rgba(255, 255, 255, 0.85);

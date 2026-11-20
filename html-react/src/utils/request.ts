@@ -91,7 +91,8 @@ function resolveAcceptLanguage(): string {
   return 'zh-CN'
 }
 
-function resolveTimezone(): string {
+/** Display timezone sent as X-Timezone (header switch > stored > browser); shared with the platform client. */
+export function resolveTimezone(): string {
   let browserTimezone = 'UTC'
   try {
     browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'

@@ -290,7 +290,7 @@ func ListTenantBackups(tenant *models.Tenant) ([]TenantBackupFile, string, error
 			Name:    name,
 			Path:    rel,
 			Size:    info.Size(),
-			ModTime: info.ModTime().Format("2006-01-02 15:04:05"),
+			ModTime: info.ModTime().UTC().Format("2006-01-02 15:04:05"), // UTC; the API converts per X-Timezone
 		})
 	}
 	sort.Slice(files, func(i, j int) bool {

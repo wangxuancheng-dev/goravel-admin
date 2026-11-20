@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import router from '../router'
 import i18n from '../i18n'
 import Storage from './storage'
+import { useAppStore } from '../store/app'
 
 const { t } = i18n.global
 
@@ -102,8 +103,29 @@ platformRequest.interceptors.request.use((config) => {
   const currentLocale = i18n.global.locale.value || Storage.getItem('language', 'zh-CN')
   config.headers['Accept-Language'] =
     currentLocale === 'en-US' ? 'en-US' : 'zh-CN'
+  // Times are stored in UTC; the API converts response times (and date filters) to this zone.
+  const timezone = resolveRequestTimezone()
+  if (timezone) {
+    config.headers['X-Timezone'] = timezone
+  }
   return config
 })
+
+/** Same choice as the tenant admin client: header switch > stored > browser. */
+function resolveRequestTimezone() {
+  let browserTimezone = 'UTC'
+  try {
+    browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    browserTimezone = 'UTC'
+  }
+  try {
+    return useAppStore().timezone || Storage.getItem('timezone', browserTimezone) || browserTimezone
+  } catch {
+    // Pinia not active yet (very early request): fall back to the stored value.
+    return Storage.getItem('timezone', browserTimezone) || browserTimezone
+  }
+}
 
 platformRequest.interceptors.response.use(
   (response) => {

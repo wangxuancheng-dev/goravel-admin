@@ -27,6 +27,24 @@ func TestIsTimeField(t *testing.T) {
 	}
 }
 
+func TestIsTimeFieldSuffixAt(t *testing.T) {
+	plain := map[string]struct{}{"created_at": {}}
+	if isTimeField("last_op_at", plain) {
+		t.Fatal("last_op_at must not match without the *_at rule")
+	}
+	withSuffix := map[string]struct{}{"created_at": {}, timeFieldSuffixAt: {}}
+	for _, f := range []string{"last_op_at", "Health_Checked_At", "subscription_ends_at", "created_at"} {
+		if !isTimeField(f, withSuffix) {
+			t.Fatalf("%s must match the *_at rule", f)
+		}
+	}
+	for _, f := range []string{"status", "format", "chat"} {
+		if isTimeField(f, withSuffix) {
+			t.Fatalf("%s must not match", f)
+		}
+	}
+}
+
 func TestConvertTimesInMap_IgnoreNonTimeFields(t *testing.T) {
 	data := map[string]any{
 		"id":   1,
