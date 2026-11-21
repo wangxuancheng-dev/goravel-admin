@@ -44,8 +44,11 @@ func WarnInsecureDefaults() {
 		warn("APP_ENABLE_DEV_TOOL=true — code generator / form demo exposed")
 	}
 	gateways := strings.ToLower(strings.TrimSpace(facades.Config().GetString("module.payment_gateways_enabled", "")))
-	if gateways == "" || strings.Contains(gateways, "mock") || gateways == "*" || gateways == "all" {
-		warn("payment gateways include mock (or allowlist empty) — configure shared_secret on mock methods; wechat/alipay notify/query still stub until you wire gopay verify; restrict via PAYMENT_GATEWAYS_ENABLED")
+	if gatewayListed(gateways, "mock") {
+		warn("PAYMENT_GATEWAYS_ENABLED lists mock — mock create returns a valid notify sign, so anyone who can create a payment can mark it paid; remove mock from production")
+	}
+	if gateways == "" || gateways == "*" || gateways == "all" {
+		warn("PAYMENT_GATEWAYS_ENABLED is empty/* — every registered gateway except mock is enabled; wechat/alipay notify/query are still stubs until you wire gopay verify; set an explicit list")
 	}
 	if facades.Config().GetBool("pprof.enabled", false) || facades.Config().GetBool("app.debug", false) {
 		token := strings.TrimSpace(facades.Config().GetString("pprof.token", ""))
@@ -87,6 +90,16 @@ func WarnInsecureDefaults() {
 			warn("TENANT_BACKUP_DISK=" + disk + " is not configured (" + err.Error() + ") — tenant backups will fail")
 		}
 	}
+}
+
+// gatewayListed reports whether typ is an exact entry of a comma-separated allowlist.
+func gatewayListed(list, typ string) bool {
+	for _, part := range strings.Split(list, ",") {
+		if strings.TrimSpace(part) == typ {
+			return true
+		}
+	}
+	return false
 }
 
 // corsAllowsAnyOrigin mirrors the Cors middleware (configStringSlice + resolveCorsOrigin):

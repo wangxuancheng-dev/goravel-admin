@@ -48,14 +48,45 @@ func FirstString(data map[string]any, keys ...string) string {
 				return s
 			}
 		case float64:
-			return strconv.FormatInt(int64(t), 10)
+			// 'f', -1 keeps decimals ("12.5", not "12") and never uses exponent form.
+			// Integers above 2^53 are already rounded when JSON is decoded into float64:
+			// decode with json.Decoder.UseNumber, or have the provider send them as strings.
+			return strconv.FormatFloat(t, 'f', -1, 64)
+		case float32:
+			return strconv.FormatFloat(float64(t), 'f', -1, 32)
 		case int:
 			return strconv.Itoa(t)
+		case int64:
+			return strconv.FormatInt(t, 10)
+		case uint64:
+			return strconv.FormatUint(t, 10)
 		case json.Number:
 			return t.String()
 		}
 	}
 	return ""
+}
+
+// BoolFromConfig reads a flag that may be stored as a bool, number or string
+// ("true", "1", "yes", "on"). Missing or anything else is false.
+func BoolFromConfig(config map[string]any, key string) bool {
+	if config == nil {
+		return false
+	}
+	switch t := config[key].(type) {
+	case bool:
+		return t
+	case float64:
+		return t != 0
+	case int:
+		return t != 0
+	case string:
+		switch strings.ToLower(strings.TrimSpace(t)) {
+		case "true", "1", "yes", "on":
+			return true
+		}
+	}
+	return false
 }
 
 // OptionalFloat returns the first parseable float among keys in data.

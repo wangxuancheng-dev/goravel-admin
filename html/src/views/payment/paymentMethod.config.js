@@ -11,7 +11,7 @@
  * @property {string} labelKey
  * @property {string} placeholderKey
  * @property {string=} tipKey
- * @property {{label: string, value: string}[]=} options
+ * @property {{labelKey: string, value: string}[]=} options labelKey is translated under payment_method.*
  */
 
 /** Backend-registered drivers only (mock/wechat/alipay). Source of truth: RegisterPaymentGateway.
@@ -47,13 +47,28 @@ export const PAYMENT_TYPE_CONFIG_FIELDS = {
     { key: 'mch_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_mch_id', placeholderKey: 'cfg_mch_id_ph', tipKey: 'tip_wechat_mch_id' },
     { key: 'api_v3_key', type: 'input', inputType: 'password', required: true, group: 'basic', labelKey: 'cfg_api_v3_key', placeholderKey: 'cfg_api_v3_key_ph', tipKey: 'tip_wechat_api_v3_key' },
     { key: 'cert_serial_no', type: 'input', required: true, group: 'basic', labelKey: 'cfg_cert_serial_no', placeholderKey: 'cfg_cert_serial_no_ph', tipKey: 'tip_wechat_cert_serial' },
+    { key: 'private_key', type: 'textarea', rows: 4, required: false, group: 'basic', labelKey: 'cfg_wechat_private_key', placeholderKey: 'cfg_wechat_private_key_ph', tipKey: 'tip_wechat_private_key_content' },
     { key: 'private_key_path', type: 'input', required: false, group: 'advanced', labelKey: 'cfg_private_key_path', placeholderKey: 'cfg_private_key_path_ph', tipKey: 'tip_wechat_private_key' },
+    {
+      key: 'trade_type', type: 'select', required: false, group: 'advanced', labelKey: 'cfg_trade_type', placeholderKey: 'cfg_trade_type_ph', tipKey: 'tip_wechat_trade_type',
+      options: [
+        { labelKey: 'opt_trade_native', value: 'native' },
+        { labelKey: 'opt_trade_jsapi', value: 'jsapi' }
+      ]
+    },
     { key: 'notify_url', type: 'input', required: false, group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' }
   ],
   alipay: [
     { key: 'app_id', type: 'input', required: true, group: 'basic', labelKey: 'cfg_app_id', placeholderKey: 'cfg_alipay_app_id_ph', tipKey: 'tip_alipay_app_id' },
     { key: 'private_key', type: 'textarea', rows: 4, required: true, group: 'basic', labelKey: 'cfg_private_key', placeholderKey: 'cfg_private_key_ph', tipKey: 'tip_alipay_private_key' },
     { key: 'public_key', type: 'textarea', rows: 4, required: true, group: 'basic', labelKey: 'cfg_alipay_public_key', placeholderKey: 'cfg_alipay_public_key_ph', tipKey: 'tip_alipay_public_key' },
+    {
+      key: 'sandbox', type: 'select', required: false, group: 'advanced', labelKey: 'cfg_sandbox', placeholderKey: 'cfg_sandbox_ph', tipKey: 'tip_alipay_sandbox',
+      options: [
+        { labelKey: 'opt_env_production', value: '0' },
+        { labelKey: 'opt_env_sandbox', value: '1' }
+      ]
+    },
     { key: 'gateway', type: 'input', required: false, group: 'advanced', labelKey: 'cfg_gateway', placeholderKey: 'cfg_gateway_ph' },
     { key: 'notify_url', type: 'input', required: false, group: 'advanced', labelKey: 'cfg_notify_url', placeholderKey: 'cfg_notify_url_ph', tipKey: 'tip_notify_url' }
   ]

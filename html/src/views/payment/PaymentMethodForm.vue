@@ -108,7 +108,7 @@
               <el-option
                 v-for="opt in field.options || []"
                 :key="opt.value"
-                :label="opt.label"
+                :label="t(`payment_method.${opt.labelKey}`)"
                 :value="opt.value"
               />
             </el-select>
@@ -152,7 +152,7 @@
                   <el-option
                     v-for="opt in field.options || []"
                     :key="opt.value"
-                    :label="opt.label"
+                    :label="t(`payment_method.${opt.labelKey}`)"
                     :value="opt.value"
                   />
                 </el-select>

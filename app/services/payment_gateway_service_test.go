@@ -67,7 +67,13 @@ func TestPaymentGatewayAllowlist(t *testing.T) {
 			"code_generator_frontend":  prevFrontend,
 		})
 	}
-	t.Cleanup(func() { restore(prevGateways) })
+	prevEnv := facades.Config().GetString("app.env", "production")
+	t.Cleanup(func() {
+		restore(prevGateways)
+		facades.Config().Add("app.env", prevEnv)
+	})
+	// CI's unit job has no .env, so app.env would default to production.
+	facades.Config().Add("app.env", "local")
 
 	restore("")
 	assert.True(t, IsPaymentGatewayEnabled("mock"))
@@ -85,6 +91,17 @@ func TestPaymentGatewayAllowlist(t *testing.T) {
 	be, ok := apperrors.GetBusinessError(err)
 	require.True(t, ok)
 	assert.Equal(t, apperrors.ErrPaymentGatewayDisabled.Code, be.Code)
+
+	// Production: an empty / "*" allowlist leaves mock out; listing it explicitly opts in.
+	facades.Config().Add("app.env", "production")
+	for _, all := range []string{"", "*"} {
+		restore(all)
+		assert.False(t, IsPaymentGatewayEnabled("mock"), "allowlist %q", all)
+		assert.True(t, IsPaymentGatewayEnabled("wechat"), "allowlist %q", all)
+		assert.NotContains(t, EnabledPaymentGateways(), "mock")
+	}
+	restore("mock,wechat")
+	assert.True(t, IsPaymentGatewayEnabled("mock"))
 }
 
 func TestRegisterPaymentGatewayCustomType(t *testing.T) {

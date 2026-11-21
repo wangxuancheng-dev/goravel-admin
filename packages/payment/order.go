@@ -19,4 +19,7 @@ type Order struct {
 	Remark       string
 	ThirdPartyNo string
 	PayTime      *time.Time
+	// PayerID identifies the payer at the provider when a trade type needs it
+	// (e.g. the WeChat openid for jsapi). It belongs to the order, not the merchant config.
+	PayerID string
 }

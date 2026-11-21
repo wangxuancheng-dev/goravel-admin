@@ -72,7 +72,7 @@ function ConfigFieldItem({
         <Select
           allowClear
           placeholder={t(`payment_method.${field.placeholderKey}`)}
-          options={field.options}
+          options={field.options?.map((o) => ({ label: t(`payment_method.${o.labelKey}`), value: o.value }))}
         />
       ) : field.type === 'textarea' ? (
         <Input.TextArea rows={field.rows || 3} placeholder={t(`payment_method.${field.placeholderKey}`)} />

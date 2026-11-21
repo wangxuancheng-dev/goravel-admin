@@ -69,9 +69,13 @@ result, err := driver.Notify(ctx, cfg, notifyBody)
 
 | Type | Style | Notes |
 |------|--------|------|
-| `mock` | Hand-written HMAC | Full create / query / notify |
-| `wechat` | `gopay` SDK | Create sample; query/notify NotImplemented |
-| `alipay` | `gopay` SDK | Create sample; query/notify NotImplemented |
+| `mock` | Hand-written HMAC | Full create / query / notify. Create returns a valid notify `sign` — **dev/test only**; the host should keep it out of production. `MockNotifySign` builds callbacks |
+| `wechat` | `gopay` SDK (API v3) | Create only. Config: `app_id`, `mch_id`, `api_v3_key`, `cert_serial_no`, `private_key` or `private_key_path`, `trade_type` (`native` default → `code_url`; `jsapi` → `jsapi_params`, needs `Order.PayerID`). Query/notify NotImplemented |
+| `alipay` | `gopay` SDK (App pay) | Create only. Config: `app_id`, `private_key` (bare base64 or PEM), `sandbox` (default production). Returns `order_string` for the App SDK. Query/notify NotImplemented |
+
+Empty `Order.Remark` falls back to `Payment <payment_no>` as the subject / description.
+
+Numbers in notify data: `FirstString` formats float64 without truncation, but JSON integers above 2^53 are already rounded once decoded into float64 — decode with `json.Decoder.UseNumber()` or have the provider send IDs as strings.
 
 Add a channel: new file under `gateways/`, implement `payment.GatewayDriver`, `RegisterGateway` in `init()`.
 

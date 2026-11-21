@@ -59,13 +59,15 @@ func TestProviderGatewaysRequireNotifyURL(t *testing.T) {
 
 	order := &payment.Order{PaymentNo: "PAY1", Amount: 1}
 	_, err := (&wechatDriver{}).Create(context.Background(), order, map[string]any{
-		"app_id": "a", "mch_id": "m", "api_v3_key": "k",
+		"app_id": "a", "mch_id": "m", "api_v3_key": "k", "cert_serial_no": "s", "private_key": "pem",
 	}, "")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, payment.ErrConfigRequired), "wechat: %v", err)
+	assert.Contains(t, err.Error(), "ResolveNotifyURL")
 	_, err = (&alipayDriver{}).Create(context.Background(), order, map[string]any{
 		"app_id": "a", "private_key": "k",
 	}, "")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, payment.ErrConfigRequired), "alipay: %v", err)
+	assert.Contains(t, err.Error(), "ResolveNotifyURL")
 }

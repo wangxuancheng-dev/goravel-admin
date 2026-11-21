@@ -17,7 +17,11 @@ CreatePayment (订单 pending)
     → ApplyPaidResult（幂等：payment=paid + order=paid）
 ```
 
-内置：`mock`（可跑通）、`wechat` / `alipay`（下单示例，回调/查询 501）。新渠道见下文「接入全新渠道」。
+Built in: `mock` (works end to end; development / testing only) and `wechat` / `alipay` (create only; notify / query return 501). For a new channel see "Adding a new channel" below.
+
+- `wechat` (API v3): needs `app_id`, `mch_id`, `api_v3_key`, `cert_serial_no`, and either `private_key` (apiclient_key.pem content) or `private_key_path`. `trade_type` defaults to `native`, which returns a `code_url` for a QR code; `jsapi` returns `jsapi_params` and needs the payer openid on the order (`payment.Order.PayerID`), never from the merchant config.
+- `alipay` (App pay): needs `app_id` and `private_key` (the bare base64 key from the Alipay console or a full PEM). Production by default; `sandbox=1` switches to the sandbox. The returned `order_string` goes to the Alipay App SDK; it is not a web URL.
+- An empty order remark falls back to `Payment <payment_no>` as `subject` / `description` (both providers reject an empty title).
 | 组件 | 路径 | 职责 |
 |------|------|------|
 | 订单 | `app/services/order_service.go` | 分表订单 CRUD；`UpdateOrderByOrderNo` |
@@ -178,7 +182,7 @@ Shared rules:
 
 | Variable | Notes |
 |----------|-------|
-| `PAYMENT_GATEWAYS_ENABLED` | Comma-separated enabled types, e.g. `wechat,alipay`. Empty / `*` / `all` = all registered. Unlisted types cannot create methods or create/query/notify. **Prefer an explicit production allowlist** |
+| `PAYMENT_GATEWAYS_ENABLED` | Comma-separated enabled types, e.g. `wechat,alipay`. Empty / `*` / `all` = all registered, **except `mock` when `APP_ENV=production`** (mock create returns a valid notify signature, so anyone who can create a payment could mark it paid); list it explicitly to opt in. Unlisted types cannot create methods or create/query/notify. **Prefer an explicit production allowlist** |
 | `APP_URL` | Default `notify_url` base |
 | Multi-tenant | Notify must include `{tenant}`; see `tenancy.PaymentNotifyPath` |
 

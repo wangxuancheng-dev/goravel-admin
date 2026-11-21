@@ -13,7 +13,11 @@ CreatePayment (订单 pending)
     → ApplyPaidResult（幂等：payment=paid + order=paid）
 ```
 
-内置：`mock`（可跑通）、`wechat` / `alipay`（下单示例，回调/查询 501）。新渠道见下文「接入全新渠道」。
+内置：`mock`（可跑通，仅开发/测试）、`wechat` / `alipay`（只实现下单，回调/查询返回 501）。新渠道见下文「接入全新渠道」。
+
+- `wechat`（API v3）：需要 `app_id`、`mch_id`、`api_v3_key`、`cert_serial_no`，以及 `private_key`（apiclient_key.pem 内容）或 `private_key_path` 二选一。`trade_type` 默认 `native`，返回 `code_url` 用于生成二维码；`jsapi` 返回 `jsapi_params`，下单时必须带付款人 openid（`payment.Order.PayerID`），不能从商户配置里取。
+- `alipay`（App 支付）：需要 `app_id` 和 `private_key`（支付宝后台给的裸 base64 或完整 PEM 都可以）。默认正式环境，`sandbox=1` 才走沙箱。返回的 `order_string` 交给支付宝 App SDK 调起支付，它不是网页链接。
+- 订单备注为空时，`subject` / `description` 用 `Payment <payment_no>` 兜底（两家都不接受空标题）。
 | 组件 | 路径 | 职责 |
 |------|------|------|
 | 订单 | `app/services/order_service.go` | 分表订单 CRUD；`UpdateOrderByOrderNo` |
@@ -176,7 +180,7 @@ func (d *stripeDriver) Notify(ctx context.Context, config map[string]any, notify
 
 | 变量 / 开关 | 说明 |
 |-------------|------|
-| `PAYMENT_GATEWAYS_ENABLED` | 启用的网关类型（逗号分隔），如 `wechat,alipay`。空 / `*` / `all` = 全部已注册驱动。未列入的类型：不可创建支付方式、不可下单/查询/回调。**生产建议显式白名单** |
+| `PAYMENT_GATEWAYS_ENABLED` | 启用的网关类型（逗号分隔），如 `wechat,alipay`。空 / `*` / `all` = 全部已注册驱动；`APP_ENV=production` 时其中**不含 `mock`**（mock 下单会把有效回调签名返回给调用方，谁能下单谁就能把单子标记为已支付），生产确需 mock 要显式写进列表。未列入的类型：不可创建支付方式、不可下单/查询/回调。**生产建议显式白名单** |
 | `APP_URL` | 拼默认 `notify_url` |
 | 多租户 | 回调必须带 `{tenant}`；见 `tenancy.PaymentNotifyPath` |
 

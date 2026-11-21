@@ -25,8 +25,13 @@ func requirePaymentGateway(typ string) (payment.GatewayDriver, error) {
 	return d, nil
 }
 
+// devOnlyPaymentGateways are left out of an empty / "*" allowlist when APP_ENV=production.
+// mock hands a valid notify signature to whoever creates the payment, so anyone who can
+// create one could mark it paid; production must list it in PAYMENT_GATEWAYS_ENABLED on purpose.
+var devOnlyPaymentGateways = map[string]bool{"mock": true}
+
 // IsPaymentGatewayEnabled reports whether type is allowed by PAYMENT_GATEWAYS_ENABLED
-// and is registered. Empty allowlist = all registered drivers.
+// and is registered. Empty allowlist = all registered drivers (minus dev-only ones in production).
 func IsPaymentGatewayEnabled(typ string) bool {
 	typ = payment.NormalizeGatewayType(typ)
 	if typ == "" {
@@ -37,7 +42,7 @@ func IsPaymentGatewayEnabled(typ string) bool {
 	}
 	allow := paymentGatewayAllowlist()
 	if len(allow) == 0 {
-		return true
+		return !(devOnlyPaymentGateways[typ] && paymentEnvIsProduction())
 	}
 	_, ok := allow[typ]
 	return ok
@@ -46,17 +51,17 @@ func IsPaymentGatewayEnabled(typ string) bool {
 // EnabledPaymentGateways returns registered drivers filtered by PAYMENT_GATEWAYS_ENABLED.
 func EnabledPaymentGateways() []string {
 	registered := payment.RegisteredGatewayTypes()
-	allow := paymentGatewayAllowlist()
-	if len(allow) == 0 {
-		return registered
-	}
 	out := make([]string, 0, len(registered))
 	for _, typ := range registered {
-		if allow[typ] {
+		if IsPaymentGatewayEnabled(typ) {
 			out = append(out, typ)
 		}
 	}
 	return out
+}
+
+func paymentEnvIsProduction() bool {
+	return strings.EqualFold(strings.TrimSpace(facades.Config().GetString("app.env", "production")), "production")
 }
 
 func paymentGatewayAllowlist() map[string]bool {

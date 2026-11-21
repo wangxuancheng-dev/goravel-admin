@@ -116,20 +116,8 @@ func (c *PaymentNotifyController) resolvePaymentMethod(ctx http.Context, typ str
 	return &models.PaymentMethod{Type: typ, IsActive: true, Config: "{}"}
 }
 
+// firstNotifyPaymentNo uses the same lookup as the drivers, so a numeric
+// out_trade_no resolves the same payment the driver will verify.
 func firstNotifyPaymentNo(data map[string]any) string {
-	for _, k := range []string{"out_trade_no", "payment_no"} {
-		if s := strings.TrimSpace(stringFromAny(data[k])); s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
-func stringFromAny(v any) string {
-	switch t := v.(type) {
-	case string:
-		return t
-	default:
-		return ""
-	}
+	return gwpay.FirstString(data, "out_trade_no", "payment_no")
 }
