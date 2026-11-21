@@ -27,6 +27,7 @@
 - 🔒 Admins created by `OIDC_AUTO_PROVISION=true` came out enabled (gorm default) and were logged in; they are now disabled as documented
 - 🐛 The duplicate-submit lock on order creation never took effect (concurrent submits with one `request_id` created several orders); it is now an atomic lock
 - 🔒 Dropped gorm `default:1/true` from model status and flag fields: gorm swaps a 0/false for the default before INSERT, so "disabled / private / not public / failed" chosen on create was stored as the opposite. Affected: status of admins, users, roles, permissions, menus, departments, positions, dictionaries, attachment categories, allow/deny lists; **attachment privacy (document attachments default to private but were all stored public, readable without login at `/api/public/files/{id}`)**; failed status of operation and platform operation logs; non-public plans, feature status, entitlement overrides with `pinned=false`; tenant custom storage with SSL off; currency decimal places 0 (e.g. JPY). `app/models/default_tag_test.go` now rejects the pattern. **Upgrade note**: existing rows are not corrected automatically; review attachment `is_public` and admins/users that were meant to be created disabled
+- 🐛 The code generator's service preview failed (preview built its own template data, which had drifted from the generators); previews now run the generators, so they show exactly the file Save writes. For simple modules, the React list config / form modal tabs say the file is not generated instead of rendering one that is never written
 
 ## [1.0.0] - 2024-12-25
 

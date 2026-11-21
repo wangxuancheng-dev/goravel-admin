@@ -273,19 +273,19 @@ func formatFrontendContentWithPrettier(path, content string) string {
 	return normalizeFrontendWhitespace(string(output))
 }
 
-func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields []FieldConfig, selectedFiles []string, options map[string]bool) ([]GeneratedFile, error) {
-	if err := validateCodegenNames(moduleName, tableName); err != nil {
-		return nil, err
-	}
+// codegenFileGenerator renders one generated file type. enabled/skip only decide
+// whether Generate emits it; Preview renders any type it is asked for.
+type codegenFileGenerator struct {
+	fileType string
+	generate func(string, string, []FieldConfig, map[string]bool) (GeneratedFile, error)
+	enabled  func(map[string]bool) bool
+	skip     func([]FieldConfig, map[string]bool) bool
+}
 
-	var files []GeneratedFile
-
-	generators := []struct {
-		fileType string
-		generate func(string, string, []FieldConfig, map[string]bool) (GeneratedFile, error)
-		enabled  func(map[string]bool) bool
-		skip     func([]FieldConfig, map[string]bool) bool
-	}{
+// fileGenerators is the single list of file types Generate writes and Preview shows,
+// so a preview is always the file that would be written.
+func (s *CodeGeneratorServiceImpl) fileGenerators() []codegenFileGenerator {
+	return []codegenFileGenerator{
 		{"model", s.generateModel, nil, nil},
 		{"controller", s.generateController, nil, nil},
 		{"service", s.generateService, nil, nil},
@@ -307,6 +307,42 @@ func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields
 			return !reactGeneratorEnabled() || isSimpleReactModule(fields, options)
 		}},
 	}
+}
+
+// previewNotGeneratedNote explains, in place of a preview, a file type the generator
+// will not write for this module. The UI shows a preview tab for every file type.
+func previewNotGeneratedNote(fileType string, fields []FieldConfig, options map[string]bool) string {
+	switch fileType {
+	case "react_list_page_config", "react_form_modal":
+		if isSimpleReactModule(fields, options) {
+			return "// Not generated: simple modules inline this into react_list_page.\n" +
+				"// 简单模块不单独生成此文件，内容已合并到 react_list_page。\n"
+		}
+	}
+	return ""
+}
+
+// finishGeneratedFile applies the formatting every generated file gets.
+func finishGeneratedFile(file GeneratedFile) GeneratedFile {
+	if strings.HasSuffix(file.Path, ".go") {
+		if formatted, err := format.Source([]byte(file.Content)); err == nil {
+			file.Content = normalizeGeneratedContent(string(formatted))
+		} else {
+			file.Content = normalizeGeneratedContent(file.Content)
+		}
+	} else {
+		file.Content = normalizeGeneratedContent(file.Content)
+	}
+	file.Content = formatFrontendContentWithPrettier(file.Path, file.Content)
+	return file
+}
+
+func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields []FieldConfig, selectedFiles []string, options map[string]bool) ([]GeneratedFile, error) {
+	if err := validateCodegenNames(moduleName, tableName); err != nil {
+		return nil, err
+	}
+
+	var files []GeneratedFile
 
 	// Create a map for faster lookup of selected files
 	selectedMap := make(map[string]bool)
@@ -329,7 +365,7 @@ func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields
 		expandSelectedMasterDetailFiles(selectedMap, options)
 	}
 
-	for _, gen := range generators {
+	for _, gen := range s.fileGenerators() {
 		if hasSelection && !selectedMap[gen.fileType] {
 			continue
 		}
@@ -344,20 +380,7 @@ func (s *CodeGeneratorServiceImpl) Generate(moduleName, tableName string, fields
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate %s: %w", gen.fileType, err)
 		}
-
-		if strings.HasSuffix(file.Path, ".go") {
-			formatted, err := format.Source([]byte(file.Content))
-			if err == nil {
-				file.Content = normalizeGeneratedContent(string(formatted))
-			} else {
-				file.Content = normalizeGeneratedContent(file.Content)
-			}
-		} else {
-			file.Content = normalizeGeneratedContent(file.Content)
-		}
-		file.Content = formatFrontendContentWithPrettier(file.Path, file.Content)
-
-		files = append(files, file)
+		files = append(files, finishGeneratedFile(file))
 	}
 
 	if s.masterDetailActive(options) {
@@ -419,37 +442,23 @@ func (s *CodeGeneratorServiceImpl) Preview(moduleName, tableName string, fields 
 	if err := validateCodegenNames(moduleName, tableName); err != nil {
 		return "", err
 	}
-	templateName, err := s.getTemplateName(fileType, fields, options)
-	if err != nil {
-		return "", err
-	}
-
-	templateContent, err := templates.ReadFile(templateName)
-	if err != nil {
-		return "", fmt.Errorf("failed to read template: %w", err)
-	}
-
-	tmpl, err := template.New("preview").Delims("<<", ">>").Parse(string(templateContent))
-	if err != nil {
-		return "", fmt.Errorf("failed to parse template: %w", err)
-	}
-
-	data := s.buildTemplateData(moduleName, tableName, fields, fileType, options)
-	var builder strings.Builder
-	if err := tmpl.Execute(&builder, data); err != nil {
-		return "", fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	content := builder.String()
-	if strings.Contains(templateName, ".go") || fileType == "model" || fileType == "controller" || fileType == "service" || fileType == "request_create" || fileType == "request_update" || fileType == "migration" {
-		formatted, err := format.Source([]byte(content))
-		if err == nil {
-			return normalizeGeneratedContent(string(formatted)), nil
+	// Render through the same generator Generate uses, so the preview is exactly the
+	// file Save would write. (A separate preview data builder drifted from the
+	// generators and broke the service/migration previews.)
+	for _, gen := range s.fileGenerators() {
+		if gen.fileType != fileType {
+			continue
 		}
-		return normalizeGeneratedContent(content), nil
+		if note := previewNotGeneratedNote(fileType, fields, options); note != "" {
+			return note, nil
+		}
+		file, err := gen.generate(moduleName, tableName, fields, options)
+		if err != nil {
+			return "", err
+		}
+		return finishGeneratedFile(file).Content, nil
 	}
-
-	return normalizeGeneratedContent(content), nil
+	return "", fmt.Errorf("unknown file type: %s", fileType)
 }
 
 func (s *CodeGeneratorServiceImpl) Save(moduleName, tableName string, fields []FieldConfig, selectedFiles []string, options map[string]bool) ([]string, error) {
@@ -1154,425 +1163,6 @@ func (s *CodeGeneratorServiceImpl) GetFieldTypes() []FieldType {
 			DBType:     "json",
 			Validators: []string{"json"},
 		},
-	}
-}
-
-func (s *CodeGeneratorServiceImpl) getTemplateName(fileType string, fields []FieldConfig, options map[string]bool) (string, error) {
-	switch fileType {
-	case "model":
-		return "templates/model.tpl", nil
-	case "controller":
-		return "templates/controller.tpl", nil
-	case "service":
-		return "templates/service.tpl", nil
-	case "request_create":
-		return "templates/request_create.tpl", nil
-	case "request_update":
-		return "templates/request_update.tpl", nil
-	case "migration":
-		return "templates/migration.tpl", nil
-	case "export_job":
-		return "templates/export_job.tpl", nil
-	case "import_job":
-		return "templates/import_job.tpl", nil
-	case "api":
-		return "templates/api.js.tpl", nil
-	case "list_page_config":
-		return s.getListPageConfigTemplateName(options), nil
-	case "list_page":
-		return s.getListPageTemplateName(options), nil
-	case "form_page":
-		return "templates/form_page.vue.tpl", nil
-	case "react_api":
-		return "templates/api.ts.tpl", nil
-	case "react_list_page":
-		return s.getReactListPageTemplateName(fields, options), nil
-	case "react_list_page_config":
-		return s.getReactListPageConfigTemplateName(options), nil
-	case "react_form_modal":
-		return s.getReactFormModalTemplateName(options), nil
-	default:
-		return "", fmt.Errorf("unknown file type: %s", fileType)
-	}
-}
-
-func (s *CodeGeneratorServiceImpl) buildTemplateData(moduleName, tableName string, fields []FieldConfig, fileType string, options map[string]bool) any {
-	templateFields := s.convertFieldsToTemplateFields(fields)
-
-	// Default options
-	hasCreate := true
-	hasEdit := true
-	hasDelete := true
-	hasExport := false
-	exportAsync := false
-	hasImport := false
-	importAsync := false
-	enableBatchActions := false
-	showToolbar := true
-
-	if options != nil {
-		if val, ok := options["has_create"]; ok {
-			hasCreate = val
-		}
-		if val, ok := options["has_edit"]; ok {
-			hasEdit = val
-		}
-		if val, ok := options["has_delete"]; ok {
-			hasDelete = val
-		}
-		if val, ok := options["has_export"]; ok {
-			hasExport = val
-		}
-		if val, ok := options["export_async"]; ok {
-			exportAsync = val
-		}
-		if val, ok := options["has_import"]; ok {
-			hasImport = val
-		}
-		if val, ok := options["import_async"]; ok {
-			importAsync = val
-		}
-		if val, ok := options["enable_batch_actions"]; ok {
-			enableBatchActions = val
-		}
-		if val, ok := options["show_toolbar"]; ok {
-			showToolbar = val
-		}
-	}
-
-	md := s.buildMasterDetailMeta(moduleName, options)
-
-	switch fileType {
-	case "model":
-		return struct {
-			ModelName         string
-			TableName         string
-			Fields            []TemplateFieldConfig
-			IsTreeList        bool
-			IsMasterDetail    bool
-			DetailModelName   string
-			DetailFKFieldName string
-		}{
-			ModelName:         toPascalCase(moduleName),
-			TableName:         tableName,
-			Fields:            templateFields,
-			IsTreeList:        optionEnabled(options, "is_tree_list", false),
-			IsMasterDetail:    md.IsMasterDetail,
-			DetailModelName:   md.DetailModelName,
-			DetailFKFieldName: md.DetailFKFieldName,
-		}
-	case "controller":
-		var searchableFields []TemplateFieldConfig
-		for _, field := range templateFields {
-			if field.Searchable {
-				searchableFields = append(searchableFields, field)
-			}
-		}
-		return struct {
-			ControllerName    string
-			ServiceName       string
-			ModelName         string
-			ModuleName        string
-			ListFields        []TemplateFieldConfig
-			SearchableFields  []TemplateFieldConfig
-			RequestCreateName string
-			RequestUpdateName string
-			HasCreate         bool
-			HasEdit           bool
-			HasDelete         bool
-			HasExport         bool
-			ExportAsync       bool
-			HasImport         bool
-			ImportAsync       bool
-			IsTreeList        bool
-		}{
-			ControllerName:    toPascalCase(moduleName) + "Controller",
-			ServiceName:       toPascalCase(moduleName) + "Service",
-			ModelName:         toPascalCase(moduleName),
-			ModuleName:        moduleName,
-			ListFields:        templateFields,
-			SearchableFields:  searchableFields,
-			RequestCreateName: toPascalCase(moduleName) + "Create",
-			RequestUpdateName: toPascalCase(moduleName) + "Update",
-			HasCreate:         hasCreate,
-			HasEdit:           hasEdit,
-			HasDelete:         hasDelete,
-			HasExport:         hasExport,
-			ExportAsync:       exportAsync,
-			HasImport:         hasImport,
-			ImportAsync:       importAsync,
-			IsTreeList:        optionEnabled(options, "is_tree_list", false),
-		}
-	case "service":
-		var searchableFields []TemplateFieldConfig
-		for _, field := range templateFields {
-			if field.Searchable {
-				searchableFields = append(searchableFields, field)
-			}
-		}
-		return struct {
-			ServiceName       string
-			ModelName         string
-			ModuleName        string
-			SearchableFields  []TemplateFieldConfig
-			RequestCreateName string
-			RequestUpdateName string
-			FormFields        []TemplateFieldConfig
-			HasCreate         bool
-			HasEdit           bool
-			HasDelete         bool
-			HasExport         bool
-			ExportAsync       bool
-			HasImport         bool
-			ImportAsync       bool
-			IsTreeList        bool
-			ParentIDFieldName string
-			IsMasterDetail    bool
-			DetailModelName   string
-			DetailFKName      string
-			DetailFKFieldName string
-			DetailFormFields  []TemplateFieldConfig
-		}{
-			ServiceName:       toPascalCase(moduleName) + "Service",
-			ModelName:         toPascalCase(moduleName),
-			ModuleName:        moduleName,
-			SearchableFields:  searchableFields,
-			RequestCreateName: toPascalCase(moduleName) + "Create",
-			RequestUpdateName: toPascalCase(moduleName) + "Update",
-			FormFields:        templateFields,
-			HasCreate:         hasCreate,
-			HasEdit:           hasEdit,
-			HasDelete:         hasDelete,
-			HasExport:         hasExport,
-			ExportAsync:       exportAsync,
-			HasImport:         hasImport && !md.IsMasterDetail,
-			ImportAsync:       importAsync && !md.IsMasterDetail,
-			IsTreeList:        optionEnabled(options, "is_tree_list", false),
-			ParentIDFieldName: resolveParentIDFieldName(templateFields),
-			IsMasterDetail:    md.IsMasterDetail,
-			DetailModelName:   md.DetailModelName,
-			DetailFKName:      md.DetailFKName,
-			DetailFKFieldName: md.DetailFKFieldName,
-			DetailFormFields:  md.DetailFormFields,
-		}
-	case "request_create":
-		return struct {
-			ModuleName        string
-			TableName         string
-			FormFields        []TemplateFieldConfig
-			RequestCreateName string
-			IsMasterDetail    bool
-			DetailModelName   string
-			DetailFormFields  []TemplateFieldConfig
-		}{
-			ModuleName:        moduleName,
-			TableName:         tableName,
-			FormFields:        templateFields,
-			RequestCreateName: toPascalCase(moduleName) + "Create",
-			IsMasterDetail:    md.IsMasterDetail,
-			DetailModelName:   md.DetailModelName,
-			DetailFormFields:  md.DetailFormFields,
-		}
-	case "request_update":
-		return struct {
-			ModuleName        string
-			TableName         string
-			FormFields        []TemplateFieldConfig
-			RequestUpdateName string
-			IsMasterDetail    bool
-			DetailModelName   string
-		}{
-			ModuleName:        moduleName,
-			TableName:         tableName,
-			FormFields:        templateFields,
-			RequestUpdateName: toPascalCase(moduleName) + "Update",
-			IsMasterDetail:    md.IsMasterDetail,
-			DetailModelName:   md.DetailModelName,
-		}
-	case "migration":
-		for i := range templateFields {
-			templateFields[i].MigrationMethod = getMigrationMethod(templateFields[i].DBType)
-		}
-		return struct {
-			ModelName string
-			TableName string
-			Fields    []TemplateFieldConfig
-		}{
-			ModelName: toPascalCase(moduleName),
-			TableName: tableName,
-			Fields:    templateFields,
-		}
-	case "api":
-		return struct {
-			ModelName   string
-			ModuleName  string
-			ModuleNameK string
-			FormFields  []TemplateFieldConfig
-			HasCreate   bool
-			HasEdit     bool
-			HasDelete   bool
-			HasExport   bool
-			HasImport   bool
-			ImportAsync bool
-		}{
-			ModelName:   toPascalCase(moduleName),
-			ModuleName:  moduleName,
-			ModuleNameK: toKebabCase(moduleName),
-			FormFields:  templateFields,
-			HasCreate:   hasCreate,
-			HasEdit:     hasEdit,
-			HasDelete:   hasDelete,
-			HasExport:   hasExport,
-			HasImport:   hasImport,
-			ImportAsync: importAsync,
-		}
-	case "export_job", "import_job":
-		return struct {
-			ModelName  string
-			ModuleName string
-			ListFields []TemplateFieldConfig
-		}{
-			ModelName:  toPascalCase(moduleName),
-			ModuleName: moduleName,
-			ListFields: templateFields,
-		}
-	case "list_page", "list_page_config":
-		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
-	case "react_api":
-		return struct {
-			ModelName   string
-			ModuleName  string
-			ModuleNameK string
-			FormFields  []TemplateFieldConfig
-			HasCreate   bool
-			HasEdit     bool
-			HasDelete   bool
-			HasExport   bool
-			HasImport   bool
-			ImportAsync bool
-		}{
-			ModelName:   toPascalCase(moduleName),
-			ModuleName:  moduleName,
-			ModuleNameK: toKebabCase(moduleName),
-			FormFields:  templateFields,
-			HasCreate:   hasCreate,
-			HasEdit:     hasEdit,
-			HasDelete:   hasDelete,
-			HasExport:   hasExport,
-			HasImport:   hasImport,
-			ImportAsync: importAsync,
-		}
-	case "react_list_page", "react_list_page_config":
-		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
-	case "react_form_modal":
-		if md.IsMasterDetail {
-			return struct {
-				ModelName         string
-				ModuleName        string
-				ModuleNameCamel   string
-				ModuleNameK       string
-				FormFields        []TemplateFieldConfig
-				HasCreate         bool
-				HasEdit           bool
-				HasEditor         bool
-				HasMarkdown       bool
-				HasFormSwitch     bool
-				HasFormSelect     bool
-				HasFormRadio      bool
-				HasFormCheckbox   bool
-				HasFormNumber     bool
-				HasFormDatePicker bool
-				IsMasterDetail    bool
-				DetailFormFields  []TemplateFieldConfig
-			}{
-				ModelName:         toPascalCase(moduleName),
-				ModuleName:        moduleName,
-				ModuleNameCamel:   toCamelCase(moduleName),
-				ModuleNameK:       toKebabCase(moduleName),
-				FormFields:        templateFields,
-				HasCreate:         hasCreate,
-				HasEdit:           hasEdit,
-				HasEditor:         hasFieldFormType(templateFields, "editor"),
-				HasMarkdown:       hasFieldFormType(templateFields, "markdown"),
-				HasFormSwitch:     hasFieldFormType(templateFields, "switch"),
-				HasFormSelect:     hasFieldFormType(templateFields, "select"),
-				HasFormRadio:      hasFieldFormType(templateFields, "radio"),
-				HasFormCheckbox:   hasFieldFormType(templateFields, "checkbox"),
-				HasFormNumber:     hasFieldFormType(templateFields, "number"),
-				HasFormDatePicker: hasFieldFormType(templateFields, "date-picker") || hasFieldFormType(templateFields, "datetime-picker"),
-				IsMasterDetail:    true,
-				DetailFormFields:  md.DetailFormFields,
-			}
-		}
-		return s.buildListPageTemplateData(moduleName, templateFields, hasCreate, hasEdit, hasDelete, hasExport, exportAsync, hasImport, importAsync, enableBatchActions, showToolbar, optionEnabled(options, "is_tree_list", false))
-	case "form_page":
-		formFields := applyTreeListFieldFlags(templateFields, optionEnabled(options, "is_tree_list", false))
-		// 检查是否有 editor 类型的字段
-		hasEditor := false
-		for _, field := range formFields {
-			if field.FormType == "editor" && field.ShowInForm {
-				hasEditor = true
-				break
-			}
-		}
-
-		// 检查是否有 markdown 类型的字段
-		hasMarkdown := false
-		for _, field := range formFields {
-			if field.FormType == "markdown" && field.ShowInForm {
-				hasMarkdown = true
-				break
-			}
-		}
-
-		// 检查是否有 image-upload 类型的字段
-		hasImageUpload := false
-		for _, field := range formFields {
-			if field.FormType == "image-upload" && field.ShowInForm {
-				hasImageUpload = true
-				break
-			}
-		}
-
-		return struct {
-			ModelName        string
-			ModuleName       string
-			ModuleNameK      string
-			FormFields       []TemplateFieldConfig
-			HasCreate        bool
-			HasEdit          bool
-			HasEditor        bool
-			HasMarkdown      bool
-			HasImageUpload   bool
-			IsMasterDetail   bool
-			DetailFormFields []TemplateFieldConfig
-		}{
-			ModelName:        toPascalCase(moduleName),
-			ModuleName:       moduleName,
-			ModuleNameK:      toKebabCase(moduleName),
-			FormFields:       formFields,
-			HasCreate:        hasCreate,
-			HasEdit:          hasEdit,
-			HasEditor:        hasEditor,
-			HasMarkdown:      hasMarkdown,
-			HasImageUpload:   hasImageUpload,
-			IsMasterDetail:   md.IsMasterDetail,
-			DetailFormFields: md.DetailFormFields,
-		}
-	default:
-		return struct {
-			ModuleName        string
-			TableName         string
-			FormFields        []TemplateFieldConfig
-			RequestCreateName string
-			RequestUpdateName string
-		}{
-			ModuleName:        moduleName,
-			TableName:         tableName,
-			FormFields:        templateFields,
-			RequestCreateName: toPascalCase(moduleName) + "Create",
-			RequestUpdateName: toPascalCase(moduleName) + "Update",
-		}
 	}
 }
 

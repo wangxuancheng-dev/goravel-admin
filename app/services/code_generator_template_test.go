@@ -124,3 +124,79 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// Every file type the generator writes must also preview, and a backend preview must be
+// byte-for-byte the file Generate produces. The service and migration previews used to
+// fail ("can't evaluate field EntitlementRowQuota/Timestamp") because Preview built its
+// own template data that had drifted from the generators.
+func TestPreviewMatchesGeneratedFiles(t *testing.T) {
+	impl := NewCodeGeneratorService(context.Background()).(*CodeGeneratorServiceImpl)
+	fields := []FieldConfig{
+		{Name: "parent_id", Label: "Parent", GoType: "uint", DBType: "unsignedBigInteger", ShowInList: true, ShowInForm: true, FormType: "number"},
+		{Name: "name", Label: "Name", GoType: "string", DBType: "string", ShowInList: true, ShowInForm: true, FormType: "input", Required: true, Searchable: true},
+		{Name: "status", Label: "Status", GoType: "uint8", DBType: "unsignedTinyInteger", ShowInList: true, ShowInForm: true, FormType: "switch"},
+		{Name: "is_public", Label: "Public", GoType: "bool", DBType: "boolean", ShowInList: true, ShowInForm: true, FormType: "switch"},
+	}
+	optionSets := map[string]map[string]bool{
+		"plain": {"has_create": true, "has_edit": true, "has_delete": true},
+		"tree":  {"has_create": true, "has_edit": true, "has_delete": true, "is_tree_list": true},
+	}
+	backend := map[string]bool{"model": true, "controller": true, "service": true, "request_create": true, "request_update": true, "migration": true}
+
+	for setName, opts := range optionSets {
+		for _, gen := range impl.fileGenerators() {
+			t.Run(setName+"/"+gen.fileType, func(t *testing.T) {
+				preview, err := impl.Preview("probe", "probes", fields, gen.fileType, opts)
+				if err != nil {
+					t.Fatalf("preview failed: %v", err)
+				}
+				if strings.TrimSpace(preview) == "" {
+					t.Fatal("empty preview")
+				}
+				if note := previewNotGeneratedNote(gen.fileType, fields, opts); note != "" {
+					if preview != note {
+						t.Fatalf("a file the generator skips must preview as the note, got:\n%s", preview)
+					}
+					files, err := impl.Generate("probe", "probes", fields, []string{gen.fileType}, opts)
+					if err != nil {
+						t.Fatalf("generate failed: %v", err)
+					}
+					for _, f := range files {
+						if strings.HasSuffix(f.Path, "Config.ts") || strings.HasSuffix(f.Path, "FormModal.tsx") {
+							t.Fatalf("note says %s is not generated, but Generate wrote %s", gen.fileType, f.Path)
+						}
+					}
+					return
+				}
+				if !backend[gen.fileType] {
+					return
+				}
+				files, err := impl.Generate("probe", "probes", fields, []string{gen.fileType}, opts)
+				if err != nil {
+					t.Fatalf("generate failed: %v", err)
+				}
+				if len(files) != 1 {
+					t.Fatalf("expected 1 generated file, got %d", len(files))
+				}
+				if files[0].Content != preview {
+					t.Fatalf("preview differs from the generated %s", files[0].Path)
+				}
+			})
+		}
+	}
+
+	service, err := impl.Preview("probe", "probes", fields, "service", optionSets["plain"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(service, "Status:   req.Status,") {
+		t.Error("generated service must copy status from the request so a disabled row stays disabled")
+	}
+}
+
+func TestPreviewRejectsUnknownFileType(t *testing.T) {
+	_, err := NewCodeGeneratorService(context.Background()).Preview("probe", "probes", nil, "nope", nil)
+	if err == nil || !strings.Contains(err.Error(), "unknown file type") {
+		t.Fatalf("want unknown file type error, got %v", err)
+	}
+}
