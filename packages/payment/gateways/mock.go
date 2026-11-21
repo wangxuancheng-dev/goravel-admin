@@ -128,6 +128,13 @@ func (d *mockDriver) Notify(ctx context.Context, config map[string]any, notifyDa
 	}, nil
 }
 
+// MockNotifySign returns the mock gateway's notify signature:
+// hex(HMAC-SHA256(secret, "paymentNo|tradeStatus|amount(%.2f)")).
+// Exported so CLIs / tests build callbacks with the exact algorithm Notify verifies.
+func MockNotifySign(paymentNo, tradeStatus string, amount float64, secret string) string {
+	return mockNotifySign(paymentNo, tradeStatus, amount, secret)
+}
+
 func mockNotifySign(paymentNo, tradeStatus string, amount float64, secret string) string {
 	payload := fmt.Sprintf("%s|%s|%.2f", paymentNo, tradeStatus, amount)
 	mac := hmac.New(sha256.New, []byte(secret))

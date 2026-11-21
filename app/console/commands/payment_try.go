@@ -2,9 +2,6 @@ package commands
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,7 +13,7 @@ import (
 	"github.com/goravel/framework/contracts/console/command"
 
 	"goravel-payment"
-	_ "goravel-payment/gateways"
+	"goravel-payment/gateways"
 )
 
 // PaymentTry exercises gateway Create / Query / Notify from the CLI (no admin UI).
@@ -241,7 +238,7 @@ func buildNotifyPayload(ctx console.Context, typ string, order *payment.Order, c
 		"out_trade_no": order.PaymentNo,
 		"trade_status": "SUCCESS",
 		"amount":       order.Amount,
-		"sign":         mockCLINotifySign(order.PaymentNo, "SUCCESS", order.Amount, secret),
+		"sign":         gateways.MockNotifySign(order.PaymentNo, "SUCCESS", order.Amount, secret),
 	}, nil
 }
 
@@ -252,7 +249,7 @@ func notifyFromCreateResult(typ string, order *payment.Order, cfg map[string]any
 	secret := payment.StringFromConfig(cfg, "shared_secret")
 	sign := payment.FirstString(created, "sign")
 	if sign == "" && secret != "" {
-		sign = mockCLINotifySign(order.PaymentNo, "SUCCESS", order.Amount, secret)
+		sign = gateways.MockNotifySign(order.PaymentNo, "SUCCESS", order.Amount, secret)
 	}
 	if sign == "" {
 		return nil, fmt.Errorf("mock create did not return sign and shared_secret is empty")
@@ -267,13 +264,6 @@ func notifyFromCreateResult(typ string, order *payment.Order, cfg map[string]any
 		"amount":       amount,
 		"sign":         sign,
 	}, nil
-}
-
-func mockCLINotifySign(paymentNo, tradeStatus string, amount float64, secret string) string {
-	payload := fmt.Sprintf("%s|%s|%.2f", paymentNo, tradeStatus, amount)
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write([]byte(payload))
-	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func printJSON(ctx console.Context, v any) error {
