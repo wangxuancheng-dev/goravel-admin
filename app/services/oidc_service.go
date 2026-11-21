@@ -28,6 +28,10 @@ import (
 // carries tenant_id so the callback can BindHTTP before admin lookup.
 const oidcStateCachePrefix = "oidc:state:"
 
+// oidcStateClaimPrefix marks a state as redeemed. It must not start with
+// oidcStateCachePrefix, or state=<suffix> would read the marker as a state.
+const oidcStateClaimPrefix = "oidc:state-claimed:"
+
 type oidcStatePayload struct {
 	TenantID   uint   `json:"tenant_id,omitempty"`
 	TenantCode string `json:"tenant_code,omitempty"`
@@ -206,7 +210,7 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 	// callbacks could both read it. Add is set-if-absent: only the first one claims it.
 	cached, _ := facades.Cache().Pull(oidcStateCachePrefix+state, "").(string)
 	if strings.TrimSpace(cached) == "" ||
-		!facades.Cache().Add(oidcStateCachePrefix+"used:"+state, 1, 10*time.Minute) {
+		!facades.Cache().Add(oidcStateClaimPrefix+state, 1, 10*time.Minute) {
 		return "", nil, "", apperrors.NewBusinessError("oidc_invalid_state", "invalid or expired OIDC state")
 	}
 
@@ -324,13 +328,11 @@ func oidcClaimTrue(v any) bool {
 	return false
 }
 
+// parseOIDCStatePayload accepts only the JSON object AuthURL stores. Anything else
+// (including a bare "1" another cache entry might hold) is not a state.
 func parseOIDCStatePayload(cached string) (oidcStatePayload, error) {
-	cached = strings.TrimSpace(cached)
 	var payload oidcStatePayload
-	if cached == "" || cached == "1" {
-		return payload, nil
-	}
-	if err := json.Unmarshal([]byte(cached), &payload); err != nil {
+	if err := json.Unmarshal([]byte(strings.TrimSpace(cached)), &payload); err != nil {
 		return payload, err
 	}
 	return payload, nil

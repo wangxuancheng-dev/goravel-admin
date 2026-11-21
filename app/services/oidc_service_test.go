@@ -6,6 +6,22 @@ import (
 	apperrors "goravel/app/errors"
 )
 
+func TestParseOIDCStatePayload(t *testing.T) {
+	got, err := parseOIDCStatePayload(`{"tenant_id":7,"tenant_code":"acme"}`)
+	if err != nil || got.TenantID != 7 || got.TenantCode != "acme" {
+		t.Fatalf("tenant payload: got %+v, %v", got, err)
+	}
+	if _, err := parseOIDCStatePayload(`{}`); err != nil {
+		t.Fatalf("single-db payload {} rejected: %v", err)
+	}
+	// A bare "1" is what the claim marker holds on Redis; it must never pass as a state.
+	for _, bad := range []string{"", "1", "true", "not json"} {
+		if _, err := parseOIDCStatePayload(bad); err == nil {
+			t.Errorf("parseOIDCStatePayload(%q) accepted a non-state value", bad)
+		}
+	}
+}
+
 func TestOIDCLoginEmail(t *testing.T) {
 	cases := []struct {
 		name            string

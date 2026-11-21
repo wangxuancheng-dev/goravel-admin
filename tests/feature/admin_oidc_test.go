@@ -332,7 +332,7 @@ func TestOIDCLoginRejectsAlreadyClaimedState(t *testing.T) {
 	admin := createOIDCAdmin(t, 1)
 
 	state := startOIDCLogin(t, idp)
-	usedKey := "oidc:state:used:" + state
+	usedKey := "oidc:state-claimed:" + state
 	require.True(t, facades.Cache().Add(usedKey, 1, time.Minute))
 	t.Cleanup(func() { facades.Cache().Forget(usedKey) })
 
@@ -340,6 +340,25 @@ func TestOIDCLoginRejectsAlreadyClaimedState(t *testing.T) {
 	assert.Empty(t, token)
 	assert.Equal(t, "oidc_invalid_state", errCode)
 	assert.Equal(t, int64(0), oidcTokenCount(t, admin.ID))
+}
+
+// The "already claimed" marker must not be redeemable as a state itself: passing
+// state=used:<spent state> once read the marker ("1" on Redis), which parsed as a
+// valid legacy state and let a spent state log in again.
+func TestOIDCLoginRejectsClaimMarkerAsState(t *testing.T) {
+	idp := newFakeOIDCIdP(t)
+	withOIDCConfig(t, idp, false, false)
+	admin := createOIDCAdmin(t, 1)
+
+	state := startOIDCLogin(t, idp)
+	token, errCode := finishOIDCLogin(t, idp.issueCode(verifiedClaims(admin)), state)
+	require.Empty(t, errCode)
+	require.NotEmpty(t, token)
+
+	token, errCode = finishOIDCLogin(t, idp.issueCode(verifiedClaims(admin)), "used:"+state)
+	assert.Empty(t, token)
+	assert.Equal(t, "oidc_invalid_state", errCode)
+	assert.Equal(t, int64(1), oidcTokenCount(t, admin.ID))
 }
 
 func TestOIDCLoginRejectsUnknownState(t *testing.T) {
