@@ -309,6 +309,9 @@ OIDC_AUTO_PROVISION=false
 ```
 
 - 登录页在启用后显示 SSO 按钮；回调按 **邮箱** 匹配已有管理员并签发 JWT
+- 只接受 `email_verified=true` 的邮箱（布尔或字符串 `"true"`），否则返回 `oidc_email_unverified`。因为按邮箱匹配，信任未验证邮箱等于允许任何能在 IdP 里填该邮箱的人登录对应管理员。部分 IdP（如 Microsoft Entra ID）默认不下发该声明：优先在 IdP 侧配置下发；确认邮箱只能由你方管理员设置时，才设置 `OIDC_ALLOW_UNVERIFIED_EMAIL=true`（仅进程级，租户配置无法覆盖）
+- SSO 登录不经过本地 Google 2FA，多因素认证应在 IdP 侧强制
+- 租户可覆盖 Issuer，意味着有「系统配置」权限的人可以接入自己控制的 IdP 并以本租户任意邮箱登录，请把该权限当作超管级别授予
 - 多商户：发起 SSO 的 URL 需带 `?tenant_code=`（前端已处理）；OIDC `state` 内嵌 `tenant_id`，回调据此重新绑定租户库（callback 路由不走 Tenant 中间件）
 - 兼容参数 / 子域名 / 独立域名（vanity）：`login/branding` 回传已绑定的 `tenant_code`，供独立域名 SPA 拼到 redirect
 - 默认使用进程级 `OIDC_*`；租户可在 **系统配置 → 企业 SSO (OIDC)** 覆盖 Issuer / Client（`configs` group `oidc`）。`OIDC_REDIRECT_URL` / `OIDC_FRONTEND_REDIRECT` 仍为全局

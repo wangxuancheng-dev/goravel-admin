@@ -22,6 +22,9 @@
 - 🏢 平台控制台（Landlord）：`platform_admins` + `/api/platform` + `/platform/login`；租户管理迁出租户后台；远程 DB 凭据；子域解析；`platform:admin` / `tenant:backup|restore`
 - 🔒 远程租户建库打到目标 Host；`tenants.password` APP_KEY 加密；`skip_create`；mysqldump 密码走 defaults-extra-file
 - 🛠️ `platform:install` bootstrap；HTTP create forbids sync migrate；platform console async migrate/seed/backup (`tenant_ops`)
+- 🐛 OIDC SSO callback read the state wrongly and rejected every login with `oidc_invalid_state`; it now works (state is single-use)
+- 🔒 OIDC only accepts emails the IdP marks `email_verified=true` (stops an unverified email from taking over the admin with that email); set `OIDC_ALLOW_UNVERIFIED_EMAIL=true` (process env only) for IdPs that omit the claim. **Upgrade note**: IdPs such as Microsoft Entra ID omit it by default; configure the IdP or set the switch first
+- 🔒 Admins created by `OIDC_AUTO_PROVISION=true` came out enabled (gorm default) and were logged in; they are now disabled as documented
 - 🔒 Dropped gorm `default:1/true` from model status and flag fields: gorm swaps a 0/false for the default before INSERT, so "disabled / private / not public / failed" chosen on create was stored as the opposite. Affected: status of admins, users, roles, permissions, menus, departments, positions, dictionaries, attachment categories, allow/deny lists; **attachment privacy (document attachments default to private but were all stored public, readable without login at `/api/public/files/{id}`)**; failed status of operation and platform operation logs; non-public plans, feature status, entitlement overrides with `pinned=false`; tenant custom storage with SSL off; currency decimal places 0 (e.g. JPY). `app/models/default_tag_test.go` now rejects the pattern. **Upgrade note**: existing rows are not corrected automatically; review attachment `is_public` and admins/users that were meant to be created disabled
 
 ## [1.0.0] - 2024-12-25

@@ -226,6 +226,9 @@ OIDC_AUTO_PROVISION=false
 ```
 
 - Login page shows SSO when enabled; callback matches admin by **email** and issues JWT
+- Only emails with `email_verified=true` (boolean or the string `"true"`) are accepted; otherwise the callback fails with `oidc_email_unverified`. Because admins are matched by email, trusting an unverified email lets anyone who can set that address at the IdP sign in as that admin. Some IdPs (e.g. Microsoft Entra ID) omit the claim by default: prefer configuring the IdP to emit it, and set `OIDC_ALLOW_UNVERIFIED_EMAIL=true` only when emails there can be set by your own admins alone (process env only; tenant config cannot override it)
+- SSO logins skip the local Google 2FA step; enforce MFA at the IdP
+- Tenants can override the Issuer, so anyone with the System config permission can plug in an IdP they control and sign in as any email in that tenant. Grant that permission as if it were super-admin
 - Multi-tenant: SSO start URL must include `?tenant_code=` (SPA does this); OIDC `state` embeds `tenant_id` and the callback re-binds the tenant DB (callback route has no Tenant middleware)
 - Works with header/query, built-in subdomain, and vanity domains (login branding returns `tenant_code` so vanity SPAs can put it on the redirect URL)
 - Default IdP from process `OIDC_*`; each tenant may override Issuer/Client under **System config → Enterprise SSO (OIDC)** (configs group `oidc`). `OIDC_REDIRECT_URL` / `OIDC_FRONTEND_REDIRECT` stay global

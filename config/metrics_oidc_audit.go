@@ -24,6 +24,9 @@ func init() {
 		"button_label":      config.Env("OIDC_BUTTON_LABEL", "Enterprise SSO"),
 		// When true, create disabled admin if email unknown (not recommended for production).
 		"auto_provision": config.Env("OIDC_AUTO_PROVISION", false),
+		// Admins are matched by email, so only trust emails the IdP marks email_verified=true.
+		// Set true only for an IdP you control that omits the claim; never tenant-overridable.
+		"allow_unverified_email": config.Env("OIDC_ALLOW_UNVERIFIED_EMAIL", false),
 	})
 
 	config.Add("audit", map[string]any{

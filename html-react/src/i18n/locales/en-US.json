@@ -1942,6 +1942,7 @@
     "oidc_id_token_invalid": "OIDC id_token invalid",
     "oidc_claims_invalid": "OIDC claims invalid",
     "oidc_email_required": "OIDC email claim required",
+    "oidc_email_unverified": "Your SSO email is not verified by the identity provider",
     "oidc_user_not_linked": "No admin linked to this OIDC email",
     "ip_not_allowed": "IP is not on the allowlist",
     "allowlist_not_found": "Allowlist entry not found",

@@ -2259,6 +2259,7 @@
     "oidc_id_token_invalid": "OIDC id_token 无效",
     "oidc_claims_invalid": "OIDC 声明无效",
     "oidc_email_required": "OIDC 邮箱声明必填",
+    "oidc_email_unverified": "企业账号邮箱未经 IdP 验证，无法登录",
     "oidc_user_not_linked": "该企业账号未关联管理员",
     "ip_not_allowed": "当前 IP 不在白名单中",
     "allowlist_not_found": "白名单不存在",

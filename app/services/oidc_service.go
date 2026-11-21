@@ -44,6 +44,9 @@ type oidcRuntimeSettings struct {
 	Scopes        string
 	ButtonLabel   string
 	AutoProvision bool
+	// AllowUnverifiedEmail skips the email_verified check. Process env only
+	// (OIDC_ALLOW_UNVERIFIED_EMAIL): a tenant config must not be able to relax it.
+	AllowUnverifiedEmail bool
 }
 
 type OIDCService interface {
@@ -71,6 +74,8 @@ func (s *OIDCServiceImpl) resolveSettings(ctx context.Context) oidcRuntimeSettin
 		Scopes:        strings.TrimSpace(facades.Config().GetString("oidc.scopes", "openid profile email")),
 		ButtonLabel:   strings.TrimSpace(facades.Config().GetString("oidc.button_label", "Enterprise SSO")),
 		AutoProvision: facades.Config().GetBool("oidc.auto_provision", false),
+
+		AllowUnverifiedEmail: facades.Config().GetBool("oidc.allow_unverified_email", false),
 	}
 	m := utils.GetConfigGroupMap(ctx, "oidc")
 	if v, ok := m["enabled"]; ok && strings.TrimSpace(v) != "" {
@@ -196,11 +201,14 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 	if code == "" || state == "" {
 		return "", nil, "", apperrors.ErrParamsError
 	}
-	var cached string
-	if err := facades.Cache().Get(oidcStateCachePrefix+state, &cached); err != nil || cached == "" {
+	// State is single-use. Pull reads and deletes it (Cache.Get returns the value; it
+	// does not fill a pointer argument), but Pull is Get+Forget, so two concurrent
+	// callbacks could both read it. Add is set-if-absent: only the first one claims it.
+	cached, _ := facades.Cache().Pull(oidcStateCachePrefix+state, "").(string)
+	if strings.TrimSpace(cached) == "" ||
+		!facades.Cache().Add(oidcStateCachePrefix+"used:"+state, 1, 10*time.Minute) {
 		return "", nil, "", apperrors.NewBusinessError("oidc_invalid_state", "invalid or expired OIDC state")
 	}
-	_ = facades.Cache().Forget(oidcStateCachePrefix + state)
 
 	payload, err := parseOIDCStatePayload(cached)
 	if err != nil {
@@ -254,7 +262,7 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 
 	var claims struct {
 		Email             string `json:"email"`
-		EmailVerified     bool   `json:"email_verified"`
+		EmailVerified     any    `json:"email_verified"`
 		PreferredUsername string `json:"preferred_username"`
 		Name              string `json:"name"`
 		Sub               string `json:"sub"`
@@ -262,9 +270,9 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 	if err := idToken.Claims(&claims); err != nil {
 		return "", nil, tenantCode, apperrors.NewBusinessError("oidc_claims_invalid", "OIDC claims invalid").WithError(err)
 	}
-	email := strings.TrimSpace(strings.ToLower(claims.Email))
-	if email == "" {
-		return "", nil, tenantCode, apperrors.NewBusinessError("oidc_email_required", "OIDC email claim required")
+	email, err := oidcLoginEmail(claims.Email, claims.EmailVerified, cfg.AllowUnverifiedEmail)
+	if err != nil {
+		return "", nil, tenantCode, err
 	}
 
 	admin, err := s.findOrProvisionAdmin(ctx, cfg, email, claims.PreferredUsername, claims.Name, claims.Sub)
@@ -288,6 +296,32 @@ func (s *OIDCServiceImpl) HandleCallback(ctx http.Context, code, state string) (
 	_ = s.authService.RecordLoginLog(ctx, admin.ID, admin.Username, 1, "login_success_oidc", string(reqDump))
 
 	return plainToken, admin, tenantCode, nil
+}
+
+// oidcLoginEmail returns the normalized email used to match an admin.
+// Admins are linked by email, so an unverified email would let anyone who can set
+// that address at the IdP sign in as the matching admin. Missing email_verified
+// counts as unverified unless allowUnverified is set.
+func oidcLoginEmail(rawEmail string, emailVerified any, allowUnverified bool) (string, error) {
+	email := strings.TrimSpace(strings.ToLower(rawEmail))
+	if email == "" {
+		return "", apperrors.NewBusinessError("oidc_email_required", "OIDC email claim required")
+	}
+	if !allowUnverified && !oidcClaimTrue(emailVerified) {
+		return "", apperrors.NewBusinessError("oidc_email_unverified", "OIDC email is not verified by the identity provider")
+	}
+	return email, nil
+}
+
+// oidcClaimTrue accepts a JSON boolean true, or the string "true" that some IdPs send.
+func oidcClaimTrue(v any) bool {
+	switch b := v.(type) {
+	case bool:
+		return b
+	case string:
+		return strings.EqualFold(strings.TrimSpace(b), "true")
+	}
+	return false
 }
 
 func parseOIDCStatePayload(cached string) (oidcStatePayload, error) {
@@ -340,7 +374,7 @@ func (s *OIDCServiceImpl) findOrProvisionAdmin(ctx context.Context, cfg oidcRunt
 		Password: passwordHash,
 		Nickname: nickname,
 		Email:    email,
-		Status:   0,
+		Status:   0, // provisioned admins start disabled until someone assigns roles
 	}
 	if err := appfacades.OrmQuery(ctx).Create(&admin); err != nil {
 		return nil, apperrors.ErrCreateFailed.WithError(err)

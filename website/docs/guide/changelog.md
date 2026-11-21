@@ -29,6 +29,9 @@
 - 🛠️ 新增 `tenant:orphans`：列出（`--drop` 确认后删除）没有任何租户引用的残留租户库 / schema，升级后执行一次
 - 🔒 租户无自有账号时回落平台账号，每次连接都受 `TENANCY_ALLOW_PLATFORM_DB_CREDENTIALS` 约束（含备份）；`platform.` 主机不再接受客户端指定租户
 - 📚 多租户文档拆分：[业务开发须知](/advanced/tenancy-dev)、[规模与推荐配置](/advanced/tenancy-scaling)
+- 🐛 OIDC SSO 回调此前读取 state 的方式有误，所有登录都返回 `oidc_invalid_state`，现已可用（state 一次性消费）
+- 🔒 OIDC 只接受 IdP 标记 `email_verified=true` 的邮箱（防止用未验证邮箱冒用同邮箱管理员）；IdP 不下发该声明时可设 `OIDC_ALLOW_UNVERIFIED_EMAIL=true`（仅进程级）。**升级注意**：使用 Microsoft Entra ID 等默认不下发该声明的 IdP，需先在 IdP 侧配置或设置该开关
+- 🔒 `OIDC_AUTO_PROVISION=true` 新建的管理员此前因 gorm 默认值实际为启用状态并直接登录，现确为禁用
 - 🔒 模型状态 / 开关字段去掉 gorm `default:1/true`：gorm 会在 INSERT 前把 0/false 换成默认值，导致新建时选的「禁用 / 私有 / 不公开 / 失败」全部存成了相反值。受影响：管理员、会员、角色、权限、菜单、部门、岗位、字典、附件分类、黑白名单的状态；**附件的私有（文档类附件默认私有，实际全部公开，可免登录经 `/api/public/files/{id}` 访问）**；操作日志 / 平台操作日志的失败状态；套餐不公开、功能状态、entitlement 覆盖 `pinned=false`；租户自定义存储关闭 SSL；货币小数位 0（如日元）。新增 `app/models/default_tag_test.go` 防止再犯。**升级注意**：已入库的数据不会自动修正，建议检查附件的 `is_public`，以及新建时本应禁用的管理员 / 会员
 
 ## [1.0.0] - 2024-12-25
