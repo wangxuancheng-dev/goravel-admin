@@ -95,10 +95,27 @@ func OptionalFloat(data map[string]any, keys ...string) *float64 {
 	return nil
 }
 
-// DefaultNotifyURL returns ResolveNotifyURL(ctx, gatewayType) when wired by the host.
+// DefaultNotifyURL returns ResolveNotifyURL(ctx, gatewayType) when wired by the host,
+// or "" when it is not. Use RequireNotifyURL for drivers that send the URL to a provider.
 func DefaultNotifyURL(ctx context.Context, gatewayType string) string {
 	if ResolveNotifyURL != nil {
-		return ResolveNotifyURL(ctx, gatewayType)
+		return strings.TrimSpace(ResolveNotifyURL(ctx, gatewayType))
 	}
 	return ""
+}
+
+// RequireNotifyURL returns config["notify_url"] when set, else the host's ResolveNotifyURL.
+// It fails with ErrConfigRequired instead of returning "", so a host that forgot to wire
+// ResolveNotifyURL never places provider orders with an empty callback address.
+func RequireNotifyURL(ctx context.Context, gatewayType string, config map[string]any) (string, error) {
+	if v := strings.TrimSpace(StringFromConfig(config, "notify_url")); v != "" {
+		return v, nil
+	}
+	if ResolveNotifyURL == nil {
+		return "", fmt.Errorf("%w: notify_url is empty and payment.ResolveNotifyURL is not wired", ErrConfigRequired)
+	}
+	if v := DefaultNotifyURL(ctx, gatewayType); v != "" {
+		return v, nil
+	}
+	return "", fmt.Errorf("%w: payment.ResolveNotifyURL returned an empty notify_url for %q", ErrConfigRequired, gatewayType)
 }

@@ -32,15 +32,14 @@ func (d *alipayDriver) Create(ctx context.Context, order *payment.Order, config 
 	if appID == "" || privateKey == "" {
 		return nil, fmt.Errorf("%w: alipay config incomplete", payment.ErrConfigRequired)
 	}
+	notifyURL, err := payment.RequireNotifyURL(ctx, "alipay", config)
+	if err != nil {
+		return nil, err
+	}
 
 	client, err := alipay.NewClient(appID, privateKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", payment.ErrCreateFailed, err)
-	}
-
-	notifyURL, _ := config["notify_url"].(string)
-	if notifyURL == "" {
-		notifyURL = payment.DefaultNotifyURL(ctx, "alipay")
 	}
 	client.SetNotifyUrl(notifyURL)
 

@@ -52,6 +52,8 @@ func Boot() {
 }
 ```
 
+`ResolveNotifyURL` is required for `wechat` / `alipay`: unless the method config sets `notify_url`, their `Create` fails with `ErrConfigRequired` when it is not wired (see `payment.RequireNotifyURL`). Run this module's own tests in CI too (`cd packages/payment && go test ./...`) — a root `go list ./...` skips nested modules.
+
 Call drivers:
 
 ```go

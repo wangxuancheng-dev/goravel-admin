@@ -2,14 +2,10 @@ package providers
 
 import (
 	"context"
-	"strings"
 
 	"github.com/goravel/framework/contracts/foundation"
-	"github.com/goravel/framework/facades"
 
 	"goravel/app/services"
-	"goravel/app/tenancy"
-	"goravel/app/tenancyctx"
 
 	"goravel-payment"
 	_ "goravel-payment/gateways" // register mock / wechat / alipay via init()
@@ -29,12 +25,5 @@ func (r *PaymentServiceProvider) Boot(app foundation.Application) {
 		}
 		return pay.Amount, nil
 	}
-	payment.ResolveNotifyURL = func(ctx context.Context, gatewayType string) string {
-		base := strings.TrimRight(facades.Config().GetString("app.url"), "/")
-		code := ""
-		if ctx != nil {
-			code, _ = tenancyctx.CodeFrom(ctx)
-		}
-		return base + tenancy.PaymentNotifyPath(code, gatewayType)
-	}
+	payment.ResolveNotifyURL = services.PaymentNotifyURL
 }

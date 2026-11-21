@@ -37,6 +37,10 @@ func (d *wechatDriver) Create(ctx context.Context, order *payment.Order, config 
 	if appID == "" || mchID == "" || apiV3Key == "" {
 		return nil, fmt.Errorf("%w: wechat config incomplete", payment.ErrConfigRequired)
 	}
+	notifyURL, err := payment.RequireNotifyURL(ctx, "wechat", config)
+	if err != nil {
+		return nil, err
+	}
 
 	client, err := wechat.NewClientV3(appID, mchID, apiV3Key, certSerialNo)
 	if err != nil {
@@ -45,11 +49,6 @@ func (d *wechatDriver) Create(ctx context.Context, order *payment.Order, config 
 	if privateKeyPath != "" {
 		// client.SetPrivateKey(...) — wire per gopay docs
 		_ = privateKeyPath
-	}
-
-	notifyURL, _ := config["notify_url"].(string)
-	if notifyURL == "" {
-		notifyURL = payment.DefaultNotifyURL(ctx, "wechat")
 	}
 
 	bm := make(gopay.BodyMap)

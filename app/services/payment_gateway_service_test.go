@@ -129,16 +129,25 @@ func TestDefaultPaymentNotifyURLIncludesTenant(t *testing.T) {
 	t.Cleanup(func() {
 		facades.Config().Add("tenancy.driver", prevDriver)
 		facades.Config().Add("app.url", prevURL)
-		payment.ResolveNotifyURL = nil
 	})
 
-	payment.ResolveNotifyURL = func(ctx context.Context, gatewayType string) string {
-		base := "https://example.com"
-		code, _ := tenancyctx.CodeFrom(ctx)
-		return base + "/api/payment/notify/" + gatewayType + "/" + code
-	}
-
+	// The real host resolver (the one PaymentServiceProvider wires), not a stub.
 	ctx := tenancyctx.WithTenant(context.Background(), 1, "tenant_1", "acme")
-	assert.Equal(t, "https://example.com/api/payment/notify/wechat/acme", payment.DefaultNotifyURL(ctx, "wechat"))
-	assert.Equal(t, "https://example.com/api/payment/notify/mock/acme", payment.DefaultNotifyURL(ctx, "mock"))
+	assert.Equal(t, "https://example.com/api/payment/notify/wechat/acme", PaymentNotifyURL(ctx, "wechat"))
+	assert.Equal(t, "https://example.com/api/payment/notify/mock/acme", PaymentNotifyURL(ctx, "mock"))
+}
+
+func TestRequireNotifyURLUsesHostResolver(t *testing.T) {
+	prevURL := facades.Config().GetString("app.url")
+	prevResolver := payment.ResolveNotifyURL
+	facades.Config().Add("app.url", "https://example.com")
+	t.Cleanup(func() {
+		facades.Config().Add("app.url", prevURL)
+		payment.ResolveNotifyURL = prevResolver
+	})
+
+	payment.ResolveNotifyURL = PaymentNotifyURL
+	url, err := payment.RequireNotifyURL(context.Background(), "wechat", nil)
+	require.NoError(t, err)
+	assert.Contains(t, url, "https://example.com/api/payment/notify/wechat")
 }

@@ -63,6 +63,13 @@ jobs:
           mapfile -t PKGS < <(go list ./... | grep -vE '/tests/feature$|node_modules')
           go test -count=1 -timeout=3m "${PKGS[@]}"
 
+      # packages/payment is a nested module, so `go list ./...` above skips it.
+      - name: Payment module (vet + unit tests)
+        working-directory: packages/payment
+        run: |
+          go vet ./...
+          go test -count=1 -timeout=3m ./...
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
