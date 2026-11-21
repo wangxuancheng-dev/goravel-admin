@@ -121,20 +121,18 @@ func (s *OrderServiceImpl) CreateOrder(userID uint, amount float64, products []O
 	lockKey := tenancy.CacheKey(s.ctx, fmt.Sprintf("order:lock:%s", requestID))
 	lockValue := fmt.Sprintf("%d_%d", userID, time.Now().Unix())
 
-	var cachedValue string
-	cacheResult := facades.Cache().Get(lockKey, &cachedValue)
-	if cacheResult != nil && cachedValue != "" {
-		return nil, nil, errors.New("订单正在处理中，请勿重复提交")
-	}
-
-	if err := facades.Cache().Put(lockKey, lockValue, 5*time.Second); err != nil {
+	// Add is set-if-absent, so only one submit per request_id runs at a time. (The old
+	// Get(key, &v) check never fired: Cache.Get returns the value, it does not fill v.)
+	if !facades.Cache().Add(lockKey, lockValue, 5*time.Second) {
+		if facades.Cache().Has(lockKey) {
+			return nil, nil, errors.New("订单正在处理中，请勿重复提交")
+		}
 		errorlog.Record(s.ctx, "order", "获取锁失败", map[string]any{
 			"user_id":    userID,
 			"request_id": requestID,
 			"lock_key":   lockKey,
-			"error":      err.Error(),
-		}, "获取锁失败: %v", err)
-		return nil, nil, apperrors.ErrGetLockFailed.WithError(err)
+		}, "获取锁失败: cache add failed")
+		return nil, nil, apperrors.ErrGetLockFailed
 	}
 	defer func() {
 		_ = facades.Cache().Forget(lockKey)
