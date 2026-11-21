@@ -11,6 +11,9 @@ import (
 func applyTenantStorageOnCreate(tenant *models.Tenant, input TenantCreateInput) error {
 	mode := tenantstorage.NormalizeMode(input.StorageMode)
 	tenant.StorageMode = mode
+	// SSL on unless the caller turns it off (custom mode below). Shared tenants store
+	// true too, so switching them to custom later without the flag keeps SSL on.
+	tenant.StorageSSL = true
 	if mode != tenantstorage.ModeCustom {
 		return nil
 	}

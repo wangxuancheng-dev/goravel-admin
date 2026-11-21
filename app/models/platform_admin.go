@@ -23,7 +23,7 @@ type PlatformAdmin struct {
 	Password     string `gorm:"size:255;not null;comment:password hash" json:"-"`
 	Name         string `gorm:"size:100;comment:display name" json:"name"`
 	Role         string `gorm:"size:32;default:owner;index;comment:owner|viewer" json:"role"`
-	Status       uint8  `gorm:"default:1;index;comment:1 active 0 disabled" json:"status"`
+	Status       uint8  `gorm:"index;comment:1 active 0 disabled" json:"status"`
 	GoogleSecret string `gorm:"size:255;comment:TOTP secret" json:"-"`
 	AllowedIPs   string `gorm:"size:500;comment:comma-separated IPs/CIDRs; empty=any" json:"allowed_ips"`
 	orm.SoftDeletes

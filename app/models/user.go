@@ -18,7 +18,7 @@ type User struct {
 	Balance     float64    `gorm:"type:decimal(18,8);default:0;comment:当前余额" json:"balance"`
 	CurrencyID  uint       `gorm:"index;comment:货币ID" json:"currency_id"`
 	Currency    *Currency  `gorm:"foreignKey:CurrencyID" json:"currency,omitempty"`
-	Status      uint8      `gorm:"default:1;comment:状态 1:启用 0:禁用" json:"status"`
+	Status      uint8      `gorm:"comment:状态 1:启用 0:禁用" json:"status"`
 	LastLoginAt *time.Time `gorm:"comment:最后登录时间" json:"last_login_at"`
 	orm.SoftDeletes
 }

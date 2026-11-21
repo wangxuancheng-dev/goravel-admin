@@ -122,12 +122,16 @@ type Guestbook struct {
 	Email     string `gorm:"size:100;comment:留言人邮箱" json:"email"`
 	Content   string `gorm:"type:text;comment:留言内容" json:"content"`
 	Reply     string `gorm:"type:text;comment:回复内容" json:"reply"`
-	Status    uint8  `gorm:"default:1;comment:状态 1:已审核 0:待审核" json:"status"`
+	Status    uint8  `gorm:"comment:状态 1:已审核 0:待审核" json:"status"`
 	IP        string `gorm:"size:50;comment:IP地址" json:"ip"`
 	UserAgent string `gorm:"size:500;comment:用户代理" json:"user_agent"`
 	orm.SoftDeletes
 }
 ```
+
+::: warning No `default:` on fields where 0/false is a real value
+gorm replaces a zero value with the tag default before INSERT, so `Status: 0` is always stored as 1 and a pending/disabled/private row can never be created. Leave `default:` off status and flag fields and set the value when creating. `app/models/default_tag_test.go` rejects the pattern.
+:::
 
 ### 3. 创建服务层
 

@@ -46,7 +46,7 @@ type Tenant struct {
 	orm.Model
 	Code             string     `gorm:"uniqueIndex;size:64;not null;comment:租户短码" json:"code"`
 	Name             string     `gorm:"size:100;not null;comment:显示名称" json:"name"`
-	Status           uint8      `gorm:"default:1;index;comment:1启用 0禁用" json:"status"`
+	Status           uint8      `gorm:"index;comment:1启用 0禁用" json:"status"`
 	ProvisionStatus  string     `gorm:"size:32;default:pending;index;comment:pending|migrating|ready|failed" json:"provision_status"`
 	Driver           string     `gorm:"size:20;not null;comment:mysql|postgres" json:"driver"`
 	Isolation        string     `gorm:"size:20;not null;comment:database|schema" json:"isolation"`
@@ -77,7 +77,7 @@ type Tenant struct {
 	StorageURL           string `gorm:"size:512;comment:public url" json:"storage_url"`
 	StorageEndpoint      string `gorm:"size:512;comment:endpoint" json:"storage_endpoint"`
 	StorageUsePathStyle  bool   `gorm:"default:false;comment:s3 path style" json:"storage_use_path_style"`
-	StorageSSL           bool   `gorm:"default:true;comment:minio ssl" json:"storage_ssl"`
+	StorageSSL           bool   `gorm:"comment:minio ssl" json:"storage_ssl"`
 	HealthStatus         string `gorm:"size:32;default:unknown;index;comment:ok|warn|fail|unknown" json:"health_status"`
 	HealthCheckedAt   *time.Time `gorm:"comment:last health inspect" json:"health_checked_at"`
 	HealthIssues      string     `gorm:"type:text;comment:json issue codes" json:"health_issues"`

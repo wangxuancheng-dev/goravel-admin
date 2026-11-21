@@ -17,7 +17,7 @@ type OperationLog struct {
 	Request   string `gorm:"type:text;comment:请求参数" json:"request"`
 	Response  string `gorm:"type:text;comment:响应数据" json:"response"`
 	Changes   string `gorm:"type:text;comment:变更详情(JSON diff)" json:"changes"`
-	Status    uint8  `gorm:"default:1;comment:状态 1:成功 0:失败" json:"status"`
+	Status    uint8  `gorm:"comment:状态 1:成功 0:失败" json:"status"`
 	ErrorMsg  string `gorm:"type:text;comment:错误信息" json:"error_msg"`
 	Duration  int    `gorm:"comment:耗时(毫秒)" json:"duration"`
 	// Impersonator is "<platform_username>#<platform_admin_id>" when a platform account

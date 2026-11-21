@@ -18,7 +18,7 @@ type Role struct {
 	Name        string       `gorm:"uniqueIndex;not null;size:50;comment:角色名称" json:"name"`
 	Slug        string       `gorm:"uniqueIndex;not null;size:50;comment:角色标识" json:"slug"`
 	Description string       `gorm:"size:255;comment:角色描述" json:"description"`
-	Status      uint8        `gorm:"default:1;comment:状态 1:启用 0:禁用" json:"status"`
+	Status      uint8        `gorm:"comment:状态 1:启用 0:禁用" json:"status"`
 	Sort        int          `gorm:"default:0;comment:排序" json:"sort"`
 	DataScope   uint8        `gorm:"default:1;comment:数据范围 1全部 2自定义 3本部门 4本部门及以下 5仅本人" json:"data_scope"`
 	Admins      []Admin      `gorm:"many2many:admin_role;comment:管理员" json:"-"`

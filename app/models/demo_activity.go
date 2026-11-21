@@ -24,7 +24,7 @@ type DemoActivity struct {
 	YearEnd       string     `gorm:"column:year_end;size:5;default:''" json:"year_end"`               // yearly: MM-DD
 	Timezone      string     `gorm:"column:timezone;size:64;not null;default:Asia/Shanghai" json:"timezone"`
 	Status        uint8      `gorm:"column:status;not null;default:0" json:"status"`
-	Enabled       bool       `gorm:"column:enabled;not null;default:1" json:"enabled"`
+	Enabled       bool       `gorm:"column:enabled;not null" json:"enabled"`
 	orm.SoftDeletes
 }
 

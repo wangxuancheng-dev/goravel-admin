@@ -15,7 +15,7 @@ type PlatformOperationLog struct {
 	IP        string `gorm:"size:50;comment:ip" json:"ip"`
 	UserAgent string `gorm:"size:500;comment:user agent" json:"user_agent"`
 	Request   string `gorm:"type:text;comment:sanitized request body" json:"request"`
-	Status    uint8  `gorm:"default:1;index;comment:1 success 0 failed" json:"status"`
+	Status    uint8  `gorm:"index;comment:1 success 0 failed" json:"status"`
 	ErrorMsg  string `gorm:"type:text;comment:error message" json:"error_msg"`
 	Duration  int    `gorm:"comment:duration ms" json:"duration"`
 }

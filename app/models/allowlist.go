@@ -10,5 +10,5 @@ type Allowlist struct {
 	orm.Model
 	IP     string `gorm:"index;not null;size:500;comment:IP or CIDR / range, comma-separated" json:"ip"`
 	Remark string `gorm:"size:500;comment:remark" json:"remark"`
-	Status uint8  `gorm:"index;default:1;comment:1 enabled 0 disabled" json:"status"`
+	Status uint8  `gorm:"index;comment:1 enabled 0 disabled" json:"status"`
 }

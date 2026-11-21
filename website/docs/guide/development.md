@@ -235,12 +235,16 @@ type Guestbook struct {
 	Email     string `gorm:"size:100;comment:留言人邮箱" json:"email"`
 	Content   string `gorm:"type:text;comment:留言内容" json:"content"`
 	Reply     string `gorm:"type:text;comment:回复内容" json:"reply"`
-	Status    uint8  `gorm:"default:1;comment:状态 1:已审核 0:待审核" json:"status"`
+	Status    uint8  `gorm:"comment:状态 1:已审核 0:待审核" json:"status"`
 	IP        string `gorm:"size:50;comment:IP地址" json:"ip"`
 	UserAgent string `gorm:"size:500;comment:用户代理" json:"user_agent"`
 	orm.SoftDeletes
 }
 ```
+
+::: warning 0/false 是合法值的字段不要写 `default:`
+gorm 在 INSERT 前会把零值替换成 tag 里的默认值，于是 `Status: 0` 永远存成 1，"待审核/禁用/私有"根本建不出来。状态、开关类字段不写 `default:`，在创建时显式赋值即可。`app/models/default_tag_test.go` 会拦截这种写法。
+:::
 
 ### 3. 创建服务层
 

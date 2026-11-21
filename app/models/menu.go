@@ -14,7 +14,7 @@ type Menu struct {
 	Component  string `gorm:"size:255;comment:组件路径"`
 	Permission string `gorm:"size:100;comment:权限标识"`
 	Type       uint8  `gorm:"default:1;comment:类型 1:目录 2:菜单 3:按钮"`
-	Status     uint8  `gorm:"default:1;comment:状态 1:启用 0:禁用"`
+	Status     uint8  `gorm:"comment:状态 1:启用 0:禁用"`
 	Sort       int    `gorm:"default:0;comment:排序"`
 	IsHidden   uint8  `gorm:"default:0;comment:是否隐藏 1:是 0:否"`
 	LinkType   uint8  `gorm:"default:1;comment:链接类型 1:内部页面 2:外部链接"`

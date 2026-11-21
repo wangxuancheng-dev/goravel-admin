@@ -20,7 +20,7 @@ type PlatformFeature struct {
 	IsTest          bool   `gorm:"default:false" json:"is_test"`
 	RequiresInstall bool   `gorm:"default:false" json:"requires_install"`
 	AlwaysOn        bool   `gorm:"default:false" json:"always_on"` // skip plan gating
-	Status          uint8  `gorm:"default:1;index" json:"status"`  // 1 enabled in catalog
+	Status          uint8  `gorm:"index" json:"status"`            // 1 enabled in catalog
 	Sort            int    `gorm:"default:0" json:"sort"`
 }
 

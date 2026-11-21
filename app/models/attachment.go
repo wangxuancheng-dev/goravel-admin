@@ -17,8 +17,8 @@ type Attachment struct {
 	Extension   string              `gorm:"size:20;comment:文件后缀"`
 	MimeType    string              `gorm:"size:100;comment:MIME类型"`
 	Size        int64               `gorm:"comment:文件大小(字节)"`
-	Status      uint8               `gorm:"default:1;comment:状态 1:成功 0:失败 2:上传中"`
+	Status      uint8               `gorm:"comment:状态 1:成功 0:失败 2:上传中"`
 	FileType    string              `gorm:"size:20;comment:文件类型 image/video/document/other"`
-	IsPublic    uint8               `gorm:"default:1;index;comment:是否公开 1:公开 0:私有"`
+	IsPublic    uint8               `gorm:"index;comment:是否公开 1:公开 0:私有"`
 	ChunkID     string              `gorm:"size:100;index;comment:分片上传ID（用于断点续传）"`
 }

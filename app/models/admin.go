@@ -14,7 +14,7 @@ type Admin struct {
 	Phone              string     `gorm:"size:20;comment:手机号" json:"phone"`
 	GoogleSecret       string     `gorm:"size:255;comment:谷歌验证码密钥" json:"-"` // 使用 json:"-" 隐藏密钥字段
 	MustChangePassword uint8      `gorm:"default:0;comment:是否必须修改密码 1:是 0:否" json:"must_change_password"`
-	Status             uint8      `gorm:"default:1;comment:状态 1:启用 0:禁用" json:"status"`
+	Status             uint8      `gorm:"comment:状态 1:启用 0:禁用" json:"status"`
 	DepartmentID       uint       `gorm:"index;comment:部门ID" json:"department_id"`
 	Department         Department `gorm:"foreignKey:DepartmentID" json:"department"`
 	PositionID         uint       `gorm:"index;comment:岗位ID" json:"position_id"`

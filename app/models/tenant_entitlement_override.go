@@ -12,7 +12,7 @@ type TenantEntitlementOverride struct {
 	TenantID    uint       `gorm:"uniqueIndex:idx_tenant_feature_override;not null" json:"tenant_id"`
 	FeatureKey  string     `gorm:"uniqueIndex:idx_tenant_feature_override;size:64;not null" json:"feature_key"`
 	Value       string     `gorm:"size:255;not null" json:"value"`
-	Pinned      bool       `gorm:"default:true" json:"pinned"` // survive plan reconcile
+	Pinned      bool       `json:"pinned"` // survive plan reconcile
 	ExpiresAt   *time.Time `gorm:"index" json:"expires_at"`
 	Reason      string     `gorm:"size:500" json:"reason"`
 	CreatedBy   uint       `gorm:"default:0" json:"created_by"`
