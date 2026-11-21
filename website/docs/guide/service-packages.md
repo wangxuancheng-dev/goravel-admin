@@ -6,7 +6,7 @@
 
 1. **CRUD / 代码生成器模块**写在 `app/services`，与生成模板一致。
 2. **跨域编排**（如支付落库、租户连接、导出/导入入队）留在 `app/services`，不要为编排单独建 ports 层。
-3. **现有域包**：`app/payment`、`app/search`、`app/rbac`、`app/tenancy`。不要默认再新建 `app/<业务>`（例如不要为公告建 `app/notice`）。
+3. **现有域包**：`goravel-payment`（`packages/payment`）、`app/search`、`app/rbac`、`app/tenancy`。不要默认再新建 `app/<业务>`（例如不要为公告建 `app/notice`）。
 4. **依赖方向**：`services` 可 import 域包；域包 **不得** import `services`，避免循环依赖。
 5. 新代码优先 `app/services`；确有纯算法、强复用或需要打断 import 循环时再考虑域包。
 6. **驾驭复杂度：** 不靠再拆一层「人人必懂」的包，靠 [能力分档](/guide/opensource#2-能力分档不删功能分层暴露) 与文档窄路径；碰触大文件时再渐进挪到现有域包即可。
@@ -15,9 +15,9 @@
 
 | 能力 | 位置 | 说明 |
 |------|------|------|
-| 支付状态闸门 | `app/payment` | `PaidResult`、`ApplyPaidResultStatusGate` |
-| 支付网关驱动 | `app/payment/gateways/` | 每渠道一文件；`payment.RegisterGateway`；详见 [支付参考](/advanced/payments) |
-| 支付接线 | `providers.PaymentServiceProvider` | blank-import gateways；注入 `ResolvePaymentAmount` |
+| 支付状态闸门 | `goravel-payment` | `PaidResult`、`ApplyPaidResultStatusGate` |
+| 支付网关驱动 | `packages/payment/gateways/` | 每渠道一文件；`payment.RegisterGateway`；可复制/replace 复用；详见 [支付参考](/advanced/payments) |
+| 支付接线 | `providers.PaymentServiceProvider` | blank-import `goravel-payment/gateways`；注入 `ResolvePaymentAmount` / `ResolveNotifyURL` |
 | 支付落库编排 | `app/services/payment_apply.go` | 编排在 services，类型用 `payment.PaidResult`；白名单 `EnabledPaymentGateways` |
 | 搜索引擎 | `app/search` | `Engine` / `Resolve` / drivers；禁止 import services |
 | 订单搜索适配 | `app/search/orders` | `Document` / `Push` / `Query`；loader 由 SearchServiceProvider 注入 |

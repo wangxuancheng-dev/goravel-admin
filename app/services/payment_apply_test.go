@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,22 +10,20 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
-	apppayment "goravel/app/payment"
-	_ "goravel/app/payment/gateways" // unit tests do not boot PaymentServiceProvider
+
+	"goravel-payment"
+	_ "goravel-payment/gateways" // unit tests do not boot PaymentServiceProvider
 )
 
-func TestMockNotifyRequiresOutTradeNo(t *testing.T) {
-	d, ok := apppayment.LookupGateway("mock")
+func TestMockGatewayRegistered(t *testing.T) {
+	d, ok := payment.LookupGateway("mock")
 	require.True(t, ok)
-	_, err := d.Notify(context.Background(), &models.PaymentMethod{Type: "mock", Config: "{}"}, map[string]any{"trade_status": "SUCCESS"})
-	require.Error(t, err)
-	be, ok := apperrors.GetBusinessError(err)
-	require.True(t, ok)
-	assert.Equal(t, apperrors.ErrPaymentNotifyInvalid.Code, be.Code)
+	require.NotNil(t, d)
+	assert.Equal(t, "mock", d.Type())
 }
 
-func TestPaidResultRequiresPaymentNo(t *testing.T) {
-	_, err := ApplyPaidResult(context.Background(), apppayment.PaidResult{})
+func TestApplyPaidResultRequiresPaymentNo(t *testing.T) {
+	_, err := ApplyPaidResult(context.Background(), payment.PaidResult{})
 	require.Error(t, err)
 	be, ok := apperrors.GetBusinessError(err)
 	require.True(t, ok)
@@ -32,15 +31,20 @@ func TestPaidResultRequiresPaymentNo(t *testing.T) {
 }
 
 func TestApplyPaidResultDecisionIdempotent(t *testing.T) {
-	skip, err := apppayment.ApplyPaidResultStatusGate(models.PaymentStatusPaid)
+	skip, err := payment.ApplyPaidResultStatusGate(models.PaymentStatusPaid)
 	require.NoError(t, err)
-	assert.True(t, skip, "already-paid payments must short-circuit without order writes")
+	assert.True(t, skip)
 
-	skip, err = apppayment.ApplyPaidResultStatusGate(models.PaymentStatusPending)
+	skip, err = payment.ApplyPaidResultStatusGate(models.PaymentStatusPending)
 	require.NoError(t, err)
 	assert.False(t, skip)
 
-	skip, err = apppayment.ApplyPaidResultStatusGate(models.PaymentStatusFailed)
+	skip, err = payment.ApplyPaidResultStatusGate(models.PaymentStatusFailed)
 	require.Error(t, err)
 	assert.False(t, skip)
+	assert.True(t, errors.Is(err, payment.ErrStatusInvalid))
+	mapped := mapGatewayStatusGateError(err)
+	be, ok := apperrors.GetBusinessError(mapped)
+	require.True(t, ok)
+	assert.Equal(t, apperrors.ErrPaymentStatusInvalid.Code, be.Code)
 }

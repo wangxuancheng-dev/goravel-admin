@@ -13,8 +13,6 @@ require (
 	github.com/dromara/carbon/v2 v2.6.17
 	github.com/elastic/go-elasticsearch/v8 v8.19.0
 	github.com/gin-gonic/gin v1.12.0
-	github.com/go-pay/gopay v1.5.115
-	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936
 	github.com/goravel/cos v1.18.0
 	github.com/goravel/framework v1.18.1
@@ -52,6 +50,12 @@ require (
 	golang.org/x/sync v0.24.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.31.2
+	goravel-payment v0.0.0
+)
+
+require (
+	github.com/go-pay/gopay v1.5.115 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 )
 
 require (
@@ -264,3 +268,5 @@ require (
 	gorm.io/driver/postgres v1.6.0 // indirect
 	gorm.io/plugin/dbresolver v1.6.2 // indirect
 )
+
+replace goravel-payment => ./packages/payment

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/goravel/framework/facades"
@@ -10,9 +11,10 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
-	apppayment "goravel/app/payment"
-	_ "goravel/app/payment/gateways" // unit tests do not boot PaymentServiceProvider
 	"goravel/app/tenancyctx"
+
+	"goravel-payment"
+	_ "goravel-payment/gateways" // unit tests do not boot PaymentServiceProvider
 )
 
 func TestPaymentGatewayNotifyAndQueryStubs(t *testing.T) {
@@ -36,25 +38,21 @@ func TestPaymentGatewayNotifyAndQueryStubs(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, apperrors.ErrInvalidPaymentType.Code, be.Code)
 
-	wechat, ok := apppayment.LookupGateway("wechat")
+	wechat, ok := payment.LookupGateway("wechat")
 	require.True(t, ok)
-	_, err = wechat.Query(context.Background(), &models.Payment{PaymentNo: "P1"}, &models.PaymentMethod{Type: "wechat"}, map[string]any{})
+	_, err = wechat.Query(context.Background(), &payment.Order{PaymentNo: "P1"}, map[string]any{})
 	require.Error(t, err)
-	be, ok = apperrors.GetBusinessError(err)
-	require.True(t, ok)
-	assert.Equal(t, apperrors.ErrPaymentGatewayNotImplemented.Code, be.Code)
+	assert.True(t, errors.Is(err, payment.ErrNotImplemented))
 
-	alipay, ok := apppayment.LookupGateway("alipay")
+	alipay, ok := payment.LookupGateway("alipay")
 	require.True(t, ok)
-	_, err = alipay.Query(context.Background(), &models.Payment{PaymentNo: "P1"}, &models.PaymentMethod{Type: "alipay"}, map[string]any{})
+	_, err = alipay.Query(context.Background(), &payment.Order{PaymentNo: "P1"}, map[string]any{})
 	require.Error(t, err)
-	be, ok = apperrors.GetBusinessError(err)
-	require.True(t, ok)
-	assert.Equal(t, apperrors.ErrPaymentGatewayNotImplemented.Code, be.Code)
+	assert.True(t, errors.Is(err, payment.ErrNotImplemented))
 }
 
 func TestRegisteredPaymentGatewaysIncludeBuiltin(t *testing.T) {
-	types := apppayment.RegisteredGatewayTypes()
+	types := payment.RegisteredGatewayTypes()
 	assert.Contains(t, types, "mock")
 	assert.Contains(t, types, "wechat")
 	assert.Contains(t, types, "alipay")
@@ -74,7 +72,7 @@ func TestPaymentGatewayAllowlist(t *testing.T) {
 	restore("")
 	assert.True(t, IsPaymentGatewayEnabled("mock"))
 	assert.True(t, IsPaymentGatewayEnabled("wechat"))
-	assert.ElementsMatch(t, apppayment.RegisteredGatewayTypes(), EnabledPaymentGateways())
+	assert.ElementsMatch(t, payment.RegisteredGatewayTypes(), EnabledPaymentGateways())
 
 	restore("wechat,alipay")
 	assert.False(t, IsPaymentGatewayEnabled("mock"))
@@ -91,12 +89,12 @@ func TestPaymentGatewayAllowlist(t *testing.T) {
 
 func TestRegisterPaymentGatewayCustomType(t *testing.T) {
 	const typ = "demo_ext_channel"
-	apppayment.RegisterGateway(&stubPaymentDriver{typ: typ})
+	payment.RegisterGateway(&stubPaymentDriver{typ: typ})
 	t.Cleanup(func() {
-		apppayment.UnregisterGateway(typ)
+		payment.UnregisterGateway(typ)
 	})
 
-	d, ok := apppayment.LookupGateway(typ)
+	d, ok := payment.LookupGateway(typ)
 	require.True(t, ok)
 	assert.Equal(t, typ, d.Type())
 
@@ -113,14 +111,14 @@ func TestRegisterPaymentGatewayCustomType(t *testing.T) {
 type stubPaymentDriver struct{ typ string }
 
 func (d *stubPaymentDriver) Type() string { return d.typ }
-func (d *stubPaymentDriver) Create(context.Context, *models.Payment, *models.PaymentMethod, map[string]any, string) (map[string]any, error) {
-	return nil, apperrors.ErrPaymentGatewayNotImplemented
+func (d *stubPaymentDriver) Create(context.Context, *payment.Order, map[string]any, string) (map[string]any, error) {
+	return nil, payment.ErrNotImplemented
 }
-func (d *stubPaymentDriver) Query(context.Context, *models.Payment, *models.PaymentMethod, map[string]any) (map[string]any, error) {
-	return nil, apperrors.ErrPaymentGatewayNotImplemented
+func (d *stubPaymentDriver) Query(context.Context, *payment.Order, map[string]any) (map[string]any, error) {
+	return nil, payment.ErrNotImplemented
 }
-func (d *stubPaymentDriver) Notify(context.Context, *models.PaymentMethod, map[string]any) (*apppayment.PaidResult, error) {
-	return nil, apperrors.ErrPaymentGatewayNotImplemented
+func (d *stubPaymentDriver) Notify(context.Context, map[string]any, map[string]any) (*payment.PaidResult, error) {
+	return nil, payment.ErrNotImplemented
 }
 
 func TestDefaultPaymentNotifyURLIncludesTenant(t *testing.T) {
@@ -131,9 +129,16 @@ func TestDefaultPaymentNotifyURLIncludesTenant(t *testing.T) {
 	t.Cleanup(func() {
 		facades.Config().Add("tenancy.driver", prevDriver)
 		facades.Config().Add("app.url", prevURL)
+		payment.ResolveNotifyURL = nil
 	})
 
+	payment.ResolveNotifyURL = func(ctx context.Context, gatewayType string) string {
+		base := "https://example.com"
+		code, _ := tenancyctx.CodeFrom(ctx)
+		return base + "/api/payment/notify/" + gatewayType + "/" + code
+	}
+
 	ctx := tenancyctx.WithTenant(context.Background(), 1, "tenant_1", "acme")
-	assert.Equal(t, "https://example.com/api/payment/notify/wechat/acme", apppayment.DefaultNotifyURL(ctx, "wechat"))
-	assert.Equal(t, "https://example.com/api/payment/notify/mock/acme", apppayment.DefaultNotifyURL(ctx, "mock"))
+	assert.Equal(t, "https://example.com/api/payment/notify/wechat/acme", payment.DefaultNotifyURL(ctx, "wechat"))
+	assert.Equal(t, "https://example.com/api/payment/notify/mock/acme", payment.DefaultNotifyURL(ctx, "mock"))
 }

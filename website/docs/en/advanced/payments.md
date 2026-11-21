@@ -23,8 +23,8 @@ CreatePayment (订单 pending)
 | 订单 | `app/services/order_service.go` | 分表订单 CRUD；`UpdateOrderByOrderNo` |
 | 支付记录 | `app/services/payment_service.go` | 分表支付单；创建时校验订单金额 |
 | 落库编排 | `app/services/payment_apply.go` | **唯一**写成功态入口 `ApplyPaidResult` |
-| 网关注册表 | `app/payment/driver.go` | `RegisterGateway` / `LookupGateway`（call `payment.*` directly） |
-| 网关实现 | `app/payment/gateways/*.go` | per-channel Create/Query/Notify（returns `PaidResult`, no DB writes） |
+| 网关注册表 | `packages/payment/driver.go (module goravel-payment)` | `RegisterGateway` / `LookupGateway`（call `payment.*` directly） |
+| 网关实现 | `packages/payment/gateways/*.go` | per-channel Create/Query/Notify（returns `PaidResult`, no DB writes） |
 | Payment wiring | `providers.PaymentServiceProvider` | blank-import gateways; inject `ResolvePaymentAmount` |
 | 回调 | `payment_notify_controller.go` | `POST /api/payment/notify/{type}[/{tenant}]` |
 
@@ -81,7 +81,7 @@ curl -X POST http://127.0.0.1:3000/api/payment/notify/mock \
 
 ## 5. WeChat / Alipay
 
-In `app/payment/gateways/wechat.go` / `alipay.go` `Notify` / `Query`:
+In `packages/payment/gateways/wechat.go` / `alipay.go` `Notify` / `Query`:
 
 1. gopay verify / query  
 2. Map to `payment.PaidResult{...}` and **return** it  
@@ -91,16 +91,16 @@ Create examples already exist in those drivers (need real merchant config).
 
 ## 6. New channels / many payment platforms
 
-**Summary**: put drivers in `app/payment/gateways/` (one file per channel). Do **not** pile them into `app/services`, and do **not** create per-vendor `app/stripe` packages. Registry + `PaidResult` live in `app/payment`; apply orchestration stays in services. Notify routing is already generic.
+**Summary**: put drivers in `packages/payment/gateways/` (one file per channel). Do **not** pile them into `app/services`, and do **not** create per-vendor `app/stripe` packages. Registry + `PaidResult` live in `goravel-payment` (`packages/payment`); apply orchestration stays in services. Notify routing is already generic.
 
 ### 6.1 One driver file per channel
 
-1. Add e.g. `app/payment/gateways/stripe.go`:
+1. Add e.g. `packages/payment/gateways/stripe.go`:
 
 ```go
 package gateways
 
-import "goravel/app/payment"
+import "goravel-payment"
 
 func init() {
     payment.RegisterGateway(&stripeDriver{})
@@ -110,28 +110,28 @@ type stripeDriver struct{}
 
 func (d *stripeDriver) Type() string { return "stripe" }
 
-func (d *stripeDriver) Create(ctx context.Context, pay *models.Payment, method *models.PaymentMethod, config map[string]any, clientIP string) (map[string]any, error) {
+func (d *stripeDriver) Create(ctx context.Context, order *payment.Order, config map[string]any, clientIP string) (map[string]any, error) {
     // Call provider; notify_url via payment.DefaultNotifyURL(ctx, "stripe")
-    return map[string]any{"payment_no": pay.PaymentNo}, nil
+    return map[string]any{"payment_no": order.PaymentNo}, nil
 }
 
-func (d *stripeDriver) Query(ctx context.Context, pay *models.Payment, method *models.PaymentMethod, config map[string]any) (map[string]any, error) {
-    return nil, apperrors.ErrPaymentGatewayNotImplemented
+func (d *stripeDriver) Query(ctx context.Context, order *payment.Order, config map[string]any) (map[string]any, error) {
+    return nil, payment.ErrNotImplemented
 }
 
-func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod, notifyData map[string]any) (*payment.PaidResult, error) {
+func (d *stripeDriver) Notify(ctx context.Context, config map[string]any, notifyData map[string]any) (*payment.PaidResult, error) {
     // Verify → return PaidResult; services ApplyPaidResult
     return &payment.PaidResult{PaymentNo: "...", ThirdPartyNo: "..."}, nil
 }
 ```
 
-`providers.PaymentServiceProvider` blank-imports `goravel/app/payment/gateways` so new `init` registrations load automatically.
+`providers.PaymentServiceProvider` blank-imports `goravel-payment/gateways` so new `init` registrations load automatically.
 
 2. Admin `payment_methods.type` must match `Type()` (e.g. `stripe`)
 3. Add the type to `PAYMENT_GATEWAYS_ENABLED` (production: explicit allowlist)
 4. Frontend (optional): extend `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` + i18n
 
-List types via `payment.RegisteredGatewayTypes()` / `/api/admin/info` → `payment_gateways`. Reference: `app/payment/gateways/mock.go`.
+List types via `payment.RegisteredGatewayTypes()` / `/api/admin/info` → `payment_gateways`. Reference: `packages/payment/gateways/mock.go`.
 
 ### 6.1.1 Two implementation styles (both supported)
 
@@ -150,7 +150,7 @@ Shared rules:
 
 | Item | Why |
 |------|-----|
-| Dozens of drivers under `app/services` | Clutters CRUD; drivers live in `app/payment/gateways` |
+| Dozens of drivers under `app/services` | Clutters CRUD; drivers live in `packages/payment/gateways` |
 | Per-vendor `app/<vendor>` package | Against [service code layout](/en/guide/service-packages); use a go.mod dependency or hand-written driver |
 | Revive PaymentStore / OrderStore ports | Orchestration stays in services |
 | New routes / notify controllers per channel | `{type}` already dispatches |
@@ -162,10 +162,10 @@ Shared rules:
 
 | Path | Role |
 |------|------|
-| `app/payment/gateways/` | All channel drivers (scales to dozens) |
-| `app/payment/driver.go` | Registry |
+| `packages/payment/gateways/` | All channel drivers (scales to dozens) |
+| `packages/payment/driver.go (module goravel-payment)` | Registry |
 | `app/services/payment_apply.go` | `ApplyPaidResult` |
-| `app/services/payment_gateway_*.go` | Allowlist + PaymentGatewayService; registry is `app/payment` |
+| `app/services/payment_gateway_*.go` | Allowlist + PaymentGatewayService; registry is `goravel-payment` (`packages/payment`) |
 
 ### 6.4 Implementation discipline
 

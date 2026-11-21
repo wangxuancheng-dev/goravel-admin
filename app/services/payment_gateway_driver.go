@@ -7,14 +7,15 @@ import (
 	"github.com/goravel/framework/facades"
 
 	apperrors "goravel/app/errors"
-	apppayment "goravel/app/payment"
+
+	"goravel-payment"
 )
 
 // requirePaymentGateway returns a registered driver that is also allowlisted.
-// Registry API lives in app/payment (RegisterGateway / LookupGateway); do not re-export it here.
-func requirePaymentGateway(typ string) (apppayment.GatewayDriver, error) {
-	typ = apppayment.NormalizeGatewayType(typ)
-	d, ok := apppayment.LookupGateway(typ)
+// Registry API lives in goravel-payment (RegisterGateway / LookupGateway).
+func requirePaymentGateway(typ string) (payment.GatewayDriver, error) {
+	typ = payment.NormalizeGatewayType(typ)
+	d, ok := payment.LookupGateway(typ)
 	if !ok || d == nil {
 		return nil, apperrors.ErrInvalidPaymentType.WithMessage(fmt.Sprintf("unsupported payment gateway type: %s", typ))
 	}
@@ -27,11 +28,11 @@ func requirePaymentGateway(typ string) (apppayment.GatewayDriver, error) {
 // IsPaymentGatewayEnabled reports whether type is allowed by PAYMENT_GATEWAYS_ENABLED
 // and is registered. Empty allowlist = all registered drivers.
 func IsPaymentGatewayEnabled(typ string) bool {
-	typ = apppayment.NormalizeGatewayType(typ)
+	typ = payment.NormalizeGatewayType(typ)
 	if typ == "" {
 		return false
 	}
-	if _, ok := apppayment.LookupGateway(typ); !ok {
+	if _, ok := payment.LookupGateway(typ); !ok {
 		return false
 	}
 	allow := paymentGatewayAllowlist()
@@ -44,7 +45,7 @@ func IsPaymentGatewayEnabled(typ string) bool {
 
 // EnabledPaymentGateways returns registered drivers filtered by PAYMENT_GATEWAYS_ENABLED.
 func EnabledPaymentGateways() []string {
-	registered := apppayment.RegisteredGatewayTypes()
+	registered := payment.RegisteredGatewayTypes()
 	allow := paymentGatewayAllowlist()
 	if len(allow) == 0 {
 		return registered
@@ -65,7 +66,7 @@ func paymentGatewayAllowlist() map[string]bool {
 	}
 	out := map[string]bool{}
 	for _, part := range strings.Split(raw, ",") {
-		part = apppayment.NormalizeGatewayType(part)
+		part = payment.NormalizeGatewayType(part)
 		if part != "" {
 			out[part] = true
 		}

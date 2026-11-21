@@ -19,9 +19,9 @@ CreatePayment (订单 pending)
 | 订单 | `app/services/order_service.go` | 分表订单 CRUD；`UpdateOrderByOrderNo` |
 | 支付记录 | `app/services/payment_service.go` | 分表支付单；创建时校验订单金额 |
 | 落库编排 | `app/services/payment_apply.go` | **唯一**写成功态入口 `ApplyPaidResult` |
-| 网关注册表 | `app/payment/driver.go` | `RegisterGateway` / `LookupGateway`（调用方直接用 `payment.*`） |
-| 网关实现 | `app/payment/gateways/*.go` | 各渠道 Create/Query/Notify（返回 `PaidResult`，不落库） |
-| 支付接线 | `providers.PaymentServiceProvider` | blank-import gateways；注入 `ResolvePaymentAmount` |
+| 网关注册表 | `packages/payment/driver.go (module goravel-payment)` | `RegisterGateway` / `LookupGateway`（调用方直接用 `payment.*`） |
+| 网关实现 | `packages/payment/gateways/*.go` | 各渠道 Create/Query/Notify（返回 `PaidResult`，不落库） |
+| 支付接线 | `providers.PaymentServiceProvider` | blank-import `goravel-payment/gateways`；注入 `ResolvePaymentAmount` / `ResolveNotifyURL` |
 | 回调 | `payment_notify_controller.go` | `POST /api/payment/notify/{type}[/{tenant}]` |
 
 ## 2. 分表如何定位（回调一定找得到）
@@ -77,7 +77,7 @@ curl -X POST http://127.0.0.1:3000/api/payment/notify/mock \
 
 ## 5. 接入微信 / 支付宝
 
-在 `app/payment/gateways/wechat.go` / `alipay.go` 的 `Notify` / `Query` 中：
+在 `packages/payment/gateways/wechat.go` / `alipay.go` 的 `Notify` / `Query` 中：
 
 1. gopay 验签 / 查询  
 2. 映射为 `payment.PaidResult{PaymentNo, ThirdPartyNo, PayTime, Amount, NotifyData}` 并 **return**  
@@ -87,16 +87,16 @@ curl -X POST http://127.0.0.1:3000/api/payment/notify/mock \
 
 ## 6. 接入全新渠道 / 多支付平台
 
-**结论**：渠道驱动放在 `app/payment/gateways/`（一文件一渠道），**不要**堆在 `app/services`，也不要为每个渠道建 `app/stripe` 域包。注册表与 `PaidResult` 在 `app/payment`；落库编排仍在 services。回调路由已通用：`POST /api/payment/notify/{type}[/{tenant}]`。
+**结论**：渠道驱动放在 `packages/payment/gateways/`（一文件一渠道），**不要**堆在 `app/services`，也不要为每个渠道建 `app/stripe` 域包。注册表与 `PaidResult` 在 `goravel-payment` (`packages/payment`)；落库编排仍在 services。回调路由已通用：`POST /api/payment/notify/{type}[/{tenant}]`。
 
 ### 6.1 每个渠道一份驱动
 
-1. 新建例如 `app/payment/gateways/stripe.go`：
+1. 新建例如 `packages/payment/gateways/stripe.go`：
 
 ```go
 package gateways
 
-import "goravel/app/payment"
+import "goravel-payment"
 
 func init() {
     payment.RegisterGateway(&stripeDriver{})
@@ -106,28 +106,28 @@ type stripeDriver struct{}
 
 func (d *stripeDriver) Type() string { return "stripe" }
 
-func (d *stripeDriver) Create(ctx context.Context, pay *models.Payment, method *models.PaymentMethod, config map[string]any, clientIP string) (map[string]any, error) {
-    // 调第三方下单，notify_url 可用 payment.DefaultNotifyURL(ctx, "stripe")
-    return map[string]any{"payment_no": pay.PaymentNo}, nil
+func (d *stripeDriver) Create(ctx context.Context, order *payment.Order, config map[string]any, clientIP string) (map[string]any, error) {
+    // Call provider; notify_url via payment.DefaultNotifyURL(ctx, "stripe")
+    return map[string]any{"payment_no": order.PaymentNo}, nil
 }
 
-func (d *stripeDriver) Query(ctx context.Context, pay *models.Payment, method *models.PaymentMethod, config map[string]any) (map[string]any, error) {
-    return nil, apperrors.ErrPaymentGatewayNotImplemented
+func (d *stripeDriver) Query(ctx context.Context, order *payment.Order, config map[string]any) (map[string]any, error) {
+    return nil, payment.ErrNotImplemented
 }
 
-func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod, notifyData map[string]any) (*payment.PaidResult, error) {
-    // 验签 → 返回 PaidResult；services 负责 ApplyPaidResult
+func (d *stripeDriver) Notify(ctx context.Context, config map[string]any, notifyData map[string]any) (*payment.PaidResult, error) {
+    // Verify signature -> PaidResult; host ApplyPaidResult writes DB
     return &payment.PaidResult{PaymentNo: "...", ThirdPartyNo: "..."}, nil
 }
 ```
 
-确保已注册 `providers.PaymentServiceProvider`（blank-import `goravel/app/payment/gateways`），新文件的 `init` 会自动注册。
+确保已注册 `providers.PaymentServiceProvider`（blank-import `goravel-payment/gateways`），新文件的 `init` 会自动注册。
 
 2. 后台支付方式 `type` 与 `Type()` 同一字符串（如 `stripe`）
 3. 把新 type 写入 `PAYMENT_GATEWAYS_ENABLED`（生产务必白名单，不要长期空 / `*`）
 4. 前端（可选）：在 Vue/React 的 `PAYMENT_METHOD_TYPES` + `PAYMENT_TYPE_CONFIG_FIELDS` 增加同名项与 i18n（`payment_method.type_<name>`）；未配置字段时仍可出现在下拉（来自 `config.payment_gateways`），但表单无专用字段。只注册已实现的驱动类型。
 
-已注册类型可用 `payment.RegisteredGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考：`app/payment/gateways/mock.go`。
+已注册类型可用 `payment.RegisteredGatewayTypes()` / `/api/admin/info` 的 `payment_gateways` 查看。参考：`packages/payment/gateways/mock.go`。
 
 ### 6.1.1 两种实现方式（都支持）
 
@@ -135,7 +135,7 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 
 | 方式 | 何时用 | 做法 | 仓库内参考 |
 |------|--------|------|------------|
-| **外部 Go 模块 / SDK** | 有稳定官方或社区包（如 Stripe、gopay） | `go get` 写入 `go.mod`，在 `app/payment/gateways/<type>.go` 里调 SDK；**不要**再包一层 `app/<vendor>` 域包 | `gateways/wechat.go` / `alipay.go`（gopay） |
+| **外部 Go 模块 / SDK** | 有稳定官方或社区包（如 Stripe、gopay） | `go get` 写入 `go.mod`，在 `packages/payment/gateways/<type>.go` 里调 SDK；**不要**再包一层 `app/<vendor>` 域包 | `gateways/wechat.go` / `alipay.go`（gopay） |
 | **按文档手写** | 只有 HTTP/签名文档、无可靠 Go 包，或包过重不值得引 | 同文件内用 `net/http` + `crypto` 等自实现验签/下单/查单，返回 `PaidResult` | `gateways/mock.go` |
 
 共同点：
@@ -148,7 +148,7 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 
 | 项 | 原因 |
 |----|------|
-| 把几十个驱动平铺进 `app/services` | 与 CRUD 搅在一起；驱动已迁至 `app/payment/gateways` |
+| 把几十个驱动平铺进 `app/services` | 与 CRUD 搅在一起；驱动在 `packages/payment/gateways` |
 | 每渠道一个 `app/<vendor>` 包 | 与 [服务代码组织](/guide/service-packages) 约定不符；第三方用 **go.mod 依赖** 或驱动内手写即可 |
 | 再引入 PaymentStore / OrderStore ports | 已删除未完成稿；编排留 services |
 | 为新渠道改 routes / 复制 notify controller | 路由已按 `{type}` 分发 |
@@ -160,10 +160,10 @@ func (d *stripeDriver) Notify(ctx context.Context, method *models.PaymentMethod,
 
 | 路径 | 职责 |
 |------|------|
-| `app/payment/gateways/` | 所有渠道驱动（可扩展到几十个） |
-| `app/payment/driver.go` | 注册表接口 |
+| `packages/payment/gateways/` | 所有渠道驱动（可扩展到几十个） |
+| `packages/payment/driver.go (module goravel-payment)` | 注册表接口 |
 | `app/services/payment_apply.go` | `ApplyPaidResult` 编排 |
-| `app/services/payment_gateway_*.go` | 白名单 + PaymentGatewayService；注册表在 `app/payment` |
+| `app/services/payment_gateway_*.go` | 白名单 + PaymentGatewayService；注册表在 `goravel-payment` (`packages/payment`) |
 
 ### 6.4 实现纪律
 

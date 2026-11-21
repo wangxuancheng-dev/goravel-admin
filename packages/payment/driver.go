@@ -5,30 +5,26 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
-	"goravel/app/models"
 )
 
 // GatewayDriver is one payment channel (mock / wechat / stripe / ...).
 //
-// Package boundary (extractable later as a Goravel package):
+// Host boundary:
 //   - Registry + PaidResult + helpers live here; drivers in gateways/ (one file per type).
-//   - Gateways must NOT import app/services (no cycle). Amount lookup uses ResolvePaymentAmount.
-//   - Notify only returns *PaidResult; app services.ApplyPaidResult is the only DB write path.
-//   - App wires drivers + ResolvePaymentAmount via providers.PaymentServiceProvider.
+//   - Drivers must NOT import host services. Amount lookup uses ResolvePaymentAmount.
+//   - Notify only returns *PaidResult; the host owns DB writes.
+//   - Host wires drivers (blank-import gateways) and hooks via a ServiceProvider.
 //
 // Implementation style (both first-class):
-//   - External Go module / SDK in go.mod (see gateways/wechat.go)
+//   - External Go module / SDK (see gateways/wechat.go)
 //   - Hand-written from vendor docs (see gateways/mock.go)
-//
-// Docs: website/docs/advanced/payments.md
 type GatewayDriver interface {
 	Type() string
-	Create(ctx context.Context, payment *models.Payment, method *models.PaymentMethod, config map[string]any, clientIP string) (map[string]any, error)
-	Query(ctx context.Context, payment *models.Payment, method *models.PaymentMethod, config map[string]any) (map[string]any, error)
+	Create(ctx context.Context, order *Order, config map[string]any, clientIP string) (map[string]any, error)
+	Query(ctx context.Context, order *Order, config map[string]any) (map[string]any, error)
 	// Notify verifies the provider callback and returns a PaidResult.
-	// Do not write payment/order rows here — services.ApplyPaidResult owns that.
-	Notify(ctx context.Context, method *models.PaymentMethod, notifyData map[string]any) (*PaidResult, error)
+	// config is the parsed payment-method JSON; do not write payment/order rows here.
+	Notify(ctx context.Context, config map[string]any, notifyData map[string]any) (*PaidResult, error)
 }
 
 var (

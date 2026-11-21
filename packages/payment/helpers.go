@@ -3,25 +3,19 @@ package payment
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/goravel/framework/facades"
-
-	apperrors "goravel/app/errors"
-	"goravel/app/models"
-	"goravel/app/tenancy"
-	"goravel/app/tenancyctx"
 )
 
-// ParseMethodConfig unmarshals payment_methods.config JSON.
-func ParseMethodConfig(pm *models.PaymentMethod) (map[string]any, error) {
-	if pm == nil || strings.TrimSpace(pm.Config) == "" {
+// ParseConfigJSON unmarshals payment method config JSON into a map.
+func ParseConfigJSON(raw string) (map[string]any, error) {
+	if strings.TrimSpace(raw) == "" {
 		return map[string]any{}, nil
 	}
 	var config map[string]any
-	if err := json.Unmarshal([]byte(pm.Config), &config); err != nil {
-		return nil, apperrors.ErrPaymentConfigRequired.WithError(err)
+	if err := json.Unmarshal([]byte(raw), &config); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrConfigRequired, err)
 	}
 	if config == nil {
 		config = map[string]any{}
@@ -101,12 +95,10 @@ func OptionalFloat(data map[string]any, keys ...string) *float64 {
 	return nil
 }
 
-// DefaultNotifyURL builds APP_URL + /api/payment/notify/{type}[/{tenant}].
-func DefaultNotifyURL(ctx context.Context, notifyType string) string {
-	base := strings.TrimRight(facades.Config().GetString("app.url"), "/")
-	code := ""
-	if ctx != nil {
-		code, _ = tenancyctx.CodeFrom(ctx)
+// DefaultNotifyURL returns ResolveNotifyURL(ctx, gatewayType) when wired by the host.
+func DefaultNotifyURL(ctx context.Context, gatewayType string) string {
+	if ResolveNotifyURL != nil {
+		return ResolveNotifyURL(ctx, gatewayType)
 	}
-	return base + tenancy.PaymentNotifyPath(code, notifyType)
+	return ""
 }

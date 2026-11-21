@@ -8,9 +8,10 @@ import (
 	apperrors "goravel/app/errors"
 	"goravel/app/http/response"
 	"goravel/app/models"
-	apppayment "goravel/app/payment"
 	"goravel/app/services"
 	"goravel/app/tenancy"
+
+	gwpay "goravel-payment"
 )
 
 // PaymentNotifyController handles public payment callbacks for any registered gateway type.
@@ -48,7 +49,7 @@ func (c *PaymentNotifyController) handle(ctx http.Context, typ, tenantCode strin
 	if typ == "" {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidPaymentType)
 	}
-	if _, ok := apppayment.LookupGateway(typ); !ok {
+	if _, ok := gwpay.LookupGateway(typ); !ok {
 		return response.Error(ctx, http.StatusBadRequest, apperrors.ErrInvalidPaymentType)
 	}
 	if !services.IsPaymentGatewayEnabled(typ) {

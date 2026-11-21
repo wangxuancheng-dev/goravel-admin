@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apppayment "goravel/app/payment"
 	"goravel/app/services"
 	"goravel/tests"
+
+	gwpay "goravel-payment"
 )
 
 func mockNotifyHMAC(paymentNo, tradeStatus string, amount float64, secret string) string {
@@ -120,7 +121,7 @@ func TestApplyPaidResultIdempotentFeature(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
-	paid, err := services.ApplyPaidResult(ctx, apppayment.PaidResult{
+	paid, err := services.ApplyPaidResult(ctx, gwpay.PaidResult{
 		PaymentNo:    payment.PaymentNo,
 		ThirdPartyNo: "MOCK-UT-1",
 		PayTime:      &now,
@@ -128,7 +129,7 @@ func TestApplyPaidResultIdempotentFeature(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "paid", paid.Status)
 
-	again, err := services.ApplyPaidResult(ctx, apppayment.PaidResult{PaymentNo: payment.PaymentNo})
+	again, err := services.ApplyPaidResult(ctx, gwpay.PaidResult{PaymentNo: payment.PaymentNo})
 	require.NoError(t, err)
 	assert.Equal(t, "paid", again.Status)
 

@@ -39,7 +39,7 @@ Demo accounts are for exploration only. Change default admin password and secret
 | **Mock** gateway pay / query / notify → `ApplyPaidResult` | Runnable locally |
 | WeChat / Alipay client calls (gopay) | Sample; needs your merchant config |
 | WeChat / Alipay query & notify verify | `payment_gateway_not_implemented` (501) |
-| New channels | `app/payment/gateways` + `RegisterGateway` + `notify/{type}` |
+| New channels | `packages/payment/gateways` (`goravel-payment`) + `RegisterGateway` + `notify/{type}` |
 | Refund / original-path refund | Not provided |
 
 On public deploys, restrict gateways with `PAYMENT_GATEWAYS_ENABLED` and withhold payment permissions from roles that should not use them.

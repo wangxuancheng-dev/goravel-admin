@@ -78,6 +78,7 @@ func (kernel *Kernel) Commands() []console.Command {
 		commands.NewCreatePaymentShardingTables(),
 		&commands.GenerateTestOrders{},
 		&commands.GenerateTestPayments{},
+		&commands.PaymentTry{},
 		&commands.AnalyzeStats{},
 		&commands.OptimizeTables{},
 		&commands.ElasticsearchExample{},

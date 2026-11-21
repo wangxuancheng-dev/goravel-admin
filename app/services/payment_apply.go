@@ -8,7 +8,8 @@ import (
 
 	apperrors "goravel/app/errors"
 	"goravel/app/models"
-	apppayment "goravel/app/payment"
+
+	"goravel-payment"
 )
 
 // ApplyPaidResult marks a payment paid (idempotent) and syncs the related order when still pending.
@@ -16,8 +17,8 @@ import (
 // Sharding: payment is located by payment_no (PAY+YYYYMMDD → payments_YYYYMM);
 // order is located by payment.OrderNo (ORD+YYYYMM → orders_YYYYMM). Cross-month
 // pay is fine — each no encodes its own create month.
-// Status gate lives in goravel/app/payment (ApplyPaidResultStatusGate).
-func ApplyPaidResult(ctx context.Context, result apppayment.PaidResult) (*models.Payment, error) {
+// Status gate lives in goravel-payment (ApplyPaidResultStatusGate).
+func ApplyPaidResult(ctx context.Context, result payment.PaidResult) (*models.Payment, error) {
 	paymentNo := strings.TrimSpace(result.PaymentNo)
 	if paymentNo == "" {
 		return nil, apperrors.ErrPaymentNoRequired
@@ -29,9 +30,9 @@ func ApplyPaidResult(ctx context.Context, result apppayment.PaidResult) (*models
 		return nil, err
 	}
 
-	skip, err := apppayment.ApplyPaidResultStatusGate(pay.Status)
+	skip, err := payment.ApplyPaidResultStatusGate(pay.Status)
 	if err != nil {
-		return nil, err
+		return nil, mapGatewayStatusGateError(err)
 	}
 	if skip {
 		return pay, nil
