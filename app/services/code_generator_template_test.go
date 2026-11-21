@@ -157,9 +157,9 @@ func TestPreviewMatchesGeneratedFiles(t *testing.T) {
 					if preview != note {
 						t.Fatalf("a file the generator skips must preview as the note, got:\n%s", preview)
 					}
-					files, err := impl.Generate("probe", "probes", fields, []string{gen.fileType}, opts)
-					if err != nil {
-						t.Fatalf("generate failed: %v", err)
+					files, genErr := impl.Generate("probe", "probes", fields, []string{gen.fileType}, opts)
+					if genErr != nil {
+						t.Fatalf("generate failed: %v", genErr)
 					}
 					for _, f := range files {
 						if strings.HasSuffix(f.Path, "Config.ts") || strings.HasSuffix(f.Path, "FormModal.tsx") {
